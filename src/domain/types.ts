@@ -1,0 +1,116 @@
+export type Gender = 'Nam' | 'Nữ' | 'Khác';
+
+export type AllergenGrade = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+export type ToastType = 'success' | 'error' | 'info';
+
+export type ResultStatus = 'normal' | 'low' | 'high';
+
+export interface Patient {
+  code: string;
+  secretToken: string;
+  name: string;
+  dob: string;
+  gender: Gender;
+  phone: string;
+  address: string;
+  diagnosis: string;
+}
+
+export interface CatalogItem {
+  category: string;
+  code: string;
+  name: string;
+  refMin: number | null;
+  refMax: number | null;
+  unit: string;
+  refText: string;
+  price?: number;
+  scientific?: string;
+  equipment?: string;
+}
+
+export interface SelectedTest extends CatalogItem {
+  result: string;
+  note: string;
+}
+
+export interface TestPackage {
+  id: string;
+  name: string;
+  codes: string[];
+  price: number;
+}
+
+export interface TestGroup {
+  id: string;
+  name: string;
+}
+
+export interface TestEquipment {
+  id: string;
+  name: string;
+  code?: string;
+}
+
+export interface Doctor {
+  id: string;
+  name: string;
+  specialty?: string;
+  phone?: string;
+}
+
+export interface InvoiceItem {
+  code: string;
+  name: string;
+  price: number;
+}
+
+export interface Invoice {
+  id: string;
+  code: string;
+  createdAt: string;
+  patientName: string;
+  patientCode: string;
+  doctorName?: string;
+  packageName?: string;
+  items: InvoiceItem[];
+  totalAmount: number;
+  discountAmount?: number;
+  finalAmount: number;
+  paymentMethod?: 'Tiền mặt' | 'Chuyển khoản (VietQR)' | 'Quẹt thẻ';
+  status?: string;
+  notes?: string;
+}
+
+export interface ClinicInfo {
+  name: string;
+  address: string;
+  phone: string;
+  defaultDoctor: string;
+}
+
+export interface AllergenGradeResult {
+  grade: AllergenGrade;
+  iuValue: string;
+  note: string;
+  statusStr: 'Dương tính' | 'Âm tính';
+}
+
+export interface TestResultEvaluation {
+  status: ResultStatus;
+  label: string;
+}
+
+export interface StorageResult {
+  success: boolean;
+  path?: string;
+  error?: string;
+}
+
+export interface CloudDbConfig {
+  enabled: boolean;
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  autoSync: boolean;
+}
