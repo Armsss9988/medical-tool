@@ -1,342 +1,290 @@
-import golabLogo from '../assets/golablogo.jpg';
-import { ALLERGEN_91_DATABASE } from '@data/allergenCatalog';
-import { calculateAllergenGrade } from '@domain/allergen';
+import { evaluateResult } from '@domain/testResult';
 import { downloadQrCodeImage } from '@infra/qrService';
 import { Download } from 'lucide-react';
+import golabLogo from '@assets/golablogo.jpg';
 import { ClinicInfo, Patient, SelectedTest } from '@domain/types';
 
-interface FullAllergenReportViewProps {
+interface PrintReportViewProps {
   elementId?: string;
   clinicInfo: ClinicInfo;
   patient: Patient;
   selectedTests: SelectedTest[];
+  conclusion?: string;
   doctorName?: string;
   qrCodeDataUrl?: string;
 }
 
-export default function FullAllergenReportView({
-  elementId = 'printable-medical-report',
-  clinicInfo,
-  patient,
-  selectedTests = [],
+export default function PrintReportView({ 
+  elementId = 'printable-medical-report', 
+  clinicInfo, 
+  patient, 
+  selectedTests, 
+  conclusion, 
   doctorName,
-  qrCodeDataUrl
-}: FullAllergenReportViewProps) {
+  qrCodeDataUrl 
+}: PrintReportViewProps) {
   const currentDateStr = new Date().toLocaleDateString('vi-VN', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric'
   });
 
-  // Map 91 dị nguyên từ ALLERGEN_91_DATABASE với kết quả nhập trong selectedTests
-  const mappedList = ALLERGEN_91_DATABASE.map((dbItem) => {
-    const match = selectedTests.find((t) => t.code === dbItem.code);
-    let isTested = false;
-    let resultVal = '<0,15';
-    let gradeVal = 0;
-
-    if (match) {
-      isTested = true;
-      if (match.code === 'TIgE') {
-        resultVal = match.result ? String(match.result).replace('.', ',') : '45,2';
-        gradeVal = 0;
-      } else {
-        const evalInfo = calculateAllergenGrade(match.result || match.note);
-        resultVal = evalInfo.iuValue;
-        gradeVal = evalInfo.grade;
-      }
-    }
-
-    return {
-      ...dbItem,
-      isTested,
-      resultVal,
-      gradeVal
-    };
-  });
-
-  // Tách nhóm: TIgE đứng đầu, kế tiếp là dị nguyên ĐÃ XÉT NGHIỆM, sau cùng là dị nguyên chưa xét nghiệm
-  const tIgEItem = mappedList.find((i) => i.code === 'TIgE') || mappedList[0];
-  const otherItems = mappedList.filter((i) => i.code !== 'TIgE');
-
-  // Sắp xếp: Đã test đưa lên trước, trong số đã test thì Grade cao lên trước
-  const testedItems = otherItems.filter((i) => i.isTested).sort((a, b) => b.gradeVal - a.gradeVal);
-  const untestedItems = otherItems.filter((i) => !i.isTested);
-
-  const sortedList = [tIgEItem, ...testedItems, ...untestedItems];
-
-  // Chia bảng 91 chỉ số làm 2 cột (Cột 1: STT 1-46, Cột 2: STT 47-91)
-  const halfLength = Math.ceil(sortedList.length / 2);
-  const col1 = sortedList.slice(0, halfLength);
-  const col2 = sortedList.slice(halfLength);
-
   return (
-    <div
+    <div 
       id={elementId}
-      className="bg-white text-slate-900 font-sans p-6 max-w-[210mm] mx-auto box-border text-[10px] leading-snug relative border border-slate-200"
+      className="bg-white text-slate-900 font-sans p-8 max-w-[210mm] mx-auto min-h-[297mm] flex flex-col justify-between box-border text-[12px] leading-relaxed relative border border-slate-200"
     >
-      {/* 1. HEADER LOGO VÀ PHÒNG KHÁM */}
-      <div className="flex items-start justify-between border-b-2 border-slate-800 pb-2 mb-3">
-        <div className="flex items-center space-x-3 max-w-[70%]">
-          <img
-            src={golabLogo}
-            alt="GoLab Logo"
-            className="w-14 h-14 object-contain rounded border border-slate-200 shrink-0"
-          />
-          <div>
-            <h1 className="text-xs font-extrabold uppercase tracking-tight text-slate-900 leading-tight">
-              {clinicInfo.name || 'PHÒNG KHÁM XÉT NGHIỆM Y KHOA AN BÌNH'}
-            </h1>
-            <p className="text-[9.5px] text-slate-700 font-semibold mt-0.5">
-              Địa chỉ phòng khám: <span className="font-medium text-slate-900">{clinicInfo.address || 'Số 123 Đường Giải Phóng, Đống Đa, Hà Nội'}</span>
-            </p>
-            <p className="text-[9px] text-slate-700 font-semibold">
-              Điện thoại / Zalo: <strong className="text-slate-900 font-mono font-bold">{clinicInfo.phone || '0988 123 456'}</strong>
-            </p>
+      
+      {/* KHUNG NỘI DUNG CHÍNH (TOP & MIDDLE) */}
+      <div>
+        
+        {/* 1. HEADER PHÒNG KHÁM VÀ MÃ QR PHIẾU */}
+        <div className="flex items-start justify-between border-b-2 border-slate-800 pb-3 mb-4">
+          <div className="flex items-center space-x-3 max-w-[70%]">
+            <img 
+              src={golabLogo} 
+              alt="GoLab Logo" 
+              className="w-16 h-16 object-contain rounded border border-slate-200 shrink-0" 
+            />
+            <div>
+              <h1 className="text-sm font-extrabold uppercase tracking-tight text-slate-900 leading-tight">
+                {clinicInfo.name || 'PHÒNG KHÁM XÉT NGHIỆM Y KHOA AN BÌNH'}
+              </h1>
+              <p className="text-[10.5px] text-slate-700 font-semibold mt-0.5">
+                Địa chỉ phòng khám: <span className="font-medium text-slate-900">{clinicInfo.address || 'Số 123 Đường Giải Phóng, Đống Đa, Hà Nội'}</span>
+              </p>
+              <p className="text-[10px] text-slate-700 font-semibold">
+                Điện thoại / Zalo: <strong className="text-slate-900 font-mono font-bold">{clinicInfo.phone || '0988 123 456'}</strong>
+              </p>
+            </div>
           </div>
+
+          {/* Ô Mã QR Code Tra Cứu */}
+          {qrCodeDataUrl ? (
+            <div className="text-center flex flex-col items-center justify-center shrink-0 group relative">
+              <div className="p-1 bg-white border border-slate-300 rounded shadow-sm">
+                <img 
+                  src={qrCodeDataUrl} 
+                  alt="Mã QR tra cứu kết quả" 
+                  className="w-16 h-16 block"
+                />
+              </div>
+              <span className="text-[8px] text-slate-500 font-mono font-bold mt-0.5 uppercase tracking-tighter">
+                Quét mã xem PDF
+              </span>
+              
+              <button
+                type="button"
+                onClick={() => downloadQrCodeImage(qrCodeDataUrl, `QRCode_${(patient.name || 'BenhNhan').replace(/\s+/g, '_')}.png`)}
+                title="Tải ảnh QR Code về máy"
+                className="hidden print:hidden group-hover:flex items-center gap-0.5 text-[9px] bg-slate-800 text-white px-1.5 py-0.5 rounded mt-0.5 hover:bg-slate-900 transition-all font-semibold"
+              >
+                <Download className="w-2.5 h-2.5" />
+                <span>Tải ảnh</span>
+              </button>
+            </div>
+          ) : (
+            <div className="text-right shrink-0">
+              <span className="text-[10px] font-mono text-slate-400 block">Mã phiếu XN:</span>
+              <strong className="text-xs font-mono text-slate-900">{patient.code}</strong>
+            </div>
+          )}
         </div>
 
-        {/* Mã QR Code tra cứu */}
-        {qrCodeDataUrl ? (
-          <div className="text-center flex flex-col items-center justify-center shrink-0 group relative">
-            <div className="p-1 bg-white border border-slate-300 rounded shadow-sm">
-              <img
-                src={qrCodeDataUrl}
-                alt="Mã QR tra cứu kết quả"
-                className="w-14 h-14 block"
-              />
-            </div>
-            <span className="text-[8px] text-slate-500 font-mono font-bold mt-0.5 uppercase tracking-tighter">
-              Quét mã xem PDF
-            </span>
+        {/* 2. TIÊU ĐỀ PHIẾU XÉT NGHIỆM */}
+        <div className="text-center my-2">
+          <h2 className="text-lg font-black text-slate-900 uppercase tracking-wide">
+            PHIẾU KẾT QUẢ XÉT NGHIỆM
+          </h2>
+        </div>
 
-            <button
-              type="button"
-              onClick={() =>
-                downloadQrCodeImage(
-                  qrCodeDataUrl,
-                  `QRCode_${(patient.name || 'BenhNhan').replace(/\s+/g, '_')}.png`
-                )
-              }
-              title="Tải ảnh QR Code về máy"
-              className="hidden print:hidden group-hover:flex items-center gap-0.5 text-[8px] bg-slate-800 text-white px-1.5 py-0.5 rounded mt-0.5 hover:bg-slate-900 transition-all font-semibold"
-            >
-              <Download className="w-2.5 h-2.5" />
-              <span>Tải ảnh</span>
-            </button>
-          </div>
-        ) : (
-          <div className="text-right shrink-0">
-            <span className="text-[9px] font-mono text-slate-400 block">Mã phiếu XN:</span>
-            <strong className="text-xs font-mono text-slate-900">{patient.code}</strong>
+        {/* 3. THÔNG TIN BỆNH NHÂN LÂM SÀNG (BẢNG 12 TRƯỜNG CHUẨN MẪU) */}
+        <table className="w-full text-left border-collapse border border-sky-300 text-[11px] mb-4">
+          <tbody>
+            <tr className="border-b border-sky-200 divide-x divide-sky-200">
+              <td className="py-1 px-3 w-[15%] text-slate-700 font-medium bg-sky-50/40">Họ và tên:</td>
+              <td className="py-1 px-3 w-[35%] font-extrabold text-red-600 uppercase text-xs">
+                {patient.name || '...........................................'}
+              </td>
+              <td className="py-1 px-3 w-[18%] text-slate-700 font-medium bg-sky-50/40">T/G chỉ định</td>
+              <td className="py-1 px-3 w-[32%] font-bold text-slate-900 font-mono">
+                {patient.orderedAt || currentDateStr}
+              </td>
+            </tr>
+
+            <tr className="border-b border-sky-200 divide-x divide-sky-200">
+              <td className="py-1 px-3 text-slate-700 font-medium bg-sky-50/40">Năm sinh:</td>
+              <td className="py-1 px-3 font-bold text-slate-900">
+                {patient.dob || '...........'}
+              </td>
+              <td className="py-1 px-3 text-slate-700 font-medium bg-sky-50/40">T/G đóng phí</td>
+              <td className="py-1 px-3 font-bold text-slate-900 font-mono">
+                {patient.paidAt || currentDateStr}
+              </td>
+            </tr>
+
+            <tr className="border-b border-sky-200 divide-x divide-sky-200">
+              <td className="py-1 px-3 text-slate-700 font-medium bg-sky-50/40">Địa chỉ</td>
+              <td className="py-1 px-3 font-medium text-slate-900">
+                {patient.diagnosis || patient.address || '...........................................'}
+              </td>
+              <td className="py-1 px-3 text-slate-700 font-medium bg-sky-50/40">Số bệnh phẩm</td>
+              <td className="py-1 px-3 font-extrabold text-red-600 font-mono">
+                {patient.sampleCode || patient.code}
+              </td>
+            </tr>
+
+            <tr className="border-b border-sky-200 divide-x divide-sky-200">
+              <td className="py-1 px-3 text-slate-700 font-medium bg-sky-50/40">Giới tính:</td>
+              <td className="py-1 px-3 font-bold text-slate-900">
+                {patient.gender || 'Nam'}
+              </td>
+              <td className="py-1 px-3 text-slate-700 font-medium bg-sky-50/40">Tình trạng mẫu</td>
+              <td className="py-1 px-3 font-bold text-slate-900">
+                {patient.sampleStatus || 'Đạt'}
+              </td>
+            </tr>
+
+            <tr className="border-b border-sky-200 divide-x divide-sky-200">
+              <td className="py-1 px-3 text-slate-700 font-medium bg-sky-50/40">Số điện thoại</td>
+              <td className="py-1 px-3 font-bold text-slate-900 font-mono">
+                {patient.phone || '......................'}
+              </td>
+              <td className="py-1 px-3 text-slate-700 font-medium bg-sky-50/40">T/G nhận mẫu</td>
+              <td className="py-1 px-3 font-bold text-slate-900 font-mono">
+                {patient.receivedAt || currentDateStr}
+              </td>
+            </tr>
+
+            <tr className="divide-x divide-sky-200">
+              <td className="py-1 px-3 text-slate-700 font-medium bg-sky-50/40">Bác sĩ chỉ định</td>
+              <td className="py-1 px-3 font-bold text-slate-900">
+                {doctorName || patient.address || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long'}
+              </td>
+              <td className="py-1 px-3 text-slate-700 font-medium bg-sky-50/40">T/G trả kết quả</td>
+              <td className="py-1 px-3 font-bold text-slate-900 font-mono">
+                {patient.returnedAt || currentDateStr}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* 4. BẢNG KẾT QUẢ XÉT NGHIỆM CHUẨN (GỠ CỘT GIÁ TIỀN LẺ) */}
+        <table className="w-full text-left border-collapse border border-slate-400 text-[11px]">
+          <thead>
+            <tr className="bg-white text-slate-900 font-bold text-center border-b-2 border-slate-400">
+              <th className="py-2 px-2 border-r border-slate-400 w-[6%]">STT</th>
+              <th className="py-2 px-3 border-r border-slate-400 text-left w-[36%]">Tên Xét Nghiệm / Chỉ Số</th>
+              <th className="py-2 px-2 border-r border-slate-400 w-[14%]">Kết Quả</th>
+              <th className="py-2 px-2 border-r border-slate-400 w-[12%]">Đơn Vị</th>
+              <th className="py-2 px-3 border-r border-slate-400 w-[18%]">Trị Số Tham Chiếu</th>
+              <th className="py-2 px-2 w-[14%]">Ghi Chú</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-300">
+            {selectedTests.length > 0 ? (
+              selectedTests.map((item, index) => {
+                const evalInfo = evaluateResult(item.result, item.refMin, item.refMax);
+                const isAbnormal = evalInfo.status === 'high' || evalInfo.status === 'low';
+
+                return (
+                  <tr key={item.code || index} className={isAbnormal ? 'bg-slate-100 font-semibold' : ''}>
+                    {/* STT */}
+                    <td className="py-1.5 px-2 text-center border-r border-slate-300 text-slate-500 font-mono">
+                      {index + 1}
+                    </td>
+
+                    {/* Tên chỉ số */}
+                    <td className="py-1.5 px-3 border-r border-slate-300">
+                      <span className="font-bold text-slate-900">{item.name}</span>
+                      {item.scientific && (
+                        <span className="text-[10px] text-slate-500 block italic font-normal">({item.scientific})</span>
+                      )}
+                    </td>
+
+                    {/* Kết quả */}
+                    <td className={`py-1.5 px-2 text-center border-r border-slate-300 font-mono ${
+                      isAbnormal ? 'font-bold text-slate-900 text-xs' : 'font-semibold text-slate-800'
+                    }`}>
+                      {item.result || '-'}
+                    </td>
+
+                    {/* Đơn vị */}
+                    <td className="py-1.5 px-2 text-center border-r border-slate-300 font-mono text-[10px] text-slate-600">
+                      {item.unit || '-'}
+                    </td>
+
+                    {/* Trị số tham chiếu */}
+                    <td className="py-1.5 px-3 text-center border-r border-slate-300 text-[10px] text-slate-700">
+                      {item.refText || (item.refMin !== null && item.refMax !== null ? `${item.refMin} - ${item.refMax}` : 'Bình thường')}
+                    </td>
+
+                    {/* Ghi chú */}
+                    <td className="py-1.5 px-2 text-center font-bold text-[10px]">
+                      {isAbnormal ? (
+                        <span className="text-slate-900 underline font-black">{evalInfo.label}</span>
+                      ) : (
+                        <span className="text-slate-600 font-normal">{item.note || 'Bình thường'}</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan={6} className="py-6 text-center text-slate-400 italic">
+                  Chưa chọn chỉ số xét nghiệm nào để in phiếu.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+
+        {/* 5. GHI CHÚ VÀ KẾT LUẬN CỦA BÁC SĨ */}
+        {conclusion && (
+          <div className="mt-4 p-3 bg-slate-50 border border-slate-300 rounded text-[11px]">
+            <strong className="text-slate-900 uppercase text-[10px] font-bold block mb-0.5">
+              Kết luận / Lời khuyên của Bác sĩ:
+            </strong>
+            <p className="text-slate-800 whitespace-pre-line leading-normal italic font-medium">
+              {conclusion}
+            </p>
           </div>
         )}
+
       </div>
 
-      {/* 2. TIÊU ĐỀ BÁO CÁO DỊ NGUYÊN PROTIA */}
-      <div className="text-center my-2">
-        <h2 className="text-base font-black text-slate-900 uppercase tracking-wide">
-          BẢNG KẾT QUẢ XÉT NGHIỆM 91 DỊ NGUYÊN IgE (PROTIA ALLERGY-Q SMART)
-        </h2>
-        <p className="text-[9px] text-slate-500 italic font-mono">
-          Mã phiếu: <strong className="text-slate-800 font-bold">{patient.code}</strong> • Ngày xét nghiệm: {currentDateStr}
-        </p>
-      </div>
-
-      {/* 3. THÔNG TIN BỆNH NHÂN LÂM SÀNG */}
-      <div className="bg-slate-50 border border-slate-300 rounded p-2 mb-2 grid grid-cols-3 gap-y-1 text-[9.5px]">
-        <div>
-          <span className="text-slate-500 font-medium">Họ và tên: </span>
-          <strong className="text-slate-900 font-bold uppercase">{patient.name || '...........................................'}</strong>
-        </div>
-        <div>
-          <span className="text-slate-500 font-medium">Năm sinh / Tuổi: </span>
-          <strong className="text-slate-900">{patient.dob || '...........'}</strong>
-        </div>
-        <div>
-          <span className="text-slate-500 font-medium">Giới tính: </span>
-          <strong className="text-slate-900">{patient.gender || 'Nam'}</strong>
-        </div>
-
-        <div>
-          <span className="text-slate-500 font-medium">Điện thoại: </span>
-          <span className="text-slate-900 font-mono font-semibold">{patient.phone || '......................'}</span>
-        </div>
-        <div className="col-span-2">
-          <span className="text-slate-500 font-medium">Bác sĩ chỉ định: </span>
-          <span className="text-slate-900 font-semibold">{doctorName || patient.address || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long'}</span>
-        </div>
-
-        <div className="col-span-3">
-          <span className="text-slate-500 font-medium">Chẩn đoán / Lý do khám: </span>
-          <span className="text-slate-900 italic font-medium">{patient.diagnosis || 'Dị ứng thực phẩm / hô hấp'}</span>
-        </div>
-      </div>
-
-      {/* 4. CHÚ GIẢI THANG ĐO GRADE (0 - 6) */}
-      <div className="bg-red-50/70 border border-red-200 rounded p-1.5 mb-2 flex items-center justify-between text-[8.5px]">
-        <span className="font-bold text-red-950">Phân độ IgE:</span>
-        <span className="text-slate-700"><strong>Độ 0</strong> (&lt;0.35 Âm tính)</span>
-        <span className="text-slate-700"><strong>Độ 1</strong> (0.35-0.69 Yếu)</span>
-        <span className="text-amber-800"><strong>Độ 2</strong> (0.70-3.49 TB)</span>
-        <span className="text-amber-900"><strong>Độ 3</strong> (3.50-17.49 Khá)</span>
-        <span className="text-red-700 font-bold"><strong>Độ 4</strong> (17.5-49.9 Mạnh)</span>
-        <span className="text-red-800 font-bold"><strong>Độ 5</strong> (50-100 Rất mạnh)</span>
-        <span className="text-red-950 font-black"><strong>Độ 6</strong> (&gt;100 Cực mạnh)</span>
-      </div>
-
-      {/* 5. BẢNG 91 CHỈ SỐ CHIA 2 CỘT SONG SONG */}
-      <div className="grid grid-cols-2 gap-2 mb-3">
-        {/* CỘT 1 (1 - 46) */}
-        <table className="w-full text-left border-collapse border border-slate-300 text-[8.5px]">
-          <thead>
-            <tr className="bg-red-100/80 text-red-950 font-bold text-center border-b border-slate-300">
-              <th className="py-1 px-1 border-r border-slate-300 w-[7%]">STT</th>
-              <th className="py-1 px-1 border-r border-slate-300 text-left w-[43%]">Dị Nguyên (Allergen)</th>
-              <th className="py-1 px-1 border-r border-slate-300 w-[18%]">Mã / IU/mL</th>
-              <th className="py-1 px-1 border-r border-slate-300 w-[14%]">Độ (Grade)</th>
-              <th className="py-1 px-1 w-[18%]">Đánh Giá</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {col1.map((item, idx) => {
-              const isTested = item.isTested;
-              const isPositive = item.gradeVal > 0;
-
-              return (
-                <tr
-                  key={item.code}
-                  className={
-                    isPositive
-                      ? 'bg-red-100/70 font-bold text-red-950'
-                      : isTested
-                      ? 'bg-sky-50/50 font-semibold'
-                      : 'hover:bg-slate-50'
-                  }
-                >
-                  <td className="py-0.5 px-1 text-center border-r border-slate-200 font-mono text-slate-500">{idx + 1}</td>
-                  <td className="py-0.5 px-1 border-r border-slate-200">
-                    <span className={isPositive ? 'text-red-950 font-bold' : isTested ? 'text-slate-900 font-bold' : 'text-slate-700'}>
-                      {item.name}
-                    </span>
-                    {item.scientific && (
-                      <span className="text-[7.5px] text-slate-400 block italic font-normal">{item.scientific}</span>
-                    )}
-                  </td>
-                  <td className="py-0.5 px-1 text-center border-r border-slate-200 font-mono">
-                    <span className="font-extrabold text-slate-900">{item.code}</span>
-                    {isTested && <span className="block text-[7.5px] text-sky-800 font-mono font-bold">{item.resultVal}</span>}
-                  </td>
-                  <td className="py-0.5 px-1 text-center border-r border-slate-200 font-mono">
-                    {isPositive ? (
-                      <span className="inline-block bg-red-600 text-white font-extrabold px-1 py-0.2 rounded text-[8px]">
-                        Độ {item.gradeVal}
-                      </span>
-                    ) : (
-                      <span className="text-slate-500 font-normal">Độ 0</span>
-                    )}
-                  </td>
-                  <td className="py-0.5 px-1 text-center font-bold">
-                    {isPositive ? (
-                      <span className="text-red-700 font-black">DƯƠNG TÍNH</span>
-                    ) : (
-                      <span className="text-slate-400 font-normal">Âm tính</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-
-        {/* CỘT 2 (47 - 91) */}
-        <table className="w-full text-left border-collapse border border-slate-300 text-[8.5px]">
-          <thead>
-            <tr className="bg-red-100/80 text-red-950 font-bold text-center border-b border-slate-300">
-              <th className="py-1 px-1 border-r border-slate-300 w-[7%]">STT</th>
-              <th className="py-1 px-1 border-r border-slate-300 text-left w-[43%]">Dị Nguyên (Allergen)</th>
-              <th className="py-1 px-1 border-r border-slate-300 w-[18%]">Mã / IU/mL</th>
-              <th className="py-1 px-1 border-r border-slate-300 w-[14%]">Độ (Grade)</th>
-              <th className="py-1 px-1 w-[18%]">Đánh Giá</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {col2.map((item, idx) => {
-              const isTested = item.isTested;
-              const isPositive = item.gradeVal > 0;
-
-              return (
-                <tr
-                  key={item.code}
-                  className={
-                    isPositive
-                      ? 'bg-red-100/70 font-bold text-red-950'
-                      : isTested
-                      ? 'bg-sky-50/50 font-semibold'
-                      : 'hover:bg-slate-50'
-                  }
-                >
-                  <td className="py-0.5 px-1 text-center border-r border-slate-200 font-mono text-slate-500">{halfLength + idx + 1}</td>
-                  <td className="py-0.5 px-1 border-r border-slate-200">
-                    <span className={isPositive ? 'text-red-950 font-bold' : isTested ? 'text-slate-900 font-bold' : 'text-slate-700'}>
-                      {item.name}
-                    </span>
-                    {item.scientific && (
-                      <span className="text-[7.5px] text-slate-400 block italic font-normal">{item.scientific}</span>
-                    )}
-                  </td>
-                  <td className="py-0.5 px-1 text-center border-r border-slate-200 font-mono">
-                    <span className="font-extrabold text-slate-900">{item.code}</span>
-                    {isTested && <span className="block text-[7.5px] text-sky-800 font-mono font-bold">{item.resultVal}</span>}
-                  </td>
-                  <td className="py-0.5 px-1 text-center border-r border-slate-200 font-mono">
-                    {isPositive ? (
-                      <span className="inline-block bg-red-600 text-white font-extrabold px-1 py-0.2 rounded text-[8px]">
-                        Độ {item.gradeVal}
-                      </span>
-                    ) : (
-                      <span className="text-slate-500 font-normal">Độ 0</span>
-                    )}
-                  </td>
-                  <td className="py-0.5 px-1 text-center font-bold">
-                    {isPositive ? (
-                      <span className="text-red-700 font-black">DƯƠNG TÍNH</span>
-                    ) : (
-                      <span className="text-slate-400 font-normal">Âm tính</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* 6. CHỮ KÝ VÀ KẾT LUẬN DỊ ỨNG */}
-      <div className="pt-2 border-t border-slate-300">
+      {/* FOOTER CHỮ KÝ VÀ NGÀY THÁNG (BOTTOM) */}
+      <div className="mt-6 pt-3 border-t border-slate-300">
         <div className="flex items-start justify-between text-center">
-          <div className="text-left text-[8.5px] text-slate-500 space-y-0.5 max-w-[55%]">
-            <p className="font-bold text-slate-800 uppercase">Khuyến cáo dị ứng lâm sàng:</p>
-            <p>- Kết quả Dương tính (&ge; Độ 1) cho thấy cơ thể đã sản sinh kháng thể IgE đặc hiệu với dị nguyên tương ứng.</p>
-            <p>- Bệnh nhân nên kiêng hoặc tránh tiếp xúc với các dị nguyên có độ cảnh báo cao (&ge; Độ 3).</p>
+          
+          {/* Bên trái: Chú thích & Lưu ý */}
+          <div className="text-left text-[9px] text-slate-500 space-y-0.5 max-w-[50%]">
+            <p className="font-bold text-slate-700 uppercase">Lưu ý đối với bệnh nhân:</p>
+            <p>- Phiếu kết quả này chỉ có giá trị tại thời điểm xét nghiệm.</p>
+            <p>- Vui lòng mang phiếu này khi đến tái khám hoặc tư vấn bác sĩ chuyên khoa.</p>
           </div>
 
-          <div className="text-center min-w-[180px]">
-            <p className="text-[9px] text-slate-600 italic">Hà Nội, ngày {currentDateStr}</p>
-            <p className="text-[10px] font-bold uppercase text-slate-900 mt-0.5">BÁC SĨ / KTV CHUYÊN KHOA DỊ ỨNG</p>
-            <div className="h-12 flex items-center justify-center">
-              <span className="text-[9px] text-slate-300 italic">(Đã ký & Đóng dấu)</span>
+          {/* Bên phải: Chữ ký Bác sĩ */}
+          <div className="text-center min-w-[200px]">
+            <p className="text-[10px] text-slate-600 italic">Hà Nội, ngày {currentDateStr}</p>
+            <p className="text-[11px] font-bold uppercase text-slate-900 mt-1">BÁC SĨ / KTV XÉT NGHIỆM</p>
+            <div className="h-16 flex items-center justify-center">
+              <span className="text-[10px] text-slate-300 italic">(Đã ký & Đóng dấu)</span>
             </div>
-            <p className="text-[11px] font-bold text-slate-900 uppercase">
-              {doctorName || clinicInfo.defaultDoctor || 'BS. Nguyễn Thị Mai'}
+            <p className="text-xs font-bold text-slate-900 uppercase">
+              {doctorName || clinicInfo.defaultDoctor || 'BS. CKII. Lê Anh Minh'}
             </p>
           </div>
+
         </div>
 
-        <div className="mt-2 pt-1 border-t border-slate-200 text-center text-[8px] text-slate-500 uppercase font-mono tracking-tight">
-          {clinicInfo.name || 'PHÒNG KHÁM XÉT NGHIỆM GOLAB'} • HỆ THỐNG XÉT NGHIỆM DỊ NGUYÊN TỰ ĐỘNG CHUẨN KHOA HỌC
+        {/* Dòng copyright chân trang */}
+        <div className="mt-4 pt-1 border-t border-slate-200 text-center text-[8.5px] text-slate-500 uppercase font-mono tracking-tight">
+          {clinicInfo.name || 'PHÒNG KHÁM XÉT NGHIỆM GOLAB'} • ĐỊA CHỈ: {clinicInfo.address || 'Số 123 Đường Giải Phóng, Đống Đa, Hà Nội'} • HOTLINE: {clinicInfo.phone || '0988 123 456'}
         </div>
       </div>
+
     </div>
   );
 }

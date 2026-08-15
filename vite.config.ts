@@ -6,13 +6,14 @@ import path from 'path';
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: '/',
+  base: './',
   resolve: {
     alias: {
       '@domain': path.resolve(import.meta.dirname, './src/domain'),
       '@infra': path.resolve(import.meta.dirname, './src/infrastructure'),
       '@data': path.resolve(import.meta.dirname, './src/data'),
-      '@components': path.resolve(import.meta.dirname, './src/components')
+      '@components': path.resolve(import.meta.dirname, './src/components'),
+      '@assets': path.resolve(import.meta.dirname, './src/assets')
     }
   },
   server: {

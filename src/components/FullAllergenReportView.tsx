@@ -1,4 +1,4 @@
-import golabLogo from '../assets/golablogo.jpg';
+import golabLogo from '@assets/golablogo.jpg';
 import { ALLERGEN_91_DATABASE } from '@data/allergenCatalog';
 import { calculateAllergenGrade } from '@domain/allergen';
 import { downloadQrCodeImage } from '@infra/qrService';
@@ -143,50 +143,79 @@ export default function FullAllergenReportView({
         </p>
       </div>
 
-      {/* 3. THÔNG TIN BỆNH NHÂN LÂM SÀNG */}
-      <div className="bg-slate-50 border border-slate-300 rounded p-2 mb-2 grid grid-cols-3 gap-y-1 text-[9.5px]">
-        <div>
-          <span className="text-slate-500 font-medium">Họ và tên: </span>
-          <strong className="text-slate-900 font-bold uppercase">{patient.name || '...........................................'}</strong>
-        </div>
-        <div>
-          <span className="text-slate-500 font-medium">Năm sinh / Tuổi: </span>
-          <strong className="text-slate-900">{patient.dob || '...........'}</strong>
-        </div>
-        <div>
-          <span className="text-slate-500 font-medium">Giới tính: </span>
-          <strong className="text-slate-900">{patient.gender || 'Nam'}</strong>
-        </div>
+      {/* 3. THÔNG TIN BỆNH NHÂN LÂM SÀNG (BẢNG 12 TRƯỜNG CHUẨN MẪU) */}
+      <table className="w-full text-left border-collapse border border-sky-300 text-[9.5px] mb-2">
+        <tbody>
+          <tr className="border-b border-sky-200 divide-x divide-sky-200">
+            <td className="py-0.5 px-2 w-[15%] text-slate-700 font-medium bg-sky-50/40">Họ và tên:</td>
+            <td className="py-0.5 px-2 w-[35%] font-extrabold text-red-600 uppercase text-[10.5px]">
+              {patient.name || '...........................................'}
+            </td>
+            <td className="py-0.5 px-2 w-[18%] text-slate-700 font-medium bg-sky-50/40">T/G chỉ định</td>
+            <td className="py-0.5 px-2 w-[32%] font-bold text-slate-900 font-mono">
+              {patient.orderedAt || currentDateStr}
+            </td>
+          </tr>
 
-        <div>
-          <span className="text-slate-500 font-medium">Điện thoại: </span>
-          <span className="text-slate-900 font-mono font-semibold">{patient.phone || '......................'}</span>
-        </div>
-        <div className="col-span-2">
-          <span className="text-slate-500 font-medium">Bác sĩ chỉ định: </span>
-          <span className="text-slate-900 font-semibold">{doctorName || patient.address || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long'}</span>
-        </div>
+          <tr className="border-b border-sky-200 divide-x divide-sky-200">
+            <td className="py-0.5 px-2 text-slate-700 font-medium bg-sky-50/40">Năm sinh:</td>
+            <td className="py-0.5 px-2 font-bold text-slate-900">
+              {patient.dob || '...........'}
+            </td>
+            <td className="py-0.5 px-2 text-slate-700 font-medium bg-sky-50/40">T/G đóng phí</td>
+            <td className="py-0.5 px-2 font-bold text-slate-900 font-mono">
+              {patient.paidAt || currentDateStr}
+            </td>
+          </tr>
 
-        <div className="col-span-3">
-          <span className="text-slate-500 font-medium">Chẩn đoán / Lý do khám: </span>
-          <span className="text-slate-900 italic font-medium">{patient.diagnosis || 'Dị ứng thực phẩm / hô hấp'}</span>
-        </div>
-      </div>
+          <tr className="border-b border-sky-200 divide-x divide-sky-200">
+            <td className="py-0.5 px-2 text-slate-700 font-medium bg-sky-50/40">Địa chỉ</td>
+            <td className="py-0.5 px-2 font-medium text-slate-900">
+              {patient.diagnosis || patient.address || '...........................................'}
+            </td>
+            <td className="py-0.5 px-2 text-slate-700 font-medium bg-sky-50/40">Số bệnh phẩm</td>
+            <td className="py-0.5 px-2 font-extrabold text-red-600 font-mono">
+              {patient.sampleCode || patient.code}
+            </td>
+          </tr>
 
-      {/* 4. CHÚ GIẢI THANG ĐO GRADE (0 - 6) */}
-      <div className="bg-red-50/70 border border-red-200 rounded p-1.5 mb-2 flex items-center justify-between text-[8.5px]">
-        <span className="font-bold text-red-950">Phân độ IgE:</span>
-        <span className="text-slate-700"><strong>Độ 0</strong> (&lt;0.35 Âm tính)</span>
-        <span className="text-slate-700"><strong>Độ 1</strong> (0.35-0.69 Yếu)</span>
-        <span className="text-amber-800"><strong>Độ 2</strong> (0.70-3.49 TB)</span>
-        <span className="text-amber-900"><strong>Độ 3</strong> (3.50-17.49 Khá)</span>
-        <span className="text-red-700 font-bold"><strong>Độ 4</strong> (17.5-49.9 Mạnh)</span>
-        <span className="text-red-800 font-bold"><strong>Độ 5</strong> (50-100 Rất mạnh)</span>
-        <span className="text-red-950 font-black"><strong>Độ 6</strong> (&gt;100 Cực mạnh)</span>
-      </div>
+          <tr className="border-b border-sky-200 divide-x divide-sky-200">
+            <td className="py-0.5 px-2 text-slate-700 font-medium bg-sky-50/40">Giới tính:</td>
+            <td className="py-0.5 px-2 font-bold text-slate-900">
+              {patient.gender || 'Nam'}
+            </td>
+            <td className="py-0.5 px-2 text-slate-700 font-medium bg-sky-50/40">Tình trạng mẫu</td>
+            <td className="py-0.5 px-2 font-bold text-slate-900">
+              {patient.sampleStatus || 'Đạt'}
+            </td>
+          </tr>
 
-      {/* 5. BẢNG 91 CHỈ SỐ CHIA 2 CỘT SONG SONG */}
-      <div className="grid grid-cols-2 gap-2 mb-3">
+          <tr className="border-b border-sky-200 divide-x divide-sky-200">
+            <td className="py-0.5 px-2 text-slate-700 font-medium bg-sky-50/40">Số điện thoại</td>
+            <td className="py-0.5 px-2 font-bold text-slate-900 font-mono">
+              {patient.phone || '......................'}
+            </td>
+            <td className="py-0.5 px-2 text-slate-700 font-medium bg-sky-50/40">T/G nhận mẫu</td>
+            <td className="py-0.5 px-2 font-bold text-slate-900 font-mono">
+              {patient.receivedAt || currentDateStr}
+            </td>
+          </tr>
+
+          <tr className="divide-x divide-sky-200">
+            <td className="py-0.5 px-2 text-slate-700 font-medium bg-sky-50/40">Bác sĩ chỉ định</td>
+            <td className="py-0.5 px-2 font-bold text-slate-900">
+              {doctorName || patient.address || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long'}
+            </td>
+            <td className="py-0.5 px-2 text-slate-700 font-medium bg-sky-50/40">T/G trả kết quả</td>
+            <td className="py-0.5 px-2 font-bold text-slate-900 font-mono">
+              {patient.returnedAt || currentDateStr}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* 4. TRỌN BỘ BẢNG 91 CHỈ SỐ DỊ NGUYÊN (CHIA 2 CỘT SONG SONG) */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
         {/* CỘT 1 (1 - 46) */}
         <table className="w-full text-left border-collapse border border-slate-300 text-[8.5px]">
           <thead>
@@ -312,7 +341,7 @@ export default function FullAllergenReportView({
         </table>
       </div>
 
-      {/* 6. CHỮ KÝ VÀ KẾT LUẬN DỊ ỨNG */}
+      {/* 5. CHỮ KÝ VÀ KẾT LUẬN DỊ ỨNG */}
       <div className="pt-2 border-t border-slate-300">
         <div className="flex items-start justify-between text-center">
           <div className="text-left text-[8.5px] text-slate-500 space-y-0.5 max-w-[55%]">
