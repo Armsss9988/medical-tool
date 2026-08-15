@@ -1,9 +1,78 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 @layer base {
-  body {
-    @apply bg-slate-100 text-slate-800 antialiased;
+  :root {
+    --bg-app: #f8fafc;
+    --bg-surface: #ffffff;
+    --primary: #0284c7;
+    --primary-hover: #0369a1;
+    --primary-light: #e0f2fe;
+    --border-main: #e2e8f0;
+    --text-main: #1e293b;
+    --text-muted: #64748b;
   }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: var(--bg-app);
+    color: var(--text-main);
+  }
+
+  .font-mono-num {
+    font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
+  }
+}
+
+/* Custom Scrollbar for Clinical Light Theme */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Specific styling for A4 Print Paper preview */
+@media print {
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+}
+
+.a4-preview {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 14mm;
+  background: white;
+  color: #0f172a;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.1);
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
