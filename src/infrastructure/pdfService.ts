@@ -34,6 +34,58 @@ export function getPdfBase64(pdf: jsPDF): string {
   }
 }
 
+/**
+ * Chuyển đổi màu OKLCH (Tailwind v4) sang màu RGB chuẩn của trình duyệt
+ * Giúp html2canvas và PDF xuất ra màu sắc chính xác 100% như màn hình xem trước.
+ */
+export function oklchToRgb(oklchStr: string): string {
+  try {
+    const match = oklchStr.match(/oklch\(\s*([\d.%]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.%]+))?\s*\)/i);
+    if (!match) return '#1e293b';
+
+    let L = parseFloat(match[1]);
+    if (match[1].endsWith('%')) L = L / 100;
+    const C = parseFloat(match[2]);
+    const H = parseFloat(match[3]);
+
+    const hRad = (H * Math.PI) / 180;
+    const aLab = C * Math.cos(hRad);
+    const bLab = C * Math.sin(hRad);
+
+    const l_ = L + 0.3963377774 * aLab + 0.2158037573 * bLab;
+    const m_ = L - 0.1055613458 * aLab - 0.0638541728 * bLab;
+    const s_ = L - 0.0894841775 * aLab - 1.2914855480 * bLab;
+
+    const l = l_ * l_ * l_;
+    const m = m_ * m_ * m_;
+    const s = s_ * s_ * s_;
+
+    const rLin = +4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s;
+    const gLin = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s;
+    const bLin = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s;
+
+    const rS = rLin <= 0.0031308 ? 12.92 * rLin : 1.055 * Math.pow(rLin, 1 / 2.4) - 0.055;
+    const gS = gLin <= 0.0031308 ? 12.92 * gLin : 1.055 * Math.pow(gLin, 1 / 2.4) - 0.055;
+    const bS = bLin <= 0.0031308 ? 12.92 * bLin : 1.055 * Math.pow(bLin, 1 / 2.4) - 0.055;
+
+    const rVal = Math.round(Math.max(0, Math.min(255, rS * 255)));
+    const gVal = Math.round(Math.max(0, Math.min(255, gS * 255)));
+    const bVal = Math.round(Math.max(0, Math.min(255, bS * 255)));
+
+    return `rgb(${rVal}, ${gVal}, ${bVal})`;
+  } catch {
+    return '#1e293b';
+  }
+}
+
+export function convertCssColors(cssText: string): string {
+  if (!cssText) return cssText;
+  return cssText
+    .replace(/oklch\([^)]+\)/gi, (m) => oklchToRgb(m))
+    .replace(/oklab\([^)]+\)/gi, '#1e293b')
+    .replace(/color-mix\([^)]+\)/gi, '#1e293b');
+}
+
 export interface ExportPdfResult {
   success: boolean;
   pdfBase64: string;
@@ -43,10 +95,7 @@ function sanitizeStylesForCanvas(clonedDoc: Document, printElementId: string) {
   const styleTags = clonedDoc.querySelectorAll('style');
   styleTags.forEach((styleTag) => {
     if (styleTag.textContent) {
-      styleTag.textContent = styleTag.textContent
-        .replace(/oklch\([^)]+\)/gi, '#0f172a')
-        .replace(/oklab\([^)]+\)/gi, '#0f172a')
-        .replace(/color-mix\([^)]+\)/gi, '#0f172a');
+      styleTag.textContent = convertCssColors(styleTag.textContent);
     }
   });
 
@@ -60,10 +109,7 @@ function sanitizeStylesForCanvas(clonedDoc: Document, printElementId: string) {
           const rule = rules[i] as CSSStyleRule;
           if (rule.cssText && (rule.cssText.includes('oklch') || rule.cssText.includes('oklab') || rule.cssText.includes('color-mix'))) {
             try {
-              const cleaned = rule.cssText
-                .replace(/oklch\([^)]+\)/gi, '#0f172a')
-                .replace(/oklab\([^)]+\)/gi, '#0f172a')
-                .replace(/color-mix\([^)]+\)/gi, '#0f172a');
+              const cleaned = convertCssColors(rule.cssText);
               sheet.deleteRule(i);
               sheet.insertRule(cleaned, i);
             } catch {
@@ -93,13 +139,7 @@ function sanitizeStylesForCanvas(clonedDoc: Document, printElementId: string) {
       if (htmlNode.style) {
         const styleAttr = htmlNode.getAttribute('style') || '';
         if (styleAttr.includes('oklch') || styleAttr.includes('oklab') || styleAttr.includes('color-mix')) {
-          htmlNode.setAttribute(
-            'style',
-            styleAttr
-              .replace(/oklch\([^)]+\)/gi, '#0f172a')
-              .replace(/oklab\([^)]+\)/gi, '#0f172a')
-              .replace(/color-mix\([^)]+\)/gi, '#0f172a')
-          );
+          htmlNode.setAttribute('style', convertCssColors(styleAttr));
         }
       }
     });
@@ -158,7 +198,7 @@ export async function exportToPdf(
       }
     }
 
-    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+    const imgData = canvas.toDataURL('image/png');
     const pdf = new jsPDF('p', 'mm', 'a4');
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = pdf.internal.pageSize.getHeight();
@@ -168,13 +208,13 @@ export async function exportToPdf(
     let heightLeft = imgHeight;
     let position = 0;
 
-    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
     heightLeft -= pdfHeight;
 
-    while (heightLeft >= 0) {
+    while (heightLeft >= 1) {
       position = heightLeft - imgHeight;
       pdf.addPage();
-      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
       heightLeft -= pdfHeight;
     }
 
@@ -252,7 +292,7 @@ export async function exportElementToPdfBlob(
       }
     }
 
-    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+    const imgData = canvas.toDataURL('image/png');
     const pdf = new jsPDF('p', 'mm', 'a4');
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = pdf.internal.pageSize.getHeight();
@@ -262,13 +302,13 @@ export async function exportElementToPdfBlob(
     let heightLeft = imgHeight;
     let position = 0;
 
-    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
     heightLeft -= pdfHeight;
 
-    while (heightLeft >= 0) {
+    while (heightLeft >= 1) {
       position = heightLeft - imgHeight;
       pdf.addPage();
-      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
       heightLeft -= pdfHeight;
     }
 
