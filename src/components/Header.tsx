@@ -1,22 +1,23 @@
 import React from 'react';
-import { Stethoscope, FileSpreadsheet, Settings, Database, FolderOpen, CreditCard } from 'lucide-react';
+import { FileSpreadsheet, Download, Settings, Activity, ListChecks, TrendingUp, FolderOpen } from 'lucide-react';
+import { exportSampleExcelCatalog } from '@infra/excelService';
 import { ClinicInfo, CatalogItem } from '@domain/types';
 
 interface HeaderProps {
   clinicInfo: ClinicInfo;
-  setClinicInfo: (info: ClinicInfo) => void;
+  setClinicInfo: React.Dispatch<React.SetStateAction<ClinicInfo>>;
   onLoadExcelFile: (fileOrBuffer: Blob | ArrayBuffer) => void;
   catalog: CatalogItem[];
   onOpenSettings: () => void;
   onOpenCatalogModal: () => void;
   onOpenRevenueModal: () => void;
-  onOpenDataFolder?: () => void;
+  onOpenDataFolder: () => void;
   invoiceCount?: number;
 }
 
-export default function Header({
-  clinicInfo,
-  onLoadExcelFile,
+export default function Header({ 
+  clinicInfo, 
+  onLoadExcelFile, 
   catalog,
   onOpenSettings,
   onOpenCatalogModal,
@@ -31,82 +32,121 @@ export default function Header({
     }
   };
 
+  const handleNativeExcelSelect = async () => {
+    if (window.electronAPI && window.electronAPI.selectExcelFile) {
+      try {
+        const fileObj = await window.electronAPI.selectExcelFile();
+        if (fileObj && fileObj.buffer) {
+          onLoadExcelFile(new Blob([fileObj.buffer]));
+        }
+      } catch (err) {
+        console.error('Lỗi chọn file Electron:', err);
+      }
+    } else {
+      const input = document.getElementById('excel-file-input') as HTMLInputElement | null;
+      if (input) input.click();
+    }
+  };
+
   return (
-    <header className="bg-slate-900 text-white shadow-md">
-      <div className="max-w-[1600px] mx-auto px-4 md:px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
+    <header className="bg-slate-900 text-white border-b-2 border-sky-600 px-5 py-3 shadow-md sticky top-0 z-30">
+      <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
+        
+        {/* Left: Logo & Clinic Title */}
         <div className="flex items-center space-x-3">
-          <div className="bg-emerald-500 p-2.5 rounded-xl shadow-lg">
-            <Stethoscope className="w-6 h-6 text-slate-950" />
+          <div className="w-10 h-10 rounded-lg bg-sky-600 flex items-center justify-center text-white shadow-md font-bold">
+            <Activity className="w-6 h-6 animate-pulse" />
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-              {clinicInfo.name || 'PHÒNG KHÁM XÉT NGHIỆM Y KHOA AN BÌNH'}
-              <span className="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                GoLab v1.0
+            <div className="flex items-center space-x-2">
+              <h1 className="text-base font-extrabold text-white tracking-tight">{clinicInfo.name}</h1>
+              <span className="text-[10px] uppercase font-bold bg-sky-500/20 text-sky-300 border border-sky-400/30 px-2 py-0.5 rounded">
+                GOLAB Edition
               </span>
-            </h1>
-            <p className="text-xs text-slate-400">
-              {clinicInfo.address} • SĐT: {clinicInfo.phone}
+            </div>
+            <p className="text-xs text-slate-300">
+              {clinicInfo.address} • Hotline: <strong className="text-sky-300">{clinicInfo.phone}</strong>
             </p>
           </div>
         </div>
 
-        <div className="flex items-center flex-wrap gap-2">
-          {onOpenDataFolder && (
-            <button
-              onClick={onOpenDataFolder}
-              className="flex items-center space-x-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-medium transition shadow-sm"
-              title="Mở thư mục lưu trữ dữ liệu đĩa C:"
-            >
-              <FolderOpen className="w-4 h-4 text-amber-400" />
-              <span className="hidden sm:inline">Dữ Liệu JSON</span>
-            </button>
-          )}
+        {/* Right: Quick Action Controls */}
+        <div className="flex flex-wrap items-center gap-2">
+          
+          <input
+            id="excel-file-input"
+            type="file"
+            accept=".xlsx, .xls, .csv"
+            className="hidden"
+            onChange={handleFileChange}
+          />
 
-          <label
-            className="flex items-center space-x-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium cursor-pointer transition shadow-sm"
-            title="Tải bảng giá từ file Excel (.xlsx, .xls)"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-            <span>Nhập Excel</span>
-            <input
-              type="file"
-              accept=".xlsx, .xls"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-          </label>
-
-          <button
-            onClick={onOpenCatalogModal}
-            className="flex items-center space-x-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium transition shadow-sm"
-            title="Quản lý danh mục chỉ số xét nghiệm"
-          >
-            <Database className="w-4 h-4 text-cyan-400" />
-            <span>Bảng Giá ({catalog.length})</span>
-          </button>
-
+          {/* Button Sổ Sách & Doanh Thu */}
           <button
             onClick={onOpenRevenueModal}
-            className="flex items-center space-x-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium transition shadow-sm relative"
-            title="Xem báo cáo doanh thu & hóa đơn"
+            title="Xem báo cáo tổng kết doanh thu, cộng sổ và doanh số từng Bác sĩ chỉ định"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold shadow transition-all active:scale-95 relative"
           >
-            <CreditCard className="w-4 h-4 text-amber-400" />
-            <span>Doanh Thu</span>
+            <TrendingUp className="w-4 h-4 text-emerald-100" />
+            <span>Sổ Sách & Doanh Thu</span>
             {invoiceCount > 0 && (
-              <span className="bg-emerald-500 text-slate-950 font-bold text-[10px] px-1.5 py-0.2 rounded-full ml-1">
+              <span className="bg-white text-emerald-900 font-mono text-[10px] font-extrabold px-1.5 py-0.2 rounded-full border border-emerald-300 ml-1">
                 {invoiceCount}
               </span>
             )}
           </button>
 
+          {/* Button Quản Lý Danh Mục Trực Tiếp */}
+          <button
+            onClick={onOpenCatalogModal}
+            title="Quản lý và chỉnh sửa bảng giá, tên chỉ số trực tiếp trong App"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow transition-all active:scale-95"
+          >
+            <ListChecks className="w-4 h-4 text-sky-100" />
+            <span>Quản Lý Danh Mục</span>
+          </button>
+
+          {/* Button Nạp File Excel */}
+          <button
+            onClick={handleNativeExcelSelect}
+            title="Đọc file Excel danh mục từ máy tính"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold shadow transition-all active:scale-95"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+            <span>Nạp Excel</span>
+          </button>
+
+          {/* Button Mở Thư Mục Dữ Liệu */}
+          {window.electronAPI?.openDataFolder && (
+            <button
+              onClick={onOpenDataFolder}
+              title="Mở thư mục GoLabData – nơi lưu toàn bộ dữ liệu phòng khám (Documents/GoLabData/)"
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-amber-700 hover:bg-amber-600 text-amber-100 border border-amber-600 text-xs font-semibold shadow transition-all active:scale-95"
+            >
+              <FolderOpen className="w-4 h-4 text-amber-200" />
+              <span>Dữ Liệu</span>
+            </button>
+          )}
+
+          {/* Button Tải File Excel Mẫu */}
+          <button
+            onClick={() => exportSampleExcelCatalog(catalog)}
+            title="Tải file Excel mẫu để chỉnh sửa danh mục"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium transition-all"
+          >
+            <Download className="w-4 h-4 text-slate-300" />
+            <span>Tải Excel Mẫu</span>
+          </button>
+
+          {/* Button Settings */}
           <button
             onClick={onOpenSettings}
-            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition"
-            title="Cấu hình hệ thống"
+            title="Cấu hình hệ thống & thông tin phòng khám"
+            className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all"
           >
             <Settings className="w-4 h-4" />
           </button>
+
         </div>
       </div>
     </header>
