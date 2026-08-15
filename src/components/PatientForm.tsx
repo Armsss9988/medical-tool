@@ -18,7 +18,15 @@ export default function PatientForm({
   const [showMoreTimeFields, setShowMoreTimeFields] = useState(false);
 
   const handleChange = (field: keyof Patient, value: string) => {
-    setPatient((prev) => ({ ...prev, [field]: value }));
+    setPatient((prev) => {
+      const updated = { ...prev, [field]: value };
+      if (field === 'code') {
+        updated.sampleCode = value;
+      } else if (field === 'sampleCode') {
+        updated.code = value;
+      }
+      return updated;
+    });
   };
 
   return (
@@ -56,30 +64,17 @@ export default function PatientForm({
           />
         </div>
 
-        {/* Mã Phiếu Xét Nghiệm */}
-        <div>
+        {/* Mã Phiếu XN / Số Bệnh Phẩm (Thống nhất làm 1) */}
+        <div className="md:col-span-2">
           <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
-            <Hash className="w-3.5 h-3.5 text-sky-600" /> Mã phiếu XN:
-          </label>
-          <input
-            type="text"
-            value={patient.code}
-            onChange={(e) => handleChange('code', e.target.value)}
-            className="w-full bg-slate-50 border border-slate-300 rounded px-3 py-1.5 text-xs text-sky-900 font-mono font-bold focus:outline-none"
-          />
-        </div>
-
-        {/* Số Bệnh Phẩm */}
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
-            <Hash className="w-3.5 h-3.5 text-red-500" /> Số bệnh phẩm:
+            <Hash className="w-3.5 h-3.5 text-red-500" /> Mã phiếu XN / Số bệnh phẩm:
           </label>
           <input
             type="text"
             placeholder="14509"
-            value={patient.sampleCode || ''}
-            onChange={(e) => handleChange('sampleCode', e.target.value)}
-            className="w-full bg-slate-50 border border-slate-300 rounded px-3 py-1.5 text-xs text-red-600 font-mono font-bold focus:outline-none"
+            value={patient.code}
+            onChange={(e) => handleChange('code', e.target.value)}
+            className="w-full bg-slate-50 border border-slate-300 rounded px-3 py-1.5 text-xs text-red-600 font-mono font-extrabold focus:outline-none"
           />
         </div>
 

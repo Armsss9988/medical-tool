@@ -17,8 +17,11 @@ export function generateRandomSampleCode(): string {
 
 export function createDefaultPatient(): Patient {
   const today = getTodayFormattedStr();
+  const sampleCodeVal = generateRandomSampleCode();
+  const ticketCode = PatientCode.create().value || sampleCodeVal;
+
   return {
-    code: PatientCode.create().value,
+    code: ticketCode,
     secretToken: SecretToken.create().value,
     name: '',
     dob: '',
@@ -26,7 +29,7 @@ export function createDefaultPatient(): Patient {
     phone: '',
     address: '',
     diagnosis: '',
-    sampleCode: generateRandomSampleCode(),
+    sampleCode: ticketCode,
     sampleStatus: 'Đạt',
     orderedAt: today,
     paidAt: today,
@@ -39,7 +42,15 @@ export function usePatientManager() {
   const [patient, setPatient] = useState<Patient>(createDefaultPatient);
 
   const updatePatientField = <K extends keyof Patient>(field: K, value: Patient[K]) => {
-    setPatient((prev) => ({ ...prev, [field]: value }));
+    setPatient((prev) => {
+      const updated = { ...prev, [field]: value };
+      if (field === 'code') {
+        updated.sampleCode = value as string;
+      } else if (field === 'sampleCode') {
+        updated.code = value as string;
+      }
+      return updated;
+    });
   };
 
   const resetPatient = () => {
