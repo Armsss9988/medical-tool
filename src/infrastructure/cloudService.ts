@@ -15,7 +15,8 @@ export interface CloudUploadResult {
 }
 
 function base64ToUint8Array(base64: string): Uint8Array {
-  const binaryString = atob(base64);
+  const clean = base64.replace(/^data:application\/pdf;base64,/, '');
+  const binaryString = atob(clean);
   const len = binaryString.length;
   const bytes = new Uint8Array(len);
   for (let i = 0; i < len; i++) {
@@ -45,11 +46,14 @@ export async function uploadPdfToCloudinary({
     .replace(/[^a-zA-Z0-9_-]/g, '_')
     .replace(/_+/g, '_') + '.pdf';
 
+  // Chuẩn hóa chuỗi Base64
+  const rawBase64 = (pdfBase64 || '').replace(/^data:application\/pdf;base64,/, '').trim();
+
   // 1. UPLOAD LÊN SUPABASE STORAGE
-  if (supabaseUrl && supabaseAnonKey) {
+  if (supabaseUrl && supabaseAnonKey && rawBase64 && rawBase64 !== 'undefined') {
     try {
       const cleanUrl = supabaseUrl.replace(/\/+$/, '');
-      const bytes = base64ToUint8Array(pdfBase64);
+      const bytes = base64ToUint8Array(rawBase64);
 
       try {
         await fetch(`${cleanUrl}/storage/v1/bucket`, {
@@ -89,13 +93,13 @@ export async function uploadPdfToCloudinary({
   }
 
   // 2. FALLBACK LÊN CLOUDINARY
-  if (cloudName && uploadPreset) {
+  if (cloudName && uploadPreset && rawBase64 && rawBase64 !== 'undefined') {
     try {
       const cleanCloudName = cloudName.trim();
       const cleanPreset = uploadPreset.trim();
 
       const formData = new FormData();
-      formData.append('file', `data:application/pdf;base64,${pdfBase64}`);
+      formData.append('file', `data:application/pdf;base64,${rawBase64}`);
       formData.append('upload_preset', cleanPreset);
 
       let response = await fetch(`https://api.cloudinary.com/v1_1/${cleanCloudName}/auto/upload`, {
@@ -123,7 +127,10 @@ export async function uploadPdfToCloudinary({
   }
 
   // 3. FALLBACK CỦA TẠO LOCAL DATA URL (ĐẢM BẢO 100% QUY TRÌNH THÀNH CÔNG VÀ TẠO QR CODE ĐƯỢC)
-  const dataUrl = `data:application/pdf;base64,${pdfBase64}`;
+  const dataUrl = rawBase64 && rawBase64 !== 'undefined'
+    ? `data:application/pdf;base64,${rawBase64}`
+    : 'data:application/pdf;base64,';
+
   return {
     url: dataUrl,
     publicId: cleanFilename

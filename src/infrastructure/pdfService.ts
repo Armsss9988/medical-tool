@@ -17,13 +17,29 @@ export function sanitizeFilename(name: string, code: string, token: string): str
   return `Phieu_Xet_Nghiem_${cleanName}_${cleanCode}_${cleanToken}.pdf`;
 }
 
+export function getPdfBase64(pdf: jsPDF): string {
+  try {
+    const arrayBuffer = pdf.output('arraybuffer');
+    const bytes = new Uint8Array(arrayBuffer);
+    let binary = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunkSize)));
+    }
+    return btoa(binary);
+  } catch {
+    const dataUri = pdf.output('datauristring') || pdf.output('dataurlstring') || '';
+    const commaIndex = dataUri.indexOf(',');
+    return commaIndex !== -1 ? dataUri.substring(commaIndex + 1) : '';
+  }
+}
+
 export interface ExportPdfResult {
   success: boolean;
   pdfBase64: string;
 }
 
 function sanitizeStylesForCanvas(clonedDoc: Document, printElementId: string) {
-  // 1. Replace oklch/oklab/color-mix in all <style> tags
   const styleTags = clonedDoc.querySelectorAll('style');
   styleTags.forEach((styleTag) => {
     if (styleTag.textContent) {
@@ -34,7 +50,6 @@ function sanitizeStylesForCanvas(clonedDoc: Document, printElementId: string) {
     }
   });
 
-  // 2. Replace oklch/oklab/color-mix in accessible CSS rules
   try {
     const sheets = Array.from(clonedDoc.styleSheets);
     sheets.forEach((sheet) => {
@@ -64,7 +79,6 @@ function sanitizeStylesForCanvas(clonedDoc: Document, printElementId: string) {
     /* ignore sheet error */
   }
 
-  // 3. Ensure targeted element is visible and inline styles cleaned
   const printEl = clonedDoc.getElementById(printElementId);
   if (printEl) {
     printEl.style.display = 'block';
@@ -165,7 +179,7 @@ export async function exportToPdf(
     }
 
     pdf.save(filename);
-    const pdfBase64 = pdf.output('datauristring').split(',')[1] || '';
+    const pdfBase64 = getPdfBase64(pdf);
 
     return {
       success: true,
