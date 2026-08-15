@@ -1,4 +1,4 @@
-import golabLogo from '@assets/golablogo.jpg';
+import golabLogo from '@assets/golablogo';
 import { ALLERGEN_91_DATABASE } from '@data/allergenCatalog';
 import { calculateAllergenGrade } from '@domain/allergen';
 import { downloadQrCodeImage } from '@infra/qrService';

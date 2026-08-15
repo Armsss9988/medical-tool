@@ -21,7 +21,8 @@
       "@domain/*": ["src/domain/*"],
       "@infra/*": ["src/infrastructure/*"],
       "@data/*": ["src/data/*"],
-      "@components/*": ["src/components/*"]
+      "@components/*": ["src/components/*"],
+      "@assets/*": ["src/assets/*"]
     }
   },
   "include": ["src"]

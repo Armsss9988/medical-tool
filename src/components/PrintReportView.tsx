@@ -1,7 +1,7 @@
 import { evaluateResult } from '@domain/testResult';
 import { downloadQrCodeImage } from '@infra/qrService';
 import { Download } from 'lucide-react';
-import golabLogo from '@assets/golablogo.jpg';
+import golabLogo from '@assets/golablogo';
 import { ClinicInfo, Patient, SelectedTest } from '@domain/types';
 
 interface PrintReportViewProps {
