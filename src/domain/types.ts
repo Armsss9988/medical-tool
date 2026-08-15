@@ -15,6 +15,12 @@ export interface Patient {
   phone: string;
   address: string;
   diagnosis: string;
+  sampleCode?: string;
+  sampleStatus?: string;
+  orderedAt?: string;
+  paidAt?: string;
+  receivedAt?: string;
+  returnedAt?: string;
 }
 
 export interface CatalogItem {
@@ -72,14 +78,17 @@ export interface Invoice {
   createdAt: string;
   patientName: string;
   patientCode: string;
-  doctorName?: string;
-  packageName?: string;
+  patientDob?: string;
+  patientPhone?: string;
+  patientAddress?: string;
+  doctorName: string;
+  packageName: string;
   items: InvoiceItem[];
   totalAmount: number;
-  discountAmount?: number;
+  discountAmount: number;
   finalAmount: number;
-  paymentMethod?: 'Tiền mặt' | 'Chuyển khoản (VietQR)' | 'Quẹt thẻ';
-  status?: string;
+  paymentMethod: 'Tiền mặt' | 'Chuyển khoản (VietQR)' | 'Quẹt thẻ';
+  status: 'Đã thanh toán' | 'Chờ thanh toán';
   notes?: string;
 }
 
