@@ -1,11 +1,43 @@
-import { CatalogItem, CloudDbConfig } from '../domain/types';
+import { CloudDbConfig } from '../domain/types';
 
 export const DEFAULT_CLOUD_DB_CONFIG: CloudDbConfig = {
   enabled: true,
-  supabaseUrl: import.meta.env?.VITE_SUPABASE_URL || 'https://zfpsgycfqybgqytjmeck.supabase.co',
-  supabaseAnonKey: import.meta.env?.VITE_SUPABASE_ANON_KEY || 'sb_publishable_eUNn1NWvQhljdd2pirtZtw_sLFDHWy7',
+  supabaseUrl: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || '',
+  supabaseAnonKey: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || '',
   autoSync: true
 };
+
+export async function testSupabaseConnection(config: CloudDbConfig): Promise<{ success: boolean; message: string }> {
+  if (!config.supabaseUrl) {
+    return { success: false, message: 'Chưa cấu hình Supabase Project URL!' };
+  }
+
+  try {
+    const cleanUrl = config.supabaseUrl.replace(/\/+$/, '');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+    if (config.supabaseAnonKey) {
+      headers['apikey'] = config.supabaseAnonKey.trim();
+      headers['Authorization'] = 'Bearer ' + config.supabaseAnonKey.trim();
+    }
+
+    const response = await fetch(`${cleanUrl}/rest/v1/app_storage?select=key_name&limit=1`, {
+      method: 'GET',
+      headers
+    });
+
+    if (response.ok) {
+      return { success: true, message: 'Kết nối Supabase Cloud DB thành công!' };
+    } else {
+      const errText = await response.text();
+      return { success: false, message: `Lỗi Supabase (${response.status}): ${errText}` };
+    }
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    return { success: false, message: `Không thể kết nối Supabase: ${errMsg}` };
+  }
+}
 
 export async function syncTableToCloud<T>(
   tableName: string,
