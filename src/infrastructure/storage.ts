@@ -1,35 +1,70 @@
-export function isElectron(): boolean {
-  return typeof window !== 'undefined' && Boolean((window as unknown as { electronAPI?: unknown }).electronAPI);
-}
+import { StorageResult } from '../domain/types';
+
+export const isElectron = (): boolean =>
+  typeof window !== 'undefined' &&
+  window.electronAPI !== undefined &&
+  typeof window.electronAPI.readLocalData === 'function';
 
 export async function loadData<T>(key: string, defaultValue: T): Promise<T> {
-  try {
-    const raw = localStorage.getItem(`golab_${key}`);
-    if (raw) {
-      return JSON.parse(raw) as T;
+  if (isElectron() && window.electronAPI) {
+    try {
+      const data = await window.electronAPI.readLocalData(key);
+      return data !== null && data !== undefined ? (data as T) : defaultValue;
+    } catch (err) {
+      console.warn(`[GoLabStorage] Lỗi đọc file ${key}.json, dùng localStorage:`, err);
     }
-  } catch (e) {
-    console.warn(`Lỗi đọc localStorage key golab_${key}:`, e);
   }
-  return defaultValue;
+  try {
+    const lsKey = `medical_${key}`;
+    const raw = localStorage.getItem(lsKey);
+    return raw ? (JSON.parse(raw) as T) : defaultValue;
+  } catch {
+    return defaultValue;
+  }
 }
 
-export function saveData<T>(key: string, data: T): void {
+export async function saveData<T>(key: string, data: T): Promise<StorageResult> {
+  if (isElectron() && window.electronAPI) {
+    try {
+      const result = await window.electronAPI.writeLocalData(key, data);
+      if (!result.success) throw new Error(result.message || 'Lỗi ghi file');
+      return { success: true, path: result.path };
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Lỗi ghi file';
+      console.error(`[GoLabStorage] Lỗi ghi file ${key}.json:`, err);
+      return { success: false, error: errMsg };
+    }
+  }
   try {
-    localStorage.setItem(`golab_${key}`, JSON.stringify(data));
-  } catch (e) {
-    console.warn(`Lỗi ghi localStorage key golab_${key}:`, e);
+    const lsKey = `medical_${key}`;
+    localStorage.setItem(lsKey, JSON.stringify(data));
+    return { success: true };
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : 'Lỗi localStorage';
+    return { success: false, error: errMsg };
+  }
+}
+
+export function loadDataSync<T>(key: string, defaultValue: T): T {
+  try {
+    const lsKey = `medical_${key}`;
+    const raw = localStorage.getItem(lsKey);
+    return raw ? (JSON.parse(raw) as T) : defaultValue;
+  } catch {
+    return defaultValue;
   }
 }
 
 export async function openDataFolder(): Promise<string | null> {
-  if (isElectron()) {
-    try {
-      const electronAPI = (window as unknown as { electronAPI: { openDataFolder: () => Promise<string> } }).electronAPI;
-      return await electronAPI.openDataFolder();
-    } catch (e) {
-      console.error("Lỗi khi mở thư mục qua Electron:", e);
-    }
+  if (isElectron() && window.electronAPI) {
+    return await window.electronAPI.openDataFolder();
   }
   return null;
+}
+
+export async function getDataDirPath(): Promise<string> {
+  if (isElectron() && window.electronAPI) {
+    return await window.electronAPI.getDataDirPath();
+  }
+  return 'localStorage (đang chạy trên trình duyệt)';
 }

@@ -30,7 +30,7 @@ export class ManageCatalogUseCase {
     if (refCount > 0) {
       return {
         canDelete: false,
-        message: `⚠️ KHÔNG THỂ XÓA THIẾT BỊ "${targetEq.name}"!\n\nĐang có ${refCount} chỉ số/dị nguyên đang được gán cho thiết bị này. Vui lòng chuyển thiết bị khác trước khi xóa.`
+        message: `⚠️ KHÔNG THỂ XÓA THIẾT Bị "${targetEq.name}"!\n\nĐang có ${refCount} chỉ số/dị nguyên đang được gán cho thiết bị này. Vui lòng chuyển thiết bị khác trước khi xóa.`
       };
     }
 

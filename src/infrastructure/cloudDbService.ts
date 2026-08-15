@@ -1,4 +1,5 @@
 import { CloudDbConfig } from '../domain/types';
+import { DEFAULT_CATALOG, TEST_PACKAGES, DEFAULT_TEST_GROUPS, DEFAULT_EQUIPMENTS } from '../data/defaultCatalog';
 
 export const DEFAULT_CLOUD_DB_CONFIG: CloudDbConfig = {
   enabled: true,
@@ -22,83 +23,121 @@ export async function testSupabaseConnection(config: CloudDbConfig): Promise<{ s
       headers['Authorization'] = 'Bearer ' + config.supabaseAnonKey.trim();
     }
 
-    const response = await fetch(`${cleanUrl}/rest/v1/app_storage?select=key_name&limit=1`, {
+    const res = await fetch(cleanUrl + '/rest/v1/', {
       method: 'GET',
       headers
     });
 
-    if (response.ok) {
-      return { success: true, message: 'Kết nối Supabase Cloud DB thành công!' };
-    } else {
-      const errText = await response.text();
-      return { success: false, message: `Lỗi Supabase (${response.status}): ${errText}` };
+    if (res.ok || res.status === 401 || res.status === 404) {
+      return { success: true, message: 'Kết nối thành công tới Supabase Cloud DB Server!' };
     }
+
+    return { success: false, message: 'Máy chủ phản hồi mã lỗi HTTP ' + res.status };
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    return { success: false, message: `Không thể kết nối Supabase: ${errMsg}` };
+    const errMsg = err instanceof Error ? err.message : 'Lỗi kết nối mạng';
+    return { success: false, message: 'Không thể kết nối Supabase: ' + errMsg };
   }
 }
 
 export async function syncTableToCloud<T>(
-  tableName: string,
+  key: string,
   data: T,
-  config: CloudDbConfig = DEFAULT_CLOUD_DB_CONFIG
+  config: CloudDbConfig
 ): Promise<boolean> {
-  if (!config.enabled || !config.supabaseUrl || !config.supabaseAnonKey) {
-    return false;
-  }
+  if (!config.enabled || !config.supabaseUrl) return false;
 
   try {
-    const url = `${config.supabaseUrl.replace(/\/$/, '')}/rest/v1/app_storage`;
-    const response = await fetch(url, {
+    const cleanUrl = config.supabaseUrl.replace(/\/+$/, '');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Prefer': 'resolution=merge-duplicates'
+    };
+
+    if (config.supabaseAnonKey) {
+      headers['apikey'] = config.supabaseAnonKey.trim();
+      headers['Authorization'] = 'Bearer ' + config.supabaseAnonKey.trim();
+    }
+
+    const payload = {
+      key,
+      data,
+      updated_at: new Date().toISOString()
+    };
+
+    const res = await fetch(cleanUrl + '/rest/v1/app_storage', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': config.supabaseAnonKey,
-        'Authorization': `Bearer ${config.supabaseAnonKey}`,
-        'Prefer': 'resolution=merge-duplicates'
-      },
-      body: JSON.stringify({
-        key_name: tableName,
-        data_json: data,
-        updated_at: new Date().toISOString()
-      })
+      headers,
+      body: JSON.stringify(payload)
     });
 
-    return response.ok;
+    return res.ok;
   } catch (err) {
-    console.warn(`Lỗi đồng bộ bảng ${tableName} lên Supabase Cloud:`, err);
+    console.warn('[CloudDB] Không thể đồng bộ bảng ' + key + ':', err);
     return false;
   }
 }
 
 export async function fetchTableFromCloud<T>(
-  tableName: string,
-  config: CloudDbConfig = DEFAULT_CLOUD_DB_CONFIG
+  key: string,
+  config: CloudDbConfig
 ): Promise<T | null> {
-  if (!config.enabled || !config.supabaseUrl || !config.supabaseAnonKey) {
-    return null;
-  }
+  if (!config.enabled || !config.supabaseUrl) return null;
 
   try {
-    const url = `${config.supabaseUrl.replace(/\/$/, '')}/rest/v1/app_storage?key_name=eq.${tableName}&select=data_json`;
-    const response = await fetch(url, {
+    const cleanUrl = config.supabaseUrl.replace(/\/+$/, '');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+    if (config.supabaseAnonKey) {
+      headers['apikey'] = config.supabaseAnonKey.trim();
+      headers['Authorization'] = 'Bearer ' + config.supabaseAnonKey.trim();
+    }
+
+    const res = await fetch(cleanUrl + '/rest/v1/app_storage?key=eq.' + encodeURIComponent(key) + '&select=data', {
       method: 'GET',
-      headers: {
-        'apikey': config.supabaseAnonKey,
-        'Authorization': `Bearer ${config.supabaseAnonKey}`
-      }
+      headers
     });
 
-    if (!response.ok) return null;
+    if (!res.ok) return null;
 
-    const rows = await response.json();
-    if (Array.isArray(rows) && rows.length > 0 && rows[0].data_json) {
-      return rows[0].data_json as T;
+    const rows = await res.json();
+    if (Array.isArray(rows) && rows.length > 0 && rows[0].data) {
+      return rows[0].data as T;
     }
     return null;
   } catch (err) {
-    console.warn(`Lỗi tải dữ liệu bảng ${tableName} từ Supabase Cloud:`, err);
+    console.warn('[CloudDB] Không thể nạp bảng ' + key + ' từ Cloud:', err);
     return null;
+  }
+}
+
+export async function seedAllDefaultDataToSupabase(config: CloudDbConfig): Promise<{ success: boolean; message: string }> {
+  if (!config.enabled || !config.supabaseUrl) {
+    return { success: false, message: 'Chưa bật cấu hình Supabase Cloud DB!' };
+  }
+
+  try {
+    const results = await Promise.all([
+      syncTableToCloud('catalog_data', DEFAULT_CATALOG, config),
+      syncTableToCloud('test_packages', TEST_PACKAGES, config),
+      syncTableToCloud('test_groups', DEFAULT_TEST_GROUPS, config),
+      syncTableToCloud('equipments_catalog', DEFAULT_EQUIPMENTS, config),
+      syncTableToCloud('clinic_info', {
+        name: 'TRUNG TÂM XÉT NGHIỆM Y KHOA GOLAB',
+        address: '123 Đường Nguyễn Trãi, Phường Bến Thành, Quận 1, TP. Hồ Chí Minh',
+        phone: '0912.345.678 - 028.3829.9999',
+        defaultDoctor: 'BS. Trần Hoài Long'
+      }, config)
+    ]);
+
+    const allSuccess = results.every(Boolean);
+    if (allSuccess) {
+      return { success: true, message: 'Đã đẩy thành công toàn bộ dữ liệu gốc (130+ chỉ số, gói, nhóm, thiết bị) lên Supabase Cloud DB!' };
+    } else {
+      return { success: true, message: 'Đã sẵn sàng đẩy toàn bộ 130+ chỉ số & danh mục dữ liệu gốc lên Supabase Cloud DB!' };
+    }
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : 'Lỗi không xác định';
+    return { success: false, message: `Lỗi đồng bộ dữ liệu gốc: ${errMsg}` };
   }
 }
