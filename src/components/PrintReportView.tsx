@@ -3,7 +3,7 @@ import { evaluateResult } from '@domain/testResult';
 import { downloadQrCodeImage } from '@infra/qrService';
 import { Download } from 'lucide-react';
 import golabLogo from '@assets/golablogo';
-import doctorStamp from '@assets/doctorStamp';
+import doctorStamp from '@assets/doctorstamp';
 import { Patient, SelectedTest, ClinicInfo } from '@domain/types';
 
 interface PrintReportViewProps {

@@ -1,6 +1,6 @@
 import React from 'react';
 import golabLogo from '@assets/golablogo';
-import doctorStamp from '@assets/doctorStamp';
+import doctorStamp from '@assets/doctorstamp';
 import { Patient, SelectedTest, ClinicInfo } from '@domain/types';
 
 interface FullAllergenReportViewProps {
