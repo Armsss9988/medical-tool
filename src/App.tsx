@@ -43,7 +43,7 @@ export default function App() {
     setCloudDbConfig
   } = useCatalogData();
 
-  // 2. STATE KẾT QUẢ VÀ KẾT LUẬN
+  // 2. STATE KếT QUẢ VÀ KếT LUẬN
   const [selectedTests, setSelectedTests] = useState<SelectedTest[]>([]);
   const [conclusion, setConclusion] = useState<string>("");
   const [doctorName, setDoctorName] = useState<string>("BS. Trần Hoài Long");
@@ -103,7 +103,7 @@ export default function App() {
     }
 
     const formattedTests: SelectedTest[] = selectedIndicators.map((item) => {
-      const isAllergenItem = item.category?.includes("Dị Nguyên") || item.unit === "IU/mL";
+      const isAllergenItem = item.category?.includes("Đị Nguyên") || item.unit === "IU/mL";
       return {
         ...item,
         result: "",
@@ -122,7 +122,7 @@ export default function App() {
 
   const handleExportPdfAndUpload = () => {
     const isAllergenPackage = selectedTests.some(
-      (t) => (t.category && t.category.includes("Dị Nguyên")) || t.unit === "IU/mL"
+      (t) => (t.category && t.category.includes("Đị Nguyên")) || t.unit === "IU/mL"
     );
     const elementId = isAllergenPackage ? "printable-allergen-report" : "printable-medical-report";
     const filename = `PhieuXN_${(patient.name || "BenhNhan").replace(/\s+/g, "_")}_${patient.code}.pdf`;
@@ -167,7 +167,7 @@ export default function App() {
   };
 
   const isAllergenPackage = selectedTests.some(
-    (t) => (t.category && t.category.includes("Dị Nguyên")) || t.unit === "IU/mL"
+    (t) => (t.category && t.category.includes("Đị Nguyên")) || t.unit === "IU/mL"
   );
 
   return (
@@ -181,6 +181,8 @@ export default function App() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenCatalogModal={() => setIsCatalogModalOpen(true)}
         onOpenRevenueModal={() => setIsRevenueModalOpen(true)}
+        onOpenDataFolder={handleOpenDataFolder}
+        invoiceCount={invoices.length}
       />
 
       {/* TOAST NOTIFICATION FLOATING BANNER */}
@@ -205,7 +207,7 @@ export default function App() {
 
       {/* MAIN CONTAINER CONTENT */}
       <main className="max-w-[1600px] w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 flex-grow">
-        {/* PANEL TRÁI (COL-4): BỆNH NHÂN & KẾT LUẬN */}
+        {/* PANEL TRÁI (COL-4): BỆNH NHÂN & KếT LUẬN */}
         <section className="lg:col-span-4 flex flex-col space-y-6">
           <PatientForm
             patient={patient}
@@ -230,7 +232,7 @@ export default function App() {
           />
         </section>
 
-        {/* PANEL PHẢI (COL-8): BẢNG CHỌN CHỈ SỐ XÉT NGHIỆM */}
+        {/* PANEL PHẢI (COL-8): BẢNG CHẬN CHỈ SỐ XÉT NGHIỆM */}
         <section className="lg:col-span-8 flex flex-col">
           <TestTable
             catalog={catalog}
@@ -312,6 +314,7 @@ export default function App() {
         }}
       />
 
+      {/* MODAL HÓA ĐƠN & THANH TOÁN */}
       <InvoiceModal
         isOpen={isInvoiceModalOpen}
         onClose={() => setIsInvoiceModalOpen(false)}
@@ -323,32 +326,35 @@ export default function App() {
         onSaveInvoice={handleSaveInvoice}
       />
 
+      {/* MODAL BÁO CÁO & SỔ SÁCH DOANH THU */}
       <RevenueManagerModal
         isOpen={isRevenueModalOpen}
         onClose={() => setIsRevenueModalOpen(false)}
         invoices={invoices}
         onDeleteInvoice={handleDeleteInvoice}
         onClearAllInvoices={handleClearAllInvoices}
+        doctorsList={doctorsList}
       />
 
-      {/* POPUP PHIẾU KHÁM DÙNG CHO XUẤT PDF & IN ẤN HỆ THỐNG */}
-      <div className="hidden">
+      {/* 4. ANCHOR THẺ ẨN CHờ IN VA CHỤP CANVAS SẮC NÉT (PRINT TEMPLATES) */}
+      <div className="fixed -left-[9999px] -top-[9999px] opacity-0 pointer-events-none">
         {isAllergenPackage ? (
           <FullAllergenReportView
+            elementId="printable-allergen-report"
+            clinicInfo={clinicInfo}
             patient={patient}
             selectedTests={selectedTests}
-            conclusion={conclusion}
             doctorName={doctorName}
-            clinicInfo={clinicInfo}
             qrCodeDataUrl={qrCodeDataUrl}
           />
         ) : (
           <PrintReportView
+            elementId="printable-medical-report"
+            clinicInfo={clinicInfo}
             patient={patient}
             selectedTests={selectedTests}
             conclusion={conclusion}
             doctorName={doctorName}
-            clinicInfo={clinicInfo}
             qrCodeDataUrl={qrCodeDataUrl}
           />
         )}
