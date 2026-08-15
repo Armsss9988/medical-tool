@@ -73,6 +73,14 @@ export function useCatalogData() {
           }
         }
 
+        const effectiveCloudConfig: CloudDbConfig = {
+          ...DEFAULT_CLOUD_DB_CONFIG,
+          ...loadedCloudDbConfig,
+          supabaseUrl: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || loadedCloudDbConfig.supabaseUrl || DEFAULT_CLOUD_DB_CONFIG.supabaseUrl,
+          supabaseAnonKey: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || loadedCloudDbConfig.supabaseAnonKey || DEFAULT_CLOUD_DB_CONFIG.supabaseAnonKey,
+          enabled: true
+        };
+
         setCatalog(loadedCatalog);
         setTestPackages(loadedPackages);
         setDoctorsList(loadedDoctors);
@@ -80,19 +88,35 @@ export function useCatalogData() {
         setTestGroups(finalGroups);
         setEquipments(finalEquipments);
         setClinicInfo(loadedClinic);
-        setCloudDbConfig(loadedCloudDbConfig);
+        setCloudDbConfig(effectiveCloudConfig);
 
-        if (loadedCloudDbConfig.enabled && loadedCloudDbConfig.supabaseUrl) {
+        if (effectiveCloudConfig.enabled && effectiveCloudConfig.supabaseUrl) {
           try {
-            const cloudCatalog = await fetchTableFromCloud<CatalogItem[]>("catalog_data", loadedCloudDbConfig);
+            const cloudCatalog = await fetchTableFromCloud<CatalogItem[]>("catalog_data", effectiveCloudConfig);
             if (cloudCatalog && Array.isArray(cloudCatalog) && cloudCatalog.length > 0) {
               setCatalog(cloudCatalog);
             }
-            const cloudPackages = await fetchTableFromCloud<TestPackage[]>("test_packages", loadedCloudDbConfig);
+            const cloudPackages = await fetchTableFromCloud<TestPackage[]>("test_packages", effectiveCloudConfig);
             if (cloudPackages && Array.isArray(cloudPackages) && cloudPackages.length > 0) {
               setTestPackages(cloudPackages);
             }
-            const cloudInvoices = await fetchTableFromCloud<Invoice[]>("invoices_history", loadedCloudDbConfig);
+            const cloudTestGroups = await fetchTableFromCloud<TestGroup[]>("test_groups", effectiveCloudConfig);
+            if (cloudTestGroups && Array.isArray(cloudTestGroups) && cloudTestGroups.length > 0) {
+              setTestGroups(cloudTestGroups);
+            }
+            const cloudEquipments = await fetchTableFromCloud<TestEquipment[]>("equipments_catalog", effectiveCloudConfig);
+            if (cloudEquipments && Array.isArray(cloudEquipments) && cloudEquipments.length > 0) {
+              setEquipments(cloudEquipments);
+            }
+            const cloudDoctors = await fetchTableFromCloud<Doctor[]>("doctors_catalog", effectiveCloudConfig);
+            if (cloudDoctors && Array.isArray(cloudDoctors) && cloudDoctors.length > 0) {
+              setDoctorsList(cloudDoctors);
+            }
+            const cloudClinic = await fetchTableFromCloud<ClinicInfo>("clinic_info", effectiveCloudConfig);
+            if (cloudClinic && cloudClinic.name) {
+              setClinicInfo(cloudClinic);
+            }
+            const cloudInvoices = await fetchTableFromCloud<Invoice[]>("invoices_history", effectiveCloudConfig);
             if (cloudInvoices && Array.isArray(cloudInvoices) && cloudInvoices.length > 0) {
               setInvoices(cloudInvoices);
             }
