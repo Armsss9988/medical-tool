@@ -7,22 +7,26 @@ import doctorStamp from '@assets/doctorstamp.jpg';
 import { Patient, SelectedTest, ClinicInfo } from '@domain/types';
 
 interface PrintReportViewProps {
+  elementId?: string;
   patient: Patient;
-  selectedTests: SelectedTest[];
-  currentDateStr: string;
-  doctorName: string;
-  conclusion: string;
+  selectedTests?: SelectedTest[];
+  currentDateStr?: string;
+  doctorName?: string;
+  conclusion?: string;
   qrCodeUrl?: string;
+  qrCodeDataUrl?: string;
   clinicInfo?: ClinicInfo;
 }
 
 export default function PrintReportView({
+  elementId = 'printable-medical-report',
   patient,
-  selectedTests,
-  currentDateStr,
-  doctorName,
-  conclusion,
+  selectedTests = [],
+  currentDateStr = new Date().toLocaleDateString('vi-VN'),
+  doctorName = '',
+  conclusion = '',
   qrCodeUrl,
+  qrCodeDataUrl,
   clinicInfo = {
     name: 'CÔNG TY CỔ PHẦN TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH',
     address: 'P. Đồng Sơn – Quảng Trị',
@@ -31,9 +35,12 @@ export default function PrintReportView({
     defaultDoctor: 'BS. Trần Hoài Long'
   }
 }: PrintReportViewProps) {
+  const finalQrCode = qrCodeUrl || qrCodeDataUrl;
+  const tests = selectedTests || [];
+
   // Gom nhóm các chỉ số theo nhóm xét nghiệm
   const groupedCategories: Record<string, SelectedTest[]> = {};
-  selectedTests.forEach((t) => {
+  tests.forEach((t) => {
     const cat = t.category || 'XÉT NGHIỆM KHÁC';
     if (!groupedCategories[cat]) {
       groupedCategories[cat] = [];
@@ -42,7 +49,10 @@ export default function PrintReportView({
   });
 
   return (
-    <div className="bg-white text-slate-900 font-sans p-6 max-w-[210mm] mx-auto text-xs leading-relaxed min-h-[297mm] flex flex-col justify-between print:p-4 print:max-w-none print:shadow-none print:w-full">
+    <div
+      id={elementId}
+      className="bg-white text-slate-900 font-sans p-6 max-w-[210mm] mx-auto text-xs leading-relaxed min-h-[297mm] flex flex-col justify-between print:p-4 print:max-w-none print:shadow-none print:w-full"
+    >
       
       {/* KHUNG NỘI DUNG CHÍNH (TOP & MIDDLE) */}
       <div className="flex-1 flex flex-col justify-start">
@@ -69,11 +79,11 @@ export default function PrintReportView({
           </div>
 
           {/* Khung QR Code bên phải Header */}
-          {qrCodeUrl ? (
+          {finalQrCode ? (
             <div className="flex flex-col items-center justify-center p-1 bg-slate-50 border border-slate-200 rounded">
-              <img src={qrCodeUrl} alt="Mã QR Tra Cứu" className="w-16 h-16 object-contain" />
+              <img src={finalQrCode} alt="Mã QR Tra Cứu" className="w-16 h-16 object-contain" />
               <button
-                onClick={() => downloadQrCodeImage(qrCodeUrl, `QRCode_${patient.code || 'Golab'}.png`)}
+                onClick={() => downloadQrCodeImage(finalQrCode, `QRCode_${patient.code || 'Golab'}.png`)}
                 title="Tải ảnh QR Code về máy"
                 className="mt-0.5 flex items-center space-x-0.5 text-[8.5px] text-sky-700 font-bold hover:underline print:hidden"
               >

@@ -4,17 +4,23 @@ import doctorStamp from '@assets/doctorstamp.jpg';
 import { Patient, SelectedTest, ClinicInfo } from '@domain/types';
 
 interface FullAllergenReportViewProps {
+  elementId?: string;
   patient: Patient;
-  allergenTests: SelectedTest[];
-  currentDateStr: string;
-  doctorName: string;
+  allergenTests?: SelectedTest[];
+  selectedTests?: SelectedTest[];
+  currentDateStr?: string;
+  doctorName?: string;
+  qrCodeDataUrl?: string;
+  qrCodeUrl?: string;
   clinicInfo?: ClinicInfo;
 }
 
 export default function FullAllergenReportView({
+  elementId = 'printable-allergen-report',
   patient,
   allergenTests,
-  currentDateStr,
+  selectedTests,
+  currentDateStr = new Date().toLocaleDateString('vi-VN'),
   doctorName,
   clinicInfo = {
     name: 'CÔNG TY CỔ PHẦN TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH',
@@ -24,8 +30,9 @@ export default function FullAllergenReportView({
     defaultDoctor: 'BS. Nguyễn Thị Mai'
   }
 }: FullAllergenReportViewProps) {
-  // Lấy ra danh sách các dị nguyên có giá trị
-  const activeTests = allergenTests.filter((t) => t.value !== undefined && t.value !== null && t.value !== '');
+  // Lấy ra danh sách các dị nguyên có giá trị (hỗ trợ cả allergenTests và selectedTests)
+  const rawTests = allergenTests || selectedTests || [];
+  const activeTests = rawTests.filter((t) => t && t.value !== undefined && t.value !== null && t.value !== '');
 
   // Đếm phân loại theo cấp độ dị ứng (Grade 0 -> Grade 6)
   const gradeCounts = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
@@ -41,7 +48,10 @@ export default function FullAllergenReportView({
   });
 
   return (
-    <div className="bg-white text-slate-900 font-sans p-6 max-w-[210mm] mx-auto text-xs leading-relaxed min-h-[297mm] flex flex-col justify-between print:p-4 print:max-w-none print:w-full">
+    <div
+      id={elementId}
+      className="bg-white text-slate-900 font-sans p-6 max-w-[210mm] mx-auto text-xs leading-relaxed min-h-[297mm] flex flex-col justify-between print:p-4 print:max-w-none print:w-full"
+    >
       
       {/* 1. HEADER LOGO & PHÒNG KHÁM */}
       <div>
