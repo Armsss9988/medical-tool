@@ -2,8 +2,8 @@ import React from 'react';
 import { evaluateResult } from '@domain/testResult';
 import { downloadQrCodeImage } from '@infra/qrService';
 import { Download } from 'lucide-react';
-import golabLogo from '@assets/golablogo';
-import doctorStamp from '@assets/doctorStamp';
+import golabLogo from '@assets/golabLogoDataUrl';
+import doctorStamp from '@assets/doctorStampDataUrl';
 import { Patient, SelectedTest, ClinicInfo } from '@domain/types';
 
 interface PrintReportViewProps {
