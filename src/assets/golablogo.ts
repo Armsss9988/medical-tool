@@ -1,2 +1,3 @@
-import golabLogo from './golablogo.jpg';
+import golabLogo from './golabLogoDataUrl';
+export { golabLogo };
 export default golabLogo;
