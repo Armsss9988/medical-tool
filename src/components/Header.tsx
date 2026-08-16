@@ -1,13 +1,12 @@
 import React from 'react';
-import { FileSpreadsheet, Download, Settings, Activity, ListChecks, TrendingUp, FolderOpen } from 'lucide-react';
-import { exportSampleExcelCatalog } from '@infra/excelService';
+import { Settings, Activity, ListChecks, TrendingUp, FolderOpen } from 'lucide-react';
 import { ClinicInfo, CatalogItem } from '@domain/types';
 
 interface HeaderProps {
   clinicInfo: ClinicInfo;
   setClinicInfo: React.Dispatch<React.SetStateAction<ClinicInfo>>;
-  onLoadExcelFile: (fileOrBuffer: Blob | ArrayBuffer) => void;
-  catalog: CatalogItem[];
+  onLoadExcelFile?: (fileOrBuffer: Blob | ArrayBuffer) => void;
+  catalog?: CatalogItem[];
   onOpenSettings: () => void;
   onOpenCatalogModal: () => void;
   onOpenRevenueModal: () => void;
@@ -17,37 +16,12 @@ interface HeaderProps {
 
 export default function Header({ 
   clinicInfo, 
-  onLoadExcelFile, 
-  catalog,
   onOpenSettings,
   onOpenCatalogModal,
   onOpenRevenueModal,
   onOpenDataFolder,
   invoiceCount = 0
 }: HeaderProps) {
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onLoadExcelFile(file);
-    }
-  };
-
-  const handleNativeExcelSelect = async () => {
-    if (window.electronAPI && window.electronAPI.selectExcelFile) {
-      try {
-        const fileObj = await window.electronAPI.selectExcelFile();
-        if (fileObj && fileObj.buffer) {
-          onLoadExcelFile(new Blob([fileObj.buffer]));
-        }
-      } catch (err) {
-        console.error('Lỗi chọn file Electron:', err);
-      }
-    } else {
-      const input = document.getElementById('excel-file-input') as HTMLInputElement | null;
-      if (input) input.click();
-    }
-  };
-
   return (
     <header className="bg-slate-900 text-white border-b-2 border-sky-600 px-5 py-3 shadow-md sticky top-0 z-30">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
@@ -73,14 +47,6 @@ export default function Header({
         {/* Right: Quick Action Controls */}
         <div className="flex flex-wrap items-center gap-2">
           
-          <input
-            id="excel-file-input"
-            type="file"
-            accept=".xlsx, .xls, .csv"
-            className="hidden"
-            onChange={handleFileChange}
-          />
-
           {/* Button Sổ Sách & Doanh Thu */}
           <button
             onClick={onOpenRevenueModal}
@@ -106,16 +72,6 @@ export default function Header({
             <span>Quản Lý Danh Mục</span>
           </button>
 
-          {/* Button Nạp File Excel */}
-          <button
-            onClick={handleNativeExcelSelect}
-            title="Đọc file Excel danh mục từ máy tính"
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold shadow transition-all active:scale-95"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-            <span>Nạp Excel</span>
-          </button>
-
           {/* Button Mở Thư Mục Dữ Liệu */}
           {window.electronAPI?.openDataFolder && (
             <button
@@ -127,16 +83,6 @@ export default function Header({
               <span>Dữ Liệu</span>
             </button>
           )}
-
-          {/* Button Tải File Excel Mẫu */}
-          <button
-            onClick={() => exportSampleExcelCatalog(catalog)}
-            title="Tải file Excel mẫu để chỉnh sửa danh mục"
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium transition-all"
-          >
-            <Download className="w-4 h-4 text-slate-300" />
-            <span>Tải Excel Mẫu</span>
-          </button>
 
           {/* Button Settings */}
           <button
