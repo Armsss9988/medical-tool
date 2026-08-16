@@ -234,9 +234,12 @@ export default function FullAllergenReportView({
             <p className="text-[10px] font-bold uppercase text-slate-900 mt-0.5">BÁC SĨ / KTV CHUYÊN KHOA DỊ ỨNG</p>
             <div className="h-16 flex items-center justify-center py-1">
               <img
-                src={doctorStamp}
+                src={doctorStamp || '/doctorstamp.png'}
                 alt="Đã ký & Đóng dấu"
                 className="h-16 w-auto object-contain max-w-[100px]"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = '/doctorstamp.png';
+                }}
               />
             </div>
             <p className="text-[11px] font-bold text-slate-900 uppercase">
