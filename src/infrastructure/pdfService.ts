@@ -175,6 +175,25 @@ export async function exportToPdf(
   const originalDisplay = element.style.display;
   element.style.display = 'block';
 
+  // Chờ tất cả ảnh (Logo, Con dấu, QR) tải và decode hoàn tất 100% trước khi render PDF
+  const images = Array.from(element.querySelectorAll('img'));
+  await Promise.all(
+    images.map(
+      (img) =>
+        new Promise<void>((resolve) => {
+          if (img.complete && img.naturalHeight !== 0) {
+            resolve();
+          } else {
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+            if ('decode' in img) {
+              img.decode().then(resolve).catch(resolve);
+            }
+          }
+        })
+    )
+  );
+
   await new Promise((r) => setTimeout(r, 100));
 
   try {
@@ -269,6 +288,25 @@ export async function exportElementToPdfBlob(
   const originalDisplay = element.style.display;
   element.style.display = 'block';
 
+  // Chờ tất cả ảnh (Logo, Con dấu, QR) tải và decode hoàn tất 100% trước khi render PDF
+  const images = Array.from(element.querySelectorAll('img'));
+  await Promise.all(
+    images.map(
+      (img) =>
+        new Promise<void>((resolve) => {
+          if (img.complete && img.naturalHeight !== 0) {
+            resolve();
+          } else {
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+            if ('decode' in img) {
+              img.decode().then(resolve).catch(resolve);
+            }
+          }
+        })
+    )
+  );
+
   await new Promise((r) => setTimeout(r, 100));
 
   try {
@@ -312,7 +350,6 @@ export async function exportElementToPdfBlob(
       heightLeft -= pdfHeight;
     }
 
-    pdf.save(filename);
     return pdf.output('blob');
   } catch (err) {
     element.style.display = originalDisplay;
@@ -323,7 +360,7 @@ export async function exportElementToPdfBlob(
         container.removeAttribute('style');
       }
     }
-    console.error('Lỗi khi xuất PDF Blob:', err);
+    console.error('Lỗi khi tạo PDF blob:', err);
     return null;
   }
 }

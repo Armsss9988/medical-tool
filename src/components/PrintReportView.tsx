@@ -248,12 +248,9 @@ export default function PrintReportView({
             <p className="text-[11px] font-bold uppercase text-slate-900 mt-1">BÁC SĨ / KTV XÉT NGHIỆM</p>
             <div className="h-20 flex items-center justify-center py-1">
               <img
-                src={doctorStamp || '/doctorstamp.png'}
+                src={doctorStamp}
                 alt="Đã ký & Đóng dấu"
                 className="h-20 w-auto object-contain max-w-[120px]"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src = '/doctorstamp.png';
-                }}
               />
             </div>
             <p className="text-xs font-bold text-slate-900 uppercase">
