@@ -104,6 +104,8 @@ export interface ClinicInfo {
   phone: string;
   website?: string;
   defaultDoctor: string;
+  logoUrl?: string;
+  stampUrl?: string;
 }
 
 export interface AllergenGradeResult {

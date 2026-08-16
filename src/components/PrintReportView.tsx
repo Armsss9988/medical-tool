@@ -37,6 +37,8 @@ export default function PrintReportView({
 }: PrintReportViewProps) {
   const tests = selectedTests || [];
   const finalQrCode = qrCodeDataUrl || qrCodeUrl;
+  const currentLogo = clinicInfo?.logoUrl || golabLogo;
+  const currentStamp = clinicInfo?.stampUrl || doctorStamp;
 
   // Gom nhóm các chỉ số theo nhóm xét nghiệm
   const groupedCategories: Record<string, SelectedTest[]> = {};
@@ -51,7 +53,8 @@ export default function PrintReportView({
   return (
     <div
       id={elementId}
-      className="bg-white text-slate-900 font-sans p-6 max-w-[210mm] mx-auto text-xs leading-relaxed min-h-[297mm] flex flex-col justify-between print:p-4 print:max-w-none print:shadow-none print:w-full"
+      style={{ width: '210mm', minHeight: '297mm', maxWidth: '210mm', boxSizing: 'border-box' }}
+      className="w-[210mm] max-w-[210mm] min-h-[297mm] bg-white text-slate-900 font-sans p-6 mx-auto text-xs leading-relaxed flex flex-col justify-between print:p-4 print:max-w-none print:shadow-none print:w-full"
     >
       
       {/* KHUNG NỘI DUNG CHÍNH (TOP & MIDDLE) */}
@@ -60,11 +63,19 @@ export default function PrintReportView({
         {/* HEADER PHÒNG KHÁM & MÃ QR */}
         <div className="flex items-start justify-between border-b border-slate-300 pb-3 mb-3">
           <div className="flex items-center space-x-3">
-            <img
-              src={golabLogo}
-              alt="GoLab Logo"
-              className="h-16 w-auto object-contain"
-            />
+            <div className="h-16 w-32 flex items-center justify-start shrink-0">
+              <img
+                src={currentLogo}
+                alt="GoLab Logo"
+                className="h-16 max-w-[128px] w-auto object-contain"
+                crossOrigin="anonymous"
+                loading="eager"
+                decoding="sync"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = golabLogo;
+                }}
+              />
+            </div>
             <div>
               <p className="text-[10px] font-bold text-sky-800 uppercase tracking-widest leading-none mb-0.5">
                 HỆ THỐNG XÉT NGHIỆM GOLAB
@@ -83,9 +94,17 @@ export default function PrintReportView({
 
           {/* Khung QR Code bên phải Header */}
           {finalQrCode ? (
-            <div className="flex flex-col items-center justify-center p-1 bg-slate-50 border border-slate-200 rounded">
-              <img src={finalQrCode} alt="Mã QR Tra Cứu" className="w-16 h-16 object-contain" />
+            <div className="flex flex-col items-center justify-center p-1 bg-slate-50 border border-slate-200 rounded shrink-0">
+              <img
+                src={finalQrCode}
+                alt="Mã QR Tra Cứu"
+                className="w-16 h-16 object-contain"
+                crossOrigin="anonymous"
+                loading="eager"
+                decoding="sync"
+              />
               <button
+                type="button"
                 onClick={() => downloadQrCodeImage(finalQrCode, `QRCode_${patient.code || 'Golab'}.png`)}
                 title="Tải ảnh QR Code về máy"
                 className="mt-0.5 flex items-center space-x-0.5 text-[8.5px] text-sky-700 font-bold hover:underline print:hidden"
@@ -95,7 +114,7 @@ export default function PrintReportView({
               </button>
             </div>
           ) : (
-            <div className="text-right">
+            <div className="text-right shrink-0">
               <span className="text-[10px] font-mono text-slate-500 block">Mã phiếu XN:</span>
               <span className="text-xs font-mono font-bold text-sky-900">{patient.code}</span>
             </div>
@@ -118,7 +137,7 @@ export default function PrintReportView({
                 <td className="w-28 py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Họ và tên:</td>
                 <td className="py-1 px-2.5 font-bold text-red-600 uppercase border-r border-slate-200">{patient.name || '---'}</td>
                 <td className="w-28 py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Năm sinh:</td>
-                <td className="py-1 px-2.5 font-medium text-slate-800">{patient.year || '---'}</td>
+                <td className="py-1 px-2.5 font-medium text-slate-800">{patient.dob || (patient as any).year || '---'}</td>
               </tr>
               {/* Hàng 2 */}
               <tr className="border-b border-slate-200">
@@ -135,23 +154,23 @@ export default function PrintReportView({
               {/* Hàng 4 */}
               <tr className="border-b border-slate-200">
                 <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Bác sĩ chỉ định:</td>
-                <td className="py-1 px-2.5 font-bold text-sky-900 border-r border-slate-200">{patient.doctor || 'BS. Trần Hoài Long'}</td>
+                <td className="py-1 px-2.5 font-bold text-sky-900 border-r border-slate-200">{(patient as any).doctor || doctorName || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long'}</td>
                 <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Số bệnh phẩm:</td>
                 <td className="py-1 px-2.5 font-mono font-bold text-red-600">{patient.sampleCode || patient.code}</td>
               </tr>
               {/* Hàng 5 */}
               <tr className="border-b border-slate-200">
                 <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G chỉ định:</td>
-                <td className="py-1 px-2.5 font-mono text-slate-700 border-r border-slate-200">{patient.orderTime || currentDateStr}</td>
+                <td className="py-1 px-2.5 font-mono text-slate-700 border-r border-slate-200">{patient.orderedAt || (patient as any).orderTime || currentDateStr}</td>
                 <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G đóng phí:</td>
-                <td className="py-1 px-2.5 font-mono text-slate-700">{patient.paidTime || currentDateStr}</td>
+                <td className="py-1 px-2.5 font-mono text-slate-700">{patient.paidAt || (patient as any).paidTime || currentDateStr}</td>
               </tr>
               {/* Hàng 6 */}
               <tr>
                 <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G nhận mẫu:</td>
-                <td className="py-1 px-2.5 font-mono text-slate-700 border-r border-slate-200">{patient.sampleTime || currentDateStr}</td>
+                <td className="py-1 px-2.5 font-mono text-slate-700 border-r border-slate-200">{patient.receivedAt || (patient as any).sampleTime || currentDateStr}</td>
                 <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G trả kết quả:</td>
-                <td className="py-1 px-2.5 font-mono text-slate-700">{patient.resultTime || currentDateStr}</td>
+                <td className="py-1 px-2.5 font-mono text-slate-700">{patient.returnedAt || (patient as any).resultTime || currentDateStr}</td>
               </tr>
             </tbody>
           </table>
@@ -261,13 +280,19 @@ export default function PrintReportView({
 
           {/* Bên phải: Chữ ký & Đóng dấu Bác sĩ */}
           <div className="text-center min-w-[200px]">
-            <p className="text-[10px] text-slate-600 italic">Hà Nội, ngày {currentDateStr}</p>
+            <p className="text-[10px] text-slate-600 italic">Ngày {currentDateStr}</p>
             <p className="text-[11px] font-bold uppercase text-slate-900 mt-1">BÁC SĨ / KTV XÉT NGHIỆM</p>
             <div className="h-20 flex items-center justify-center py-1">
               <img
-                src={doctorStamp}
+                src={currentStamp}
                 alt="Đã ký & Đóng dấu"
                 className="h-20 w-auto object-contain max-w-[120px]"
+                crossOrigin="anonymous"
+                loading="eager"
+                decoding="sync"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = doctorStamp;
+                }}
               />
             </div>
             <p className="text-xs font-bold text-slate-900 uppercase">

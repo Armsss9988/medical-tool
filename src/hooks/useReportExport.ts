@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ToastType } from '@domain/types';
-import { exportElementToPdfBlob } from '@infra/pdfService';
+import { exportToPdfFull } from '@infra/pdfService';
 import { uploadPdfToCloudinary } from '@infra/cloudService';
 import { generateQrCodeDataUrl, downloadDataUrlAsImage } from '@infra/qrService';
 
@@ -17,16 +17,15 @@ export function useReportExport(
     try {
       showToast('Đang tạo file PDF A4 & tải lên Cloud Storage...', 'info');
 
-      const pdfBlob = await exportElementToPdfBlob(elementId, filename);
-      if (!pdfBlob) {
+      const exportRes = await exportToPdfFull(elementId, filename, true);
+      if (!exportRes || !exportRes.pdfBase64) {
         showToast('Không thể xuất file PDF. Vui lòng kiểm tra lại!', 'error');
         return;
       }
 
-      const cloudRes = await uploadPdfToCloudinary(pdfBlob, filename, (pct) => {
-        if (pct === 100) {
-          showToast('Đã tải PDF lên Cloud! Đang tạo mã QR...', 'info');
-        }
+      const cloudRes = await uploadPdfToCloudinary({
+        pdfBase64: exportRes.pdfBase64,
+        filename
       });
 
       const uploadedUrl = cloudRes.url;

@@ -89,6 +89,50 @@ export function convertCssColors(cssText: string): string {
 export interface ExportPdfResult {
   success: boolean;
   pdfBase64: string;
+  pdfBlob?: Blob | null;
+}
+
+/**
+ * Đảm bảo 100% tất cả hình ảnh (Logo, Con dấu, QR Code) trong phần tử đã decode hoàn tất
+ */
+export async function ensureImagesLoadedAndReady(element: HTMLElement): Promise<void> {
+  const images = Array.from(element.querySelectorAll('img'));
+  if (images.length === 0) return;
+
+  const loadPromises = images.map((img) => {
+    return new Promise<void>((resolve) => {
+      // Đặt các thuộc tính nạp ảnh tức thời và tránh bị CORS chặn
+      if (!img.getAttribute('crossorigin')) {
+        img.setAttribute('crossorigin', 'anonymous');
+      }
+      img.loading = 'eager';
+
+      if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+        resolve();
+        return;
+      }
+
+      const timeoutId = setTimeout(() => {
+        resolve(); // Timeout an toàn 2500ms, không bao giờ để tiến trình bị treo
+      }, 2500);
+
+      const onDone = () => {
+        clearTimeout(timeoutId);
+        resolve();
+      };
+
+      img.onload = onDone;
+      img.onerror = onDone;
+
+      if ('decode' in img && typeof img.decode === 'function') {
+        img.decode().then(onDone).catch(onDone);
+      }
+    });
+  });
+
+  await Promise.all(loadPromises);
+  // Nghỉ 80ms để trình duyệt hoàn tất paint layout
+  await new Promise((resolve) => setTimeout(resolve, 80));
 }
 
 function sanitizeStylesForCanvas(clonedDoc: Document, printElementId: string) {
@@ -132,6 +176,12 @@ function sanitizeStylesForCanvas(clonedDoc: Document, printElementId: string) {
     printEl.style.opacity = '1';
     printEl.style.position = 'static';
     printEl.style.transform = 'none';
+    printEl.style.width = '210mm';
+    printEl.style.minWidth = '210mm';
+    printEl.style.maxWidth = '210mm';
+    printEl.style.boxSizing = 'border-box';
+    printEl.style.backgroundColor = '#ffffff';
+    printEl.style.margin = '0 auto';
 
     const allElements = [printEl, ...Array.from(printEl.querySelectorAll('*'))];
     allElements.forEach((node) => {
@@ -142,13 +192,24 @@ function sanitizeStylesForCanvas(clonedDoc: Document, printElementId: string) {
           htmlNode.setAttribute('style', convertCssColors(styleAttr));
         }
       }
+
+      // Đảm bảo tất cả thẻ img trong clonedDoc đều giữ đúng thuộc tính và nạp ngay
+      if (htmlNode.tagName.toLowerCase() === 'img') {
+        const img = htmlNode as HTMLImageElement;
+        img.crossOrigin = 'anonymous';
+        img.loading = 'eager';
+      }
     });
   }
 }
 
-export async function exportToPdf(
+/**
+ * Hàm xuất PDF cốt lõi: Render chất lượng cao, trả về đầy đủ Base64, Blob và tùy chọn lưu file
+ */
+export async function exportToPdfFull(
   printElementId: string,
-  filename = 'Phieu_Ket_Qua_Xet_Nghiem.pdf'
+  filename = 'Phieu_Ket_Qua_Xet_Nghiem.pdf',
+  saveLocalFile = true
 ): Promise<ExportPdfResult> {
   const element = document.getElementById(printElementId);
   if (!element) {
@@ -158,7 +219,7 @@ export async function exportToPdf(
   try {
     await Promise.race([
       document.fonts.ready,
-      new Promise((resolve) => setTimeout(resolve, 500))
+      new Promise((resolve) => setTimeout(resolve, 600))
     ]);
   } catch {
     /* fallback font ready */
@@ -169,40 +230,24 @@ export async function exportToPdf(
 
   if (container && container !== element) {
     (container as HTMLElement).style.cssText =
-      'position:fixed; left:0; top:0; z-index:-1; opacity:0; pointer-events:none;';
+      'position:fixed; left:0; top:0; width:210mm; min-width:210mm; z-index:-999; opacity:0; pointer-events:none; overflow:visible; transform:none;';
   }
 
   const originalDisplay = element.style.display;
   element.style.display = 'block';
 
-  // Chờ tất cả ảnh (Logo, Con dấu, QR) tải và decode hoàn tất 100% trước khi render PDF
-  const images = Array.from(element.querySelectorAll('img'));
-  await Promise.all(
-    images.map(
-      (img) =>
-        new Promise<void>((resolve) => {
-          if (img.complete && img.naturalHeight !== 0) {
-            resolve();
-          } else {
-            img.onload = () => resolve();
-            img.onerror = () => resolve();
-            if ('decode' in img) {
-              img.decode().then(resolve).catch(resolve);
-            }
-          }
-        })
-    )
-  );
-
-  await new Promise((r) => setTimeout(r, 100));
+  // 1. Chờ tất cả ảnh (Logo, Con dấu, QR) tải và decode hoàn tất 100% trước khi render PDF
+  await ensureImagesLoadedAndReady(element);
 
   try {
     const canvas = await html2canvas(element, {
-      scale: 2,
+      scale: 2.2, // Tăng scale lên 2.2 để hình ảnh và chữ sắc nét tuyệt đối chuẩn in ấn A4
       useCORS: true,
       allowTaint: true,
       backgroundColor: '#ffffff',
       logging: false,
+      imageTimeout: 15000,
+      windowWidth: 1200, // Cố định chiều rộng ngữ cảnh desktop chuẩn A4
       onclone: (clonedDoc) => {
         sanitizeStylesForCanvas(clonedDoc, printElementId);
       }
@@ -218,7 +263,12 @@ export async function exportToPdf(
     }
 
     const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdf = new jsPDF({
+      orientation: 'p',
+      unit: 'mm',
+      format: 'a4',
+      compress: true
+    });
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = pdf.internal.pageSize.getHeight();
     const imgWidth = pdfWidth;
@@ -227,22 +277,27 @@ export async function exportToPdf(
     let heightLeft = imgHeight;
     let position = 0;
 
-    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
     heightLeft -= pdfHeight;
 
     while (heightLeft >= 1) {
       position = heightLeft - imgHeight;
       pdf.addPage();
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
       heightLeft -= pdfHeight;
     }
 
-    pdf.save(filename);
+    if (saveLocalFile) {
+      pdf.save(filename);
+    }
+
     const pdfBase64 = getPdfBase64(pdf);
+    const pdfBlob = pdf.output('blob');
 
     return {
       success: true,
-      pdfBase64
+      pdfBase64,
+      pdfBlob
     };
   } catch (err) {
     element.style.display = originalDisplay;
@@ -258,108 +313,21 @@ export async function exportToPdf(
   }
 }
 
+export async function exportToPdf(
+  printElementId: string,
+  filename = 'Phieu_Ket_Qua_Xet_Nghiem.pdf'
+): Promise<ExportPdfResult> {
+  return exportToPdfFull(printElementId, filename, true);
+}
+
 export async function exportElementToPdfBlob(
   printElementId: string,
   filename = 'Phieu_Ket_Qua_Xet_Nghiem.pdf'
 ): Promise<Blob | null> {
-  const element = document.getElementById(printElementId);
-  if (!element) {
-    console.error(`Không tìm thấy phần tử HTML #${printElementId}`);
-    return null;
-  }
-
   try {
-    await Promise.race([
-      document.fonts.ready,
-      new Promise((resolve) => setTimeout(resolve, 500))
-    ]);
-  } catch {
-    /* fallback font ready */
-  }
-
-  const container = element.closest('.fixed, [style]') || element.parentElement;
-  const savedContainerStyle = container ? container.getAttribute('style') || '' : '';
-
-  if (container && container !== element) {
-    (container as HTMLElement).style.cssText =
-      'position:fixed; left:0; top:0; z-index:-1; opacity:0; pointer-events:none;';
-  }
-
-  const originalDisplay = element.style.display;
-  element.style.display = 'block';
-
-  // Chờ tất cả ảnh (Logo, Con dấu, QR) tải và decode hoàn tất 100% trước khi render PDF
-  const images = Array.from(element.querySelectorAll('img'));
-  await Promise.all(
-    images.map(
-      (img) =>
-        new Promise<void>((resolve) => {
-          if (img.complete && img.naturalHeight !== 0) {
-            resolve();
-          } else {
-            img.onload = () => resolve();
-            img.onerror = () => resolve();
-            if ('decode' in img) {
-              img.decode().then(resolve).catch(resolve);
-            }
-          }
-        })
-    )
-  );
-
-  await new Promise((r) => setTimeout(r, 100));
-
-  try {
-    const canvas = await html2canvas(element, {
-      scale: 2,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#ffffff',
-      logging: false,
-      onclone: (clonedDoc) => {
-        sanitizeStylesForCanvas(clonedDoc, printElementId);
-      }
-    });
-
-    element.style.display = originalDisplay;
-    if (container && container !== element) {
-      if (savedContainerStyle) {
-        container.setAttribute('style', savedContainerStyle);
-      } else {
-        container.removeAttribute('style');
-      }
-    }
-
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pdfWidth;
-    const imgHeight = (canvas.height * pdfWidth) / canvas.width;
-
-    let heightLeft = imgHeight;
-    let position = 0;
-
-    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-    heightLeft -= pdfHeight;
-
-    while (heightLeft >= 1) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pdfHeight;
-    }
-
-    return pdf.output('blob');
+    const result = await exportToPdfFull(printElementId, filename, false);
+    return result.pdfBlob || null;
   } catch (err) {
-    element.style.display = originalDisplay;
-    if (container && container !== element) {
-      if (savedContainerStyle) {
-        container.setAttribute('style', savedContainerStyle);
-      } else {
-        container.removeAttribute('style');
-      }
-    }
     console.error('Lỗi khi tạo PDF blob:', err);
     return null;
   }

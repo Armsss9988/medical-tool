@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { X, Sliders, Database, Save } from 'lucide-react';
+import { X, Sliders, Database, Save, Upload, RotateCcw, Image as ImageIcon } from 'lucide-react';
 import { CatalogItem, TestPackage, TestGroup, TestEquipment, Doctor, ClinicInfo, CloudDbConfig } from '@domain/types';
+import golabLogo from '@assets/golabLogoDataUrl';
+import doctorStamp from '@assets/doctorStampDataUrl';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -9,11 +11,11 @@ interface SettingsModalProps {
   setClinicInfo: React.Dispatch<React.SetStateAction<ClinicInfo>>;
   cloudDbConfig: CloudDbConfig;
   setCloudDbConfig: React.Dispatch<React.SetStateAction<CloudDbConfig>>;
-  catalog: CatalogItem[];
-  testPackages: TestPackage[];
-  testGroups: TestGroup[];
-  equipments: TestEquipment[];
-  doctorsList: Doctor[];
+  catalog?: CatalogItem[];
+  testPackages?: TestPackage[];
+  testGroups?: TestGroup[];
+  equipments?: TestEquipment[];
+  doctorsList?: Doctor[];
   showToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
 }
 
@@ -34,11 +36,60 @@ export default function SettingsModal({
     setClinicInfo((prev) => ({ ...prev, [field]: val }));
   };
 
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('Kích thước ảnh logo không được vượt quá 2MB!', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const dataUrl = evt.target?.result as string;
+      if (dataUrl) {
+        setClinicInfo((prev) => ({ ...prev, logoUrl: dataUrl }));
+        showToast('Đã nạp Logo phòng khám mới thành công!', 'success');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleStampUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('Kích thước ảnh con dấu không được vượt quá 2MB!', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const dataUrl = evt.target?.result as string;
+      if (dataUrl) {
+        setClinicInfo((prev) => ({ ...prev, stampUrl: dataUrl }));
+        showToast('Đã nạp Con dấu / Chữ ký Bác sĩ mới thành công!', 'success');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleResetLogo = () => {
+    setClinicInfo((prev) => ({ ...prev, logoUrl: undefined }));
+    showToast('Đã đặt lại Logo về biểu trưng GoLab chuẩn!', 'info');
+  };
+
+  const handleResetStamp = () => {
+    setClinicInfo((prev) => ({ ...prev, stampUrl: undefined }));
+    showToast('Đã đặt lại Con dấu về mẫu GoLab chuẩn!', 'info');
+  };
+
   const handleSaveAll = () => {
     setCloudDbConfig(localCloudConfig);
     showToast('Đã lưu thành công thông tin phòng khám và cấu hình hệ thống!', 'success');
     onClose();
   };
+
+  const activeLogo = clinicInfo.logoUrl || golabLogo;
+  const activeStamp = clinicInfo.stampUrl || doctorStamp;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -79,24 +130,105 @@ export default function SettingsModal({
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               />
             </div>
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Số Điện Thoại Hotline</label>
-              <input
-                type="text"
-                value={clinicInfo.phone}
-                onChange={(e) => handleClinicChange('phone', e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Số Điện Thoại Hotline</label>
+                <input
+                  type="text"
+                  value={clinicInfo.phone}
+                  onChange={(e) => handleClinicChange('phone', e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Website</label>
+                <input
+                  type="text"
+                  value={clinicInfo.website || ''}
+                  placeholder="golab.com.vn"
+                  onChange={(e) => handleClinicChange('website', e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Website</label>
-              <input
-                type="text"
-                value={clinicInfo.website || ''}
-                placeholder="golab.com.vn"
-                onChange={(e) => handleClinicChange('website', e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-              />
+
+            {/* GẮN LOGO VÀ CON DẤU PHÒNG KHÁM */}
+            <div className="pt-2 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Box Logo */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col items-center text-center">
+                <span className="font-bold text-slate-700 mb-1.5 flex items-center gap-1">
+                  <ImageIcon className="w-3.5 h-3.5 text-sky-600" />
+                  <span>Logo Phiếu In (A4)</span>
+                </span>
+                <div className="h-16 w-full max-w-[140px] bg-white border border-slate-200 rounded-lg p-1 flex items-center justify-center mb-2 overflow-hidden shadow-2xs">
+                  <img
+                    src={activeLogo}
+                    alt="Logo Preview"
+                    className="max-h-full max-w-full object-contain"
+                    crossOrigin="anonymous"
+                  />
+                </div>
+                <div className="flex items-center space-x-1.5 w-full justify-center">
+                  <label className="cursor-pointer px-2.5 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded-md font-bold text-[10.5px] flex items-center gap-1 shadow transition active:scale-95">
+                    <Upload className="w-3 h-3" />
+                    <span>Tải Logo</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  {clinicInfo.logoUrl && (
+                    <button
+                      type="button"
+                      onClick={handleResetLogo}
+                      title="Đặt lại về Logo GoLab chuẩn"
+                      className="p-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md transition"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Box Con Dấu */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col items-center text-center">
+                <span className="font-bold text-slate-700 mb-1.5 flex items-center gap-1">
+                  <ImageIcon className="w-3.5 h-3.5 text-red-600" />
+                  <span>Con Dấu / Chữ Ký</span>
+                </span>
+                <div className="h-16 w-full max-w-[140px] bg-white border border-slate-200 rounded-lg p-1 flex items-center justify-center mb-2 overflow-hidden shadow-2xs">
+                  <img
+                    src={activeStamp}
+                    alt="Con Dấu Preview"
+                    className="max-h-full max-w-full object-contain"
+                    crossOrigin="anonymous"
+                  />
+                </div>
+                <div className="flex items-center space-x-1.5 w-full justify-center">
+                  <label className="cursor-pointer px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white rounded-md font-bold text-[10.5px] flex items-center gap-1 shadow transition active:scale-95">
+                    <Upload className="w-3 h-3" />
+                    <span>Tải Con Dấu</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleStampUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  {clinicInfo.stampUrl && (
+                    <button
+                      type="button"
+                      onClick={handleResetStamp}
+                      title="Đặt lại về Con Dấu GoLab chuẩn"
+                      className="p-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md transition"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 

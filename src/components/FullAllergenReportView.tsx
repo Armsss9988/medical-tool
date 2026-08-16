@@ -34,6 +34,8 @@ export default function FullAllergenReportView({
 }: FullAllergenReportViewProps) {
   const tests = allergenTests || selectedTests || [];
   const finalQrCode = qrCodeDataUrl || qrCodeUrl;
+  const currentLogo = clinicInfo?.logoUrl || golabLogo;
+  const currentStamp = clinicInfo?.stampUrl || doctorStamp;
 
   const totalAllergens = tests.length;
   const positiveTests = tests.filter((t) => {
@@ -70,14 +72,27 @@ export default function FullAllergenReportView({
   return (
     <div
       id={elementId}
-      className="bg-white text-slate-900 font-sans p-6 max-w-[210mm] mx-auto text-[10.5px] leading-tight min-h-[297mm] flex flex-col justify-between print:p-3 print:max-w-none print:shadow-none print:w-full"
+      style={{ width: '210mm', minHeight: '297mm', maxWidth: '210mm', boxSizing: 'border-box' }}
+      className="w-[210mm] max-w-[210mm] min-h-[297mm] bg-white text-slate-900 font-sans p-6 mx-auto text-[10.5px] leading-tight flex flex-col justify-between print:p-3 print:max-w-none print:shadow-none print:w-full"
     >
       
       {/* 1. HEADER LOGO & PHÒNG KHÁM */}
       <div>
         <div className="flex items-center justify-between border-b border-red-200 pb-2 mb-2">
           <div className="flex items-center space-x-3">
-            <img src={golabLogo} alt="GoLab Logo" className="h-14 w-auto object-contain" />
+            <div className="h-14 w-28 flex items-center justify-start shrink-0">
+              <img
+                src={currentLogo}
+                alt="GoLab Logo"
+                className="h-14 max-w-[112px] w-auto object-contain"
+                crossOrigin="anonymous"
+                loading="eager"
+                decoding="sync"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = golabLogo;
+                }}
+              />
+            </div>
             <div>
               <p className="text-[9px] font-bold text-red-800 uppercase tracking-widest leading-none mb-0.5">
                 HỆ THỐNG XÉT NGHIỆM GOLAB
@@ -96,8 +111,15 @@ export default function FullAllergenReportView({
 
           {/* QR Tra Cứu Kết Quả */}
           {finalQrCode && (
-            <div className="flex flex-col items-center justify-center p-1 bg-red-50/50 border border-red-200 rounded">
-              <img src={finalQrCode} alt="QR Code Tra Cứu" className="w-14 h-14 object-contain" />
+            <div className="flex flex-col items-center justify-center p-1 bg-red-50/50 border border-red-200 rounded shrink-0">
+              <img
+                src={finalQrCode}
+                alt="QR Code Tra Cứu"
+                className="w-14 h-14 object-contain"
+                crossOrigin="anonymous"
+                loading="eager"
+                decoding="sync"
+              />
               <span className="text-[7.5px] font-mono text-red-700 mt-0.5 font-bold">QR Tra Cứu</span>
             </div>
           )}
@@ -121,7 +143,7 @@ export default function FullAllergenReportView({
                 <td className="w-24 py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Họ và tên:</td>
                 <td className="py-0.5 px-2 font-bold text-red-600 uppercase border-r border-slate-200">{patient.name || '---'}</td>
                 <td className="w-24 py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Năm sinh:</td>
-                <td className="py-0.5 px-2 font-medium text-slate-800">{patient.year || '---'}</td>
+                <td className="py-0.5 px-2 font-medium text-slate-800">{patient.dob || (patient as any).year || '---'}</td>
               </tr>
               <tr className="border-b border-slate-200">
                 <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Giới tính:</td>
@@ -135,21 +157,21 @@ export default function FullAllergenReportView({
               </tr>
               <tr className="border-b border-slate-200">
                 <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Bác sĩ chỉ định:</td>
-                <td className="py-0.5 px-2 font-bold text-red-900 border-r border-slate-200">{patient.doctor || 'BS. Trần Hoài Long'}</td>
+                <td className="py-0.5 px-2 font-bold text-red-900 border-r border-slate-200">{(patient as any).doctor || doctorName || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long'}</td>
                 <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Số bệnh phẩm:</td>
                 <td className="py-0.5 px-2 font-mono font-bold text-red-600">{patient.sampleCode || patient.code}</td>
               </tr>
               <tr className="border-b border-slate-200">
                 <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G chỉ định:</td>
-                <td className="py-0.5 px-2 font-mono text-slate-700 border-r border-slate-200">{patient.orderTime || currentDateStr}</td>
+                <td className="py-0.5 px-2 font-mono text-slate-700 border-r border-slate-200">{patient.orderedAt || (patient as any).orderTime || currentDateStr}</td>
                 <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G đóng phí:</td>
-                <td className="py-0.5 px-2 font-mono text-slate-700">{patient.paidTime || currentDateStr}</td>
+                <td className="py-0.5 px-2 font-mono text-slate-700">{patient.paidAt || (patient as any).paidTime || currentDateStr}</td>
               </tr>
               <tr>
                 <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G nhận mẫu:</td>
-                <td className="py-0.5 px-2 font-mono text-slate-700 border-r border-slate-200">{patient.sampleTime || currentDateStr}</td>
+                <td className="py-0.5 px-2 font-mono text-slate-700 border-r border-slate-200">{patient.receivedAt || (patient as any).sampleTime || currentDateStr}</td>
                 <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G trả kết quả:</td>
-                <td className="py-0.5 px-2 font-mono text-slate-700">{patient.resultTime || currentDateStr}</td>
+                <td className="py-0.5 px-2 font-mono text-slate-700">{patient.returnedAt || (patient as any).resultTime || currentDateStr}</td>
               </tr>
             </tbody>
           </table>
@@ -243,13 +265,19 @@ export default function FullAllergenReportView({
           </div>
 
           <div className="text-center min-w-[180px]">
-            <p className="text-[9px] text-slate-600 italic">Hà Nội, ngày {currentDateStr}</p>
+            <p className="text-[9px] text-slate-600 italic">Ngày {currentDateStr}</p>
             <p className="text-[10px] font-bold uppercase text-slate-900 mt-0.5">BÁC SĨ / KTV CHUYÊN KHOA DỊ ỨNG</p>
             <div className="h-16 flex items-center justify-center py-1">
               <img
-                src={doctorStamp}
+                src={currentStamp}
                 alt="Đã ký & Đóng dấu"
                 className="h-16 w-auto object-contain max-w-[100px]"
+                crossOrigin="anonymous"
+                loading="eager"
+                decoding="sync"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = doctorStamp;
+                }}
               />
             </div>
             <p className="text-[11px] font-bold text-slate-900 uppercase">

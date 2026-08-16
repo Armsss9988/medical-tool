@@ -348,7 +348,8 @@ export default function App() {
         clinicInfo={clinicInfo}
         setClinicInfo={setClinicInfo}
         cloudDbConfig={cloudDbConfig}
-        onSaveCloudDbConfig={setCloudDbConfig}
+        setCloudDbConfig={setCloudDbConfig}
+        showToast={showToast}
       />
 
       <PdfPreviewModal
@@ -433,7 +434,10 @@ export default function App() {
       />
 
       {/* 4. ANCHOR THẺ ẨN CHỜ IN VÀ CHỤP CANVAS SẮC NÉT (PRINT TEMPLATES) */}
-      <div className="fixed -left-[9999px] -top-[9999px] opacity-0 pointer-events-none">
+      <div 
+        className="fixed -left-[9999px] -top-[9999px] opacity-0 pointer-events-none"
+        style={{ width: '210mm', minWidth: '210mm', maxWidth: '210mm' }}
+      >
         {isAllergenPackage ? (
           <FullAllergenReportView
             elementId="printable-allergen-report"
