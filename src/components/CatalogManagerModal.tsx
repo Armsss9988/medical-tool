@@ -848,9 +848,12 @@ function PackageEditorModal({
 }
 
 // ── CatalogManagerModal ──
+export type CatalogTabType = 'INDICATORS' | 'PACKAGES_INDICATOR' | 'ALLERGENS' | 'PACKAGES_ALLERGEN' | 'DOCTORS';
+
 interface CatalogManagerModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialTab?: CatalogTabType;
   catalog: CatalogItem[];
   onSaveCatalog: (newCatalog: CatalogItem[]) => void;
   testPackages: TestPackage[];
@@ -866,6 +869,7 @@ interface CatalogManagerModalProps {
 export default function CatalogManagerModal({ 
   isOpen, 
   onClose, 
+  initialTab = 'INDICATORS',
   catalog, 
   onSaveCatalog,
   testPackages,
@@ -877,7 +881,13 @@ export default function CatalogManagerModal({
   doctorsList = [],
   onSaveDoctors
 }: CatalogManagerModalProps) {
-  const [activeTab, setActiveTab] = useState<'INDICATORS' | 'PACKAGES_INDICATOR' | 'ALLERGENS' | 'PACKAGES_ALLERGEN' | 'DOCTORS'>('INDICATORS');
+  const [activeTab, setActiveTab] = useState<CatalogTabType>(initialTab);
+
+  useEffect(() => {
+    if (isOpen && initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
   
   const [items, setItems] = useState<CatalogItem[]>(catalog || []);
   const [searchTerm, setSearchTerm] = useState('');
@@ -1848,7 +1858,7 @@ export default function CatalogManagerModal({
                 .map((pkg) => (
                   <div key={pkg.id} className="border border-red-200 hover:border-red-400 rounded-xl p-4 bg-white shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-3 group">
                     <div className="space-y-2.5">
-                      <div className="flex items-start justify-between gap-2 border-b border-red-100 pb-2.5">
+                      <div className="flex items-start justify-between gap-2 border-red-100 pb-2.5 border-b">
                         <div>
                           <h5 className="text-sm font-extrabold text-slate-900 group-hover:text-red-950 transition-colors">
                             {pkg.name}
@@ -2119,7 +2129,11 @@ export default function CatalogManagerModal({
         {/* Footer Modal */}
         <div className="pt-3 border-t border-slate-200 flex items-center justify-between flex-shrink-0">
           <span className="text-xs text-slate-500 font-medium">
-            {activeTab === 'INDICATORS' ? `Tổng cộng: ${items.length} chỉ số` : `Tổng cộng: ${packages.filter((p) => p.id !== 'all').length} gói`}
+            {activeTab === 'INDICATORS' && `Tổng cộng: ${items.length} chỉ số xét nghiệm`}
+            {activeTab === 'PACKAGES_INDICATOR' && `Tổng cộng: ${packages.filter((p) => !p.id?.startsWith('pkg-allergen') && p.id !== 'all').length} gói xét nghiệm`}
+            {activeTab === 'ALLERGENS' && `Tổng cộng: ${items.filter((i) => i.category.includes('Dị Nguyên')).length} dị nguyên PROTIA`}
+            {activeTab === 'PACKAGES_ALLERGEN' && `Tổng cộng: ${packages.filter((p) => p.id?.startsWith('pkg-allergen')).length} gói dị nguyên`}
+            {activeTab === 'DOCTORS' && `Tổng cộng: ${doctors.length} Bác sĩ & Kỹ thuật viên`}
           </span>
 
           <div className="flex items-center space-x-2">

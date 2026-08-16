@@ -7,7 +7,7 @@ import PrintReportView from "./components/PrintReportView";
 import FullAllergenReportView from "./components/FullAllergenReportView";
 import SettingsModal from "./components/SettingsModal";
 import PdfPreviewModal from "./components/PdfPreviewModal";
-import CatalogManagerModal from "./components/CatalogManagerModal";
+import CatalogManagerModal, { CatalogTabType } from "./components/CatalogManagerModal";
 import InvoiceModal from "./components/InvoiceModal";
 import RevenueManagerModal from "./components/RevenueManagerModal";
 
@@ -52,10 +52,16 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
+  const [catalogModalInitialTab, setCatalogModalInitialTab] = useState<CatalogTabType>("INDICATORS");
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [isRevenueModalOpen, setIsRevenueModalOpen] = useState(false);
   const [currentPackageId, setCurrentPackageId] = useState("all");
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+
+  const handleOpenCatalogModal = (tab: CatalogTabType = "INDICATORS") => {
+    setCatalogModalInitialTab(tab);
+    setIsCatalogModalOpen(true);
+  };
 
   const showToast = (message: string, type: ToastType = "success") => {
     setToast({ message, type });
@@ -125,7 +131,7 @@ export default function App() {
       (t) => (t.category && t.category.includes("Đị Nguyên")) || t.unit === "IU/mL"
     );
     const elementId = isAllergenPackage ? "printable-allergen-report" : "printable-medical-report";
-    const filename = `PhieuXN_${(patient.name || "BenhNhan").replace(/\s+/g, "_")}_${patient.code}.pdf`;
+    const filename = `PhieuXN_${(patient.name || "BenhNhan").replace(/\\s+/g, "_")}_${patient.code}.pdf`;
     handleExportPdfAndUploadCloud(elementId, filename);
   };
 
@@ -179,7 +185,7 @@ export default function App() {
         onLoadExcelFile={handleLoadExcelFile}
         catalog={catalog}
         onOpenSettings={() => setIsSettingsOpen(true)}
-        onOpenCatalogModal={() => setIsCatalogModalOpen(true)}
+        onOpenCatalogModal={() => handleOpenCatalogModal("INDICATORS")}
         onOpenRevenueModal={() => setIsRevenueModalOpen(true)}
         onOpenDataFolder={handleOpenDataFolder}
         invoiceCount={invoices.length}
@@ -214,7 +220,7 @@ export default function App() {
             setPatient={setPatient}
             onGenerateNewCode={resetPatient}
             doctorsList={doctorsList}
-            onOpenDoctorModal={() => setIsCatalogModalOpen(true)}
+            onOpenDoctorModal={() => handleOpenCatalogModal("DOCTORS")}
           />
 
           <ConclusionForm
@@ -230,6 +236,7 @@ export default function App() {
             onDownloadQrCode={() => handleDownloadQrCode(patient.name, patient.code)}
             onOpenInvoiceModal={() => setIsInvoiceModalOpen(true)}
             doctorsList={doctorsList}
+            onOpenDoctorModal={() => handleOpenCatalogModal("DOCTORS")}
           />
         </section>
 
@@ -292,6 +299,7 @@ export default function App() {
       <CatalogManagerModal
         isOpen={isCatalogModalOpen}
         onClose={() => setIsCatalogModalOpen(false)}
+        initialTab={catalogModalInitialTab}
         catalog={catalog}
         onSaveCatalog={(newCat) => {
           setCatalog(newCat);

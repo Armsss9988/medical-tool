@@ -6,12 +6,14 @@ interface DoctorSelectComboboxProps {
   doctorsList?: Doctor[];
   selectedDoctor: string;
   onSelectDoctor: (doctorName: string) => void;
+  onOpenDoctorModal?: () => void;
 }
 
 export default function DoctorSelectCombobox({
   doctorsList = [],
   selectedDoctor,
-  onSelectDoctor
+  onSelectDoctor,
+  onOpenDoctorModal
 }: DoctorSelectComboboxProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -33,13 +35,14 @@ export default function DoctorSelectCombobox({
       </div>
 
       {isOpen && (
-        <div className="absolute left-0 right-0 top-11 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 space-y-1">
+        <div className="absolute left-0 right-0 top-11 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 space-y-1 animate-in fade-in zoom-in-95 duration-150">
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Tìm theo tên hoặc chuyên khoa..."
-            className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none mb-1"
+            className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none mb-1 font-medium"
+            autoFocus
           />
 
           <div className="max-h-48 overflow-y-auto space-y-1">
@@ -71,6 +74,22 @@ export default function DoctorSelectCombobox({
               })
             )}
           </div>
+
+          {onOpenDoctorModal && (
+            <div className="pt-1.5 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  onOpenDoctorModal();
+                }}
+                className="w-full py-1.5 px-2 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold rounded-lg transition-all flex items-center justify-center space-x-1 text-[11px]"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Quản Lý Danh Mục Bác Sĩ</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

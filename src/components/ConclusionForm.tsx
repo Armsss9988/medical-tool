@@ -16,6 +16,7 @@ interface ConclusionFormProps {
   onDownloadQrCode: () => void;
   onOpenInvoiceModal: () => void;
   doctorsList?: Doctor[];
+  onOpenDoctorModal?: () => void;
 }
 
 const QUICK_CONCLUSION_TEMPLATES = [
@@ -37,7 +38,8 @@ export default function ConclusionForm({
   onResetAll,
   onDownloadQrCode,
   onOpenInvoiceModal,
-  doctorsList = []
+  doctorsList = [],
+  onOpenDoctorModal
 }: ConclusionFormProps) {
   const handleApplyTemplate = (template: string) => {
     if (!conclusion.trim()) {
@@ -99,6 +101,7 @@ export default function ConclusionForm({
             doctorsList={doctorsList}
             selectedDoctor={doctorName}
             onSelectDoctor={(name) => setDoctorName(name)}
+            onOpenDoctorModal={onOpenDoctorModal}
           />
         </div>
 
