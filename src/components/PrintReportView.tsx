@@ -187,9 +187,15 @@ export default function PrintReportView({
                     </tr>
                     {/* Danh sách chỉ số thuộc Nhóm */}
                     {tests.map((test, index) => {
-                      const evaluation = evaluateResult(test.value, test.refMin, test.refMax);
-                      const isHigh = evaluation === 'HIGH';
-                      const isLow = evaluation === 'LOW';
+                      const valStr = test.result !== undefined && test.result !== null && test.result !== ''
+                        ? String(test.result)
+                        : (test as any).value !== undefined && (test as any).value !== null && (test as any).value !== ''
+                        ? String((test as any).value)
+                        : '';
+
+                      const evalRes = evaluateResult(valStr, test.refMin ?? null, test.refMax ?? null);
+                      const isHigh = evalRes.status === 'high';
+                      const isLow = evalRes.status === 'low';
 
                       return (
                         <tr key={test.code} className="hover:bg-slate-50/50">
@@ -210,7 +216,7 @@ export default function PrintReportView({
                                   : 'text-slate-900'
                               }
                             >
-                              {test.value !== undefined && test.value !== '' ? test.value : '---'}
+                              {valStr || '---'}
                             </span>
                           </td>
                           <td className="py-1 px-2.5 text-center font-mono text-[11px] text-slate-600 border-r border-slate-200">

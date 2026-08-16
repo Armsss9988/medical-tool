@@ -32,18 +32,23 @@ export default function FullAllergenReportView({
 }: FullAllergenReportViewProps) {
   // Lấy ra danh sách các dị nguyên có giá trị (hỗ trợ cả allergenTests và selectedTests)
   const rawTests = allergenTests || selectedTests || [];
-  const activeTests = rawTests.filter((t) => t && t.value !== undefined && t.value !== null && t.value !== '');
+  const activeTests = rawTests.filter((t) => {
+    if (!t) return false;
+    const val = t.result !== undefined && t.result !== null ? t.result : (t as any).value;
+    return val !== undefined && val !== null && val !== '';
+  });
 
   // Đếm phân loại theo cấp độ dị ứng (Grade 0 -> Grade 6)
   const gradeCounts = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
   activeTests.forEach((t) => {
-    const val = parseFloat(String(t.value || '0'));
-    if (val < 0.35) gradeCounts[0]++;
-    else if (val < 0.7) gradeCounts[1]++;
-    else if (val < 3.5) gradeCounts[2]++;
-    else if (val < 17.5) gradeCounts[3]++;
-    else if (val < 50) gradeCounts[4]++;
-    else if (val < 100) gradeCounts[5]++;
+    const rawVal = t.result !== undefined && t.result !== null ? t.result : (t as any).value;
+    const num = parseFloat(String(rawVal || '0').replace(/[^0-9.]/g, '') || '0');
+    if (num < 0.35) gradeCounts[0]++;
+    else if (num < 0.7) gradeCounts[1]++;
+    else if (num < 3.5) gradeCounts[2]++;
+    else if (num < 17.5) gradeCounts[3]++;
+    else if (num < 50) gradeCounts[4]++;
+    else if (num < 100) gradeCounts[5]++;
     else gradeCounts[6]++;
   });
 
@@ -200,16 +205,17 @@ export default function FullAllergenReportView({
                 </tr>
               ) : (
                 activeTests.map((t, idx) => {
-                  const val = parseFloat(String(t.value || '0'));
+                  const rawVal = t.result !== undefined && t.result !== null ? String(t.result) : (t as any).value !== undefined && (t as any).value !== null ? String((t as any).value) : '';
+                  const num = parseFloat(rawVal.replace(/[^0-9.]/g, '') || '0');
                   let grade = 'Độ 0';
                   let gradeBg = 'bg-white text-slate-700';
 
-                  if (val >= 100) { grade = 'Độ 6'; gradeBg = 'bg-red-600 text-white font-extrabold'; }
-                  else if (val >= 50) { grade = 'Độ 5'; gradeBg = 'bg-rose-500 text-white font-bold'; }
-                  else if (val >= 17.5) { grade = 'Độ 4'; gradeBg = 'bg-orange-500 text-white font-bold'; }
-                  else if (val >= 3.5) { grade = 'Độ 3'; gradeBg = 'bg-amber-400 text-slate-900 font-bold'; }
-                  else if (val >= 0.7) { grade = 'Độ 2'; gradeBg = 'bg-emerald-200 text-emerald-950 font-bold'; }
-                  else if (val >= 0.35) { grade = 'Độ 1'; gradeBg = 'bg-emerald-100 text-emerald-900'; }
+                  if (num >= 100) { grade = 'Độ 6'; gradeBg = 'bg-red-600 text-white font-extrabold'; }
+                  else if (num >= 50) { grade = 'Độ 5'; gradeBg = 'bg-rose-500 text-white font-bold'; }
+                  else if (num >= 17.5) { grade = 'Độ 4'; gradeBg = 'bg-orange-500 text-white font-bold'; }
+                  else if (num >= 3.5) { grade = 'Độ 3'; gradeBg = 'bg-amber-400 text-slate-900 font-bold'; }
+                  else if (num >= 0.7) { grade = 'Độ 2'; gradeBg = 'bg-emerald-200 text-emerald-950 font-bold'; }
+                  else if (num >= 0.35) { grade = 'Độ 1'; gradeBg = 'bg-emerald-100 text-emerald-900'; }
 
                   return (
                     <tr key={t.code} className="hover:bg-slate-50">
@@ -217,7 +223,7 @@ export default function FullAllergenReportView({
                       <td className="py-0.5 px-1.5 text-center font-mono font-bold text-red-700 border-r border-slate-200">{t.code}</td>
                       <td className="py-0.5 px-2 font-bold text-slate-900 border-r border-slate-200">{t.name}</td>
                       <td className="py-0.5 px-2 italic text-slate-600 border-r border-slate-200">{t.scientific || t.refText || '---'}</td>
-                      <td className="py-0.5 px-1.5 text-center font-mono font-bold text-slate-900 border-r border-slate-200">{t.value}</td>
+                      <td className="py-0.5 px-1.5 text-center font-mono font-bold text-slate-900 border-r border-slate-200">{rawVal || '---'}</td>
                       <td className="py-0.5 px-1.5 text-center font-mono">
                         <span className={`px-1.5 py-0.5 rounded text-[9px] ${gradeBg}`}>{grade}</span>
                       </td>
