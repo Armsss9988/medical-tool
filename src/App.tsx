@@ -264,7 +264,7 @@ export default function App() {
 
       {/* TOAST NOTIFICATION FLOATING BANNER */}
       {toast && (
-        <div className="fixed top-4 right-4 z-50 animate-in fade-in slide-in-from-top-3 duration-300">
+        <div className="fixed top-4 right-4 z-[100] animate-in fade-in slide-in-from-top-3 duration-300">
           <div
             className={`flex items-center space-x-2.5 px-4 py-3 rounded-xl shadow-xl border text-sm font-medium ${
               toast.type === "success"

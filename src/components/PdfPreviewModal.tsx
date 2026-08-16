@@ -47,7 +47,7 @@ export default function PdfPreviewModal({
   const handleResetZoom = () => setZoomScale(0.85);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-2 md:p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-2 md:p-4 overflow-y-auto">
       <div className="bg-slate-900 rounded-2xl shadow-2xl w-full max-w-6xl flex flex-col h-[94vh] border border-slate-700/60 overflow-hidden animate-in fade-in zoom-in duration-200">
         
         {/* Header Thanh Công Cụ Xem Trước */}
