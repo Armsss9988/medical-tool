@@ -206,14 +206,15 @@ export default function App() {
       )}
 
       {/* MAIN CONTAINER CONTENT */}
-      <main className="max-w-[1600px] w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 flex-grow">
-        {/* PANEL TRÁI (COL-4): BỆNH NHÂN & KếT LUẬN */}
-        <section className="lg:col-span-4 flex flex-col space-y-6">
+      <main className="max-w-[1680px] w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 flex-grow">
+        {/* PANEL TRÁI (COL-4): BỆNH NHÂN & KẾT LUẬN */}
+        <section className="lg:col-span-4 flex flex-col space-y-5">
           <PatientForm
             patient={patient}
             setPatient={setPatient}
             onGenerateNewCode={resetPatient}
             doctorsList={doctorsList}
+            onOpenDoctorModal={() => setIsCatalogModalOpen(true)}
           />
 
           <ConclusionForm
@@ -232,7 +233,7 @@ export default function App() {
           />
         </section>
 
-        {/* PANEL PHẢI (COL-8): BẢNG CHẬN CHỈ SỐ XÉT NGHIỆM */}
+        {/* PANEL PHẢI (COL-8): BẢNG CHỌN CHỈ SỐ XÉT NGHIỆM */}
         <section className="lg:col-span-8 flex flex-col">
           <TestTable
             catalog={catalog}
@@ -245,14 +246,16 @@ export default function App() {
       </main>
 
       {/* FOOTER ACTIONS */}
-      <footer className="max-w-[1600px] w-full mx-auto px-4 md:px-6 mt-4 flex items-center justify-between text-xs text-slate-500">
-        <div>
-          <span>Hệ thống quản lý Xét nghiệm GoLab v1.0 • Chuẩn y khoa</span>
+      <footer className="max-w-[1680px] w-full mx-auto px-4 md:px-6 mt-4 flex items-center justify-between text-xs text-slate-500">
+        <div className="flex items-center space-x-2">
+          <span className="font-semibold text-slate-600">GoLab Medical Diagnostic System</span>
+          <span>•</span>
+          <span>Phiên bản v2.0 Chuẩn Y Khoa</span>
         </div>
 
         <button
           onClick={handleOpenDataFolder}
-          className="flex items-center space-x-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:border-slate-400 hover:bg-slate-50 rounded-lg shadow-sm text-slate-700 font-semibold transition"
+          className="flex items-center space-x-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:border-slate-400 hover:bg-slate-50 rounded-xl shadow-2xs text-slate-700 font-bold transition-all active:scale-95"
           title="Mở thư mục lưu trữ dữ liệu JSON trên đĩa C:"
         >
           <FolderOpen className="w-4 h-4 text-emerald-600" />
