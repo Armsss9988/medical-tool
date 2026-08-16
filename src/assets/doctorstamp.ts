@@ -1,2 +1,2 @@
-import doctorStamp from './doctorstamp.jpg';
+import doctorStamp from './doctorstamp.svg';
 export default doctorStamp;
