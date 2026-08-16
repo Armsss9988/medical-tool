@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Plus, Trash2, Save, Search, Download, Upload, RotateCcw, Edit3, Layers, CheckSquare, Square, Stethoscope, UserPlus, ChevronDown, Check } from 'lucide-react';
+import { X, Plus, Trash2, Save, Search, Download, Upload, RotateCcw, Edit3, Layers, CheckSquare, Square, Stethoscope, UserPlus, ChevronDown, Check, Copy, Tag } from 'lucide-react';
 import { exportSampleExcelCatalog, parseExcelCatalog } from '@infra/excelService';
 import { DEFAULT_CATALOG, TEST_PACKAGES as INITIAL_PACKAGES, DEFAULT_TEST_GROUPS, DEFAULT_EQUIPMENTS } from '@data/defaultCatalog';
 import { CatalogItem, TestPackage, TestGroup, TestEquipment, Doctor } from '@domain/types';
@@ -415,6 +415,438 @@ function EquipmentSearchCombobox({
   );
 }
 
+// ── PackageEditorModal: Master-Detail 2-column editor for Packages ──
+interface PackageEditorModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  packageData: TestPackage | null;
+  catalogItems: CatalogItem[];
+  isAllergenMode?: boolean;
+  onSave: (pkg: TestPackage) => void;
+}
+
+function PackageEditorModal({
+  isOpen,
+  onClose,
+  packageData,
+  catalogItems,
+  isAllergenMode = false,
+  onSave
+}: PackageEditorModalProps) {
+  const [pkgName, setPkgName] = useState('');
+  const [pkgPrice, setPkgPrice] = useState<string>('');
+  const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'SELECTED' | 'UNSELECTED'>('ALL');
+
+  useEffect(() => {
+    if (isOpen) {
+      if (packageData) {
+        setPkgName(packageData.name || '');
+        setPkgPrice(packageData.price !== undefined && packageData.price !== null ? String(packageData.price) : '');
+        setSelectedCodes(packageData.codes || []);
+      } else {
+        setPkgName('');
+        setPkgPrice('');
+        setSelectedCodes([]);
+      }
+      setSearchQuery('');
+      setSelectedCategory('ALL');
+      setStatusFilter('ALL');
+    }
+  }, [isOpen, packageData]);
+
+  if (!isOpen) return null;
+
+  // Filter relevant base catalog
+  const relevantItems = catalogItems.filter((i) =>
+    isAllergenMode
+      ? i.category.includes('Dị Nguyên') || i.code.startsWith('f') || i.code.startsWith('d') || i.code.startsWith('e') || i.code.startsWith('m')
+      : !i.category.includes('Dị Nguyên')
+  );
+
+  // Extract list of categories
+  const categories = ['ALL', ...Array.from(new Set(relevantItems.map((i) => i.category).filter(Boolean)))];
+
+  // Filtered items based on category, status, and search query
+  const filteredItems = relevantItems.filter((item) => {
+    if (selectedCategory !== 'ALL' && item.category !== selectedCategory) return false;
+    
+    const isSelected = selectedCodes.includes(item.code);
+    if (statusFilter === 'SELECTED' && !isSelected) return false;
+    if (statusFilter === 'UNSELECTED' && isSelected) return false;
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const matchCode = item.code.toLowerCase().includes(q);
+      const matchName = item.name.toLowerCase().includes(q);
+      const matchCat = item.category.toLowerCase().includes(q);
+      const matchSci = item.scientific?.toLowerCase().includes(q);
+      if (!matchCode && !matchName && !matchCat && !matchSci) return false;
+    }
+    return true;
+  });
+
+  const handleToggleCode = (code: string) => {
+    setSelectedCodes((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+    );
+  };
+
+  const handleSelectAllFiltered = () => {
+    const codesToAdd = filteredItems.map((i) => i.code);
+    setSelectedCodes((prev) => Array.from(new Set([...prev, ...codesToAdd])));
+  };
+
+  const handleDeselectAllFiltered = () => {
+    const codesToRemove = new Set(filteredItems.map((i) => i.code));
+    setSelectedCodes((prev) => prev.filter((c) => !codesToRemove.has(c)));
+  };
+
+  const handleRemoveCode = (code: string) => {
+    setSelectedCodes((prev) => prev.filter((c) => !c || c !== code));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pkgName.trim()) {
+      alert('Vui lòng nhập tên gói xét nghiệm!');
+      return;
+    }
+    if (selectedCodes.length === 0) {
+      alert('Vui lòng chọn ít nhất 1 chỉ số cho gói!');
+      return;
+    }
+
+    const savedPkg: TestPackage = {
+      id: packageData?.id || (isAllergenMode ? `pkg_di_nguyen_${Date.now()}` : `pkg_custom_${Date.now()}`),
+      name: pkgName.trim(),
+      codes: selectedCodes,
+      price: parseFloat(pkgPrice || '0')
+    };
+
+    onSave(savedPkg);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-3 md:p-6 overflow-hidden">
+      <div className="bg-white border border-slate-300 rounded-2xl w-full max-w-6xl h-[90vh] shadow-2xl flex flex-col overflow-hidden text-slate-900 animate-in fade-in zoom-in-95 duration-150">
+        
+        {/* Header */}
+        <div className={`flex items-center justify-between px-5 py-3.5 border-b ${isAllergenMode ? 'border-red-200 bg-red-50/80' : 'border-sky-200 bg-sky-50/80'} flex-shrink-0`}>
+          <div className="flex items-center space-x-2.5">
+            <div className={`p-2 rounded-xl ${isAllergenMode ? 'bg-red-600 text-white shadow-red-200' : 'bg-sky-600 text-white shadow-sky-200'} shadow-md`}>
+              <Layers className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className={`text-base font-extrabold ${isAllergenMode ? 'text-red-950' : 'text-sky-950'}`}>
+                {packageData ? `Chỉnh Sửa ${isAllergenMode ? 'Gói Dị Nguyên' : 'Gói Xét Nghiệm'}` : `Tạo Mới ${isAllergenMode ? 'Gói Dị Nguyên' : 'Gói Xét Nghiệm'}`}
+              </h3>
+              <p className="text-xs text-slate-500 font-medium">
+                Tìm kiếm, lọc danh mục theo nhóm và chọn các chỉ số thuộc gói xét nghiệm
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content: 2 Columns */}
+        <form onSubmit={handleSubmit} className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
+          
+          {/* CỘT TRÁI (35%): Thông tin gói + Danh sách đã chọn */}
+          <div className="lg:col-span-5 xl:col-span-4 border-r border-slate-200 bg-slate-50/70 p-4 flex flex-col overflow-hidden space-y-3.5">
+            {/* Input Tên gói */}
+            <div>
+              <label className="block text-xs font-bold text-slate-800 mb-1">
+                Tên Gói Xét Nghiệm <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={pkgName}
+                onChange={(e) => setPkgName(e.target.value)}
+                placeholder={isAllergenMode ? "Gói Dị Nguyên Hô Hấp..." : "Gói Sinh Hóa Cơ Bản..."}
+                className="w-full bg-white border border-slate-300 focus:border-sky-600 focus:ring-1 focus:ring-sky-500 rounded-lg px-3 py-2 text-xs font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none shadow-sm"
+                required
+              />
+            </div>
+
+            {/* Input Giá gói tự điền */}
+            <div>
+              <label className="block text-xs font-bold text-slate-800 mb-1">
+                Đơn Giá Gói (VNĐ) <span className="text-slate-400 font-normal">(tự điền)</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={pkgPrice}
+                  onChange={(e) => setPkgPrice(e.target.value)}
+                  placeholder="280000"
+                  className="w-full bg-white border border-slate-300 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500 rounded-lg pl-3 pr-10 py-2 text-xs font-mono font-bold text-emerald-700 placeholder:text-slate-400 focus:outline-none shadow-sm"
+                />
+                <span className="absolute right-3 top-2 text-xs font-bold text-slate-400">VNĐ</span>
+              </div>
+            </div>
+
+            {/* Header Danh sách đã chọn */}
+            <div className="flex items-center justify-between pt-1 border-t border-slate-200">
+              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <span>Chỉ số trong gói</span>
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${selectedCodes.length > 0 ? (isAllergenMode ? 'bg-red-100 text-red-700' : 'bg-sky-100 text-sky-700') : 'bg-slate-200 text-slate-600'}`}>
+                  {selectedCodes.length}
+                </span>
+              </span>
+              {selectedCodes.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedCodes([])}
+                  className="text-[11px] text-red-600 hover:text-red-800 hover:underline font-semibold"
+                >
+                  Xóa tất cả
+                </button>
+              )}
+            </div>
+
+            {/* Danh sách cuộn các chỉ số đã chọn */}
+            <div className="flex-1 overflow-y-auto bg-white border border-slate-200 rounded-xl p-2 divide-y divide-slate-100 shadow-inner">
+              {selectedCodes.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center p-6 text-center text-slate-400">
+                  <Square className="w-8 h-8 stroke-1 text-slate-300 mb-2" />
+                  <p className="text-xs font-medium">Chưa có chỉ số nào trong gói.</p>
+                  <p className="text-[11px] text-slate-400 mt-1">Chọn chỉ số từ kho bên phải để thêm vào gói.</p>
+                </div>
+              ) : (
+                selectedCodes.map((code, index) => {
+                  const item = catalogItems.find((i) => i.code === code);
+                  return (
+                    <div
+                      key={code}
+                      className="py-1.5 px-2 flex items-center justify-between hover:bg-slate-50 rounded-lg group transition-colors"
+                    >
+                      <div className="flex items-center space-x-2 min-w-0 pr-2">
+                        <span className="text-[11px] font-mono text-slate-400 w-4 text-right shrink-0">{index + 1}.</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[11px] font-mono font-bold shrink-0 ${isAllergenMode ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-sky-50 text-sky-700 border border-sky-200'}`}>
+                          {code}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-800 truncate" title={item?.name || code}>
+                            {item?.name || code}
+                          </p>
+                          {item?.category && (
+                            <p className="text-[10px] text-slate-400 truncate">{item.category}</p>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCode(code)}
+                        className="p-1 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded transition-colors opacity-70 group-hover:opacity-100 shrink-0"
+                        title="Xóa khỏi gói"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div className="pt-2 border-t border-slate-200 flex items-center justify-end space-x-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-all"
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                className={`flex items-center space-x-1.5 px-4 py-2 rounded-lg ${isAllergenMode ? 'bg-red-600 hover:bg-red-700 shadow-red-200' : 'bg-sky-600 hover:bg-sky-700 shadow-sky-200'} text-white text-xs font-bold shadow-md transition-all`}
+              >
+                <Save className="w-4 h-4" />
+                <span>Lưu Gói Xét Nghiệm</span>
+              </button>
+            </div>
+          </div>
+
+          {/* CỘT PHẢI (65%): Kho danh mục chỉ số để chọn */}
+          <div className="lg:col-span-7 xl:col-span-8 p-4 flex flex-col overflow-hidden space-y-3 bg-white">
+            
+            {/* Toolbar: Tìm kiếm + Lọc trạng thái */}
+            <div className="flex flex-col sm:flex-row items-center gap-2.5">
+              {/* Live Search */}
+              <div className="relative flex-1 w-full">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder={isAllergenMode ? "Tìm tên dị nguyên hoặc mã (f1, d1, tôm, mạt bụi...)" : "Tìm chỉ số theo tên hoặc mã (GLU, URE, men gan, mỡ máu...)"}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 focus:bg-white focus:border-sky-600 focus:ring-1 focus:ring-sky-500 rounded-lg pl-9 pr-8 py-2 text-xs text-slate-900 font-medium focus:outline-none transition-all"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Filter Status Pills */}
+              <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-lg border border-slate-200 self-stretch sm:self-auto shrink-0 text-[11px] font-bold text-slate-600">
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('ALL')}
+                  className={`px-2.5 py-1 rounded-md transition-all ${statusFilter === 'ALL' ? 'bg-white text-slate-900 shadow-sm' : 'hover:text-slate-900'}`}
+                >
+                  Tất cả ({relevantItems.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('SELECTED')}
+                  className={`px-2.5 py-1 rounded-md transition-all ${statusFilter === 'SELECTED' ? (isAllergenMode ? 'bg-red-600 text-white shadow-sm' : 'bg-sky-600 text-white shadow-sm') : 'hover:text-slate-900'}`}
+                >
+                  Đã chọn ({relevantItems.filter(i => selectedCodes.includes(i.code)).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('UNSELECTED')}
+                  className={`px-2.5 py-1 rounded-md transition-all ${statusFilter === 'UNSELECTED' ? 'bg-white text-slate-900 shadow-sm' : 'hover:text-slate-900'}`}
+                >
+                  Chưa chọn
+                </button>
+              </div>
+            </div>
+
+            {/* Category Filter Pills (Horizontal Scroll) */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar flex-shrink-0">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1">Nhóm:</span>
+              {categories.map((cat) => {
+                const count = cat === 'ALL' ? relevantItems.length : relevantItems.filter((i) => i.category === cat).length;
+                const isSelected = selectedCategory === cat;
+                return (
+                  <button
+                    type="button"
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all border shrink-0 ${
+                      isSelected
+                        ? (isAllergenMode ? 'bg-red-100 text-red-800 border-red-300 font-bold shadow-sm' : 'bg-sky-100 text-sky-800 border-sky-300 font-bold shadow-sm')
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    {cat === 'ALL' ? 'Tất cả nhóm' : cat}
+                    <span className={`ml-1.5 text-[10px] opacity-75 font-mono`}>({count})</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Batch actions bar */}
+            <div className="flex items-center justify-between py-1 px-1 bg-slate-50 rounded-lg border border-slate-200 text-xs flex-shrink-0">
+              <span className="text-slate-500 font-medium pl-1 text-[11px]">
+                Hiển thị <strong className="text-slate-800 font-bold">{filteredItems.length}</strong> chỉ số
+              </span>
+              <div className="flex items-center space-x-1.5">
+                <button
+                  type="button"
+                  onClick={handleSelectAllFiltered}
+                  className={`flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-bold ${isAllergenMode ? 'text-red-700 hover:bg-red-100' : 'text-sky-700 hover:bg-sky-100'} transition-colors`}
+                >
+                  <CheckSquare className="w-3.5 h-3.5" />
+                  <span>Chọn tất cả đang lọc</span>
+                </button>
+                <span className="text-slate-300">|</span>
+                <button
+                  type="button"
+                  onClick={handleDeselectAllFiltered}
+                  className="flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-bold text-slate-600 hover:bg-slate-200 transition-colors"
+                >
+                  <Square className="w-3.5 h-3.5" />
+                  <span>Bỏ chọn nhóm đang lọc</span>
+                </button>
+              </div>
+            </div>
+
+            {/* List / Grid of indicators */}
+            <div className="flex-1 overflow-y-auto border border-slate-200 rounded-xl p-2 grid grid-cols-1 md:grid-cols-2 gap-2 bg-slate-50/30 shadow-inner">
+              {filteredItems.length === 0 ? (
+                <div className="col-span-full h-full flex flex-col items-center justify-center p-8 text-center text-slate-400">
+                  <Search className="w-8 h-8 stroke-1 text-slate-300 mb-2" />
+                  <p className="text-xs font-bold text-slate-600">Không tìm thấy chỉ số phù hợp</p>
+                  <p className="text-[11px] text-slate-400 mt-1">Thử thay đổi từ khóa tìm kiếm hoặc chọn nhóm khác.</p>
+                </div>
+              ) : (
+                filteredItems.map((item) => {
+                  const isChecked = selectedCodes.includes(item.code);
+                  return (
+                    <div
+                      key={item.code}
+                      onClick={() => handleToggleCode(item.code)}
+                      className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all flex items-start space-x-2.5 select-none ${
+                        isChecked
+                          ? (isAllergenMode ? 'bg-red-50/90 border-red-300 shadow-sm text-red-950' : 'bg-sky-50/90 border-sky-300 shadow-sm text-sky-950')
+                          : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-800'
+                      }`}
+                    >
+                      <div className="mt-0.5 shrink-0">
+                        {isChecked ? (
+                          <CheckSquare className={`w-4 h-4 ${isAllergenMode ? 'text-red-600' : 'text-sky-600'}`} />
+                        ) : (
+                          <Square className="w-4 h-4 text-slate-300 group-hover:text-slate-400" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center space-x-1.5 mb-0.5">
+                          <span className={`px-1.5 py-0.2 rounded font-mono font-extrabold text-[11px] shrink-0 ${
+                            isChecked
+                              ? (isAllergenMode ? 'bg-red-600 text-white' : 'bg-sky-600 text-white')
+                              : 'bg-slate-100 text-slate-700 border border-slate-200'
+                          }`}>
+                            {item.code}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-medium truncate">
+                            {item.category}
+                          </span>
+                        </div>
+                        <h5 className="text-xs font-bold leading-snug line-clamp-1">
+                          {item.name}
+                        </h5>
+                        {item.scientific && (
+                          <p className="text-[10px] text-slate-500 italic truncate font-sans">
+                            {item.scientific}
+                          </p>
+                        )}
+                        {item.unit && (
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            Đơn vị: <span className="font-mono font-medium">{item.unit}</span> {item.refText ? `• ${item.refText}` : ''}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+          </div>
+        </form>
+
+      </div>
+    </div>
+  );
+}
+
 // ── CatalogManagerModal ──
 interface CatalogManagerModalProps {
   isOpen: boolean;
@@ -475,10 +907,11 @@ export default function CatalogManagerModal({
   });
 
   const [packages, setPackages] = useState<TestPackage[]>(testPackages || INITIAL_PACKAGES);
-  const [isCreatingPackage, setIsCreatingPackage] = useState(false);
-  const [newPkgName, setNewPkgName] = useState('');
-  const [newPkgPrice, setNewPkgPrice] = useState('');
-  const [newPkgCodes, setNewPkgCodes] = useState<string[]>([]);
+  const [isPackageEditorOpen, setIsPackageEditorOpen] = useState(false);
+  const [editingPackage, setEditingPackage] = useState<TestPackage | null>(null);
+  const [isAllergenPackageMode, setIsAllergenPackageMode] = useState(false);
+  const [pkgSearchTerm, setPkgSearchTerm] = useState('');
+  const [allergenPkgSearchTerm, setAllergenPkgSearchTerm] = useState('');
 
   // STATE NHÓM XÉT NGHIỆM VÀ THIẾT BỊ XỬ LÝ
   const [groups, setGroups] = useState<TestGroup[]>(testGroups);
@@ -635,35 +1068,38 @@ export default function CatalogManagerModal({
     });
   };
 
-  const handleToggleCodeInNewPkg = (code: string) => {
-    setNewPkgCodes((prev) => 
-      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
-    );
+  const handleOpenCreatePackage = (isAllergen: boolean = false) => {
+    setEditingPackage(null);
+    setIsAllergenPackageMode(isAllergen);
+    setIsPackageEditorOpen(true);
   };
 
-  const handleCreatePackage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newPkgName.trim()) {
-      alert('Vui lòng nhập tên gói xét nghiệm!');
-      return;
-    }
-    if (newPkgCodes.length === 0) {
-      alert('Vui lòng chọn ít nhất 1 chỉ số cho gói!');
-      return;
-    }
+  const handleOpenEditPackage = (pkg: TestPackage, isAllergen: boolean = false) => {
+    setEditingPackage(pkg);
+    setIsAllergenPackageMode(isAllergen);
+    setIsPackageEditorOpen(true);
+  };
 
-    const pkgToAdd: TestPackage = {
-      id: `custom_${Date.now()}`,
-      name: newPkgName.trim(),
-      codes: newPkgCodes,
-      price: parseFloat(newPkgPrice || '0')
+  const handleSavePackageFromEditor = (savedPkg: TestPackage) => {
+    setPackages((prev) => {
+      const exists = prev.some((p) => p.id === savedPkg.id);
+      if (exists) {
+        return prev.map((p) => (p.id === savedPkg.id ? savedPkg : p));
+      }
+      return [...prev, savedPkg];
+    });
+    setIsPackageEditorOpen(false);
+    setEditingPackage(null);
+  };
+
+  const handleDuplicatePackage = (pkg: TestPackage) => {
+    const copyPkg: TestPackage = {
+      id: `${pkg.id}_copy_${Date.now()}`,
+      name: `${pkg.name} (Bản sao)`,
+      codes: [...pkg.codes],
+      price: pkg.price
     };
-
-    setPackages((prev) => [...prev, pkgToAdd]);
-    setIsCreatingPackage(false);
-    setNewPkgName('');
-    setNewPkgPrice('');
-    setNewPkgCodes([]);
+    setPackages((prev) => [...prev, copyPkg]);
   };
 
   const handlePackagePriceChange = (pkgId: string, priceVal: string) => {
@@ -675,19 +1111,6 @@ export default function CatalogManagerModal({
     if (confirm('Bạn có chắc muốn xóa gói xét nghiệm này?')) {
       setPackages((prev) => prev.filter((p) => p.id !== id));
     }
-  };
-
-  const handleToggleCodeInExistingPkg = (pkgId: string, code: string) => {
-    setPackages((prev) => prev.map((pkg) => {
-      if (pkg.id === pkgId) {
-        const hasCode = pkg.codes.includes(code);
-        return {
-          ...pkg,
-          codes: hasCode ? pkg.codes.filter((c) => c !== code) : [...pkg.codes, code]
-        };
-      }
-      return pkg;
-    }));
   };
 
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1079,129 +1502,114 @@ export default function CatalogManagerModal({
         {/* TAB 2: GÓI XÉT NGHIỆM CHỈ SỐ */}
         {activeTab === 'PACKAGES_INDICATOR' && (
           <div className="flex-1 overflow-y-auto py-3 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-              <h4 className="text-xs font-bold text-sky-800 uppercase tracking-wide">Danh Sách Các Gói Xét Nghiệm Chỉ Số</h4>
+            <div className="flex flex-col sm:flex-row items-center justify-between pb-3 border-b border-slate-200 gap-3">
+              <div className="flex items-center space-x-2 w-full sm:w-auto flex-1">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="Tìm kiếm gói xét nghiệm..."
+                    value={pkgSearchTerm}
+                    onChange={(e) => setPkgSearchTerm(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 focus:bg-white focus:border-sky-600 rounded-lg pl-9 pr-8 py-1.5 text-xs text-slate-900 focus:outline-none font-medium"
+                  />
+                  {pkgSearchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setPkgSearchTerm('')}
+                      className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <span className="text-xs text-slate-500 font-medium whitespace-nowrap">
+                  Tổng: <strong className="text-sky-700 font-bold">{packages.filter((p) => p.id !== 'all' && !p.id.includes('di_nguyen') && !p.name.includes('Dị Nguyên') && !p.name.includes('IgE')).length}</strong> gói
+                </span>
+              </div>
+
               <button
-                onClick={() => setIsCreatingPackage(true)}
-                className="flex items-center space-x-1 px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow"
+                onClick={() => handleOpenCreatePackage(false)}
+                className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-md hover:shadow transition-all shrink-0"
               >
                 <Plus className="w-4 h-4" />
                 <span>+ Tạo Gói Mới</span>
               </button>
             </div>
 
-            {isCreatingPackage && (
-              <form onSubmit={handleCreatePackage} className="bg-sky-50 border border-sky-300 p-4 rounded-xl space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-sky-900 mb-1">Tên Gói Xét Nghiệm:</label>
-                    <input
-                      type="text"
-                      placeholder="Gói Sinh Hóa Cơ Bản..."
-                      value={newPkgName}
-                      onChange={(e) => setNewPkgName(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded px-3 py-1.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-sky-600"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-sky-900 mb-1">Đơn Giá Gói (VNĐ):</label>
-                    <input
-                      type="number"
-                      placeholder="280000"
-                      value={newPkgPrice}
-                      onChange={(e) => setNewPkgPrice(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded px-3 py-1.5 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-sky-600"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-sky-900 mb-1">Chọn các chỉ số thuộc gói này ({newPkgCodes.length} chỉ số):</label>
-                  <div className="max-h-48 overflow-y-auto bg-white border border-slate-300 rounded p-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5">
-                    {items
-                      .filter((i) => !i.category.includes('Dị Nguyên'))
-                      .map((item) => {
-                        const isChecked = newPkgCodes.includes(item.code);
-                        return (
-                          <button
-                            type="button"
-                            key={item.code}
-                            onClick={() => handleToggleCodeInNewPkg(item.code)}
-                            className={`flex items-center space-x-1.5 px-2 py-1 rounded text-left text-xs transition-colors ${
-                              isChecked ? 'bg-sky-100 text-sky-800 font-bold border border-sky-300' : 'bg-slate-50 hover:bg-slate-100 text-slate-700'
-                            }`}
-                          >
-                            {isChecked ? <CheckSquare className="w-3.5 h-3.5 text-sky-600 shrink-0" /> : <Square className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
-                            <span className="truncate">{item.code} - {item.name}</span>
-                          </button>
-                        );
-                      })}
-                  </div>
-                </div>
-
-                <div className="flex justify-end space-x-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setIsCreatingPackage(false)}
-                    className="px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold"
-                  >
-                    Hủy
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-1.5 rounded bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow"
-                  >
-                    Lưu Gói Mới
-                  </button>
-                </div>
-              </form>
-            )}
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {packages
                 .filter((p) => p.id !== 'all' && !p.id.includes('di_nguyen') && !p.name.includes('Dị Nguyên') && !p.name.includes('IgE'))
+                .filter((p) => !pkgSearchTerm.trim() || p.name.toLowerCase().includes(pkgSearchTerm.toLowerCase().trim()))
                 .map((pkg) => (
-                  <div key={pkg.id} className="border border-slate-200 rounded-xl p-3.5 bg-white shadow-sm hover:shadow transition-all space-y-2">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                      <h5 className="text-xs font-extrabold text-slate-900">{pkg.name}</h5>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="number"
-                          value={pkg.price || ''}
-                          onChange={(e) => handlePackagePriceChange(pkg.id, e.target.value)}
-                          placeholder="Giá VNĐ"
-                          className="w-24 bg-slate-50 border border-slate-200 focus:bg-white focus:border-sky-600 rounded px-2 py-0.5 text-xs text-right font-mono font-bold text-emerald-700"
-                        />
-                        <button
-                          onClick={() => handleDeletePackage(pkg.id)}
-                          className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-slate-100"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                  <div key={pkg.id} className="border border-slate-200 hover:border-sky-300 rounded-xl p-4 bg-white shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-3 group">
+                    <div className="space-y-2.5">
+                      <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2.5">
+                        <div>
+                          <h5 className="text-sm font-extrabold text-slate-900 group-hover:text-sky-900 transition-colors">
+                            {pkg.name}
+                          </h5>
+                          <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                            {pkg.codes.length} chỉ số trong gói
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[11px] text-slate-400 font-medium block">Giá trọn gói:</span>
+                          <span className="text-sm font-mono font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block">
+                            {pkg.price ? `${Number(pkg.price).toLocaleString('vi-VN')} đ` : '0 đ'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Danh sách chỉ số preview tóm tắt */}
+                      <div>
+                        <div className="text-[11px] font-semibold text-slate-500 mb-1.5">Các chỉ số trong gói:</div>
+                        <div className="flex flex-wrap gap-1 max-h-28 overflow-y-auto p-2 bg-slate-50 rounded-lg border border-slate-100">
+                          {pkg.codes.map((code) => {
+                            const it = items.find((i) => i.code === code);
+                            return (
+                              <span
+                                key={code}
+                                className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-white border border-slate-200 text-slate-700 shadow-2xs"
+                                title={it?.name || code}
+                              >
+                                <strong className="font-mono text-sky-700 mr-1">{code}</strong>
+                                <span className="truncate max-w-[120px]">{it?.name || ''}</span>
+                              </span>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="text-[11px] text-slate-600">Các chỉ số thuộc gói ({pkg.codes.length}):</div>
-                    <div className="max-h-36 overflow-y-auto bg-slate-50 rounded p-2 grid grid-cols-2 gap-1 border border-slate-100">
-                      {items
-                        .filter((i) => !i.category.includes('Dị Nguyên'))
-                        .map((item) => {
-                          const isChecked = pkg.codes.includes(item.code);
-                          return (
-                            <button
-                              type="button"
-                              key={item.code}
-                              onClick={() => handleToggleCodeInExistingPkg(pkg.id, item.code)}
-                              className={`flex items-center space-x-1 px-1.5 py-0.5 rounded text-left text-[11px] transition-colors ${
-                                isChecked ? 'bg-sky-100 text-sky-900 font-bold border border-sky-200' : 'text-slate-500 hover:bg-slate-200/50'
-                              }`}
-                            >
-                              {isChecked ? <CheckSquare className="w-3 h-3 text-sky-600 shrink-0" /> : <Square className="w-3 h-3 text-slate-300 shrink-0" />}
-                              <span className="truncate">{item.code}</span>
-                            </button>
-                          );
-                        })}
+                    {/* Action buttons */}
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                      <button
+                        onClick={() => handleDuplicatePackage(pkg)}
+                        className="flex items-center space-x-1 px-2.5 py-1 rounded text-xs font-semibold text-slate-600 hover:text-sky-700 hover:bg-slate-100 transition-colors"
+                        title="Tạo bản sao gói này"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Nhân bản</span>
+                      </button>
+
+                      <div className="flex items-center space-x-1.5">
+                        <button
+                          onClick={() => handleDeletePackage(pkg.id)}
+                          className="flex items-center space-x-1 px-2.5 py-1 rounded text-xs font-semibold text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                          title="Xóa gói"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Xóa</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenEditPackage(pkg, false)}
+                          className="flex items-center space-x-1.5 px-3 py-1 rounded-lg bg-sky-50 hover:bg-sky-600 text-sky-700 hover:text-white border border-sky-200 hover:border-sky-600 text-xs font-bold transition-all shadow-2xs"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>Sửa & Chọn Chỉ Số</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1398,129 +1806,114 @@ export default function CatalogManagerModal({
         {/* TAB 4: GÓI DỊ NGUYÊN IgE */}
         {activeTab === 'PACKAGES_ALLERGEN' && (
           <div className="flex-1 overflow-y-auto py-3 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-              <h4 className="text-xs font-bold text-red-800 uppercase tracking-wide">Danh Sách Các Gói Dị Nguyên IgE</h4>
+            <div className="flex flex-col sm:flex-row items-center justify-between pb-3 border-b border-slate-200 gap-3">
+              <div className="flex items-center space-x-2 w-full sm:w-auto flex-1">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="Tìm kiếm gói dị nguyên..."
+                    value={allergenPkgSearchTerm}
+                    onChange={(e) => setAllergenPkgSearchTerm(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 focus:bg-white focus:border-red-600 rounded-lg pl-9 pr-8 py-1.5 text-xs text-slate-900 focus:outline-none font-medium"
+                  />
+                  {allergenPkgSearchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setAllergenPkgSearchTerm('')}
+                      className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <span className="text-xs text-slate-500 font-medium whitespace-nowrap">
+                  Tổng: <strong className="text-red-700 font-bold">{packages.filter((p) => p.id !== 'all' && (p.id.includes('di_nguyen') || p.name.includes('Dị Nguyên') || p.name.includes('IgE'))).length}</strong> gói
+                </span>
+              </div>
+
               <button
-                onClick={() => setIsCreatingPackage(true)}
-                className="flex items-center space-x-1 px-3 py-1.5 rounded bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow"
+                onClick={() => handleOpenCreatePackage(true)}
+                className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md hover:shadow transition-all shrink-0"
               >
                 <Plus className="w-4 h-4" />
                 <span>+ Tạo Gói Dị Nguyên Mới</span>
               </button>
             </div>
 
-            {isCreatingPackage && (
-              <form onSubmit={handleCreatePackage} className="bg-red-50 border border-red-300 p-4 rounded-xl space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-red-900 mb-1">Tên Gói Dị Nguyên:</label>
-                    <input
-                      type="text"
-                      placeholder="Gói Dị Nguyên Hô Hấp..."
-                      value={newPkgName}
-                      onChange={(e) => setNewPkgName(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded px-3 py-1.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-red-600"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-red-900 mb-1">Đơn Giá Gói (VNĐ):</label>
-                    <input
-                      type="number"
-                      placeholder="950000"
-                      value={newPkgPrice}
-                      onChange={(e) => setNewPkgPrice(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded px-3 py-1.5 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-red-600"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-red-900 mb-1">Chọn các dị nguyên thuộc gói ({newPkgCodes.length} dị nguyên):</label>
-                  <div className="max-h-48 overflow-y-auto bg-white border border-slate-300 rounded p-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5">
-                    {items
-                      .filter((i) => i.category.includes('Dị Nguyên') || i.code.startsWith('f') || i.code.startsWith('d') || i.code.startsWith('e') || i.code.startsWith('m'))
-                      .map((item) => {
-                        const isChecked = newPkgCodes.includes(item.code);
-                        return (
-                          <button
-                            type="button"
-                            key={item.code}
-                            onClick={() => handleToggleCodeInNewPkg(item.code)}
-                            className={`flex items-center space-x-1.5 px-2 py-1 rounded text-left text-xs transition-colors ${
-                              isChecked ? 'bg-red-100 text-red-800 font-bold border border-red-300' : 'bg-slate-50 hover:bg-slate-100 text-slate-700'
-                            }`}
-                          >
-                            {isChecked ? <CheckSquare className="w-3.5 h-3.5 text-red-600 shrink-0" /> : <Square className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
-                            <span className="truncate">{item.code} - {item.name}</span>
-                          </button>
-                        );
-                      })}
-                  </div>
-                </div>
-
-                <div className="flex justify-end space-x-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setIsCreatingPackage(false)}
-                    className="px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold"
-                  >
-                    Hủy
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-1.5 rounded bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow"
-                  >
-                    Lưu Gói Dị Nguyên
-                  </button>
-                </div>
-              </form>
-            )}
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {packages
                 .filter((p) => p.id !== 'all' && (p.id.includes('di_nguyen') || p.name.includes('Dị Nguyên') || p.name.includes('IgE')))
+                .filter((p) => !allergenPkgSearchTerm.trim() || p.name.toLowerCase().includes(allergenPkgSearchTerm.toLowerCase().trim()))
                 .map((pkg) => (
-                  <div key={pkg.id} className="border border-red-200 rounded-xl p-3.5 bg-white shadow-sm hover:shadow transition-all space-y-2">
-                    <div className="flex items-center justify-between border-b border-red-100 pb-2">
-                      <h5 className="text-xs font-extrabold text-red-950">{pkg.name}</h5>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="number"
-                          value={pkg.price || ''}
-                          onChange={(e) => handlePackagePriceChange(pkg.id, e.target.value)}
-                          placeholder="Giá VNĐ"
-                          className="w-24 bg-red-50 border border-red-200 focus:bg-white focus:border-red-600 rounded px-2 py-0.5 text-xs text-right font-mono font-bold text-red-700"
-                        />
-                        <button
-                          onClick={() => handleDeletePackage(pkg.id)}
-                          className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-slate-100"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                  <div key={pkg.id} className="border border-red-200 hover:border-red-400 rounded-xl p-4 bg-white shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-3 group">
+                    <div className="space-y-2.5">
+                      <div className="flex items-start justify-between gap-2 border-b border-red-100 pb-2.5">
+                        <div>
+                          <h5 className="text-sm font-extrabold text-slate-900 group-hover:text-red-950 transition-colors">
+                            {pkg.name}
+                          </h5>
+                          <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-50 text-red-700 border border-red-200">
+                            {pkg.codes.length} dị nguyên trong gói
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[11px] text-slate-400 font-medium block">Giá trọn gói:</span>
+                          <span className="text-sm font-mono font-extrabold text-red-700 bg-red-50 px-2 py-0.5 rounded border border-red-200 inline-block">
+                            {pkg.price ? `${Number(pkg.price).toLocaleString('vi-VN')} đ` : '0 đ'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Danh sách dị nguyên preview tóm tắt */}
+                      <div>
+                        <div className="text-[11px] font-semibold text-slate-500 mb-1.5">Dị nguyên trong gói:</div>
+                        <div className="flex flex-wrap gap-1 max-h-28 overflow-y-auto p-2 bg-red-50/50 rounded-lg border border-red-100">
+                          {pkg.codes.map((code) => {
+                            const it = items.find((i) => i.code === code);
+                            return (
+                              <span
+                                key={code}
+                                className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-white border border-red-200 text-slate-700 shadow-2xs"
+                                title={it?.name || code}
+                              >
+                                <strong className="font-mono text-red-700 mr-1">{code}</strong>
+                                <span className="truncate max-w-[120px]">{it?.name || ''}</span>
+                              </span>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="text-[11px] text-slate-600">Dị nguyên thuộc gói ({pkg.codes.length}):</div>
-                    <div className="max-h-36 overflow-y-auto bg-red-50/50 rounded p-2 grid grid-cols-3 sm:grid-cols-4 gap-1 border border-red-100">
-                      {items
-                        .filter((i) => i.category.includes('Dị Nguyên') || i.code.startsWith('f') || i.code.startsWith('d') || i.code.startsWith('e') || i.code.startsWith('m'))
-                        .map((item) => {
-                          const isChecked = pkg.codes.includes(item.code);
-                          return (
-                            <button
-                              type="button"
-                              key={item.code}
-                              onClick={() => handleToggleCodeInExistingPkg(pkg.id, item.code)}
-                              className={`flex items-center space-x-1 px-1.5 py-0.5 rounded text-left text-[11px] transition-colors ${
-                                isChecked ? 'bg-red-100 text-red-900 font-bold border border-red-200' : 'text-slate-500 hover:bg-slate-200/50'
-                              }`}
-                            >
-                              {isChecked ? <CheckSquare className="w-3 h-3 text-red-600 shrink-0" /> : <Square className="w-3 h-3 text-slate-300 shrink-0" />}
-                              <span className="truncate">{item.code}</span>
-                            </button>
-                          );
-                        })}
+                    {/* Action buttons */}
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                      <button
+                        onClick={() => handleDuplicatePackage(pkg)}
+                        className="flex items-center space-x-1 px-2.5 py-1 rounded text-xs font-semibold text-slate-600 hover:text-red-700 hover:bg-slate-100 transition-colors"
+                        title="Tạo bản sao gói này"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Nhân bản</span>
+                      </button>
+
+                      <div className="flex items-center space-x-1.5">
+                        <button
+                          onClick={() => handleDeletePackage(pkg.id)}
+                          className="flex items-center space-x-1 px-2.5 py-1 rounded text-xs font-semibold text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                          title="Xóa gói"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Xóa</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenEditPackage(pkg, true)}
+                          className="flex items-center space-x-1.5 px-3 py-1 rounded-lg bg-red-50 hover:bg-red-600 text-red-700 hover:text-white border border-red-200 hover:border-red-600 text-xs font-bold transition-all shadow-2xs"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>Sửa & Chọn Dị Nguyên</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1747,6 +2140,19 @@ export default function CatalogManagerModal({
         </div>
 
       </div>
+
+      {/* MODAL BIÊN TẬP GÓI XÉT NGHIỆM 2 CỘT */}
+      <PackageEditorModal
+        isOpen={isPackageEditorOpen}
+        onClose={() => {
+          setIsPackageEditorOpen(false);
+          setEditingPackage(null);
+        }}
+        packageData={editingPackage}
+        catalogItems={items}
+        isAllergenMode={isAllergenPackageMode}
+        onSave={handleSavePackageFromEditor}
+      />
     </div>
   );
 }
