@@ -43,7 +43,7 @@ export default function App() {
     setCloudDbConfig
   } = useCatalogData();
 
-  // 2. STATE KếT QUẢ VÀ KếT LUẬN
+  // 2. STATE KẾT QUẢ VÀ KẾT LUẬN
   const [selectedTests, setSelectedTests] = useState<SelectedTest[]>([]);
   const [conclusion, setConclusion] = useState<string>("");
   const [doctorName, setDoctorName] = useState<string>("BS. Trần Hoài Long");
@@ -109,7 +109,7 @@ export default function App() {
     }
 
     const formattedTests: SelectedTest[] = selectedIndicators.map((item) => {
-      const isAllergenItem = item.category?.includes("Đị Nguyên") || item.unit === "IU/mL";
+      const isAllergenItem = item.category?.includes("Dị Nguyên") || item.unit === "IU/mL";
       return {
         ...item,
         result: "",
@@ -128,10 +128,10 @@ export default function App() {
 
   const handleExportPdfAndUpload = () => {
     const isAllergenPackage = selectedTests.some(
-      (t) => (t.category && t.category.includes("Đị Nguyên")) || t.unit === "IU/mL"
+      (t) => (t.category && t.category.includes("Dị Nguyên")) || t.unit === "IU/mL"
     );
     const elementId = isAllergenPackage ? "printable-allergen-report" : "printable-medical-report";
-    const filename = `PhieuXN_${(patient.name || "BenhNhan").replace(/\\s+/g, "_")}_${patient.code}.pdf`;
+    const filename = `PhieuXN_${(patient.name || "BenhNhan").replace(/\s+/g, "_")}_${patient.code}.pdf`;
     handleExportPdfAndUploadCloud(elementId, filename);
   };
 
@@ -173,7 +173,7 @@ export default function App() {
   };
 
   const isAllergenPackage = selectedTests.some(
-    (t) => (t.category && t.category.includes("Đị Nguyên")) || t.unit === "IU/mL"
+    (t) => (t.category && t.category.includes("Dị Nguyên")) || t.unit === "IU/mL"
   );
 
   return (
@@ -231,7 +231,6 @@ export default function App() {
             cloudLink={cloudLink}
             onExportPdfAndUpload={handleExportPdfAndUpload}
             onOpenPreview={() => setIsPreviewOpen(true)}
-            onPrintDirect={handlePrintDirect}
             onResetAll={handleClearAll}
             onDownloadQrCode={() => handleDownloadQrCode(patient.name, patient.code)}
             onOpenInvoiceModal={() => setIsInvoiceModalOpen(true)}
@@ -347,7 +346,7 @@ export default function App() {
         doctorsList={doctorsList}
       />
 
-      {/* 4. ANCHOR THẺ ẨN CHờ IN VA CHỤP CANVAS SẮC NÉT (PRINT TEMPLATES) */}
+      {/* 4. ANCHOR THẺ ẨN CHỜ IN VÀ CHỤP CANVAS SẮC NÉT (PRINT TEMPLATES) */}
       <div className="fixed -left-[9999px] -top-[9999px] opacity-0 pointer-events-none">
         {isAllergenPackage ? (
           <FullAllergenReportView

@@ -35,7 +35,7 @@ export function useReportExport(
       const qrUrl = await generateQrCodeDataUrl(uploadedUrl);
       setQrCodeDataUrl(qrUrl);
 
-      showToast('Đã lưu PDF về máy & Tải lên Cloud! Nút "Tải QR Code" đã mở.', 'success');
+      showToast('Đã tải lên Cloud thành công! Nút "Tải QR Code" đã sẵn sàng.', 'success');
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : 'Không thể tải file lên Cloud';
       console.error('Lỗi quy trình 1-Click:', err);
