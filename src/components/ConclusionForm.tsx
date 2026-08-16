@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, RotateCcw, Eye, CloudUpload, QrCode, CreditCard, CheckCircle2 } from 'lucide-react';
+import { FileText, RotateCcw, Eye, CloudUpload, QrCode, CreditCard, CheckCircle2, BookmarkCheck } from 'lucide-react';
 import DoctorSelectCombobox from './DoctorSelectCombobox';
 import { Doctor } from '@domain/types';
 
@@ -11,6 +11,7 @@ interface ConclusionFormProps {
   cloudLink: string;
   onExportPdfAndUpload: () => void;
   onOpenPreview: () => void;
+  onSaveReport?: () => void;
   onResetAll: () => void;
   onDownloadQrCode: () => void;
   onOpenInvoiceModal: () => void;
@@ -33,6 +34,7 @@ export default function ConclusionForm({
   cloudLink,
   onExportPdfAndUpload,
   onOpenPreview,
+  onSaveReport,
   onResetAll,
   onDownloadQrCode,
   onOpenInvoiceModal,
@@ -115,22 +117,33 @@ export default function ConclusionForm({
             <span>Xuất File PDF & Tải Lên Cloud (1-Click)</span>
           </button>
 
-          {/* 3 Secondary Actions in 3-column Grid */}
-          <div className="grid grid-cols-3 gap-2">
+          {/* 4 Secondary Actions in 2x2 Grid */}
+          <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={onOpenPreview}
-              className="py-2.5 px-2 bg-slate-800 hover:bg-slate-900 active:bg-slate-950 text-white font-bold rounded-xl shadow-xs border border-slate-700 transition-all active:scale-95 flex items-center justify-center space-x-1.5"
+              className="py-2.5 px-3 bg-slate-800 hover:bg-slate-900 active:bg-slate-950 text-white font-bold rounded-xl shadow-xs border border-slate-700 transition-all active:scale-95 flex items-center justify-center space-x-1.5"
             >
               <Eye className="w-4 h-4 text-slate-300" />
               <span>Xem Trước PDF</span>
             </button>
 
+            {onSaveReport && (
+              <button
+                type="button"
+                onClick={onSaveReport}
+                className="py-2.5 px-3 bg-sky-700 hover:bg-sky-800 active:bg-sky-900 text-white font-bold rounded-xl shadow-xs border border-sky-600 transition-all active:scale-95 flex items-center justify-center space-x-1.5"
+              >
+                <BookmarkCheck className="w-4 h-4 text-sky-200" />
+                <span>Lưu Vào Sổ Phiếu</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={onDownloadQrCode}
               disabled={!cloudLink}
-              className={`py-2.5 px-2 font-bold rounded-xl border transition-all flex items-center justify-center space-x-1.5 ${
+              className={`py-2.5 px-3 font-bold rounded-xl border transition-all flex items-center justify-center space-x-1.5 ${
                 cloudLink
                   ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-400 shadow-xs active:scale-95'
                   : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
@@ -144,7 +157,7 @@ export default function ConclusionForm({
             <button
               type="button"
               onClick={onOpenInvoiceModal}
-              className="py-2.5 px-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold rounded-xl shadow-xs border border-indigo-500 transition-all active:scale-95 flex items-center justify-center space-x-1.5"
+              className="py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold rounded-xl shadow-xs border border-indigo-500 transition-all active:scale-95 flex items-center justify-center space-x-1.5"
             >
               <CreditCard className="w-4 h-4 text-indigo-200" />
               <span>Tạo Hóa Đơn</span>

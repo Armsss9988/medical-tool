@@ -10,14 +10,16 @@ import PdfPreviewModal from "./components/PdfPreviewModal";
 import CatalogManagerModal, { CatalogTabType } from "./components/CatalogManagerModal";
 import InvoiceModal from "./components/InvoiceModal";
 import RevenueManagerModal from "./components/RevenueManagerModal";
+import ReportManagerModal from "./components/ReportManagerModal";
 
 import { parseExcelCatalog } from "@infra/excelService";
 import { openDataFolder, isElectron } from "@infra/storage";
-import { SelectedTest, Invoice, ToastType } from "@domain/types";
+import { SelectedTest, Invoice, ToastType, MedicalReport } from "@domain/types";
 
 import { usePatientManager } from "./hooks/usePatientManager";
 import { useCatalogData } from "./hooks/useCatalogData";
 import { useReportExport } from "./hooks/useReportExport";
+import { useReportManager } from "./hooks/useReportManager";
 
 import { CheckCircle, AlertCircle, Info, FolderOpen } from "lucide-react";
 
@@ -43,18 +45,27 @@ export default function App() {
     setCloudDbConfig
   } = useCatalogData();
 
-  // 2. STATE KẾT QUẢ VÀ KẾT LUẬN
+  // 2. REPORT MANAGER HOOK (SỔ LƯU PHIẾU XN)
+  const { 
+    reports, 
+    saveOrUpdateReport, 
+    deleteReport, 
+    clearAllReports 
+  } = useReportManager();
+
+  // 3. STATE KẾT QUẢ VÀ KẾT LUẬN
   const [selectedTests, setSelectedTests] = useState<SelectedTest[]>([]);
   const [conclusion, setConclusion] = useState<string>("");
   const [doctorName, setDoctorName] = useState<string>("BS. Trần Hoài Long");
 
-  // 3. POPUPS & NOTIFICATION
+  // 4. POPUPS & NOTIFICATION
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
   const [catalogModalTargetTab, setCatalogModalTargetTab] = useState<CatalogTabType | null>(null);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [isRevenueModalOpen, setIsRevenueModalOpen] = useState(false);
+  const [isReportManagerOpen, setIsReportManagerOpen] = useState(false);
   const [currentPackageId, setCurrentPackageId] = useState("all");
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
@@ -126,13 +137,71 @@ export default function App() {
     window.print();
   };
 
+  const handleSaveCurrentReport = () => {
+    if (!patient.name?.trim()) {
+      showToast("Vui lòng nhập họ tên bệnh nhân trước khi lưu!", "error");
+      return;
+    }
+    const saved = saveOrUpdateReport({
+      patient,
+      selectedTests,
+      conclusion,
+      doctorName,
+      cloudPdfUrl: cloudLink || undefined,
+      qrCodeDataUrl: qrCodeDataUrl || undefined
+    });
+    showToast(`Đã lưu phiếu của bệnh nhân ${saved.patient.name} (${saved.code}) vào Sổ Lưu!`, "success");
+  };
+
   const handleExportPdfAndUpload = () => {
-    const isAllergenPackage = selectedTests.some(
+    const isAllergen = selectedTests.some(
       (t) => (t.category && t.category.includes("Dị Nguyên")) || t.unit === "IU/mL"
     );
-    const elementId = isAllergenPackage ? "printable-allergen-report" : "printable-medical-report";
+    const elementId = isAllergen ? "printable-allergen-report" : "printable-medical-report";
     const filename = `PhieuXN_${(patient.name || "BenhNhan").replace(/\s+/g, "_")}_${patient.code}.pdf`;
+    
+    // Tự động lưu phiếu vào sổ lưu khi kích hoạt xuất Cloud
+    saveOrUpdateReport({
+      patient,
+      selectedTests,
+      conclusion,
+      doctorName,
+      cloudPdfUrl: cloudLink || undefined,
+      qrCodeDataUrl: qrCodeDataUrl || undefined
+    });
+
     handleExportPdfAndUploadCloud(elementId, filename);
+  };
+
+  const handleLoadReport = (rep: MedicalReport) => {
+    setPatient(rep.patient);
+    setSelectedTests(rep.selectedTests);
+    setConclusion(rep.conclusion || "");
+    setDoctorName(rep.doctorName || "BS. Trần Hoài Long");
+    showToast(`Đã nạp phiếu của bệnh nhân ${rep.patient.name} (${rep.code}) lên màn hình chính!`, "success");
+  };
+
+  const handlePreviewSavedReport = (rep: MedicalReport) => {
+    handleLoadReport(rep);
+    setIsPreviewOpen(true);
+  };
+
+  const handleDuplicateReport = (rep: MedicalReport) => {
+    resetPatient();
+    setPatient((prev) => ({
+      ...prev,
+      name: rep.patient.name,
+      dob: rep.patient.dob,
+      gender: rep.patient.gender,
+      phone: rep.patient.phone,
+      address: rep.patient.address,
+      diagnosis: rep.patient.diagnosis
+    }));
+    setSelectedTests(rep.selectedTests.map((t) => ({ ...t, result: "" })));
+    setConclusion("");
+    setDoctorName(rep.doctorName || "BS. Trần Hoài Long");
+    resetExport();
+    showToast(`Đã nhân bản thông tin bệnh nhân ${rep.patient.name} sang phiếu mới!`, "success");
   };
 
   const handleClearAll = () => {
@@ -187,8 +256,10 @@ export default function App() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenCatalogModal={() => handleOpenCatalogModal()}
         onOpenRevenueModal={() => setIsRevenueModalOpen(true)}
+        onOpenReportManagerModal={() => setIsReportManagerOpen(true)}
         onOpenDataFolder={handleOpenDataFolder}
         invoiceCount={invoices.length}
+        reportCount={reports.length}
       />
 
       {/* TOAST NOTIFICATION FLOATING BANNER */}
@@ -231,6 +302,7 @@ export default function App() {
             cloudLink={cloudLink}
             onExportPdfAndUpload={handleExportPdfAndUpload}
             onOpenPreview={() => setIsPreviewOpen(true)}
+            onSaveReport={handleSaveCurrentReport}
             onResetAll={handleClearAll}
             onDownloadQrCode={() => handleDownloadQrCode(patient.name, patient.code)}
             onOpenInvoiceModal={() => setIsInvoiceModalOpen(true)}
@@ -344,6 +416,20 @@ export default function App() {
         onDeleteInvoice={handleDeleteInvoice}
         onClearAllInvoices={handleClearAllInvoices}
         doctorsList={doctorsList}
+      />
+
+      {/* MODAL QUẢN LÝ SỔ LƯU PHIẾU XÉT NGHIỆM */}
+      <ReportManagerModal
+        isOpen={isReportManagerOpen}
+        onClose={() => setIsReportManagerOpen(false)}
+        reports={reports}
+        doctorsList={doctorsList}
+        onLoadReport={handleLoadReport}
+        onPreviewReport={handlePreviewSavedReport}
+        onDuplicateReport={handleDuplicateReport}
+        onDeleteReport={deleteReport}
+        onClearAllReports={clearAllReports}
+        showToast={showToast}
       />
 
       {/* 4. ANCHOR THẺ ẨN CHỜ IN VÀ CHỤP CANVAS SẮC NÉT (PRINT TEMPLATES) */}

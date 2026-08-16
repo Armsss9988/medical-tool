@@ -49,11 +49,11 @@ export default function DoctorSelectCombobox({
             {filteredDoctors.length === 0 ? (
               <div className="p-2 text-center text-slate-400">Không tìm thấy bác sĩ</div>
             ) : (
-              filteredDoctors.map((doc) => {
+              filteredDoctors.map((doc, idx) => {
                 const isSelected = selectedDoctor === doc.name;
                 return (
                   <div
-                    key={doc.id}
+                    key={doc.id ? `${doc.id}-${idx}` : `doc-${idx}`}
                     onClick={() => {
                       onSelectDoctor(doc.name);
                       setIsOpen(false);

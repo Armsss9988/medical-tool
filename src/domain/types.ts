@@ -123,3 +123,23 @@ export interface StorageResult {
   path?: string;
   error?: string;
 }
+
+export type ReportStatus = 'Chờ xét nghiệm' | 'Đã có kết quả' | 'Đã xuất Cloud' | 'Đã trả kết quả';
+
+export interface MedicalReport {
+  id: string;
+  code: string;
+  sampleCode: string;
+  createdAt: string;
+  updatedAt: string;
+  patient: Patient;
+  doctorName: string;
+  selectedTests: SelectedTest[];
+  conclusion: string;
+  isAllergen: boolean;
+  cloudPdfUrl?: string;
+  qrCodeDataUrl?: string;
+  invoiceId?: string;
+  status: ReportStatus;
+  testCount: number;
+}

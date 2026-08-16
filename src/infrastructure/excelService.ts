@@ -126,3 +126,49 @@ export function exportRevenueExcel(invoices: Invoice[], doctorStats: { doctor: D
 
   XLSX.writeFile(wb, `BaoCaoDoanhThu_GoLab_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
+
+export function exportReportsExcel(reports: import('../domain/types').MedicalReport[]): void {
+  const reportRows = reports.map((rep, idx) => ({
+    'STT': idx + 1,
+    'Mã Bệnh Nhân': rep.code,
+    'Số Bệnh Phẩm': rep.sampleCode || rep.code,
+    'Họ và Tên': rep.patient.name,
+    'Giới Tính': rep.patient.gender,
+    'Năm Sinh / Ngày Sinh': rep.patient.dob,
+    'Số Điện Thoại': rep.patient.phone || '',
+    'Địa Chỉ': rep.patient.address || '',
+    'Chẩn Đoán': rep.patient.diagnosis || '',
+    'Bác Sĩ Chỉ Định': rep.doctorName || '',
+    'Loại Phiếu': rep.isAllergen ? 'Panel Dị Nguyên 91 Chỉ Số' : 'Xét Nghiệm Chuẩn A4',
+    'Số Lượng Chỉ Số': rep.testCount || rep.selectedTests.length,
+    'Trạng Thái': rep.status,
+    'Kết Luận Bác Sĩ': rep.conclusion || '',
+    'Link Cloud PDF': rep.cloudPdfUrl || '',
+    'Thời Gian Tạo': new Date(rep.createdAt).toLocaleString('vi-VN')
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(reportRows);
+
+  worksheet['!cols'] = [
+    { wch: 6 },  // STT
+    { wch: 18 }, // Mã BN
+    { wch: 18 }, // Số BP
+    { wch: 25 }, // Họ tên
+    { wch: 10 }, // Giới tính
+    { wch: 15 }, // Năm sinh
+    { wch: 15 }, // SĐT
+    { wch: 30 }, // Địa chỉ
+    { wch: 25 }, // Chẩn đoán
+    { wch: 22 }, // Bác sĩ
+    { wch: 25 }, // Loại phiếu
+    { wch: 12 }, // Số chỉ số
+    { wch: 18 }, // Trạng thái
+    { wch: 40 }, // Kết luận
+    { wch: 40 }, // Cloud Link
+    { wch: 22 }  // Thời gian tạo
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, worksheet, 'Sổ Lưu Phiếu Xét Nghiệm');
+  XLSX.writeFile(wb, `SoLuuPhieuXN_GoLab_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}

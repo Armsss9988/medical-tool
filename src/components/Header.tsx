@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Activity, ListChecks, TrendingUp, FolderOpen, Clock, Phone, Globe, ShieldCheck } from 'lucide-react';
+import { Settings, Activity, ListChecks, TrendingUp, FolderOpen, Clock, Phone, Globe, ShieldCheck, ClipboardList } from 'lucide-react';
 import { ClinicInfo, CatalogItem } from '@domain/types';
 
 interface HeaderProps {
@@ -10,8 +10,10 @@ interface HeaderProps {
   onOpenSettings: () => void;
   onOpenCatalogModal: () => void;
   onOpenRevenueModal: () => void;
+  onOpenReportManagerModal: () => void;
   onOpenDataFolder: () => void;
   invoiceCount?: number;
+  reportCount?: number;
 }
 
 export default function Header({ 
@@ -19,8 +21,10 @@ export default function Header({
   onOpenSettings,
   onOpenCatalogModal,
   onOpenRevenueModal,
+  onOpenReportManagerModal,
   onOpenDataFolder,
-  invoiceCount = 0
+  invoiceCount = 0,
+  reportCount = 0
 }: HeaderProps) {
   // Live system clock ticker
   const [currentTime, setCurrentTime] = useState<string>('');
@@ -88,6 +92,22 @@ export default function Header({
               <span className="text-slate-400 text-[11px] font-medium">{currentDate || ''}</span>
             </div>
           </div>
+
+          {/* Sổ Lưu Phiếu Xét Nghiệm Button */}
+          <button
+            type="button"
+            onClick={onOpenReportManagerModal}
+            title="Xem và quản lý toàn bộ danh sách các phiếu kết quả xét nghiệm đã lưu"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-900/20 border border-indigo-500/50 transition-all active:scale-95 group"
+          >
+            <ClipboardList className="w-3.5 h-3.5 text-indigo-200 group-hover:scale-110 transition-transform" />
+            <span>Sổ Lưu Phiếu XN</span>
+            {reportCount > 0 && (
+              <span className="bg-white text-indigo-900 font-mono text-[10px] font-black px-1.5 py-0.2 rounded-full border border-indigo-300 ml-0.5 shadow-2xs">
+                {reportCount}
+              </span>
+            )}
+          </button>
 
           {/* Sổ Sách & Doanh Thu Button */}
           <button
