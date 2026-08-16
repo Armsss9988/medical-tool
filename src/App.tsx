@@ -52,14 +52,14 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
-  const [catalogModalInitialTab, setCatalogModalInitialTab] = useState<CatalogTabType>("INDICATORS");
+  const [catalogModalTargetTab, setCatalogModalTargetTab] = useState<CatalogTabType | null>(null);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [isRevenueModalOpen, setIsRevenueModalOpen] = useState(false);
   const [currentPackageId, setCurrentPackageId] = useState("all");
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
-  const handleOpenCatalogModal = (tab: CatalogTabType = "INDICATORS") => {
-    setCatalogModalInitialTab(tab);
+  const handleOpenCatalogModal = (tab?: CatalogTabType) => {
+    setCatalogModalTargetTab(tab || null);
     setIsCatalogModalOpen(true);
   };
 
@@ -185,7 +185,7 @@ export default function App() {
         onLoadExcelFile={handleLoadExcelFile}
         catalog={catalog}
         onOpenSettings={() => setIsSettingsOpen(true)}
-        onOpenCatalogModal={() => handleOpenCatalogModal("INDICATORS")}
+        onOpenCatalogModal={() => handleOpenCatalogModal()}
         onOpenRevenueModal={() => setIsRevenueModalOpen(true)}
         onOpenDataFolder={handleOpenDataFolder}
         invoiceCount={invoices.length}
@@ -299,7 +299,7 @@ export default function App() {
       <CatalogManagerModal
         isOpen={isCatalogModalOpen}
         onClose={() => setIsCatalogModalOpen(false)}
-        initialTab={catalogModalInitialTab}
+        targetTab={catalogModalTargetTab}
         catalog={catalog}
         onSaveCatalog={(newCat) => {
           setCatalog(newCat);

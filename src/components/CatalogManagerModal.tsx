@@ -144,7 +144,7 @@ function GroupSearchCombobox({
                         title="Xóa nhóm này"
                         className="p-0.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors opacity-70 group-hover:opacity-100 shrink-0"
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </div>
@@ -348,7 +348,7 @@ function EquipmentSearchCombobox({
                         title="Xóa thiết bị này"
                         className="p-0.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors opacity-70 group-hover:opacity-100 shrink-0"
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </div>
@@ -695,7 +695,7 @@ function PackageEditorModal({
                   <button
                     type="button"
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                    className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -853,7 +853,7 @@ export type CatalogTabType = 'INDICATORS' | 'PACKAGES_INDICATOR' | 'ALLERGENS' |
 interface CatalogManagerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialTab?: CatalogTabType;
+  targetTab?: CatalogTabType | null;
   catalog: CatalogItem[];
   onSaveCatalog: (newCatalog: CatalogItem[]) => void;
   testPackages: TestPackage[];
@@ -869,7 +869,7 @@ interface CatalogManagerModalProps {
 export default function CatalogManagerModal({ 
   isOpen, 
   onClose, 
-  initialTab = 'INDICATORS',
+  targetTab = null,
   catalog, 
   onSaveCatalog,
   testPackages,
@@ -881,13 +881,20 @@ export default function CatalogManagerModal({
   doctorsList = [],
   onSaveDoctors
 }: CatalogManagerModalProps) {
-  const [activeTab, setActiveTab] = useState<CatalogTabType>(initialTab);
+  const [activeTab, setActiveTab] = useState<CatalogTabType>('INDICATORS');
+  const prevIsOpenRef = useRef(false);
 
   useEffect(() => {
-    if (isOpen && initialTab) {
-      setActiveTab(initialTab);
+    if (isOpen && !prevIsOpenRef.current) {
+      // Khi modal vừa được mở lên:
+      // Nếu có targetTab đặc thù được yêu cầu (ví dụ: 'DOCTORS' khi click + Thêm BS), chuyển sang tab đó
+      if (targetTab) {
+        setActiveTab(targetTab);
+      }
+      // Nếu mở bình thường (targetTab là null/undefined), GIỮ NGUYÊN activeTab mà người dùng đang mở trước đó
     }
-  }, [isOpen, initialTab]);
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, targetTab]);
   
   const [items, setItems] = useState<CatalogItem[]>(catalog || []);
   const [searchTerm, setSearchTerm] = useState('');
@@ -1644,7 +1651,7 @@ export default function CatalogManagerModal({
                 </div>
 
                 <span className="text-xs text-slate-500 font-medium">
-                  Tổng số: <strong className="text-red-700 font-bold">{items.filter((i) => i.category.includes('Dị Nguyên') || i.code.startsWith('f') || i.code.startsWith('d') || i.code.startsWith('e') || i.code.startsWith('m')).length}</strong> dị nguyên
+                  Tổng số: <strong className="text-red-700 font-bold">{items.filter((i) => i.category.includes('Dị Nguyên') || i.code.startsWith('f') || i.code.startsWith('d') || i.code.startsWith('e') || i.code.startsWith('m') || i.code.startsWith('g') || i.code.startsWith('w') || i.code.startsWith('k')).length}</strong> dị nguyên
                 </span>
               </div>
 
@@ -1723,7 +1730,7 @@ export default function CatalogManagerModal({
                   <div className="flex space-x-1">
                     <EquipmentSearchCombobox
                       value={newItem.equipment || 'Máy Đọc Dị Nguyên PROTIA Smart Analyzer'}
-                      onChange={(name) => setNewItem({ ...newItem, equipment: name })}
+                      onChange={(name) => handleItemChange(item.code, 'equipment', name)}
                       equipments={eqList}
                       onCreateEquipment={handleCreateEquipment}
                       onDeleteEquipment={handleDeleteEquipment}
