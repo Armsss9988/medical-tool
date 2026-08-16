@@ -28,10 +28,10 @@ export default function PrintReportView({
   qrCodeUrl,
   qrCodeDataUrl,
   clinicInfo = {
-    name: 'CÔNG TY CỔ PHẦN TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH',
-    address: 'P. Đồng Sơn – Quảng Trị',
-    phone: '098 3633677',
-    logoUrl: '',
+    name: 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH',
+    address: 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị',
+    phone: '032.855.3773',
+    website: 'golab.com.vn',
     defaultDoctor: 'BS. Trần Hoài Long'
   }
 }: PrintReportViewProps) {
@@ -66,14 +66,17 @@ export default function PrintReportView({
               className="h-16 w-auto object-contain"
             />
             <div>
+              <p className="text-[10px] font-bold text-sky-800 uppercase tracking-widest leading-none mb-0.5">
+                HỆ THỐNG XÉT NGHIỆM GOLAB
+              </p>
               <h1 className="text-sm font-black text-sky-950 uppercase tracking-tight">
-                {clinicInfo.name || 'CÔNG TY CỔ PHẦN TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'}
+                {clinicInfo.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'}
               </h1>
               <p className="text-[10px] text-slate-600 font-medium">
-                ĐC: {clinicInfo.address || 'P. Đồng Sơn – Quảng Trị'} • SĐT: {clinicInfo.phone || '098 3633677'}
+                ĐC: {clinicInfo.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị'}
               </p>
-              <p className="text-[9.5px] text-sky-800 font-semibold italic">
-                Chuyên khoa Xét nghiệm - Chất lượng - Nhanh chóng - Chính xác
+              <p className="text-[9.5px] text-slate-600 font-medium">
+                Website: <strong className="text-sky-800">{clinicInfo.website || 'golab.com.vn'}</strong> • Hotline: <strong className="text-sky-800">{clinicInfo.phone || '032.855.3773'}</strong>
               </p>
             </div>
           </div>
@@ -129,13 +132,13 @@ export default function PrintReportView({
               <tr className="border-b border-slate-200">
                 <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">Địa chỉ:</td>
                 <td className="py-1 px-2.5 font-medium text-slate-900" colSpan={3}>
-                  {patient.address || patient.diagnosis || 'P. Đồng Sơn – Quảng Trị'}
+                  {patient.address || patient.diagnosis || clinicInfo.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị'}
                 </td>
               </tr>
               {/* Hàng 4 */}
               <tr className="border-b border-slate-200">
                 <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">Bác sĩ chỉ định:</td>
-                <td className="py-1 px-2.5 font-bold text-sky-900">{patient.address || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long'}</td>
+                <td className="py-1 px-2.5 font-bold text-sky-900">{doctorName || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long'}</td>
                 <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">Số bệnh phẩm:</td>
                 <td className="py-1 px-2.5 font-mono font-extrabold text-red-600 text-xs">{patient.code || '14509'}</td>
               </tr>
@@ -278,7 +281,7 @@ export default function PrintReportView({
 
         {/* Dòng copyright chân trang */}
         <div className="mt-4 pt-1 border-t border-slate-200 text-center text-[8.5px] text-slate-500 uppercase font-mono tracking-tight">
-          {clinicInfo.name || 'PHÒNG KHÁM XÉT NGHIỆM GOLAB'} • ĐỊA CHỈ: {clinicInfo.address || 'Số 123 Đường Giải Phóng, Đống Đa, Hà Nội'} • HOTLINE: {clinicInfo.phone || '0988 123 456'}
+          HỆ THỐNG XÉT NGHIỆM GOLAB • {clinicInfo.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'} • ĐỊA CHỈ: {clinicInfo.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị'} • WEBSITE: {(clinicInfo.website || 'GOLAB.COM.VN').toUpperCase()} • HOTLINE: {clinicInfo.phone || '032.855.3773'}
         </div>
       </div>
 

@@ -11,10 +11,11 @@ const DEFAULT_DOCTORS: Doctor[] = [
 ];
 
 const DEFAULT_CLINIC_INFO: ClinicInfo = {
-  name: "PHÒNG KHÁM XÉT NGHIỆM Y KHOA AN BÌNH",
-  address: "Số 123 Đường Giải Phóng, Đống Đa, Hà Nội",
-  phone: "0988 123 456",
-  defaultDoctor: "BS. CKII. Lê Anh Minh"
+  name: "TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH",
+  address: "Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị",
+  phone: "032.855.3773",
+  website: "golab.com.vn",
+  defaultDoctor: "BS. Trần Hoài Long"
 };
 
 export function useCatalogData() {
@@ -43,94 +44,107 @@ export function useCatalogData() {
 
         const existingGroupNames = new Set(loadedTestGroups.map((g) => g.name.toLowerCase()));
         const finalGroups = [...loadedTestGroups];
-
-        for (const defaultGroup of DEFAULT_TEST_GROUPS) {
-          if (!existingGroupNames.has(defaultGroup.name.toLowerCase())) {
-            finalGroups.push(defaultGroup);
-            existingGroupNames.add(defaultGroup.name.toLowerCase());
+        DEFAULT_TEST_GROUPS.forEach((defG) => {
+          if (!existingGroupNames.has(defG.name.toLowerCase())) {
+            finalGroups.push(defG);
+            existingGroupNames.add(defG.name.toLowerCase());
           }
-        }
+        });
 
-        for (const catItem of loadedCatalog) {
-          if (catItem.category && !existingGroupNames.has(catItem.category.toLowerCase())) {
-            finalGroups.push({ id: crypto.randomUUID(), name: catItem.category.trim() });
-            existingGroupNames.add(catItem.category.toLowerCase());
-          }
-        }
-
-        const existingEqNames = new Set(loadedEquipments.map((e) => e.name.toLowerCase()));
+        const existingEquipNames = new Set(loadedEquipments.map((e) => e.name.toLowerCase()));
         const finalEquipments = [...loadedEquipments];
-        for (const eq of DEFAULT_EQUIPMENTS) {
-          if (!existingEqNames.has(eq.name.toLowerCase())) {
-            finalEquipments.push(eq);
-            existingEqNames.add(eq.name.toLowerCase());
+        DEFAULT_EQUIPMENTS.forEach((defE) => {
+          if (!existingEquipNames.has(defE.name.toLowerCase())) {
+            finalEquipments.push(defE);
+            existingEquipNames.add(defE.name.toLowerCase());
           }
-        }
-        for (const catItem of loadedCatalog) {
-          if (catItem.equipment && !existingEqNames.has(catItem.equipment.toLowerCase())) {
-            finalEquipments.push({ id: crypto.randomUUID(), name: catItem.equipment.trim() });
-            existingEqNames.add(catItem.equipment.toLowerCase());
+        });
+
+        const existingDocNames = new Set(loadedDoctors.map((d) => d.name.toLowerCase()));
+        const finalDoctors = [...loadedDoctors];
+        DEFAULT_DOCTORS.forEach((defD) => {
+          if (!existingDocNames.has(defD.name.toLowerCase())) {
+            finalDoctors.push(defD);
+            existingDocNames.add(defD.name.toLowerCase());
           }
-        }
+        });
 
-        const effectiveCloudConfig: CloudDbConfig = {
-          ...DEFAULT_CLOUD_DB_CONFIG,
-          ...loadedCloudDbConfig,
-          supabaseUrl: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || loadedCloudDbConfig.supabaseUrl || DEFAULT_CLOUD_DB_CONFIG.supabaseUrl,
-          supabaseAnonKey: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || loadedCloudDbConfig.supabaseAnonKey || DEFAULT_CLOUD_DB_CONFIG.supabaseAnonKey,
-          enabled: true
-        };
+        const existingCodes = new Set(loadedCatalog.map((c) => c.code));
+        const mergedCatalog = [...loadedCatalog];
+        let hasNewItems = false;
+        DEFAULT_CATALOG.forEach((item) => {
+          if (!existingCodes.has(item.code)) {
+            mergedCatalog.push(item);
+            existingCodes.add(item.code);
+            hasNewItems = true;
+          }
+        });
 
-        setCatalog(loadedCatalog);
-        setTestPackages(loadedPackages);
-        setDoctorsList(loadedDoctors);
-        setInvoices(loadedInvoices);
+        const mergedPackages = INITIAL_PACKAGES.map((defPkg) => {
+          const found = loadedPackages.find((p) => p.id === defPkg.id);
+          return found || defPkg;
+        });
+
+        setCatalog(mergedCatalog);
+        setTestPackages(mergedPackages);
         setTestGroups(finalGroups);
         setEquipments(finalEquipments);
+        setDoctorsList(finalDoctors);
+        setInvoices(loadedInvoices);
         setClinicInfo(loadedClinic);
-        setCloudDbConfig(effectiveCloudConfig);
+        setCloudDbConfig(loadedCloudDbConfig);
 
-        if (effectiveCloudConfig.enabled && effectiveCloudConfig.supabaseUrl) {
+        if (hasNewItems) {
+          saveData("catalog_data", mergedCatalog);
+        }
+
+        if (loadedCloudDbConfig.enabled && loadedCloudDbConfig.supabaseUrl) {
           try {
-            const cloudCatalog = await fetchTableFromCloud<CatalogItem[]>("catalog_data", effectiveCloudConfig);
-            if (cloudCatalog && Array.isArray(cloudCatalog) && cloudCatalog.length > 0) {
-              setCatalog(cloudCatalog);
+            const cloudCat = await fetchTableFromCloud<CatalogItem[]>("catalog_data", loadedCloudDbConfig);
+            if (cloudCat && cloudCat.length > 0) {
+              setCatalog(cloudCat);
+              saveData("catalog_data", cloudCat);
             }
-            const cloudPackages = await fetchTableFromCloud<TestPackage[]>("test_packages", effectiveCloudConfig);
-            if (cloudPackages && Array.isArray(cloudPackages) && cloudPackages.length > 0) {
-              setTestPackages(cloudPackages);
+            const cloudPkgs = await fetchTableFromCloud<TestPackage[]>("test_packages", loadedCloudDbConfig);
+            if (cloudPkgs && cloudPkgs.length > 0) {
+              setTestPackages(cloudPkgs);
+              saveData("test_packages", cloudPkgs);
             }
-            const cloudTestGroups = await fetchTableFromCloud<TestGroup[]>("test_groups", effectiveCloudConfig);
-            if (cloudTestGroups && Array.isArray(cloudTestGroups) && cloudTestGroups.length > 0) {
-              setTestGroups(cloudTestGroups);
+            const cloudGroups = await fetchTableFromCloud<TestGroup[]>("test_groups", loadedCloudDbConfig);
+            if (cloudGroups && cloudGroups.length > 0) {
+              setTestGroups(cloudGroups);
+              saveData("test_groups", cloudGroups);
             }
-            const cloudEquipments = await fetchTableFromCloud<TestEquipment[]>("equipments_catalog", effectiveCloudConfig);
-            if (cloudEquipments && Array.isArray(cloudEquipments) && cloudEquipments.length > 0) {
-              setEquipments(cloudEquipments);
+            const cloudEquip = await fetchTableFromCloud<TestEquipment[]>("equipments_catalog", loadedCloudDbConfig);
+            if (cloudEquip && cloudEquip.length > 0) {
+              setEquipments(cloudEquip);
+              saveData("equipments_catalog", cloudEquip);
             }
-            const cloudDoctors = await fetchTableFromCloud<Doctor[]>("doctors_catalog", effectiveCloudConfig);
-            if (cloudDoctors && Array.isArray(cloudDoctors) && cloudDoctors.length > 0) {
-              setDoctorsList(cloudDoctors);
+            const cloudDocs = await fetchTableFromCloud<Doctor[]>("doctors_catalog", loadedCloudDbConfig);
+            if (cloudDocs && cloudDocs.length > 0) {
+              setDoctorsList(cloudDocs);
+              saveData("doctors_catalog", cloudDocs);
             }
-            const cloudClinic = await fetchTableFromCloud<ClinicInfo>("clinic_info", effectiveCloudConfig);
+            const cloudInvoices = await fetchTableFromCloud<Invoice[]>("invoices_history", loadedCloudDbConfig);
+            if (cloudInvoices && cloudInvoices.length > 0) {
+              setInvoices(cloudInvoices);
+              saveData("invoices_history", cloudInvoices);
+            }
+            const cloudClinic = await fetchTableFromCloud<ClinicInfo>("clinic_info", loadedCloudDbConfig);
             if (cloudClinic && cloudClinic.name) {
               setClinicInfo(cloudClinic);
-            }
-            const cloudInvoices = await fetchTableFromCloud<Invoice[]>("invoices_history", effectiveCloudConfig);
-            if (cloudInvoices && Array.isArray(cloudInvoices) && cloudInvoices.length > 0) {
-              setInvoices(cloudInvoices);
+              saveData("clinic_info", cloudClinic);
             }
           } catch (cloudErr) {
-            console.warn("Chưa thể tải dữ liệu từ Cloud DB, sử dụng dữ liệu cục bộ:", cloudErr);
+            console.warn("[CloudSync] Không thể tải dữ liệu tự động từ Supabase:", cloudErr);
           }
         }
       } catch (err) {
-        console.error("Lỗi nạp dữ liệu ban đầu:", err);
+        console.error("Lỗi khi tải dữ liệu khởi tạo:", err);
       } finally {
         isDataLoadedRef.current = true;
       }
     }
-
     initData();
   }, []);
 
@@ -145,6 +159,18 @@ export function useCatalogData() {
     saveData("test_packages", testPackages);
     if (cloudDbConfig.enabled) syncTableToCloud("test_packages", testPackages, cloudDbConfig);
   }, [testPackages, cloudDbConfig]);
+
+  useEffect(() => {
+    if (!isDataLoadedRef.current) return;
+    saveData("test_groups", testGroups);
+    if (cloudDbConfig.enabled) syncTableToCloud("test_groups", testGroups, cloudDbConfig);
+  }, [testGroups, cloudDbConfig]);
+
+  useEffect(() => {
+    if (!isDataLoadedRef.current) return;
+    saveData("equipments_catalog", equipments);
+    if (cloudDbConfig.enabled) syncTableToCloud("equipments_catalog", equipments, cloudDbConfig);
+  }, [equipments, cloudDbConfig]);
 
   useEffect(() => {
     if (!isDataLoadedRef.current) return;
@@ -163,18 +189,6 @@ export function useCatalogData() {
     saveData("clinic_info", clinicInfo);
     if (cloudDbConfig.enabled) syncTableToCloud("clinic_info", clinicInfo, cloudDbConfig);
   }, [clinicInfo, cloudDbConfig]);
-
-  useEffect(() => {
-    if (!isDataLoadedRef.current) return;
-    saveData("test_groups", testGroups);
-    if (cloudDbConfig.enabled) syncTableToCloud("test_groups", testGroups, cloudDbConfig);
-  }, [testGroups, cloudDbConfig]);
-
-  useEffect(() => {
-    if (!isDataLoadedRef.current) return;
-    saveData("equipments_catalog", equipments);
-    if (cloudDbConfig.enabled) syncTableToCloud("equipments_catalog", equipments, cloudDbConfig);
-  }, [equipments, cloudDbConfig]);
 
   useEffect(() => {
     if (!isDataLoadedRef.current) return;

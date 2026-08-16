@@ -1,5 +1,5 @@
-import React from 'react';
-import { X, Sliders, Database } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Sliders, Database, Save } from 'lucide-react';
 import { CatalogItem, TestPackage, TestGroup, TestEquipment, Doctor, ClinicInfo, CloudDbConfig } from '@domain/types';
 
 interface SettingsModalProps {
@@ -8,7 +8,13 @@ interface SettingsModalProps {
   clinicInfo: ClinicInfo;
   setClinicInfo: React.Dispatch<React.SetStateAction<ClinicInfo>>;
   cloudDbConfig: CloudDbConfig;
-  onSaveCloudDbConfig: (config: CloudDbConfig) => void;
+  setCloudDbConfig: React.Dispatch<React.SetStateAction<CloudDbConfig>>;
+  catalog: CatalogItem[];
+  testPackages: TestPackage[];
+  testGroups: TestGroup[];
+  equipments: TestEquipment[];
+  doctorsList: Doctor[];
+  showToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
 }
 
 export default function SettingsModal({
@@ -17,9 +23,10 @@ export default function SettingsModal({
   clinicInfo,
   setClinicInfo,
   cloudDbConfig,
-  onSaveCloudDbConfig
+  setCloudDbConfig,
+  showToast
 }: SettingsModalProps) {
-  const [localCloudConfig, setLocalCloudConfig] = React.useState<CloudDbConfig>(cloudDbConfig);
+  const [localCloudConfig, setLocalCloudConfig] = useState<CloudDbConfig>(cloudDbConfig);
 
   if (!isOpen) return null;
 
@@ -27,15 +34,18 @@ export default function SettingsModal({
     setClinicInfo((prev) => ({ ...prev, [field]: val }));
   };
 
-  const handleSave = () => {
-    onSaveCloudDbConfig(localCloudConfig);
+  const handleSaveAll = () => {
+    setCloudDbConfig(localCloudConfig);
+    showToast('Đã lưu thành công thông tin phòng khám và cấu hình hệ thống!', 'success');
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        
+        {/* HEADER */}
+        <div className="flex items-center justify-between px-5 py-4 bg-slate-900 text-white">
           <div className="flex items-center space-x-2">
             <Sliders className="w-5 h-5 text-emerald-400" />
             <h3 className="font-bold text-base">Cấu Hình Phòng Khám & Cloud DB</h3>
@@ -78,6 +88,16 @@ export default function SettingsModal({
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               />
             </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Website</label>
+              <input
+                type="text"
+                value={clinicInfo.website || ''}
+                placeholder="golab.com.vn"
+                onChange={(e) => handleClinicChange('website', e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              />
+            </div>
           </div>
 
           {/* SUPABASE CLOUD DB */}
@@ -117,21 +137,29 @@ export default function SettingsModal({
                 type="password"
                 value={localCloudConfig.supabaseAnonKey}
                 onChange={(e) => setLocalCloudConfig((prev) => ({ ...prev, supabaseAnonKey: e.target.value }))}
-                placeholder="sb_publishable_eUNn1NWvQhljdd2pirtZtw_sLFDHWy7"
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 font-mono text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               />
             </div>
           </div>
         </div>
 
-        <div className="bg-slate-50 px-5 py-3 border-t border-slate-200 flex items-center justify-end space-x-2">
-          <button onClick={onClose} className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg text-xs transition">
-            Hủy
+        {/* FOOTER ACTION */}
+        <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end space-x-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-200 font-medium transition"
+          >
+            Đóng
           </button>
-          <button onClick={handleSave} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow transition">
-            Lưu Cấu Hình
+          <button
+            onClick={handleSaveAll}
+            className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center space-x-1.5 shadow transition active:scale-95"
+          >
+            <Save className="w-4 h-4" />
+            <span>Lưu Cấu Hình</span>
           </button>
         </div>
+
       </div>
     </div>
   );

@@ -23,11 +23,11 @@ export default function FullAllergenReportView({
   currentDateStr = new Date().toLocaleDateString('vi-VN'),
   doctorName,
   clinicInfo = {
-    name: 'CÔNG TY CỔ PHẦN TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH',
-    address: 'P. Đồng Sơn – Quảng Trị',
-    phone: '098 3633677',
-    logoUrl: '',
-    defaultDoctor: 'BS. Nguyễn Thị Mai'
+    name: 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH',
+    address: 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị',
+    phone: '032.855.3773',
+    website: 'golab.com.vn',
+    defaultDoctor: 'BS. Trần Hoài Long'
   }
 }: FullAllergenReportViewProps) {
   // Lấy ra danh sách các dị nguyên có giá trị (hỗ trợ cả allergenTests và selectedTests)
@@ -64,14 +64,17 @@ export default function FullAllergenReportView({
           <div className="flex items-center space-x-3">
             <img src={golabLogo} alt="GoLab Logo" className="h-14 w-auto object-contain" />
             <div>
+              <p className="text-[9px] font-bold text-red-800 uppercase tracking-widest leading-none mb-0.5">
+                HỆ THỐNG XÉT NGHIỆM GOLAB
+              </p>
               <h1 className="text-xs font-black text-red-950 uppercase tracking-tight">
-                {clinicInfo.name || 'CÔNG TY CỔ PHẦN TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'}
+                {clinicInfo.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'}
               </h1>
               <p className="text-[9.5px] text-slate-600">
-                ĐC: {clinicInfo.address || 'P. Đồng Sơn – Quảng Trị'} • SĐT: {clinicInfo.phone || '098 3633677'}
+                ĐC: {clinicInfo.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị'}
               </p>
-              <p className="text-[9px] text-red-700 font-bold italic">
-                TRUNG TÂM XÉT NGHIỆM DỊ NGUYÊN PROTIA SMART ANALYZER (91 CHỈ SỐ IGE)
+              <p className="text-[9px] text-slate-600">
+                Website: <strong className="text-red-800">{clinicInfo.website || 'golab.com.vn'}</strong> • Hotline: <strong className="text-red-800">{clinicInfo.phone || '032.855.3773'}</strong>
               </p>
             </div>
           </div>
@@ -111,13 +114,13 @@ export default function FullAllergenReportView({
               <tr className="border-b border-slate-200">
                 <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">Địa chỉ:</td>
                 <td className="py-1 px-2.5 font-medium text-slate-900" colSpan={3}>
-                  {patient.address || patient.diagnosis || 'P. Đồng Sơn – Quảng Trị'}
+                  {patient.address || patient.diagnosis || clinicInfo.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị'}
                 </td>
               </tr>
               {/* Hàng 4 */}
               <tr className="border-b border-slate-200">
                 <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">Bác sĩ chỉ định:</td>
-                <td className="py-1 px-2.5 font-bold text-sky-900">{patient.address || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long'}</td>
+                <td className="py-1 px-2.5 font-bold text-sky-900">{doctorName || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long'}</td>
                 <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">Số bệnh phẩm:</td>
                 <td className="py-1 px-2.5 font-mono font-extrabold text-red-600 text-xs">{patient.code || '14509'}</td>
               </tr>
@@ -262,7 +265,7 @@ export default function FullAllergenReportView({
         </div>
 
         <div className="mt-2 pt-1 border-t border-slate-200 text-center text-[8px] text-slate-500 uppercase font-mono tracking-tight">
-          {clinicInfo.name || 'PHÒNG KHÁM XÉT NGHIỆM GOLAB'} • HỆ THỐNG XÉT NGHIỆM DỊ NGUYÊN TỰ ĐỘNG CHUẨN KHOA HỌC
+          HỆ THỐNG XÉT NGHIỆM GOLAB • {clinicInfo.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'} • ĐỊA CHỈ: {clinicInfo.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị'} • WEBSITE: {(clinicInfo.website || 'GOLAB.COM.VN').toUpperCase()} • HOTLINE: {clinicInfo.phone || '032.855.3773'}
         </div>
       </div>
     </div>

@@ -1,92 +1,84 @@
 import React, { useState } from 'react';
-import { User, Hash, Stethoscope, Calendar, MapPin, ChevronDown, ChevronUp } from 'lucide-react';
-import DoctorSelectCombobox from './DoctorSelectCombobox';
+import { User, Hash, Calendar, Phone, Stethoscope, ChevronDown, ChevronUp, MapPin } from 'lucide-react';
 import { Patient, Doctor, Gender } from '@domain/types';
 
 interface PatientFormProps {
   patient: Patient;
-  setPatient: React.Dispatch<React.SetStateAction<Patient>>;
-  onGenerateNewCode?: () => void;
-  doctorsList?: Doctor[];
+  onPatientChange: (field: keyof Patient, value: any) => void;
+  doctorsList: Doctor[];
+  onOpenDoctorModal?: () => void;
 }
 
-export default function PatientForm({ 
-  patient, 
-  setPatient, 
-  doctorsList = []
+export default function PatientForm({
+  patient,
+  onPatientChange,
+  doctorsList,
+  onOpenDoctorModal
 }: PatientFormProps) {
   const [showMoreTimeFields, setShowMoreTimeFields] = useState(false);
 
   const handleChange = (field: keyof Patient, value: string) => {
-    setPatient((prev) => {
-      const updated = { ...prev, [field]: value };
-      if (field === 'code') {
-        updated.sampleCode = value;
-      } else if (field === 'sampleCode') {
-        updated.code = value;
-      }
-      return updated;
-    });
+    onPatientChange(field, value);
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm mb-4">
-      <div className="flex items-center justify-between mb-3 border-b border-slate-200 pb-2">
-        <h2 className="text-xs font-bold text-sky-700 uppercase tracking-wider flex items-center gap-1.5">
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 transition-all">
+      <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+        <h2 className="text-sm font-bold text-sky-900 flex items-center gap-1.5">
           <User className="w-4 h-4 text-sky-600" />
-          <span>I. Thông Tin Bệnh Nhân & Phiếu Xét Nghiệm</span>
+          I. THÔNG TIN BỆNH NHÂN & PHIẾU XÉT NGHIỆM
         </h2>
-
         <button
           type="button"
           onClick={() => setShowMoreTimeFields(!showMoreTimeFields)}
-          className="flex items-center space-x-1 text-[11px] text-slate-500 hover:text-sky-700 font-semibold focus:outline-none"
+          className="text-[11px] text-sky-600 hover:text-sky-800 font-medium flex items-center gap-1 bg-sky-50 px-2.5 py-1 rounded transition"
         >
-          <Calendar className="w-3.5 h-3.5 text-sky-600" />
-          <span>{showMoreTimeFields ? 'Thu gọn T/G' : 'T/G & Mẫu XN'}</span>
-          {showMoreTimeFields ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          <Calendar className="w-3.5 h-3.5" />
+          <span>T/G & Mẫu XN</span>
+          {showMoreTimeFields ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
         
-        {/* Họ và Tên Bệnh Nhân */}
+        {/* Họ và Tên */}
         <div className="md:col-span-2">
           <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
             <User className="w-3.5 h-3.5 text-sky-600" /> Họ & Tên bệnh nhân <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
-            placeholder="Ví dụ: HOÀNG BẢO NGỌC"
+            placeholder="VÍ DỤ: HOÀNG BẢO NGỌC"
             value={patient.name}
             onChange={(e) => handleChange('name', e.target.value.toUpperCase())}
-            className="w-full bg-white border border-slate-300 focus:border-sky-600 focus:ring-1 focus:ring-sky-600 rounded px-3 py-1.5 text-xs text-red-600 placeholder-slate-400 focus:outline-none transition-all font-extrabold uppercase tracking-wide"
+            className="w-full bg-white border border-slate-300 focus:border-sky-600 focus:ring-1 focus:ring-sky-600 rounded px-3 py-1.5 text-xs text-slate-900 font-bold uppercase tracking-wide focus:outline-none transition-all placeholder:normal-case placeholder:font-normal"
           />
         </div>
 
-        {/* Mã Phiếu XN / Số Bệnh Phẩm (Thống nhất làm 1) */}
+        {/* Mã Phiếu / Số Bệnh Phẩm */}
         <div className="md:col-span-2">
           <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
-            <Hash className="w-3.5 h-3.5 text-red-500" /> Mã phiếu XN / Số bệnh phẩm:
+            <Hash className="w-3.5 h-3.5 text-red-600" /> Mã phiếu XN / Số bệnh phẩm:
           </label>
           <input
             type="text"
-            placeholder="14509"
             value={patient.code}
             onChange={(e) => handleChange('code', e.target.value)}
-            className="w-full bg-slate-50 border border-slate-300 rounded px-3 py-1.5 text-xs text-red-600 font-mono font-extrabold focus:outline-none"
+            className="w-full bg-slate-50 border border-slate-300 focus:border-sky-600 focus:ring-1 focus:ring-sky-600 rounded px-3 py-1.5 text-xs font-mono font-extrabold text-red-600 focus:outline-none transition-all"
           />
         </div>
 
         {/* Năm Sinh / Tuổi */}
         <div>
-          <label className="block text-xs font-semibold text-slate-700 mb-1">Năm sinh / Tuổi:</label>
+          <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
+            <Calendar className="w-3.5 h-3.5 text-sky-600" /> Năm sinh / Tuổi:
+          </label>
           <input
             type="text"
-            placeholder="22/06/2018 hoặc 1985"
+            placeholder="22/06/2018 hoặc 32"
             value={patient.dob}
             onChange={(e) => handleChange('dob', e.target.value)}
-            className="w-full bg-white border border-slate-300 focus:border-sky-600 focus:ring-1 focus:ring-sky-600 rounded px-3 py-1.5 text-xs text-slate-900 focus:outline-none transition-all font-medium"
+            className="w-full bg-white border border-slate-300 focus:border-sky-600 focus:ring-1 focus:ring-sky-600 rounded px-3 py-1.5 text-xs text-slate-900 focus:outline-none transition-all"
           />
         </div>
 
@@ -96,7 +88,7 @@ export default function PatientForm({
           <select
             value={patient.gender}
             onChange={(e) => handleChange('gender', e.target.value as Gender)}
-            className="w-full bg-white border border-slate-300 focus:border-sky-600 focus:ring-1 focus:ring-sky-600 rounded px-3 py-1.5 text-xs text-slate-900 focus:outline-none transition-all font-medium"
+            className="w-full bg-white border border-slate-300 focus:border-sky-600 focus:ring-1 focus:ring-sky-600 rounded px-2.5 py-1.5 text-xs text-slate-900 font-medium focus:outline-none transition-all"
           >
             <option value="Nam">Nam</option>
             <option value="Nữ">Nữ</option>
@@ -106,27 +98,45 @@ export default function PatientForm({
 
         {/* Số Điện Thoại */}
         <div>
-          <label className="block text-xs font-semibold text-slate-700 mb-1">Số điện thoại:</label>
+          <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
+            <Phone className="w-3.5 h-3.5 text-sky-600" /> Số điện thoại:
+          </label>
           <input
             type="text"
             placeholder="098 3633677"
             value={patient.phone}
             onChange={(e) => handleChange('phone', e.target.value)}
-            className="w-full bg-white border border-slate-300 focus:border-sky-600 focus:ring-1 focus:ring-sky-600 rounded px-3 py-1.5 text-xs text-slate-900 focus:outline-none transition-all font-medium"
+            className="w-full bg-white border border-slate-300 focus:border-sky-600 focus:ring-1 focus:ring-sky-600 rounded px-3 py-1.5 text-xs text-slate-900 font-mono focus:outline-none transition-all"
           />
         </div>
 
-        {/* Bác sĩ chỉ định */}
+        {/* Bác Sĩ Chỉ Định */}
         <div>
-          <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
-            <Stethoscope className="w-3.5 h-3.5 text-sky-600" /> Bác sĩ chỉ định:
-          </label>
-          <DoctorSelectCombobox
-            value={patient.address || ''}
-            onChange={(val) => handleChange('address', val)}
-            doctorsList={doctorsList}
-            placeholder="BS. Trần Hoài Long..."
-          />
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+              <Stethoscope className="w-3.5 h-3.5 text-sky-600" /> Bác sĩ chỉ định:
+            </label>
+            {onOpenDoctorModal && (
+              <button
+                type="button"
+                onClick={onOpenDoctorModal}
+                className="text-[10px] text-sky-600 hover:text-sky-800 font-bold hover:underline"
+              >
+                + Thêm BS
+              </button>
+            )}
+          </div>
+          <select
+            value={patient.address || 'BS. Trần Hoài Long'}
+            onChange={(e) => handleChange('address', e.target.value)}
+            className="w-full bg-white border border-slate-300 focus:border-sky-600 focus:ring-1 focus:ring-sky-600 rounded px-2.5 py-1.5 text-xs text-slate-900 font-bold focus:outline-none transition-all"
+          >
+            {doctorsList.map((doc) => (
+              <option key={doc.id} value={doc.name}>
+                {doc.name} {doc.specialty ? `(${doc.specialty})` : ''}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Địa Chỉ Bệnh Nhân */}
@@ -136,7 +146,7 @@ export default function PatientForm({
           </label>
           <input
             type="text"
-            placeholder="P. Đồng Sơn – Quảng Trị"
+            placeholder="Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị"
             value={patient.diagnosis}
             onChange={(e) => handleChange('diagnosis', e.target.value)}
             className="w-full bg-white border border-slate-300 focus:border-sky-600 focus:ring-1 focus:ring-sky-600 rounded px-3 py-1.5 text-xs text-slate-900 focus:outline-none transition-all font-medium"
@@ -152,7 +162,7 @@ export default function PatientForm({
                 type="text"
                 value={patient.orderedAt || ''}
                 onChange={(e) => handleChange('orderedAt', e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-slate-900 font-mono text-[11px]"
+                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono"
               />
             </div>
             <div>
@@ -161,7 +171,7 @@ export default function PatientForm({
                 type="text"
                 value={patient.paidAt || ''}
                 onChange={(e) => handleChange('paidAt', e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-slate-900 font-mono text-[11px]"
+                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono"
               />
             </div>
             <div>
@@ -170,7 +180,7 @@ export default function PatientForm({
                 type="text"
                 value={patient.receivedAt || ''}
                 onChange={(e) => handleChange('receivedAt', e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-slate-900 font-mono text-[11px]"
+                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono"
               />
             </div>
             <div>
@@ -179,7 +189,7 @@ export default function PatientForm({
                 type="text"
                 value={patient.returnedAt || ''}
                 onChange={(e) => handleChange('returnedAt', e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-slate-900 font-mono text-[11px]"
+                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono"
               />
             </div>
             <div>
@@ -187,11 +197,12 @@ export default function PatientForm({
               <select
                 value={patient.sampleStatus || 'Đạt'}
                 onChange={(e) => handleChange('sampleStatus', e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-slate-900 text-[11px] font-bold"
+                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-semibold text-emerald-700"
               >
-                <option value="Đạt">Đạt</option>
-                <option value="Không đạt">Không đạt</option>
-                <option value="Cần lấy lại mẫu">Cần lấy lại mẫu</option>
+                <option value="Đạt">Đạt chất lượng</option>
+                <option value="Tán huyết">Tán huyết nhẹ</option>
+                <option value="Đông dây">Mẫu có đông dây</option>
+                <option value="Không đạt">Không đạt tiêu chuẩn</option>
               </select>
             </div>
           </div>

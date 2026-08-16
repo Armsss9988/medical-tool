@@ -66,10 +66,18 @@ export interface Doctor {
   phone?: string;
 }
 
+export interface CloudDbConfig {
+  enabled: boolean;
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  autoSync?: boolean;
+}
+
 export interface InvoiceItem {
   code: string;
   name: string;
   price: number;
+  category?: string;
 }
 
 export interface Invoice {
@@ -77,15 +85,13 @@ export interface Invoice {
   code: string;
   createdAt: string;
   patientName: string;
-  patientCode: string;
-  patientDob?: string;
-  patientPhone?: string;
-  patientAddress?: string;
+  patientDob: string;
+  patientPhone: string;
+  patientGender: Gender;
   doctorName: string;
-  packageName: string;
   items: InvoiceItem[];
   totalAmount: number;
-  discountAmount: number;
+  discountPercent: number;
   finalAmount: number;
   paymentMethod: 'Tiền mặt' | 'Chuyển khoản (VietQR)' | 'Quẹt thẻ';
   status: 'Đã thanh toán' | 'Chờ thanh toán';
@@ -96,6 +102,7 @@ export interface ClinicInfo {
   name: string;
   address: string;
   phone: string;
+  website?: string;
   defaultDoctor: string;
 }
 
@@ -115,11 +122,4 @@ export interface StorageResult {
   success: boolean;
   path?: string;
   error?: string;
-}
-
-export interface CloudDbConfig {
-  enabled: boolean;
-  supabaseUrl: string;
-  supabaseAnonKey: string;
-  autoSync: boolean;
 }

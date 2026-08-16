@@ -35,11 +35,11 @@ export default function Header({
             <div className="flex items-center space-x-2">
               <h1 className="text-base font-extrabold text-white tracking-tight">{clinicInfo.name}</h1>
               <span className="text-[10px] uppercase font-bold bg-sky-500/20 text-sky-300 border border-sky-400/30 px-2 py-0.5 rounded">
-                GOLAB Edition
+                HỆ THỐNG XÉT NGHIỆM GOLAB
               </span>
             </div>
             <p className="text-xs text-slate-300">
-              {clinicInfo.address} • Hotline: <strong className="text-sky-300">{clinicInfo.phone}</strong>
+              {clinicInfo.address} • Website: <strong className="text-sky-300">{clinicInfo.website || 'golab.com.vn'}</strong> • Hotline: <strong className="text-sky-300">{clinicInfo.phone}</strong>
             </p>
           </div>
         </div>

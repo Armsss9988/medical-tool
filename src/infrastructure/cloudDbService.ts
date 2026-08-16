@@ -123,9 +123,10 @@ export async function seedAllDefaultDataToSupabase(config: CloudDbConfig): Promi
       syncTableToCloud('test_groups', DEFAULT_TEST_GROUPS, config),
       syncTableToCloud('equipments_catalog', DEFAULT_EQUIPMENTS, config),
       syncTableToCloud('clinic_info', {
-        name: 'TRUNG TÂM XÉT NGHIỆM Y KHOA GOLAB',
-        address: '123 Đường Nguyễn Trãi, Phường Bến Thành, Quận 1, TP. Hồ Chí Minh',
-        phone: '0912.345.678 - 028.3829.9999',
+        name: 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH',
+        address: 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị',
+        phone: '032.855.3773',
+        website: 'golab.com.vn',
         defaultDoctor: 'BS. Trần Hoài Long'
       }, config)
     ]);
