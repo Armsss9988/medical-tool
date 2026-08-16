@@ -68,11 +68,12 @@ export default function PrintReportView({
                 src={currentLogo}
                 alt="GoLab Logo"
                 className="h-16 max-w-[128px] w-auto object-contain"
-                crossOrigin="anonymous"
                 loading="eager"
                 decoding="sync"
                 onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src = golabLogo;
+                  const target = e.currentTarget as HTMLImageElement;
+                  target.onerror = null;
+                  target.src = golabLogo;
                 }}
               />
             </div>
@@ -99,7 +100,6 @@ export default function PrintReportView({
                 src={finalQrCode}
                 alt="Mã QR Tra Cứu"
                 className="w-16 h-16 object-contain"
-                crossOrigin="anonymous"
                 loading="eager"
                 decoding="sync"
               />
@@ -287,11 +287,12 @@ export default function PrintReportView({
                 src={currentStamp}
                 alt="Đã ký & Đóng dấu"
                 className="h-20 w-auto object-contain max-w-[120px]"
-                crossOrigin="anonymous"
                 loading="eager"
                 decoding="sync"
                 onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src = doctorStamp;
+                  const target = e.currentTarget as HTMLImageElement;
+                  target.onerror = null;
+                  target.src = doctorStamp;
                 }}
               />
             </div>

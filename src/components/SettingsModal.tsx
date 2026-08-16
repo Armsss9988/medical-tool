@@ -165,7 +165,11 @@ export default function SettingsModal({
                     src={activeLogo}
                     alt="Logo Preview"
                     className="max-h-full max-w-full object-contain"
-                    crossOrigin="anonymous"
+                    onError={(e) => {
+                      const target = e.currentTarget as HTMLImageElement;
+                      target.onerror = null;
+                      target.src = golabLogo;
+                    }}
                   />
                 </div>
                 <div className="flex items-center space-x-1.5 w-full justify-center">
@@ -203,7 +207,11 @@ export default function SettingsModal({
                     src={activeStamp}
                     alt="Con Dấu Preview"
                     className="max-h-full max-w-full object-contain"
-                    crossOrigin="anonymous"
+                    onError={(e) => {
+                      const target = e.currentTarget as HTMLImageElement;
+                      target.onerror = null;
+                      target.src = doctorStamp;
+                    }}
                   />
                 </div>
                 <div className="flex items-center space-x-1.5 w-full justify-center">

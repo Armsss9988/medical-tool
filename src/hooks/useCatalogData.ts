@@ -60,12 +60,14 @@ export function useCatalogData() {
           }
         });
 
-        const existingDocNames = new Set(loadedDoctors.map((d) => d.name.toLowerCase()));
-        const finalDoctors = [...loadedDoctors];
-        DEFAULT_DOCTORS.forEach((defD) => {
-          if (!existingDocNames.has(defD.name.toLowerCase())) {
-            finalDoctors.push(defD);
-            existingDocNames.add(defD.name.toLowerCase());
+        const seenDocIds = new Set<string>();
+        const seenDocNames = new Set<string>();
+        const finalDoctors: Doctor[] = [];
+        [...loadedDoctors, ...DEFAULT_DOCTORS].forEach((d) => {
+          if (d && d.id && !seenDocIds.has(d.id) && !seenDocNames.has(d.name.toLowerCase())) {
+            seenDocIds.add(d.id);
+            seenDocNames.add(d.name.toLowerCase());
+            finalDoctors.push(d);
           }
         });
 

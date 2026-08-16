@@ -245,8 +245,8 @@ export default function PatientForm({
             onChange={(e) => handleChange('address', e.target.value)}
             className="w-full bg-white border border-slate-300 focus:border-sky-600 focus:ring-2 focus:ring-sky-100 rounded-xl px-2.5 py-2 text-xs text-slate-900 font-bold focus:outline-none transition-all shadow-2xs truncate"
           >
-            {doctorsList.map((doc) => (
-              <option key={doc.id} value={doc.name}>
+            {doctorsList.map((doc, idx) => (
+              <option key={`${doc.id || 'doc'}-${idx}`} value={doc.name}>
                 {doc.name} {doc.specialty ? `(${doc.specialty})` : ''}
               </option>
             ))}

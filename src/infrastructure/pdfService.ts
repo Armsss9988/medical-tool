@@ -101,9 +101,11 @@ export async function ensureImagesLoadedAndReady(element: HTMLElement): Promise<
 
   const loadPromises = images.map((img) => {
     return new Promise<void>((resolve) => {
-      // Đặt các thuộc tính nạp ảnh tức thời và tránh bị CORS chặn
-      if (!img.getAttribute('crossorigin')) {
+      // Chỉ đặt thuộc tính crossorigin cho URL từ xa (http/https), tuyệt đối không đặt cho data: URI
+      if (img.src && (img.src.startsWith('http://') || img.src.startsWith('https://')) && !img.getAttribute('crossorigin')) {
         img.setAttribute('crossorigin', 'anonymous');
+      } else if (img.src && img.src.startsWith('data:')) {
+        img.removeAttribute('crossorigin');
       }
       img.loading = 'eager';
 
@@ -196,7 +198,11 @@ function sanitizeStylesForCanvas(clonedDoc: Document, printElementId: string) {
       // Đảm bảo tất cả thẻ img trong clonedDoc đều giữ đúng thuộc tính và nạp ngay
       if (htmlNode.tagName.toLowerCase() === 'img') {
         const img = htmlNode as HTMLImageElement;
-        img.crossOrigin = 'anonymous';
+        if (img.src && (img.src.startsWith('http://') || img.src.startsWith('https://'))) {
+          img.crossOrigin = 'anonymous';
+        } else {
+          img.removeAttribute('crossorigin');
+        }
         img.loading = 'eager';
       }
     });

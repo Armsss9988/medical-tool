@@ -329,8 +329,8 @@ export default function ReportManagerModal({
                   className="bg-slate-100 border border-slate-200 text-slate-700 font-semibold rounded-lg px-2 py-1 focus:outline-none focus:border-sky-500"
                 >
                   <option value="ALL">-- Tất cả Bác sĩ --</option>
-                  {doctorsList.map((doc) => (
-                    <option key={doc.id} value={doc.name}>
+                  {doctorsList.map((doc, idx) => (
+                    <option key={`${doc.id || 'doc'}-${idx}`} value={doc.name}>
                       {doc.name}
                     </option>
                   ))}

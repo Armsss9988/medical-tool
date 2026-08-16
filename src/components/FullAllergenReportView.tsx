@@ -85,11 +85,12 @@ export default function FullAllergenReportView({
                 src={currentLogo}
                 alt="GoLab Logo"
                 className="h-14 max-w-[112px] w-auto object-contain"
-                crossOrigin="anonymous"
                 loading="eager"
                 decoding="sync"
                 onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src = golabLogo;
+                  const target = e.currentTarget as HTMLImageElement;
+                  target.onerror = null;
+                  target.src = golabLogo;
                 }}
               />
             </div>
@@ -116,7 +117,6 @@ export default function FullAllergenReportView({
                 src={finalQrCode}
                 alt="QR Code Tra Cứu"
                 className="w-14 h-14 object-contain"
-                crossOrigin="anonymous"
                 loading="eager"
                 decoding="sync"
               />
@@ -272,11 +272,12 @@ export default function FullAllergenReportView({
                 src={currentStamp}
                 alt="Đã ký & Đóng dấu"
                 className="h-16 w-auto object-contain max-w-[100px]"
-                crossOrigin="anonymous"
                 loading="eager"
                 decoding="sync"
                 onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src = doctorStamp;
+                  const target = e.currentTarget as HTMLImageElement;
+                  target.onerror = null;
+                  target.src = doctorStamp;
                 }}
               />
             </div>
