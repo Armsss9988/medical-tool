@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { DEFAULT_CATALOG, TEST_PACKAGES as INITIAL_PACKAGES, DEFAULT_TEST_GROUPS, DEFAULT_EQUIPMENTS } from "@data/defaultCatalog";
 import { loadData, saveData } from "@infra/storage";
 import { DEFAULT_CLOUD_DB_CONFIG, syncTableToCloud, fetchTableFromCloud } from "@infra/cloudDbService";
-import { CatalogItem, TestPackage, TestGroup, TestEquipment, Doctor, Invoice, ClinicInfo, CloudDbConfig } from "@domain/types";
+import { DEFAULT_ZALO_CONFIG } from "@infra/zaloService";
+import { CatalogItem, TestPackage, TestGroup, TestEquipment, Doctor, Invoice, ClinicInfo, CloudDbConfig, ZaloZnsConfig } from "@domain/types";
 
 const DEFAULT_DOCTORS: Doctor[] = [
   { id: "BS01", name: "BS. Trần Hoài Long", specialty: "Bác sĩ xét nghiệm chính", phone: "0912345678" },
@@ -27,6 +28,7 @@ export function useCatalogData() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [clinicInfo, setClinicInfo] = useState<ClinicInfo>(DEFAULT_CLINIC_INFO);
   const [cloudDbConfig, setCloudDbConfig] = useState<CloudDbConfig>(DEFAULT_CLOUD_DB_CONFIG);
+  const [zaloConfig, setZaloConfig] = useState<ZaloZnsConfig>(DEFAULT_ZALO_CONFIG);
 
   const isDataLoadedRef = useRef(false);
 
@@ -41,6 +43,14 @@ export function useCatalogData() {
         const loadedEquipments = await loadData<TestEquipment[]>("equipments_catalog", DEFAULT_EQUIPMENTS);
         const loadedClinic = await loadData<ClinicInfo>("clinic_info", DEFAULT_CLINIC_INFO);
         const loadedCloudDbConfig = await loadData<CloudDbConfig>("cloud_db_config", DEFAULT_CLOUD_DB_CONFIG);
+        const loadedZaloConfig = await loadData<ZaloZnsConfig>("zalo_config", DEFAULT_ZALO_CONFIG);
+        
+        // Merge with env defaults so .env always provides fallback
+        setZaloConfig({
+          ...DEFAULT_ZALO_CONFIG,
+          ...loadedZaloConfig,
+          enabled: loadedZaloConfig.enabled !== undefined ? loadedZaloConfig.enabled : DEFAULT_ZALO_CONFIG.enabled
+        });
 
         const existingGroupNames = new Set(loadedTestGroups.map((g) => g.name.toLowerCase()));
         const finalGroups = [...loadedTestGroups];
@@ -197,6 +207,11 @@ export function useCatalogData() {
     saveData("cloud_db_config", cloudDbConfig);
   }, [cloudDbConfig]);
 
+  useEffect(() => {
+    if (!isDataLoadedRef.current) return;
+    saveData("zalo_config", zaloConfig);
+  }, [zaloConfig]);
+
   return {
     catalog,
     setCatalog,
@@ -213,6 +228,9 @@ export function useCatalogData() {
     clinicInfo,
     setClinicInfo,
     cloudDbConfig,
-    setCloudDbConfig
+    setCloudDbConfig,
+    zaloConfig,
+    setZaloConfig
   };
 }
+

@@ -13,7 +13,8 @@ import {
   FileSpreadsheet, 
   Sparkles, 
   Clock, 
-  AlertCircle 
+  AlertCircle,
+  MessageSquare
 } from 'lucide-react';
 import { MedicalReport, Doctor, ToastType } from '@domain/types';
 import { exportReportsExcel } from '@infra/excelService';
@@ -27,6 +28,7 @@ interface ReportManagerModalProps {
   onLoadReport: (report: MedicalReport) => void;
   onPreviewReport: (report: MedicalReport) => void;
   onDuplicateReport: (report: MedicalReport) => void;
+  onOpenSendZaloModal?: (report: MedicalReport) => void;
   onDeleteReport: (id: string) => void;
   onClearAllReports: () => void;
   showToast: (message: string, type?: ToastType) => void;
@@ -42,6 +44,7 @@ export default function ReportManagerModal({
   onLoadReport,
   onPreviewReport,
   onDuplicateReport,
+  onOpenSendZaloModal,
   onDeleteReport,
   onClearAllReports,
   showToast
@@ -531,6 +534,17 @@ export default function ReportManagerModal({
                                 title="Tải ảnh mã QR Code"
                               >
                                 <QrCode className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            {/* Gửi Zalo */}
+                            {onOpenSendZaloModal && (
+                              <button
+                                onClick={() => onOpenSendZaloModal(rep)}
+                                className="p-1.5 bg-blue-50 hover:bg-blue-100 text-[#0068FF] hover:text-blue-800 rounded-lg transition-colors"
+                                title="Gửi kết quả xét nghiệm qua Zalo cho bệnh nhân"
+                              >
+                                <MessageSquare className="w-4 h-4" />
                               </button>
                             )}
 

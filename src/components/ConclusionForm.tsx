@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, RotateCcw, Eye, CloudUpload, QrCode, CreditCard, CheckCircle2, BookmarkCheck } from 'lucide-react';
+import { FileText, RotateCcw, Eye, CloudUpload, QrCode, CreditCard, CheckCircle2, BookmarkCheck, MessageSquare, SlidersHorizontal } from 'lucide-react';
 import DoctorSelectCombobox from './DoctorSelectCombobox';
 import { Doctor } from '@domain/types';
 
@@ -12,6 +12,8 @@ interface ConclusionFormProps {
   onExportPdfAndUpload: () => void;
   onOpenPreview: () => void;
   onSaveReport?: () => void;
+  onDirectSendZalo?: () => void;
+  onOpenSendZaloModal?: () => void;
   onResetAll: () => void;
   onDownloadQrCode: () => void;
   onOpenInvoiceModal: () => void;
@@ -35,6 +37,8 @@ export default function ConclusionForm({
   onExportPdfAndUpload,
   onOpenPreview,
   onSaveReport,
+  onDirectSendZalo,
+  onOpenSendZaloModal,
   onResetAll,
   onDownloadQrCode,
   onOpenInvoiceModal,
@@ -116,6 +120,31 @@ export default function ConclusionForm({
             <CloudUpload className="w-4 h-4 text-emerald-100" />
             <span>Xuất File PDF & Tải Lên Cloud (1-Click)</span>
           </button>
+
+          {/* Fast Action: Gửi Zalo Cho Bệnh Nhân (1-Click) */}
+          {(onDirectSendZalo || onOpenSendZaloModal) && (
+            <div className="flex items-center space-x-1.5">
+              <button
+                type="button"
+                onClick={onDirectSendZalo || onOpenSendZaloModal}
+                className="flex-grow py-2.5 px-3.5 bg-[#0068FF] hover:bg-blue-600 active:bg-blue-700 text-white font-extrabold rounded-xl shadow-md shadow-blue-500/20 border border-blue-400/50 transition-all active:scale-[0.98] flex items-center justify-center space-x-2 text-xs"
+                title="Tự động sao chép tin nhắn kèm link PDF và mở cuộc trò chuyện Zalo với bệnh nhân"
+              >
+                <MessageSquare className="w-4 h-4 text-blue-100" />
+                <span>Gửi Zalo Cho Bệnh Nhân (1-Click)</span>
+              </button>
+              {onOpenSendZaloModal && (
+                <button
+                  type="button"
+                  onClick={onOpenSendZaloModal}
+                  className="p-2.5 bg-blue-50 hover:bg-blue-100 text-[#0068FF] rounded-xl border border-blue-200 shadow-2xs transition-all active:scale-95 shrink-0"
+                  title="Xem trước hoặc tùy chỉnh nội dung tin nhắn Zalo"
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          )}
 
           {/* 4 Secondary Actions in 2x2 Grid */}
           <div className="grid grid-cols-2 gap-2">

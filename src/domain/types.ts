@@ -128,6 +128,25 @@ export interface StorageResult {
 
 export type ReportStatus = 'Chờ xét nghiệm' | 'Đã có kết quả' | 'Đã xuất Cloud' | 'Đã trả kết quả';
 
+export interface ZaloZnsConfig {
+  enabled: boolean;
+  appId: string;
+  secretKey: string;
+  oaId: string;
+  accessToken: string;
+  refreshToken?: string;
+  templateId: string;
+  autoSendOnExport: boolean;
+  proxyUrl?: string;
+}
+
+export interface ZaloSendResult {
+  success: boolean;
+  msgId?: string;
+  error?: number;
+  message?: string;
+}
+
 export interface MedicalReport {
   id: string;
   code: string;
@@ -144,4 +163,7 @@ export interface MedicalReport {
   invoiceId?: string;
   status: ReportStatus;
   testCount: number;
+  zaloSentAt?: string;
+  zaloMsgId?: string;
 }
+

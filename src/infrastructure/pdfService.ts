@@ -171,6 +171,48 @@ function sanitizeStylesForCanvas(clonedDoc: Document, printElementId: string) {
     /* ignore sheet error */
   }
 
+  // Tiêm CSS reset chuyên dụng cho html2canvas để căn giữa hoàn hảo và chống lệch dòng chữ
+  const fixStyle = clonedDoc.createElement('style');
+  fixStyle.id = 'html2canvas-print-alignment-fix';
+  fixStyle.textContent = `
+    #${printElementId}, #${printElementId} * {
+      -webkit-font-smoothing: antialiased !important;
+      text-rendering: geometricPrecision !important;
+      box-sizing: border-box !important;
+    }
+    #${printElementId} {
+      font-family: Arial, "Helvetica Neue", Helvetica, "Segoe UI", sans-serif !important;
+      line-height: 1.25 !important;
+    }
+    #${printElementId} table {
+      border-collapse: collapse !important;
+      border-spacing: 0 !important;
+      width: 100% !important;
+    }
+    #${printElementId} tr {
+      vertical-align: middle !important;
+    }
+    #${printElementId} th {
+      vertical-align: middle !important;
+      line-height: 1.15 !important;
+      padding-top: 3.5px !important;
+      padding-bottom: 3.5px !important;
+    }
+    #${printElementId} td {
+      vertical-align: middle !important;
+      line-height: 1.15 !important;
+      padding-top: 2.5px !important;
+      padding-bottom: 2.5px !important;
+    }
+    #${printElementId} h1, #${printElementId} h2, #${printElementId} h3, #${printElementId} h4 {
+      line-height: 1.2 !important;
+    }
+    #${printElementId} p, #${printElementId} span {
+      line-height: 1.25 !important;
+    }
+  `;
+  clonedDoc.head.appendChild(fixStyle);
+
   const printEl = clonedDoc.getElementById(printElementId);
   if (printEl) {
     printEl.style.display = 'block';
@@ -184,6 +226,8 @@ function sanitizeStylesForCanvas(clonedDoc: Document, printElementId: string) {
     printEl.style.boxSizing = 'border-box';
     printEl.style.backgroundColor = '#ffffff';
     printEl.style.margin = '0 auto';
+    printEl.style.fontFamily = 'Arial, "Helvetica Neue", Helvetica, "Segoe UI", sans-serif';
+    printEl.style.lineHeight = '1.3';
 
     const allElements = [printEl, ...Array.from(printEl.querySelectorAll('*'))];
     allElements.forEach((node) => {
@@ -204,6 +248,11 @@ function sanitizeStylesForCanvas(clonedDoc: Document, printElementId: string) {
           img.removeAttribute('crossorigin');
         }
         img.loading = 'eager';
+      }
+
+      // Căn giữa theo chiều dọc cho bảng
+      if (htmlNode.tagName.toLowerCase() === 'td' || htmlNode.tagName.toLowerCase() === 'th') {
+        htmlNode.style.verticalAlign = 'middle';
       }
     });
   }
@@ -247,12 +296,16 @@ export async function exportToPdfFull(
 
   try {
     const canvas = await html2canvas(element, {
-      scale: 2.2, // Tăng scale lên 2.2 để hình ảnh và chữ sắc nét tuyệt đối chuẩn in ấn A4
+      scale: 2.5, // 2.5 để hình ảnh và chữ sắc nét tuyệt đối chuẩn in ấn A4
       useCORS: true,
       allowTaint: true,
       backgroundColor: '#ffffff',
       logging: false,
       imageTimeout: 15000,
+      scrollX: 0,
+      scrollY: 0,
+      x: 0,
+      y: 0,
       windowWidth: 1200, // Cố định chiều rộng ngữ cảnh desktop chuẩn A4
       onclone: (clonedDoc) => {
         sanitizeStylesForCanvas(clonedDoc, printElementId);

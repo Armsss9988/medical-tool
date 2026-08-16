@@ -54,7 +54,7 @@ export default function PrintReportView({
     <div
       id={elementId}
       style={{ width: '210mm', minHeight: '297mm', maxWidth: '210mm', boxSizing: 'border-box' }}
-      className="w-[210mm] max-w-[210mm] min-h-[297mm] bg-white text-slate-900 font-sans p-6 mx-auto text-xs leading-relaxed flex flex-col justify-between print:p-4 print:max-w-none print:shadow-none print:w-full"
+      className="w-[210mm] max-w-[210mm] min-h-[297mm] bg-white text-slate-900 font-sans p-6 mx-auto text-xs leading-normal flex flex-col justify-between print:p-4 print:max-w-none print:shadow-none print:w-full"
     >
       
       {/* KHUNG NỘI DUNG CHÍNH (TOP & MIDDLE) */}
@@ -129,71 +129,71 @@ export default function PrintReportView({
         </div>
 
         {/* BẢNG THÔNG TIN BỆNH NHÂN CHUẨN 12 TRƯỜNG (6 HÀNG x 4 CỘT) */}
-        <div className="border border-slate-300 rounded mb-4 overflow-hidden">
+        <div className="border border-slate-300 rounded mb-3 overflow-hidden">
           <table className="w-full text-xs border-collapse">
             <tbody>
               {/* Hàng 1 */}
               <tr className="border-b border-slate-200">
-                <td className="w-28 py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Họ và tên:</td>
-                <td className="py-1 px-2.5 font-bold text-red-600 uppercase border-r border-slate-200">{patient.name || '---'}</td>
-                <td className="w-28 py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Năm sinh:</td>
-                <td className="py-1 px-2.5 font-medium text-slate-800">{patient.dob || (patient as any).year || '---'}</td>
+                <td className="w-28 py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200 align-middle">Họ và tên:</td>
+                <td className="py-1 px-2.5 font-bold text-red-600 uppercase border-r border-slate-200 align-middle">{patient.name || '---'}</td>
+                <td className="w-28 py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200 align-middle">Năm sinh:</td>
+                <td className="py-1 px-2.5 font-medium text-slate-800 align-middle">{patient.dob || (patient as any).year || '---'}</td>
               </tr>
               {/* Hàng 2 */}
               <tr className="border-b border-slate-200">
-                <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Giới tính:</td>
-                <td className="py-1 px-2.5 font-medium text-slate-800 border-r border-slate-200">{patient.gender || 'Nam'}</td>
-                <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Số điện thoại:</td>
-                <td className="py-1 px-2.5 font-mono text-slate-800">{patient.phone || '---'}</td>
+                <td className="w-28 py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200 align-middle">Giới tính:</td>
+                <td className="py-1 px-2.5 font-medium text-slate-800 border-r border-slate-200 align-middle">{patient.gender || 'Nam'}</td>
+                <td className="w-28 py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200 align-middle">Số điện thoại:</td>
+                <td className="py-1 px-2.5 font-mono text-slate-800 align-middle">{patient.phone || '---'}</td>
               </tr>
               {/* Hàng 3: Địa chỉ span 3 cột */}
               <tr className="border-b border-slate-200">
-                <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Địa chỉ:</td>
-                <td colSpan={3} className="py-1 px-2.5 text-slate-800">{patient.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị'}</td>
+                <td className="w-28 py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200 align-middle">Địa chỉ:</td>
+                <td colSpan={3} className="py-1 px-2.5 text-slate-800 align-middle">{patient.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị'}</td>
               </tr>
               {/* Hàng 4 */}
               <tr className="border-b border-slate-200">
-                <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Bác sĩ chỉ định:</td>
-                <td className="py-1 px-2.5 font-bold text-sky-900 border-r border-slate-200">{(patient as any).doctor || doctorName || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long'}</td>
-                <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Số bệnh phẩm:</td>
-                <td className="py-1 px-2.5 font-mono font-bold text-red-600">{patient.sampleCode || patient.code}</td>
+                <td className="w-28 py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200 align-middle">Bác sĩ chỉ định:</td>
+                <td className="py-1 px-2.5 font-bold text-sky-900 border-r border-slate-200 align-middle">{(patient as any).doctor || doctorName || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long'}</td>
+                <td className="w-28 py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200 align-middle">Số bệnh phẩm:</td>
+                <td className="py-1 px-2.5 font-mono font-bold text-red-600 align-middle">{patient.sampleCode || patient.code}</td>
               </tr>
               {/* Hàng 5 */}
               <tr className="border-b border-slate-200">
-                <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G chỉ định:</td>
-                <td className="py-1 px-2.5 font-mono text-slate-700 border-r border-slate-200">{patient.orderedAt || (patient as any).orderTime || currentDateStr}</td>
-                <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G đóng phí:</td>
-                <td className="py-1 px-2.5 font-mono text-slate-700">{patient.paidAt || (patient as any).paidTime || currentDateStr}</td>
+                <td className="w-28 py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200 align-middle">T/G chỉ định:</td>
+                <td className="py-1 px-2.5 font-mono text-slate-700 border-r border-slate-200 align-middle">{patient.orderedAt || (patient as any).orderTime || currentDateStr}</td>
+                <td className="w-28 py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200 align-middle">T/G đóng phí:</td>
+                <td className="py-1 px-2.5 font-mono text-slate-700 align-middle">{patient.paidAt || (patient as any).paidTime || currentDateStr}</td>
               </tr>
               {/* Hàng 6 */}
               <tr>
-                <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G nhận mẫu:</td>
-                <td className="py-1 px-2.5 font-mono text-slate-700 border-r border-slate-200">{patient.receivedAt || (patient as any).sampleTime || currentDateStr}</td>
-                <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G trả kết quả:</td>
-                <td className="py-1 px-2.5 font-mono text-slate-700">{patient.returnedAt || (patient as any).resultTime || currentDateStr}</td>
+                <td className="w-28 py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200 align-middle">T/G nhận mẫu:</td>
+                <td className="py-1 px-2.5 font-mono text-slate-700 border-r border-slate-200 align-middle">{patient.receivedAt || (patient as any).sampleTime || currentDateStr}</td>
+                <td className="w-28 py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200 align-middle">T/G trả kết quả:</td>
+                <td className="py-1 px-2.5 font-mono text-slate-700 align-middle">{patient.returnedAt || (patient as any).resultTime || currentDateStr}</td>
               </tr>
             </tbody>
           </table>
         </div>
 
         {/* BẢNG KẾT QUẢ XÉT NGHIỆM THEO TỪNG NHÓM */}
-        <div className="border border-slate-300 rounded mb-4 overflow-hidden">
+        <div className="border border-slate-300 rounded mb-3 overflow-hidden">
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-slate-100 text-slate-900 uppercase font-bold border-b border-slate-300">
               <tr>
-                <th className="py-1.5 px-2 w-8 text-center border-r border-slate-300">STT</th>
-                <th className="py-1.5 px-3 border-r border-slate-300">TÊN CHỈ SỐ XÉT NGHIỆM</th>
-                <th className="py-1.5 px-3 w-28 text-center border-r border-slate-300">KẾT QUẢ</th>
-                <th className="py-1.5 px-3 w-20 text-center border-r border-slate-300">ĐƠN VỊ</th>
-                <th className="py-1.5 px-3 w-36 text-center border-r border-slate-300">TRỊ SỐ THAM CHIẾU</th>
-                <th className="py-1.5 px-3 w-40 text-center border-r border-slate-300">THIẾT BỊ XỬ LÝ</th>
-                <th className="py-1.5 px-3 w-28 text-center">GHI CHÚ</th>
+                <th className="py-1.5 px-2 w-8 text-center border-r border-slate-300 align-middle whitespace-nowrap">STT</th>
+                <th className="py-1.5 px-3 min-w-[160px] border-r border-slate-300 align-middle whitespace-nowrap">TÊN CHỈ SỐ XÉT NGHIỆM</th>
+                <th className="py-1.5 px-2.5 w-24 text-center border-r border-slate-300 align-middle whitespace-nowrap">KẾT QUẢ</th>
+                <th className="py-1.5 px-2 w-16 text-center border-r border-slate-300 align-middle whitespace-nowrap">ĐƠN VỊ</th>
+                <th className="py-1.5 px-2.5 w-32 text-center border-r border-slate-300 align-middle whitespace-nowrap">TRỊ SỐ THAM CHIẾU</th>
+                <th className="py-1.5 px-2.5 w-32 text-center border-r border-slate-300 align-middle whitespace-nowrap">THIẾT BỊ XỬ LÝ</th>
+                <th className="py-1.5 px-2 w-24 text-center align-middle whitespace-nowrap">GHI CHÚ</th>
               </tr>
             </thead>
             <tbody>
               {Object.keys(groupedCategories).length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-6 text-center text-slate-400 italic">
+                  <td colSpan={7} className="py-6 text-center text-slate-400 italic align-middle">
                     Chưa có chỉ số xét nghiệm nào được chọn.
                   </td>
                 </tr>
@@ -204,7 +204,7 @@ export default function PrintReportView({
                     <React.Fragment key={categoryName}>
                       {/* Tiêu đề nhóm */}
                       <tr className="bg-sky-50/70 border-b border-t border-sky-200">
-                        <td colSpan={7} className="py-1 px-3 font-bold text-sky-900 uppercase text-[11px]">
+                        <td colSpan={7} className="py-1 px-3 font-bold text-sky-900 uppercase text-[11px] align-middle">
                           {categoryName}
                         </td>
                       </tr>
@@ -216,30 +216,30 @@ export default function PrintReportView({
 
                         return (
                           <tr key={t.code || idx} className="border-b border-slate-200 hover:bg-slate-50/50">
-                            <td className="py-1 px-2 text-center text-slate-500 font-mono border-r border-slate-200">
+                            <td className="py-1 px-2 text-center text-slate-500 font-mono border-r border-slate-200 align-middle">
                               {idx + 1}
                             </td>
-                            <td className="py-1 px-3 border-r border-slate-200 font-medium text-slate-900">
+                            <td className="py-1 px-3 border-r border-slate-200 font-medium text-slate-900 align-middle">
                               <span>{t.name}</span>
                               <span className="text-[10px] text-slate-400 font-mono ml-1">({t.code})</span>
                             </td>
                             <td
-                              className={`py-1 px-3 text-center font-mono font-bold border-r border-slate-200 ${
+                              className={`py-1 px-2.5 text-center font-mono font-bold border-r border-slate-200 align-middle ${
                                 isAbnormal ? 'text-red-600 bg-red-50/40' : 'text-slate-900'
                               }`}
                             >
                               {t.result || '---'}
                             </td>
-                            <td className="py-1 px-3 text-center text-slate-600 font-mono border-r border-slate-200">
+                            <td className="py-1 px-2 text-center text-slate-600 font-mono border-r border-slate-200 align-middle">
                               {t.unit || ''}
                             </td>
-                            <td className="py-1 px-3 text-center text-slate-600 font-mono border-r border-slate-200">
+                            <td className="py-1 px-2.5 text-center text-slate-600 font-mono border-r border-slate-200 align-middle">
                               {t.refText || (t.refMin !== null && t.refMax !== null ? `${t.refMin} - ${t.refMax}` : 'Bình thường')}
                             </td>
-                            <td className="py-1 px-3 text-center text-slate-600 text-[10.5px] border-r border-slate-200">
+                            <td className="py-1 px-2.5 text-center text-slate-600 text-[10.5px] border-r border-slate-200 align-middle">
                               {t.equipment || 'Máy Sinh Hóa Tự Động'}
                             </td>
-                            <td className="py-1 px-3 text-center text-[10px] text-slate-500">
+                            <td className="py-1 px-2 text-center text-[10px] text-slate-500 align-middle">
                               {t.note || (isAbnormal ? (evalState === 'HIGH' ? 'Tăng cao' : 'Giảm') : 'Bình thường')}
                             </td>
                           </tr>
@@ -255,7 +255,7 @@ export default function PrintReportView({
 
         {/* PHẦN KẾT LUẬN & ĐỀ NGHỊ BÁC SĨ */}
         {conclusion && (
-          <div className="border border-sky-200 bg-sky-50/30 rounded p-2.5 mb-4">
+          <div className="border border-sky-200 bg-sky-50/30 rounded p-2.5 mb-3">
             <p className="font-bold text-sky-950 uppercase text-[11px] mb-1">
               KẾT LUẬN & ĐỀ NGHỊ CỦA BÁC SĨ:
             </p>
@@ -268,7 +268,7 @@ export default function PrintReportView({
       </div>
 
       {/* FOOTER: CHỮ KÝ VÀ DẤU BÁC SĨ (LUÔN NẰM DƯỚI ĐÁY TRANG A4) */}
-      <div className="mt-4 pt-3 border-t border-slate-300">
+      <div className="mt-3 pt-2 border-t border-slate-300">
         <div className="flex items-start justify-between text-center">
           
           {/* Bên trái: Chú thích & Lưu ý */}
@@ -279,14 +279,14 @@ export default function PrintReportView({
           </div>
 
           {/* Bên phải: Chữ ký & Đóng dấu Bác sĩ */}
-          <div className="text-center min-w-[200px]">
+          <div className="text-center min-w-[210px]">
             <p className="text-[10px] text-slate-600 italic">Ngày {currentDateStr}</p>
-            <p className="text-[11px] font-bold uppercase text-slate-900 mt-1">BÁC SĨ / KTV XÉT NGHIỆM</p>
-            <div className="h-20 flex items-center justify-center py-1">
+            <p className="text-[11px] font-bold uppercase text-slate-900 mt-1 mb-1">BÁC SĨ / KTV XÉT NGHIỆM</p>
+            <div className="h-24 flex items-center justify-center my-1">
               <img
                 src={currentStamp}
                 alt="Đã ký & Đóng dấu"
-                className="h-20 w-auto object-contain max-w-[120px]"
+                className="h-24 w-auto object-contain max-w-[130px]"
                 loading="eager"
                 decoding="sync"
                 onError={(e) => {
@@ -304,7 +304,7 @@ export default function PrintReportView({
         </div>
 
         {/* Dòng copyright chân trang */}
-        <div className="mt-4 pt-1 border-t border-slate-200 text-center text-[8.5px] text-slate-500 uppercase font-mono tracking-tight">
+        <div className="mt-3 pt-1 border-t border-slate-200 text-center text-[8.5px] text-slate-500 uppercase font-mono tracking-tight">
           HỆ THỐNG XÉT NGHIỆM GOLAB • {clinicInfo.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'} • ĐỊA CHỈ: {clinicInfo.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị'} • WEBSITE: {(clinicInfo.website || 'GOLAB.COM.VN').toUpperCase()} • HOTLINE: {clinicInfo.phone || '032.855.3773'}
         </div>
       </div>

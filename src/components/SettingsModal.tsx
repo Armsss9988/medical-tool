@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { X, Sliders, Database, Save, Upload, RotateCcw, Image as ImageIcon } from 'lucide-react';
-import { CatalogItem, TestPackage, TestGroup, TestEquipment, Doctor, ClinicInfo, CloudDbConfig } from '@domain/types';
+import { X, Sliders, Database, Save, Upload, RotateCcw, Image as ImageIcon, MessageCircle, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { CatalogItem, TestPackage, TestGroup, TestEquipment, Doctor, ClinicInfo, CloudDbConfig, ZaloZnsConfig } from '@domain/types';
 import golabLogo from '@assets/golabLogoDataUrl';
 import doctorStamp from '@assets/doctorStampDataUrl';
 
@@ -11,6 +11,8 @@ interface SettingsModalProps {
   setClinicInfo: React.Dispatch<React.SetStateAction<ClinicInfo>>;
   cloudDbConfig: CloudDbConfig;
   setCloudDbConfig: React.Dispatch<React.SetStateAction<CloudDbConfig>>;
+  zaloConfig: ZaloZnsConfig;
+  setZaloConfig: React.Dispatch<React.SetStateAction<ZaloZnsConfig>>;
   catalog?: CatalogItem[];
   testPackages?: TestPackage[];
   testGroups?: TestGroup[];
@@ -26,9 +28,12 @@ export default function SettingsModal({
   setClinicInfo,
   cloudDbConfig,
   setCloudDbConfig,
+  zaloConfig,
+  setZaloConfig,
   showToast
 }: SettingsModalProps) {
   const [localCloudConfig, setLocalCloudConfig] = useState<CloudDbConfig>(cloudDbConfig);
+  const [localZaloConfig, setLocalZaloConfig] = useState<ZaloZnsConfig>(zaloConfig);
 
   if (!isOpen) return null;
 
@@ -84,7 +89,8 @@ export default function SettingsModal({
 
   const handleSaveAll = () => {
     setCloudDbConfig(localCloudConfig);
-    showToast('Đã lưu thành công thông tin phòng khám và cấu hình hệ thống!', 'success');
+    setZaloConfig(localZaloConfig);
+    showToast('Đã lưu thành công thông tin phòng khám, Supabase và cấu hình Zalo ZNS!', 'success');
     onClose();
   };
 
@@ -278,6 +284,115 @@ export default function SettingsModal({
                 value={localCloudConfig.supabaseAnonKey}
                 onChange={(e) => setLocalCloudConfig((prev) => ({ ...prev, supabaseAnonKey: e.target.value }))}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 font-mono text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* CẤU HÌNH ZALO ZNS (OFFICIAL ACCOUNT) */}
+          <div className="space-y-3 pt-3 border-t border-slate-200">
+            <div className="flex items-center justify-between">
+              <h4 className="font-bold text-slate-800 text-sm flex items-center space-x-1.5">
+                <MessageCircle className="w-4 h-4 text-[#0068FF]" />
+                <span>Cấu Hình Zalo ZNS (Zalo Official Account)</span>
+              </h4>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-[#0068FF] border border-blue-200">
+                Ưu tiên từ .env
+              </span>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="zalo-enabled"
+                checked={localZaloConfig.enabled}
+                onChange={(e) => setLocalZaloConfig((prev) => ({ ...prev, enabled: e.target.checked }))}
+                className="w-4 h-4 text-[#0068FF] rounded focus:ring-blue-500"
+              />
+              <label htmlFor="zalo-enabled" className="font-bold text-slate-800 cursor-pointer text-xs">
+                Bật dịch vụ gửi thông báo Zalo ZNS tự động
+              </label>
+            </div>
+
+            <div className="flex items-center space-x-2 pl-6">
+              <input
+                type="checkbox"
+                id="zalo-auto-send"
+                checked={localZaloConfig.autoSendOnExport}
+                onChange={(e) => setLocalZaloConfig((prev) => ({ ...prev, autoSendOnExport: e.target.checked }))}
+                className="w-4 h-4 text-[#0068FF] rounded focus:ring-blue-500"
+              />
+              <label htmlFor="zalo-auto-send" className="font-semibold text-slate-700 cursor-pointer text-[11.5px]">
+                Tự động gửi Zalo ZNS ngay sau khi bấm "Xuất PDF & Lưu Cloud (1-Click)"
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1 text-[11px]">Zalo App ID (developers.zalo.me)</label>
+                <input
+                  type="text"
+                  value={localZaloConfig.appId}
+                  onChange={(e) => setLocalZaloConfig((prev) => ({ ...prev, appId: e.target.value }))}
+                  placeholder="Ví dụ: 123456789012345"
+                  className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-slate-900 font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1 text-[11px]">Zalo Secret Key</label>
+                <input
+                  type="password"
+                  value={localZaloConfig.secretKey}
+                  onChange={(e) => setLocalZaloConfig((prev) => ({ ...prev, secretKey: e.target.value }))}
+                  placeholder="Nhập App Secret Key..."
+                  className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-slate-900 font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1 text-[11px]">Zalo OA ID</label>
+                <input
+                  type="text"
+                  value={localZaloConfig.oaId}
+                  onChange={(e) => setLocalZaloConfig((prev) => ({ ...prev, oaId: e.target.value }))}
+                  placeholder="Ví dụ: 9876543210987"
+                  className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-slate-900 font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1 text-[11px]">Template ID (Mẫu tin duyệt từ zns.oa.zalo.me)</label>
+                <input
+                  type="text"
+                  value={localZaloConfig.templateId}
+                  onChange={(e) => setLocalZaloConfig((prev) => ({ ...prev, templateId: e.target.value }))}
+                  placeholder="Ví dụ: 314256"
+                  className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-slate-900 font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1 text-[11px]">Zalo OA Access Token</label>
+              <input
+                type="password"
+                value={localZaloConfig.accessToken}
+                onChange={(e) => setLocalZaloConfig((prev) => ({ ...prev, accessToken: e.target.value }))}
+                placeholder="Nhập Access Token của Zalo Official Account..."
+                className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-slate-900 font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1 text-[11px]">Proxy / Edge Function URL (Tùy chọn)</label>
+              <input
+                type="text"
+                value={localZaloConfig.proxyUrl || ''}
+                onChange={(e) => setLocalZaloConfig((prev) => ({ ...prev, proxyUrl: e.target.value }))}
+                placeholder="Để trống để gọi trực tiếp hoặc nhập URL webhook trung gian"
+                className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-slate-900 font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
               />
             </div>
           </div>

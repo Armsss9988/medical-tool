@@ -11,9 +11,11 @@ import CatalogManagerModal, { CatalogTabType } from "./components/CatalogManager
 import InvoiceModal from "./components/InvoiceModal";
 import RevenueManagerModal from "./components/RevenueManagerModal";
 import ReportManagerModal from "./components/ReportManagerModal";
+import SendZaloModal from "./components/SendZaloModal";
 
 import { parseExcelCatalog } from "@infra/excelService";
 import { openDataFolder, isElectron } from "@infra/storage";
+import { generateZaloTextMessage, openZaloChat } from "@infra/zaloService";
 import { SelectedTest, Invoice, ToastType, MedicalReport } from "@domain/types";
 
 import { usePatientManager } from "./hooks/usePatientManager";
@@ -42,7 +44,9 @@ export default function App() {
     clinicInfo,
     setClinicInfo,
     cloudDbConfig,
-    setCloudDbConfig
+    setCloudDbConfig,
+    zaloConfig,
+    setZaloConfig
   } = useCatalogData();
 
   // 2. REPORT MANAGER HOOK (SỔ LƯU PHIẾU XN)
@@ -66,6 +70,8 @@ export default function App() {
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [isRevenueModalOpen, setIsRevenueModalOpen] = useState(false);
   const [isReportManagerOpen, setIsReportManagerOpen] = useState(false);
+  const [isZaloModalOpen, setIsZaloModalOpen] = useState(false);
+  const [zaloTargetReport, setZaloTargetReport] = useState<MedicalReport | null>(null);
   const [currentPackageId, setCurrentPackageId] = useState("all");
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
@@ -171,6 +177,102 @@ export default function App() {
     });
 
     handleExportPdfAndUploadCloud(elementId, filename);
+  };
+
+  const handleDirectSendZalo = async () => {
+    if (!patient.phone || !patient.phone.trim()) {
+      showToast("Bệnh nhân chưa có số điện thoại! Đang mở cửa sổ Zalo để nhập SĐT...", "info");
+      handleOpenZaloModal();
+      return;
+    }
+
+    const isAllergen = selectedTests.some(
+      (t) => (t.category && t.category.includes("Dị Nguyên")) || t.unit === "IU/mL"
+    );
+    const currentReport: MedicalReport = {
+      id: patient.code || `BN-${Date.now()}`,
+      code: patient.code || `BN-${Date.now()}`,
+      sampleCode: patient.sampleCode || patient.code || `BN-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      patient: { ...patient },
+      doctorName: doctorName || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long',
+      selectedTests: [...selectedTests],
+      conclusion: conclusion || '',
+      isAllergen,
+      cloudPdfUrl: cloudLink || undefined,
+      qrCodeDataUrl: qrCodeDataUrl || undefined,
+      status: cloudLink ? 'Đã xuất Cloud' : 'Đã có kết quả',
+      testCount: selectedTests.length
+    };
+
+    const messageText = generateZaloTextMessage(currentReport, clinicInfo);
+    const opened = await openZaloChat(patient.phone, messageText);
+    if (opened) {
+      // Auto save or update report
+      saveOrUpdateReport({
+        ...currentReport,
+        zaloSentAt: new Date().toISOString()
+      });
+      showToast(`Đã sao chép tin nhắn kèm link PDF & mở Zalo với BN ${patient.name || ''}! Nhấn Ctrl + V để gửi.`, 'success');
+    } else {
+      showToast('Số điện thoại không hợp lệ, vui lòng kiểm tra lại!', 'error');
+      handleOpenZaloModal();
+    }
+  };
+
+  const handleOpenZaloModal = () => {
+    const isAllergen = selectedTests.some(
+      (t) => (t.category && t.category.includes("Dị Nguyên")) || t.unit === "IU/mL"
+    );
+    const currentReport: MedicalReport = {
+      id: patient.code || `BN-${Date.now()}`,
+      code: patient.code || `BN-${Date.now()}`,
+      sampleCode: patient.sampleCode || patient.code || `BN-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      patient: { ...patient },
+      doctorName: doctorName || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long',
+      selectedTests: [...selectedTests],
+      conclusion: conclusion || '',
+      isAllergen,
+      cloudPdfUrl: cloudLink || undefined,
+      qrCodeDataUrl: qrCodeDataUrl || undefined,
+      status: cloudLink ? 'Đã xuất Cloud' : 'Đã có kết quả',
+      testCount: selectedTests.length
+    };
+    setZaloTargetReport(currentReport);
+    setIsZaloModalOpen(true);
+  };
+
+  const handleOpenZaloModalForReport = async (rep: MedicalReport) => {
+    if (rep.patient.phone && rep.patient.phone.trim()) {
+      const messageText = generateZaloTextMessage(rep, clinicInfo);
+      const opened = await openZaloChat(rep.patient.phone, messageText);
+      if (opened) {
+        saveOrUpdateReport({
+          ...rep,
+          zaloSentAt: new Date().toISOString()
+        });
+        showToast(`Đã sao chép tin nhắn kèm link PDF & mở Zalo với BN ${rep.patient.name}! Nhấn Ctrl + V để gửi.`, 'success');
+        return;
+      }
+    }
+    // Fallback if no phone
+    setZaloTargetReport(rep);
+    setIsZaloModalOpen(true);
+  };
+
+  const handleZnsSuccess = (msgId: string) => {
+    if (zaloTargetReport) {
+      saveOrUpdateReport({
+        ...zaloTargetReport,
+        status: 'Đã trả kết quả',
+        zaloSentAt: new Date().toISOString(),
+        zaloMsgId: msgId
+      });
+      showToast(`Đã cập nhật trạng thái trả kết quả Zalo cho BN ${zaloTargetReport.patient.name}!`, 'success');
+    }
   };
 
   const handleLoadReport = (rep: MedicalReport) => {
@@ -303,6 +405,8 @@ export default function App() {
             onExportPdfAndUpload={handleExportPdfAndUpload}
             onOpenPreview={() => setIsPreviewOpen(true)}
             onSaveReport={handleSaveCurrentReport}
+            onDirectSendZalo={handleDirectSendZalo}
+            onOpenSendZaloModal={handleOpenZaloModal}
             onResetAll={handleClearAll}
             onDownloadQrCode={() => handleDownloadQrCode(patient.name, patient.code)}
             onOpenInvoiceModal={() => setIsInvoiceModalOpen(true)}
@@ -349,6 +453,8 @@ export default function App() {
         setClinicInfo={setClinicInfo}
         cloudDbConfig={cloudDbConfig}
         setCloudDbConfig={setCloudDbConfig}
+        zaloConfig={zaloConfig}
+        setZaloConfig={setZaloConfig}
         showToast={showToast}
       />
 
@@ -428,10 +534,27 @@ export default function App() {
         onLoadReport={handleLoadReport}
         onPreviewReport={handlePreviewSavedReport}
         onDuplicateReport={handleDuplicateReport}
+        onOpenSendZaloModal={handleOpenZaloModalForReport}
         onDeleteReport={deleteReport}
         onClearAllReports={clearAllReports}
         showToast={showToast}
       />
+
+      {/* MODAL GỬI KẾT QUẢ QUA ZALO */}
+      {zaloTargetReport && (
+        <SendZaloModal
+          isOpen={isZaloModalOpen}
+          onClose={() => {
+            setIsZaloModalOpen(false);
+            setZaloTargetReport(null);
+          }}
+          report={zaloTargetReport}
+          clinicInfo={clinicInfo}
+          zaloConfig={zaloConfig}
+          showToast={showToast}
+          onZnsSuccess={handleZnsSuccess}
+        />
+      )}
 
       {/* 4. ANCHOR THẺ ẨN CHỜ IN VÀ CHỤP CANVAS SẮC NÉT (PRINT TEMPLATES) */}
       <div 

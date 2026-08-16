@@ -140,38 +140,38 @@ export default function FullAllergenReportView({
           <table className="w-full text-[10px] border-collapse">
             <tbody>
               <tr className="border-b border-slate-200">
-                <td className="w-24 py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Họ và tên:</td>
-                <td className="py-0.5 px-2 font-bold text-red-600 uppercase border-r border-slate-200">{patient.name || '---'}</td>
-                <td className="w-24 py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Năm sinh:</td>
-                <td className="py-0.5 px-2 font-medium text-slate-800">{patient.dob || (patient as any).year || '---'}</td>
+                <td className="w-24 py-1 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200 align-middle">Họ và tên:</td>
+                <td className="py-1 px-2 font-bold text-red-600 uppercase border-r border-slate-200 align-middle">{patient.name || '---'}</td>
+                <td className="w-24 py-1 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200 align-middle">Năm sinh:</td>
+                <td className="py-1 px-2 font-medium text-slate-800 align-middle">{patient.dob || (patient as any).year || '---'}</td>
               </tr>
               <tr className="border-b border-slate-200">
-                <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Giới tính:</td>
-                <td className="py-0.5 px-2 font-medium text-slate-800 border-r border-slate-200">{patient.gender || 'Nam'}</td>
-                <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Số điện thoại:</td>
-                <td className="py-0.5 px-2 font-mono text-slate-800">{patient.phone || '---'}</td>
+                <td className="w-24 py-1 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200 align-middle">Giới tính:</td>
+                <td className="py-1 px-2 font-medium text-slate-800 border-r border-slate-200 align-middle">{patient.gender || 'Nam'}</td>
+                <td className="w-24 py-1 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200 align-middle">Số điện thoại:</td>
+                <td className="py-1 px-2 font-mono text-slate-800 align-middle">{patient.phone || '---'}</td>
               </tr>
               <tr className="border-b border-slate-200">
-                <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Địa chỉ:</td>
-                <td colSpan={3} className="py-0.5 px-2 text-slate-800">{patient.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị'}</td>
+                <td className="w-24 py-1 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200 align-middle">Địa chỉ:</td>
+                <td colSpan={3} className="py-1 px-2 text-slate-800 align-middle">{patient.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị'}</td>
               </tr>
               <tr className="border-b border-slate-200">
-                <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Bác sĩ chỉ định:</td>
-                <td className="py-0.5 px-2 font-bold text-red-900 border-r border-slate-200">{(patient as any).doctor || doctorName || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long'}</td>
-                <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Số bệnh phẩm:</td>
-                <td className="py-0.5 px-2 font-mono font-bold text-red-600">{patient.sampleCode || patient.code}</td>
+                <td className="w-24 py-1 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200 align-middle">Bác sĩ chỉ định:</td>
+                <td className="py-1 px-2 font-bold text-red-900 border-r border-slate-200 align-middle">{(patient as any).doctor || doctorName || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long'}</td>
+                <td className="py-1 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200 align-middle">Số bệnh phẩm:</td>
+                <td className="py-1 px-2 font-mono font-bold text-red-600 align-middle">{patient.sampleCode || patient.code}</td>
               </tr>
               <tr className="border-b border-slate-200">
-                <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G chỉ định:</td>
-                <td className="py-0.5 px-2 font-mono text-slate-700 border-r border-slate-200">{patient.orderedAt || (patient as any).orderTime || currentDateStr}</td>
-                <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G đóng phí:</td>
-                <td className="py-0.5 px-2 font-mono text-slate-700">{patient.paidAt || (patient as any).paidTime || currentDateStr}</td>
+                <td className="w-24 py-1 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200 align-middle">T/G chỉ định:</td>
+                <td className="py-1 px-2 font-mono text-slate-700 border-r border-slate-200 align-middle">{patient.orderedAt || (patient as any).orderTime || currentDateStr}</td>
+                <td className="py-1 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200 align-middle">T/G đóng phí:</td>
+                <td className="py-1 px-2 font-mono text-slate-700 align-middle">{patient.paidAt || (patient as any).paidTime || currentDateStr}</td>
               </tr>
               <tr>
-                <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G nhận mẫu:</td>
-                <td className="py-0.5 px-2 font-mono text-slate-700 border-r border-slate-200">{patient.receivedAt || (patient as any).sampleTime || currentDateStr}</td>
-                <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G trả kết quả:</td>
-                <td className="py-0.5 px-2 font-mono text-slate-700">{patient.returnedAt || (patient as any).resultTime || currentDateStr}</td>
+                <td className="w-24 py-1 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200 align-middle">T/G nhận mẫu:</td>
+                <td className="py-1 px-2 font-mono text-slate-700 border-r border-slate-200 align-middle">{patient.receivedAt || (patient as any).sampleTime || currentDateStr}</td>
+                <td className="py-1 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200 align-middle">T/G trả kết quả:</td>
+                <td className="py-1 px-2 font-mono text-slate-700 align-middle">{patient.returnedAt || (patient as any).resultTime || currentDateStr}</td>
               </tr>
             </tbody>
           </table>
@@ -198,25 +198,25 @@ export default function FullAllergenReportView({
             <table className="w-full text-left text-[9.5px] border-collapse">
               <thead className="bg-red-100 text-red-950 uppercase font-bold border-b border-red-200">
                 <tr>
-                  <th className="py-1 px-1.5 w-6 text-center border-r border-red-200">STT</th>
-                  <th className="py-1 px-1.5 w-10 border-r border-red-200 font-mono">Mã</th>
-                  <th className="py-1 px-1.5 border-r border-red-200">Tên Dị Nguyên</th>
-                  <th className="py-1 px-1.5 w-14 text-center border-r border-red-200">Nồng Độ</th>
-                  <th className="py-1 px-1.5 w-20 text-center">Đánh Giá</th>
+                  <th className="py-1 px-1.5 w-6 text-center border-r border-red-200 align-middle">STT</th>
+                  <th className="py-1 px-1.5 w-10 border-r border-red-200 font-mono align-middle">Mã</th>
+                  <th className="py-1 px-1.5 border-r border-red-200 align-middle">Tên Dị Nguyên</th>
+                  <th className="py-1 px-1.5 w-14 text-center border-r border-red-200 align-middle">Nồng Độ</th>
+                  <th className="py-1 px-1.5 w-20 text-center align-middle">Đánh Giá</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {col1Tests.map((t, idx) => (
                   <tr key={t.code || idx} className={getRowStyle(t.note)}>
-                    <td className="py-0.5 px-1.5 text-center text-slate-500 font-mono border-r border-slate-200">{idx + 1}</td>
-                    <td className="py-0.5 px-1.5 font-mono font-bold text-red-700 border-r border-slate-200">{t.code}</td>
-                    <td className="py-0.5 px-1.5 border-r border-slate-200 truncate max-w-[120px] font-medium" title={t.name}>
+                    <td className="py-0.5 px-1.5 text-center text-slate-500 font-mono border-r border-slate-200 align-middle">{idx + 1}</td>
+                    <td className="py-0.5 px-1.5 font-mono font-bold text-red-700 border-r border-slate-200 align-middle">{t.code}</td>
+                    <td className="py-0.5 px-1.5 border-r border-slate-200 truncate max-w-[120px] font-medium align-middle" title={t.name}>
                       {t.name}
                     </td>
-                    <td className="py-0.5 px-1.5 text-center font-mono border-r border-slate-200">
+                    <td className="py-0.5 px-1.5 text-center font-mono border-r border-slate-200 align-middle">
                       {t.result ? `${t.result} IU` : '< 0.35'}
                     </td>
-                    <td className="py-0.5 px-1.5 text-center font-semibold">{t.note || 'Âm tính (Độ 0)'}</td>
+                    <td className="py-0.5 px-1.5 text-center font-semibold align-middle">{t.note || 'Âm tính (Độ 0)'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -228,25 +228,25 @@ export default function FullAllergenReportView({
             <table className="w-full text-left text-[9.5px] border-collapse">
               <thead className="bg-red-100 text-red-950 uppercase font-bold border-b border-red-200">
                 <tr>
-                  <th className="py-1 px-1.5 w-6 text-center border-r border-red-200">STT</th>
-                  <th className="py-1 px-1.5 w-10 border-r border-red-200 font-mono">Mã</th>
-                  <th className="py-1 px-1.5 border-r border-red-200">Tên Dị Nguyên</th>
-                  <th className="py-1 px-1.5 w-14 text-center border-r border-red-200">Nồng Độ</th>
-                  <th className="py-1 px-1.5 w-20 text-center">Đánh Giá</th>
+                  <th className="py-1 px-1.5 w-6 text-center border-r border-red-200 align-middle">STT</th>
+                  <th className="py-1 px-1.5 w-10 border-r border-red-200 font-mono align-middle">Mã</th>
+                  <th className="py-1 px-1.5 border-r border-red-200 align-middle">Tên Dị Nguyên</th>
+                  <th className="py-1 px-1.5 w-14 text-center border-r border-red-200 align-middle">Nồng Độ</th>
+                  <th className="py-1 px-1.5 w-20 text-center align-middle">Đánh Giá</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {col2Tests.map((t, idx) => (
                   <tr key={t.code || idx} className={getRowStyle(t.note)}>
-                    <td className="py-0.5 px-1.5 text-center text-slate-500 font-mono border-r border-slate-200">{mid + idx + 1}</td>
-                    <td className="py-0.5 px-1.5 font-mono font-bold text-red-700 border-r border-slate-200">{t.code}</td>
-                    <td className="py-0.5 px-1.5 border-r border-slate-200 truncate max-w-[120px] font-medium" title={t.name}>
+                    <td className="py-0.5 px-1.5 text-center text-slate-500 font-mono border-r border-slate-200 align-middle">{mid + idx + 1}</td>
+                    <td className="py-0.5 px-1.5 font-mono font-bold text-red-700 border-r border-slate-200 align-middle">{t.code}</td>
+                    <td className="py-0.5 px-1.5 border-r border-slate-200 truncate max-w-[120px] font-medium align-middle" title={t.name}>
                       {t.name}
                     </td>
-                    <td className="py-0.5 px-1.5 text-center font-mono border-r border-slate-200">
+                    <td className="py-0.5 px-1.5 text-center font-mono border-r border-slate-200 align-middle">
                       {t.result ? `${t.result} IU` : '< 0.35'}
                     </td>
-                    <td className="py-0.5 px-1.5 text-center font-semibold">{t.note || 'Âm tính (Độ 0)'}</td>
+                    <td className="py-0.5 px-1.5 text-center font-semibold align-middle">{t.note || 'Âm tính (Độ 0)'}</td>
                   </tr>
                 ))}
               </tbody>
