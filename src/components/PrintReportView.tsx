@@ -2,8 +2,8 @@ import React from 'react';
 import { evaluateResult } from '@domain/testResult';
 import { downloadQrCodeImage } from '@infra/qrService';
 import { Download } from 'lucide-react';
-import golabLogo from '@assets/golablogo.jpg';
-import doctorStamp from '@assets/doctorstamp.jpg';
+import golabLogo from '@assets/golablogo';
+import doctorStamp from '@assets/doctorStamp';
 import { Patient, SelectedTest, ClinicInfo } from '@domain/types';
 
 interface PrintReportViewProps {
@@ -13,8 +13,8 @@ interface PrintReportViewProps {
   currentDateStr?: string;
   doctorName?: string;
   conclusion?: string;
-  qrCodeUrl?: string;
   qrCodeDataUrl?: string;
+  qrCodeUrl?: string;
   clinicInfo?: ClinicInfo;
 }
 
@@ -23,10 +23,10 @@ export default function PrintReportView({
   patient,
   selectedTests = [],
   currentDateStr = new Date().toLocaleDateString('vi-VN'),
-  doctorName = '',
-  conclusion = '',
-  qrCodeUrl,
+  doctorName,
+  conclusion,
   qrCodeDataUrl,
+  qrCodeUrl,
   clinicInfo = {
     name: 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH',
     address: 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị',
@@ -35,8 +35,8 @@ export default function PrintReportView({
     defaultDoctor: 'BS. Trần Hoài Long'
   }
 }: PrintReportViewProps) {
-  const finalQrCode = qrCodeUrl || qrCodeDataUrl;
   const tests = selectedTests || [];
+  const finalQrCode = qrCodeDataUrl || qrCodeUrl;
 
   // Gom nhóm các chỉ số theo nhóm xét nghiệm
   const groupedCategories: Record<string, SelectedTest[]> = {};
@@ -103,146 +103,144 @@ export default function PrintReportView({
         </div>
 
         {/* TIÊU ĐỀ PHIẾU KẾT QUẢ */}
-        <div className="text-center my-2">
-          <h2 className="text-lg font-black uppercase text-sky-900 tracking-wide">
+        <div className="text-center my-3">
+          <h2 className="text-xl font-black text-sky-900 uppercase tracking-wide">
             PHIẾU TRẢ KẾT QUẢ XÉT NGHIỆM
           </h2>
-          <div className="w-16 h-0.5 bg-sky-600 mx-auto mt-1 rounded-full"></div>
         </div>
 
-        {/* BẢNG THÔNG TIN BỆNH NHÂN 12 TRƯỜNG KHỚP HÌNH ẢNH MẪU Y KHOA */}
-        <div className="my-2 border border-slate-300 rounded overflow-hidden">
-          <table className="w-full text-left text-xs border-collapse">
+        {/* BẢNG THÔNG TIN BỆNH NHÂN CHUẨN 12 TRƯỜNG (6 HÀNG x 4 CỘT) */}
+        <div className="border border-slate-300 rounded mb-4 overflow-hidden">
+          <table className="w-full text-xs border-collapse">
             <tbody>
               {/* Hàng 1 */}
               <tr className="border-b border-slate-200">
-                <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700 w-[18%]">Họ và tên:</td>
-                <td className="py-1 px-2.5 font-extrabold text-red-600 uppercase text-xs w-[32%]">{patient.name || '---'}</td>
-                <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700 w-[18%]">Năm sinh:</td>
-                <td className="py-1 px-2.5 font-bold text-slate-900 w-[32%]">{patient.dob || '---'}</td>
+                <td className="w-28 py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Họ và tên:</td>
+                <td className="py-1 px-2.5 font-bold text-red-600 uppercase border-r border-slate-200">{patient.name || '---'}</td>
+                <td className="w-28 py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Năm sinh:</td>
+                <td className="py-1 px-2.5 font-medium text-slate-800">{patient.year || '---'}</td>
               </tr>
               {/* Hàng 2 */}
               <tr className="border-b border-slate-200">
-                <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">Giới tính:</td>
-                <td className="py-1 px-2.5 font-semibold text-slate-900">{patient.gender || 'Nam'}</td>
-                <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">Số điện thoại:</td>
-                <td className="py-1 px-2.5 font-mono text-slate-900">{patient.phone || '---'}</td>
+                <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Giới tính:</td>
+                <td className="py-1 px-2.5 font-medium text-slate-800 border-r border-slate-200">{patient.gender || 'Nam'}</td>
+                <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Số điện thoại:</td>
+                <td className="py-1 px-2.5 font-mono text-slate-800">{patient.phone || '---'}</td>
               </tr>
-              {/* Hàng 3 */}
+              {/* Hàng 3: Địa chỉ span 3 cột */}
               <tr className="border-b border-slate-200">
-                <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">Địa chỉ:</td>
-                <td className="py-1 px-2.5 font-medium text-slate-900" colSpan={3}>
-                  {patient.address || patient.diagnosis || clinicInfo.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị'}
-                </td>
+                <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Địa chỉ:</td>
+                <td colSpan={3} className="py-1 px-2.5 text-slate-800">{patient.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị'}</td>
               </tr>
               {/* Hàng 4 */}
               <tr className="border-b border-slate-200">
-                <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">Bác sĩ chỉ định:</td>
-                <td className="py-1 px-2.5 font-bold text-sky-900">{doctorName || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long'}</td>
-                <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">Số bệnh phẩm:</td>
-                <td className="py-1 px-2.5 font-mono font-extrabold text-red-600 text-xs">{patient.code || '14509'}</td>
+                <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Bác sĩ chỉ định:</td>
+                <td className="py-1 px-2.5 font-bold text-sky-900 border-r border-slate-200">{patient.doctor || 'BS. Trần Hoài Long'}</td>
+                <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Số bệnh phẩm:</td>
+                <td className="py-1 px-2.5 font-mono font-bold text-red-600">{patient.sampleCode || patient.code}</td>
               </tr>
               {/* Hàng 5 */}
               <tr className="border-b border-slate-200">
-                <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">T/G chỉ định:</td>
-                <td className="py-1 px-2.5 font-mono text-[11px] text-slate-800">{patient.orderedAt || currentDateStr}</td>
-                <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">T/G đóng phí:</td>
-                <td className="py-1 px-2.5 font-mono text-[11px] text-slate-800">{patient.paidAt || currentDateStr}</td>
+                <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G chỉ định:</td>
+                <td className="py-1 px-2.5 font-mono text-slate-700 border-r border-slate-200">{patient.orderTime || currentDateStr}</td>
+                <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G đóng phí:</td>
+                <td className="py-1 px-2.5 font-mono text-slate-700">{patient.paidTime || currentDateStr}</td>
               </tr>
               {/* Hàng 6 */}
               <tr>
-                <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">T/G nhận mẫu:</td>
-                <td className="py-1 px-2.5 font-mono text-[11px] text-slate-800">{patient.receivedAt || currentDateStr}</td>
-                <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">T/G trả kết quả:</td>
-                <td className="py-1 px-2.5 font-mono text-[11px] text-slate-800">{patient.returnedAt || currentDateStr}</td>
+                <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G nhận mẫu:</td>
+                <td className="py-1 px-2.5 font-mono text-slate-700 border-r border-slate-200">{patient.sampleTime || currentDateStr}</td>
+                <td className="py-1 px-2.5 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G trả kết quả:</td>
+                <td className="py-1 px-2.5 font-mono text-slate-700">{patient.resultTime || currentDateStr}</td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        {/* BẢNG KẾT QUẢ XÉT NGHIỆM */}
-        <div className="my-2 flex-1">
-          <table className="w-full text-left text-xs border-collapse border border-slate-300">
-            <thead className="bg-sky-100 text-sky-950 font-bold uppercase border-b border-slate-300 text-[11px]">
+        {/* BẢNG KẾT QUẢ XÉT NGHIỆM THEO TỪNG NHÓM */}
+        <div className="border border-slate-300 rounded mb-4 overflow-hidden">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead className="bg-slate-100 text-slate-900 uppercase font-bold border-b border-slate-300">
               <tr>
-                <th className="py-1.5 px-2 text-center w-9 border-r border-slate-300">STT</th>
-                <th className="py-1.5 px-2.5 border-r border-slate-300">Tên Chỉ Số Xét Nghiệm</th>
-                <th className="py-1.5 px-2.5 text-center w-28 border-r border-slate-300">Kết Quả</th>
-                <th className="py-1.5 px-2.5 text-center w-20 border-r border-slate-300">Đơn Vị</th>
-                <th className="py-1.5 px-2.5 text-center w-36">Trị Số Tham Chiếu</th>
+                <th className="py-1.5 px-2 w-8 text-center border-r border-slate-300">STT</th>
+                <th className="py-1.5 px-3 border-r border-slate-300">TÊN CHỈ SỐ XÉT NGHIỆM</th>
+                <th className="py-1.5 px-3 w-28 text-center border-r border-slate-300">KẾT QUẢ</th>
+                <th className="py-1.5 px-3 w-20 text-center border-r border-slate-300">ĐƠN VỊ</th>
+                <th className="py-1.5 px-3 w-36 text-center border-r border-slate-300">TRỊ SỐ THAM CHIẾU</th>
+                <th className="py-1.5 px-3 w-40 text-center border-r border-slate-300">THIẾT BỊ XỬ LÝ</th>
+                <th className="py-1.5 px-3 w-28 text-center">GHI CHÚ</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody>
               {Object.keys(groupedCategories).length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-slate-400 italic">
+                  <td colSpan={7} className="py-6 text-center text-slate-400 italic">
                     Chưa có chỉ số xét nghiệm nào được chọn.
                   </td>
                 </tr>
               ) : (
-                Object.entries(groupedCategories).map(([catName, tests]) => (
-                  <React.Fragment key={catName}>
-                    {/* Tiêu đề Nhóm Xét Nghiệm */}
-                    <tr className="bg-slate-100 font-bold text-sky-900 border-y border-slate-300">
-                      <td colSpan={5} className="py-1 px-3 text-[11px] uppercase tracking-wide">
-                        • {catName}
-                      </td>
-                    </tr>
-                    {/* Danh sách chỉ số thuộc Nhóm */}
-                    {tests.map((test, index) => {
-                      const valStr = test.result !== undefined && test.result !== null && test.result !== ''
-                        ? String(test.result)
-                        : (test as any).value !== undefined && (test as any).value !== null && (test as any).value !== ''
-                        ? String((test as any).value)
-                        : '';
+                Object.keys(groupedCategories).map((categoryName) => {
+                  const catTests = groupedCategories[categoryName];
+                  return (
+                    <React.Fragment key={categoryName}>
+                      {/* Tiêu đề nhóm */}
+                      <tr className="bg-sky-50/70 border-b border-t border-sky-200">
+                        <td colSpan={7} className="py-1 px-3 font-bold text-sky-900 uppercase text-[11px]">
+                          {categoryName}
+                        </td>
+                      </tr>
 
-                      const evalRes = evaluateResult(valStr, test.refMin ?? null, test.refMax ?? null);
-                      const isHigh = evalRes.status === 'high';
-                      const isLow = evalRes.status === 'low';
+                      {/* Các dòng chỉ số */}
+                      {catTests.map((t, idx) => {
+                        const evalState = evaluateResult(t.result, t.refMin, t.refMax);
+                        const isAbnormal = evalState === 'HIGH' || evalState === 'LOW';
 
-                      return (
-                        <tr key={test.code} className="hover:bg-slate-50/50">
-                          <td className="py-1 px-2 text-center text-slate-500 font-mono text-[11px] border-r border-slate-200">
-                            {index + 1}
-                          </td>
-                          <td className="py-1 px-2.5 border-r border-slate-200">
-                            <span className="font-semibold text-slate-900">{test.name}</span>
-                            <span className="ml-1 text-[10px] text-slate-400 font-mono">({test.code})</span>
-                          </td>
-                          <td className="py-1 px-2.5 text-center font-mono font-bold border-r border-slate-200 text-xs">
-                            <span
-                              className={
-                                isHigh
-                                  ? 'text-red-600 font-black'
-                                  : isLow
-                                  ? 'text-amber-600 font-black'
-                                  : 'text-slate-900'
-                              }
+                        return (
+                          <tr key={t.code || idx} className="border-b border-slate-200 hover:bg-slate-50/50">
+                            <td className="py-1 px-2 text-center text-slate-500 font-mono border-r border-slate-200">
+                              {idx + 1}
+                            </td>
+                            <td className="py-1 px-3 border-r border-slate-200 font-medium text-slate-900">
+                              <span>{t.name}</span>
+                              <span className="text-[10px] text-slate-400 font-mono ml-1">({t.code})</span>
+                            </td>
+                            <td
+                              className={`py-1 px-3 text-center font-mono font-bold border-r border-slate-200 ${
+                                isAbnormal ? 'text-red-600 bg-red-50/40' : 'text-slate-900'
+                              }`}
                             >
-                              {valStr || '---'}
-                            </span>
-                          </td>
-                          <td className="py-1 px-2.5 text-center font-mono text-[11px] text-slate-600 border-r border-slate-200">
-                            {test.unit || '---'}
-                          </td>
-                          <td className="py-1 px-2.5 text-center font-mono text-[11px] text-slate-600">
-                            {test.refText || (test.refMin !== null && test.refMax !== null ? `${test.refMin} - ${test.refMax}` : 'Bình thường')}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </React.Fragment>
-                ))
+                              {t.result || '---'}
+                            </td>
+                            <td className="py-1 px-3 text-center text-slate-600 font-mono border-r border-slate-200">
+                              {t.unit || ''}
+                            </td>
+                            <td className="py-1 px-3 text-center text-slate-600 font-mono border-r border-slate-200">
+                              {t.refText || (t.refMin !== null && t.refMax !== null ? `${t.refMin} - ${t.refMax}` : 'Bình thường')}
+                            </td>
+                            <td className="py-1 px-3 text-center text-slate-600 text-[10.5px] border-r border-slate-200">
+                              {t.equipment || 'Máy Sinh Hóa Tự Động'}
+                            </td>
+                            <td className="py-1 px-3 text-center text-[10px] text-slate-500">
+                              {t.note || (isAbnormal ? (evalState === 'HIGH' ? 'Tăng cao' : 'Giảm') : 'Bình thường')}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
 
-        {/* KẾT LUẬN VÀ LỜI KHUYÊN BÁC SĨ */}
+        {/* PHẦN KẾT LUẬN & ĐỀ NGHỊ BÁC SĨ */}
         {conclusion && (
-          <div className="my-2 p-2.5 bg-slate-50 border border-slate-200 rounded">
-            <h4 className="text-[11px] font-bold text-sky-900 uppercase mb-0.5">Kết luận & Lời khuyên Bác sĩ:</h4>
-            <p className="text-xs text-slate-800 whitespace-pre-line font-medium leading-relaxed">
+          <div className="border border-sky-200 bg-sky-50/30 rounded p-2.5 mb-4">
+            <p className="font-bold text-sky-950 uppercase text-[11px] mb-1">
+              KẾT LUẬN & ĐỀ NGHỊ CỦA BÁC SĨ:
+            </p>
+            <p className="text-slate-800 whitespace-pre-wrap leading-normal font-medium">
               {conclusion}
             </p>
           </div>
@@ -250,8 +248,8 @@ export default function PrintReportView({
 
       </div>
 
-      {/* FOOTER CHỮ KÝ VÀ NGÀY THÁNG (BOTTOM) */}
-      <div className="mt-6 pt-3 border-t border-slate-300">
+      {/* FOOTER: CHỮ KÝ VÀ DẤU BÁC SĨ (LUÔN NẰM DƯỚI ĐÁY TRANG A4) */}
+      <div className="mt-4 pt-3 border-t border-slate-300">
         <div className="flex items-start justify-between text-center">
           
           {/* Bên trái: Chú thích & Lưu ý */}

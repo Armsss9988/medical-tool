@@ -1,6 +1,6 @@
 import React from 'react';
-import golabLogo from '@assets/golablogo.jpg';
-import doctorStamp from '@assets/doctorstamp.jpg';
+import golabLogo from '@assets/golablogo';
+import doctorStamp from '@assets/doctorStamp';
 import { Patient, SelectedTest, ClinicInfo } from '@domain/types';
 
 interface FullAllergenReportViewProps {
@@ -22,40 +22,55 @@ export default function FullAllergenReportView({
   selectedTests,
   currentDateStr = new Date().toLocaleDateString('vi-VN'),
   doctorName,
+  qrCodeDataUrl,
+  qrCodeUrl,
   clinicInfo = {
     name: 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH',
     address: 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị',
     phone: '032.855.3773',
     website: 'golab.com.vn',
-    defaultDoctor: 'BS. Trần Hoài Long'
+    defaultDoctor: 'BS. CKII. Lê Anh Minh'
   }
 }: FullAllergenReportViewProps) {
-  // Lấy ra danh sách các dị nguyên có giá trị (hỗ trợ cả allergenTests và selectedTests)
-  const rawTests = allergenTests || selectedTests || [];
-  const activeTests = rawTests.filter((t) => {
-    if (!t) return false;
-    const val = t.result !== undefined && t.result !== null ? t.result : (t as any).value;
-    return val !== undefined && val !== null && val !== '';
+  const tests = allergenTests || selectedTests || [];
+  const finalQrCode = qrCodeDataUrl || qrCodeUrl;
+
+  const totalAllergens = tests.length;
+  const positiveTests = tests.filter((t) => {
+    const note = t.note || '';
+    return (
+      note.includes('Độ 1') ||
+      note.includes('Độ 2') ||
+      note.includes('Độ 3') ||
+      note.includes('Độ 4') ||
+      note.includes('Độ 5') ||
+      note.includes('Độ 6') ||
+      note.includes('Dương tính')
+    );
   });
 
-  // Đếm phân loại theo cấp độ dị ứng (Grade 0 -> Grade 6)
-  const gradeCounts = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
-  activeTests.forEach((t) => {
-    const rawVal = t.result !== undefined && t.result !== null ? t.result : (t as any).value;
-    const num = parseFloat(String(rawVal || '0').replace(/[^0-9.]/g, '') || '0');
-    if (num < 0.35) gradeCounts[0]++;
-    else if (num < 0.7) gradeCounts[1]++;
-    else if (num < 3.5) gradeCounts[2]++;
-    else if (num < 17.5) gradeCounts[3]++;
-    else if (num < 50) gradeCounts[4]++;
-    else if (num < 100) gradeCounts[5]++;
-    else gradeCounts[6]++;
-  });
+  const getRowStyle = (note?: string) => {
+    if (!note) return 'bg-white text-slate-800';
+    if (note.includes('Độ 4') || note.includes('Độ 5') || note.includes('Độ 6')) {
+      return 'bg-red-100 text-red-900 font-bold border-red-300';
+    }
+    if (note.includes('Độ 2') || note.includes('Độ 3')) {
+      return 'bg-amber-100 text-amber-900 font-bold border-amber-300';
+    }
+    if (note.includes('Độ 1')) {
+      return 'bg-amber-50 text-amber-800 font-semibold border-amber-200';
+    }
+    return 'bg-white text-slate-700';
+  };
+
+  const mid = Math.ceil(tests.length / 2);
+  const col1Tests = tests.slice(0, mid);
+  const col2Tests = tests.slice(mid);
 
   return (
     <div
       id={elementId}
-      className="bg-white text-slate-900 font-sans p-6 max-w-[210mm] mx-auto text-xs leading-relaxed min-h-[297mm] flex flex-col justify-between print:p-4 print:max-w-none print:w-full"
+      className="bg-white text-slate-900 font-sans p-6 max-w-[210mm] mx-auto text-[10.5px] leading-tight min-h-[297mm] flex flex-col justify-between print:p-3 print:max-w-none print:shadow-none print:w-full"
     >
       
       {/* 1. HEADER LOGO & PHÒNG KHÁM */}
@@ -78,164 +93,143 @@ export default function FullAllergenReportView({
               </p>
             </div>
           </div>
-          <div className="text-right border-l border-red-200 pl-3">
-            <span className="text-[9px] text-slate-500 font-mono block">Mã phiếu XN:</span>
-            <span className="text-xs font-mono font-extrabold text-red-700">{patient.code || 'DN-91'}</span>
-          </div>
+
+          {/* QR Tra Cứu Kết Quả */}
+          {finalQrCode && (
+            <div className="flex flex-col items-center justify-center p-1 bg-red-50/50 border border-red-200 rounded">
+              <img src={finalQrCode} alt="QR Code Tra Cứu" className="w-14 h-14 object-contain" />
+              <span className="text-[7.5px] font-mono text-red-700 mt-0.5 font-bold">QR Tra Cứu</span>
+            </div>
+          )}
         </div>
 
-        {/* TIÊU ĐỀ BÁO CÁO */}
-        <div className="text-center my-1.5">
-          <h2 className="text-base font-black uppercase text-red-900 tracking-wider">
-            BÁO CÁO KẾT QUẢ XÉT NGHIỆM DỊ NGUYÊN IgE (91 CHỈ SỐ)
+        {/* TIÊU ĐỀ PHIẾU DỊ NGUYÊN */}
+        <div className="text-center my-2">
+          <h2 className="text-lg font-black text-red-900 uppercase tracking-wide">
+            PHIẾU KẾT QUẢ XÉT NGHIỆM DỊ NGUYÊN IgE TOÀN DIỆN
           </h2>
-          <p className="text-[9.5px] text-slate-500 font-medium">Bảng Phân Tích Mức Độ Nhạy Cảm Dị Ứng Toàn Diện</p>
+          <p className="text-[9.5px] text-slate-600 italic">
+            (Phương pháp xét nghiệm định lượng kháng thể dị ứng đặc hiệu Immunoblot / CLA)
+          </p>
         </div>
 
-        {/* 2. BẢNG THÔNG TIN BỆNH NHÂN 12 TRƯỜNG KHỚP 100% MẪU ẢNH Y KHOA */}
-        <div className="my-2 border border-slate-300 rounded overflow-hidden">
-          <table className="w-full text-left text-xs border-collapse">
+        {/* 2. BẢNG THÔNG TIN BỆNH NHÂN (12 TRƯỜNG CHUẨN) */}
+        <div className="border border-slate-300 rounded mb-2 overflow-hidden">
+          <table className="w-full text-[10px] border-collapse">
             <tbody>
-              {/* Hàng 1 */}
               <tr className="border-b border-slate-200">
-                <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700 w-[18%]">Họ và tên:</td>
-                <td className="py-1 px-2.5 font-extrabold text-red-600 uppercase text-xs w-[32%]">{patient.name || '---'}</td>
-                <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700 w-[18%]">Năm sinh:</td>
-                <td className="py-1 px-2.5 font-bold text-slate-900 w-[32%]">{patient.dob || '---'}</td>
+                <td className="w-24 py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Họ và tên:</td>
+                <td className="py-0.5 px-2 font-bold text-red-600 uppercase border-r border-slate-200">{patient.name || '---'}</td>
+                <td className="w-24 py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Năm sinh:</td>
+                <td className="py-0.5 px-2 font-medium text-slate-800">{patient.year || '---'}</td>
               </tr>
-              {/* Hàng 2 */}
               <tr className="border-b border-slate-200">
-                <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">Giới tính:</td>
-                <td className="py-1 px-2.5 font-semibold text-slate-900">{patient.gender || 'Nam'}</td>
-                <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">Số điện thoại:</td>
-                <td className="py-1 px-2.5 font-mono text-slate-900">{patient.phone || '---'}</td>
+                <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Giới tính:</td>
+                <td className="py-0.5 px-2 font-medium text-slate-800 border-r border-slate-200">{patient.gender || 'Nam'}</td>
+                <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Số điện thoại:</td>
+                <td className="py-0.5 px-2 font-mono text-slate-800">{patient.phone || '---'}</td>
               </tr>
-              {/* Hàng 3 */}
               <tr className="border-b border-slate-200">
-                <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">Địa chỉ:</td>
-                <td className="py-1 px-2.5 font-medium text-slate-900" colSpan={3}>
-                  {patient.address || patient.diagnosis || clinicInfo.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị'}
-                </td>
+                <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Địa chỉ:</td>
+                <td colSpan={3} className="py-0.5 px-2 text-slate-800">{patient.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị'}</td>
               </tr>
-              {/* Hàng 4 */}
               <tr className="border-b border-slate-200">
-                <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">Bác sĩ chỉ định:</td>
-                <td className="py-1 px-2.5 font-bold text-sky-900">{doctorName || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long'}</td>
-                <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">Số bệnh phẩm:</td>
-                <td className="py-1 px-2.5 font-mono font-extrabold text-red-600 text-xs">{patient.code || '14509'}</td>
+                <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Bác sĩ chỉ định:</td>
+                <td className="py-0.5 px-2 font-bold text-red-900 border-r border-slate-200">{patient.doctor || 'BS. Trần Hoài Long'}</td>
+                <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">Số bệnh phẩm:</td>
+                <td className="py-0.5 px-2 font-mono font-bold text-red-600">{patient.sampleCode || patient.code}</td>
               </tr>
-              {/* Hàng 5 */}
               <tr className="border-b border-slate-200">
-                <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">T/G chỉ định:</td>
-                <td className="py-1 px-2.5 font-mono text-[11px] text-slate-800">{patient.orderedAt || currentDateStr}</td>
-                <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">T/G đóng phí:</td>
-                <td className="py-1 px-2.5 font-mono text-[11px] text-slate-800">{patient.paidAt || currentDateStr}</td>
+                <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G chỉ định:</td>
+                <td className="py-0.5 px-2 font-mono text-slate-700 border-r border-slate-200">{patient.orderTime || currentDateStr}</td>
+                <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G đóng phí:</td>
+                <td className="py-0.5 px-2 font-mono text-slate-700">{patient.paidTime || currentDateStr}</td>
               </tr>
-              {/* Hàng 6 */}
               <tr>
-                <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">T/G nhận mẫu:</td>
-                <td className="py-1 px-2.5 font-mono text-[11px] text-slate-800">{patient.receivedAt || currentDateStr}</td>
-                <td className="py-1 px-2.5 bg-slate-50 font-medium text-slate-700">T/G trả kết quả:</td>
-                <td className="py-1 px-2.5 font-mono text-[11px] text-slate-800">{patient.returnedAt || currentDateStr}</td>
+                <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G nhận mẫu:</td>
+                <td className="py-0.5 px-2 font-mono text-slate-700 border-r border-slate-200">{patient.sampleTime || currentDateStr}</td>
+                <td className="py-0.5 px-2 bg-slate-50 font-semibold text-slate-700 border-r border-slate-200">T/G trả kết quả:</td>
+                <td className="py-0.5 px-2 font-mono text-slate-700">{patient.resultTime || currentDateStr}</td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        {/* 3. TỔNG QUAN PHÂN NĂNG CẤP ĐỘ DỊ ỨNG */}
-        <div className="my-2 p-2 bg-red-50/60 border border-red-200 rounded">
-          <h4 className="text-[10px] font-bold text-red-950 uppercase mb-1">
-            Tổng quan kết quả 91 Dị nguyên (Cấp độ phản ứng IgE):
-          </h4>
-          <div className="grid grid-cols-7 gap-1 text-center font-mono text-[10px]">
-            <div className="bg-white p-1 rounded border border-slate-200">
-              <span className="block font-bold text-slate-700">Độ 0</span>
-              <span className="text-[9px] text-slate-500">&lt; 0.35</span>
-              <strong className="block text-slate-800 font-extrabold">{gradeCounts[0]}</strong>
-            </div>
-            <div className="bg-emerald-50 p-1 rounded border border-emerald-200">
-              <span className="block font-bold text-emerald-800">Độ 1</span>
-              <span className="text-[9px] text-emerald-600">0.35-0.69</span>
-              <strong className="block text-emerald-900 font-extrabold">{gradeCounts[1]}</strong>
-            </div>
-            <div className="bg-emerald-100 p-1 rounded border border-emerald-300">
-              <span className="block font-bold text-emerald-900">Độ 2</span>
-              <span className="text-[9px] text-emerald-700">0.70-3.49</span>
-              <strong className="block text-emerald-950 font-extrabold">{gradeCounts[2]}</strong>
-            </div>
-            <div className="bg-amber-50 p-1 rounded border border-amber-300">
-              <span className="block font-bold text-amber-800">Độ 3</span>
-              <span className="text-[9px] text-amber-600">3.50-17.49</span>
-              <strong className="block text-amber-900 font-extrabold">{gradeCounts[3]}</strong>
-            </div>
-            <div className="bg-orange-100 p-1 rounded border border-orange-300">
-              <span className="block font-bold text-orange-900">Độ 4</span>
-              <span className="text-[9px] text-orange-700">17.5-49.9</span>
-              <strong className="block text-orange-950 font-extrabold">{gradeCounts[4]}</strong>
-            </div>
-            <div className="bg-rose-100 p-1 rounded border border-rose-300">
-              <span className="block font-bold text-rose-900">Độ 5</span>
-              <span className="text-[9px] text-rose-700">50.0-99.9</span>
-              <strong className="block text-rose-950 font-extrabold">{gradeCounts[5]}</strong>
-            </div>
-            <div className="bg-red-200 p-1 rounded border border-red-400">
-              <span className="block font-bold text-red-950">Độ 6</span>
-              <span className="text-[9px] text-red-800">&ge; 100</span>
-              <strong className="block text-red-950 font-black">{gradeCounts[6]}</strong>
-            </div>
+        {/* 3. TÓM TẮT DỊ NGUYÊN DƯƠNG TÍNH */}
+        <div className="bg-red-50/70 border border-red-300 rounded p-2 mb-2 flex items-center justify-between text-[10px]">
+          <div>
+            <span className="font-bold text-red-950 uppercase">TỔNG SỐ DỊ NGUYÊN KHẢO SÁT: </span>
+            <strong className="font-mono text-slate-900">{totalAllergens}</strong>
+          </div>
+          <div>
+            <span className="font-bold text-red-950 uppercase">PHÁT HIỆN DƯƠNG TÍNH (&ge; ĐỘ 1): </span>
+            <span className="px-2 py-0.5 rounded font-mono font-bold bg-red-600 text-white">
+              {positiveTests.length} dị nguyên
+            </span>
           </div>
         </div>
 
-        {/* 4. BẢNG CHI TIẾT KẾT QUẢ DỊ NGUYÊN */}
-        <div className="my-2 flex-1">
-          <table className="w-full text-left text-[10px] border-collapse border border-slate-300">
-            <thead className="bg-red-100 text-red-950 font-bold uppercase border-b border-red-300">
-              <tr>
-                <th className="py-1 px-1.5 text-center w-7 border-r border-red-200">STT</th>
-                <th className="py-1 px-1.5 w-14 border-r border-red-200 font-mono text-center">Mã</th>
-                <th className="py-1 px-2 border-r border-red-200">Tên Dị Nguyên (Tiếng Việt)</th>
-                <th className="py-1 px-2 border-r border-red-200">Tên Khoa Học (Latin)</th>
-                <th className="py-1 px-1.5 text-center w-16 border-r border-red-200">Hàm Lượng (IU/mL)</th>
-                <th className="py-1 px-1.5 text-center w-16">Cấp Độ (Grade)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {activeTests.length === 0 ? (
+        {/* 4. BẢNG 2 CỘT HIỂN THỊ DỊ NGUYÊN */}
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          {/* Cột 1 */}
+          <div className="border border-slate-300 rounded overflow-hidden">
+            <table className="w-full text-left text-[9.5px] border-collapse">
+              <thead className="bg-red-100 text-red-950 uppercase font-bold border-b border-red-200">
                 <tr>
-                  <td colSpan={6} className="py-6 text-center text-slate-400 italic">
-                    Chưa nhập dữ liệu kết quả dị nguyên.
-                  </td>
+                  <th className="py-1 px-1.5 w-6 text-center border-r border-red-200">STT</th>
+                  <th className="py-1 px-1.5 w-10 border-r border-red-200 font-mono">Mã</th>
+                  <th className="py-1 px-1.5 border-r border-red-200">Tên Dị Nguyên</th>
+                  <th className="py-1 px-1.5 w-14 text-center border-r border-red-200">Nồng Độ</th>
+                  <th className="py-1 px-1.5 w-20 text-center">Đánh Giá</th>
                 </tr>
-              ) : (
-                activeTests.map((t, idx) => {
-                  const rawVal = t.result !== undefined && t.result !== null ? String(t.result) : (t as any).value !== undefined && (t as any).value !== null ? String((t as any).value) : '';
-                  const num = parseFloat(rawVal.replace(/[^0-9.]/g, '') || '0');
-                  let grade = 'Độ 0';
-                  let gradeBg = 'bg-white text-slate-700';
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {col1Tests.map((t, idx) => (
+                  <tr key={t.code || idx} className={getRowStyle(t.note)}>
+                    <td className="py-0.5 px-1.5 text-center text-slate-500 font-mono border-r border-slate-200">{idx + 1}</td>
+                    <td className="py-0.5 px-1.5 font-mono font-bold text-red-700 border-r border-slate-200">{t.code}</td>
+                    <td className="py-0.5 px-1.5 border-r border-slate-200 truncate max-w-[120px] font-medium" title={t.name}>
+                      {t.name}
+                    </td>
+                    <td className="py-0.5 px-1.5 text-center font-mono border-r border-slate-200">
+                      {t.result ? `${t.result} IU` : '< 0.35'}
+                    </td>
+                    <td className="py-0.5 px-1.5 text-center font-semibold">{t.note || 'Âm tính (Độ 0)'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-                  if (num >= 100) { grade = 'Độ 6'; gradeBg = 'bg-red-600 text-white font-extrabold'; }
-                  else if (num >= 50) { grade = 'Độ 5'; gradeBg = 'bg-rose-500 text-white font-bold'; }
-                  else if (num >= 17.5) { grade = 'Độ 4'; gradeBg = 'bg-orange-500 text-white font-bold'; }
-                  else if (num >= 3.5) { grade = 'Độ 3'; gradeBg = 'bg-amber-400 text-slate-900 font-bold'; }
-                  else if (num >= 0.7) { grade = 'Độ 2'; gradeBg = 'bg-emerald-200 text-emerald-950 font-bold'; }
-                  else if (num >= 0.35) { grade = 'Độ 1'; gradeBg = 'bg-emerald-100 text-emerald-900'; }
-
-                  return (
-                    <tr key={t.code} className="hover:bg-slate-50">
-                      <td className="py-0.5 px-1.5 text-center font-mono text-[9.5px] border-r border-slate-200 text-slate-500">{idx + 1}</td>
-                      <td className="py-0.5 px-1.5 text-center font-mono font-bold text-red-700 border-r border-slate-200">{t.code}</td>
-                      <td className="py-0.5 px-2 font-bold text-slate-900 border-r border-slate-200">{t.name}</td>
-                      <td className="py-0.5 px-2 italic text-slate-600 border-r border-slate-200">{t.scientific || t.refText || '---'}</td>
-                      <td className="py-0.5 px-1.5 text-center font-mono font-bold text-slate-900 border-r border-slate-200">{rawVal || '---'}</td>
-                      <td className="py-0.5 px-1.5 text-center font-mono">
-                        <span className={`px-1.5 py-0.5 rounded text-[9px] ${gradeBg}`}>{grade}</span>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+          {/* Cột 2 */}
+          <div className="border border-slate-300 rounded overflow-hidden">
+            <table className="w-full text-left text-[9.5px] border-collapse">
+              <thead className="bg-red-100 text-red-950 uppercase font-bold border-b border-red-200">
+                <tr>
+                  <th className="py-1 px-1.5 w-6 text-center border-r border-red-200">STT</th>
+                  <th className="py-1 px-1.5 w-10 border-r border-red-200 font-mono">Mã</th>
+                  <th className="py-1 px-1.5 border-r border-red-200">Tên Dị Nguyên</th>
+                  <th className="py-1 px-1.5 w-14 text-center border-r border-red-200">Nồng Độ</th>
+                  <th className="py-1 px-1.5 w-20 text-center">Đánh Giá</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {col2Tests.map((t, idx) => (
+                  <tr key={t.code || idx} className={getRowStyle(t.note)}>
+                    <td className="py-0.5 px-1.5 text-center text-slate-500 font-mono border-r border-slate-200">{mid + idx + 1}</td>
+                    <td className="py-0.5 px-1.5 font-mono font-bold text-red-700 border-r border-slate-200">{t.code}</td>
+                    <td className="py-0.5 px-1.5 border-r border-slate-200 truncate max-w-[120px] font-medium" title={t.name}>
+                      {t.name}
+                    </td>
+                    <td className="py-0.5 px-1.5 text-center font-mono border-r border-slate-200">
+                      {t.result ? `${t.result} IU` : '< 0.35'}
+                    </td>
+                    <td className="py-0.5 px-1.5 text-center font-semibold">{t.note || 'Âm tính (Độ 0)'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
