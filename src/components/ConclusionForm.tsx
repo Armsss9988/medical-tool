@@ -1,4 +1,4 @@
-import { FileText, RotateCcw, Eye, CloudUpload, QrCode, CreditCard, BookmarkCheck, MessageSquare, SlidersHorizontal, Loader2 } from 'lucide-react';
+import { FileText, RotateCcw, Eye, CloudUpload, QrCode, CreditCard, BookmarkCheck, MessageSquare, SlidersHorizontal, Loader2, Download } from 'lucide-react';
 import DoctorSelectCombobox from './DoctorSelectCombobox';
 import { Doctor } from '@domain/types';
 import { ExportStepName, EXPORT_STEP_LABELS } from '@domain/exportTransaction';
@@ -12,6 +12,7 @@ interface ConclusionFormProps {
   isExporting?: boolean;
   currentStep?: ExportStepName | null;
   onExportPdfAndUpload: () => void;
+  onDownloadPdf?: () => void;
   onOpenPreview: () => void;
   onSaveReport?: () => void;
   onDirectSendZalo?: () => void;
@@ -39,6 +40,7 @@ export default function ConclusionForm({
   isExporting = false,
   currentStep = null,
   onExportPdfAndUpload,
+  onDownloadPdf,
   onOpenPreview,
   onSaveReport,
   onDirectSendZalo,
@@ -160,7 +162,7 @@ export default function ConclusionForm({
             </div>
           )}
 
-          {/* 4 Secondary Actions in 2x2 Grid */}
+          {/* Secondary Actions in Grid */}
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -170,6 +172,27 @@ export default function ConclusionForm({
               <Eye className="w-3.5 h-3.5 text-sky-600" />
               <span>Xem Trước Phiếu (A4)</span>
             </button>
+
+            {onDownloadPdf ? (
+              <button
+                type="button"
+                onClick={onDownloadPdf}
+                disabled={isExporting}
+                className="py-2.5 px-3 bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold rounded-xl border border-teal-200 shadow-2xs transition-all active:scale-95 flex items-center justify-center space-x-1.5"
+              >
+                <Download className="w-3.5 h-3.5 text-teal-600" />
+                <span>Tải File PDF Về Máy</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onSaveReport}
+                className="py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold rounded-xl border border-emerald-200 shadow-2xs transition-all active:scale-95 flex items-center justify-center space-x-1.5"
+              >
+                <BookmarkCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Lưu Vào Sổ Lưu</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -193,16 +216,16 @@ export default function ConclusionForm({
               <QrCode className="w-3.5 h-3.5" />
               <span>Tải Ảnh QR Code</span>
             </button>
-
-            <button
-              type="button"
-              onClick={onOpenInvoiceModal}
-              className="py-2.5 px-3 bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold rounded-xl border border-teal-200 shadow-2xs transition-all active:scale-95 flex items-center justify-center space-x-1.5"
-            >
-              <CreditCard className="w-3.5 h-3.5 text-teal-600" />
-              <span>Tạo Hóa Đơn Thu Phí</span>
-            </button>
           </div>
+
+          <button
+            type="button"
+            onClick={onOpenInvoiceModal}
+            className="w-full py-2.5 px-3 bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold rounded-xl border border-teal-200 shadow-2xs transition-all active:scale-95 flex items-center justify-center space-x-1.5"
+          >
+            <CreditCard className="w-3.5 h-3.5 text-teal-600" />
+            <span>Tạo Hóa Đơn Thu Phí</span>
+          </button>
 
           {/* Reset Button */}
           <button

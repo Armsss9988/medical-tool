@@ -26,7 +26,7 @@ import {
   EXPORT_STEP_ORDER,
   PdfFileRecord
 } from '@domain/exportTransaction';
-import { getLedgerByReport } from '@infra/pdfLedger';
+import { getPatientLedger } from '@infra/pdfLedger';
 
 interface PdfPreviewModalProps {
   isOpen: boolean;
@@ -43,6 +43,7 @@ interface PdfPreviewModalProps {
   lastError?: ExportErrorDetail | null;
   showToast: (msg: string, type?: ToastType) => void;
   onExportPdfAndUpload: () => void;
+  onDownloadPdf?: (elementId: string, filename: string) => void;
   onRetryExport?: () => void;
   onPrintDirect: () => void;
   onDownloadQrCode: () => void;
@@ -63,58 +64,61 @@ export default function PdfPreviewModal({
   lastError = null,
   showToast,
   onExportPdfAndUpload,
+  onDownloadPdf,
   onRetryExport,
   onPrintDirect,
   onDownloadQrCode
 }: PdfPreviewModalProps) {
+  // State điều khiển độ thu phóng
   const [zoomScale, setZoomScale] = useState<number>(0.85);
-  const [historyList, setHistoryList] = useState<PdfFileRecord[]>([]);
+  // State xem lịch sử phiên bản PDF trên cloud
   const [showHistory, setShowHistory] = useState<boolean>(false);
+  const [historyList, setHistoryList] = useState<PdfFileRecord[]>([]);
 
-  // Tải lịch sử version của bệnh nhân khi mở modal
+  // Tải danh sách lịch sử khi mở Modal
   useEffect(() => {
     if (isOpen && patient.code) {
-      getLedgerByReport(patient.code).then((records) => {
-        setHistoryList(records);
+      getPatientLedger(patient.code).then((list) => {
+        setHistoryList(list);
       });
     }
-  }, [isOpen, patient.code, isExporting]);
+  }, [isOpen, patient.code, cloudLink]);
 
   if (!isOpen) return null;
 
+  // Nhận diện loại báo cáo: Xét nghiệm thông thường hay Booklet Dị nguyên 6 trang
   const isAllergenPackage = selectedTests.some(
     (t) => (t.category && t.category.includes('Dị Nguyên')) || t.unit === 'IU/mL'
   );
 
-  const handleZoomIn = () => setZoomScale((prev) => Math.min(1.2, parseFloat((prev + 0.1).toFixed(2))));
-  const handleZoomOut = () => setZoomScale((prev) => Math.max(0.5, parseFloat((prev - 0.1).toFixed(2))));
-  const handleResetZoom = () => setZoomScale(0.85);
-
-  const getStepIndex = (step: ExportStepName | null) => {
-    if (!step) return -1;
-    return EXPORT_STEP_ORDER.indexOf(step);
+  const handleZoomIn = () => {
+    setZoomScale((prev) => Math.min(prev + 0.1, 1.5));
   };
 
-  const currentIdx = getStepIndex(currentStep);
+  const handleZoomOut = () => {
+    setZoomScale((prev) => Math.max(prev - 0.1, 0.4));
+  };
+
+  const handleResetZoom = () => {
+    setZoomScale(0.85);
+  };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-2 md:p-4 overflow-y-auto">
-      <div className="bg-slate-900 rounded-2xl shadow-2xl w-full max-w-6xl flex flex-col h-[94vh] border border-slate-700/60 overflow-hidden animate-in fade-in zoom-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl flex flex-col w-full max-w-5xl h-[92vh] overflow-hidden text-slate-100">
         
-        {/* Header Thanh Công Cụ Xem Trước */}
-        <div className="bg-slate-900 text-white px-5 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-800 shrink-0 gap-3">
+        {/* Header Modal */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-6 py-3.5 border-b border-slate-800 gap-3 shrink-0 bg-slate-900/90 backdrop-blur">
           <div className="flex items-center space-x-3">
-            <span className={`w-3 h-3 rounded-full shrink-0 ${isExporting ? 'bg-amber-400 animate-ping' : 'bg-sky-500'}`}></span>
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-sm border border-emerald-500/30">
+              <FileText className="w-4 h-4" />
+            </div>
             <div>
-              <h3 className="text-sm font-extrabold text-white tracking-wide flex items-center gap-2">
-                Màn Hình Xem Trước Phiếu Trả Kết Quả
-                <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-400/30 px-2 py-0.5 rounded">
-                  {isAllergenPackage ? 'Panel Dị Nguyên 91 Chỉ Số' : 'Khổ Giấy Chuẩn A4'}
-                </span>
-                {historyList.length > 0 && (
-                  <span className="text-[10px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-400/30 px-2 py-0.5 rounded flex items-center gap-1">
-                    <FileText className="w-2.5 h-2.5" />
-                    v{historyList[0]?.version || 1}
+              <h3 className="font-extrabold text-sm text-slate-100 flex items-center gap-2">
+                <span>Xem Trước Bản In & Xuất PDF Chất Lượng Cao</span>
+                {isAllergenPackage && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                    Booklet Dị Nguyên 6 Trang
                   </span>
                 )}
               </h3>
@@ -181,6 +185,23 @@ export default function PdfPreviewModal({
               <span>In Phiếu A4</span>
             </button>
 
+            {/* Nút Tải File PDF Trực Tiếp Về Máy */}
+            {onDownloadPdf && (
+              <button
+                onClick={() => {
+                  const elemId = isAllergenPackage ? 'preview-allergen-element' : 'preview-print-element';
+                  const fname = `PhieuXN_${(patient.name || 'BenhNhan').replace(/\s+/g, '_')}_${patient.code}.pdf`;
+                  onDownloadPdf(elemId, fname);
+                }}
+                disabled={isExporting}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-xs font-bold shadow transition-all active:scale-95"
+                title="Tải trực tiếp file PDF chất lượng cao về máy tính"
+              >
+                <Download className="w-4 h-4" />
+                <span>Tải File PDF</span>
+              </button>
+            )}
+
             {/* Nút Xuất PDF & Cloud (Transaction) */}
             <button
               onClick={onExportPdfAndUpload}
@@ -220,33 +241,30 @@ export default function PdfPreviewModal({
           </div>
         </div>
 
-        {/* ─── THANH TIẾN TRÌNH TRANSACTION PIPELINE ─────────────────────── */}
+        {/* ─── TRANSACTION STEP PROGRESS BAR (KHI ĐANG XUẤT) ────────────────── */}
         {isExporting && (
-          <div className="bg-slate-950 border-b border-sky-900/50 px-5 py-2.5 animate-in slide-in-from-top duration-200">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-              <div className="flex items-center gap-2 text-xs font-bold text-sky-300">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-400" />
-                <span>Tiến trình Transaction: {currentStep ? EXPORT_STEP_LABELS[currentStep] : 'Đang khởi chạy...'}</span>
-              </div>
-              <span className="text-[10px] text-slate-400 font-mono">
-                Bảo vệ Rollback tự động khi có lỗi mạng
-              </span>
+          <div className="bg-slate-950 border-b border-slate-800 px-6 py-2.5 flex items-center justify-between gap-4 animate-in slide-in-from-top duration-150">
+            <div className="flex items-center gap-2 text-xs font-bold text-sky-400">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span>Tiến trình Transaction:</span>
             </div>
 
-            {/* Stepper 5 bước */}
-            <div className="grid grid-cols-5 gap-1.5 text-[10px]">
+            <div className="flex items-center gap-1 sm:gap-2 flex-1 max-w-2xl overflow-x-auto py-1">
               {EXPORT_STEP_ORDER.map((step, idx) => {
-                const isCurrent = currentStep === step;
-                const isPassed = currentIdx > idx;
+                const stepIdx = EXPORT_STEP_ORDER.indexOf(step);
+                const currentIdx = currentStep ? EXPORT_STEP_ORDER.indexOf(currentStep) : -1;
+                const isPassed = currentIdx > stepIdx;
+                const isCurrent = currentIdx === stepIdx;
+
                 return (
                   <div
                     key={step}
-                    className={`flex items-center gap-1.5 px-2 py-1 rounded transition-colors ${
-                      isCurrent
-                        ? 'bg-sky-500/20 border border-sky-400/40 text-sky-200 font-bold'
-                        : isPassed
-                        ? 'bg-emerald-950/40 border border-emerald-500/30 text-emerald-300'
-                        : 'bg-slate-800/40 text-slate-500 border border-slate-800'
+                    className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold transition-all shrink-0 ${
+                      isPassed
+                        ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-700/60'
+                        : isCurrent
+                        ? 'bg-sky-900 text-sky-200 border border-sky-500 shadow-sm animate-pulse'
+                        : 'bg-slate-800/60 text-slate-400 border border-slate-700/50'
                     }`}
                   >
                     {isPassed ? (
@@ -310,14 +328,14 @@ export default function PdfPreviewModal({
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-2">
               {historyList.map((rec) => (
                 <div
                   key={rec.id}
-                  className={`p-2 rounded-lg border text-xs flex flex-col justify-between ${
+                  className={`p-2.5 rounded-xl border flex flex-col justify-between ${
                     rec.isLatest
-                      ? 'bg-purple-950/40 border-purple-500/40 text-purple-200'
-                      : 'bg-slate-900/60 border-slate-800 text-slate-400'
+                      ? 'bg-purple-950/40 border-purple-500/50'
+                      : 'bg-slate-900/60 border-slate-800'
                   }`}
                 >
                   <div>
@@ -405,6 +423,17 @@ export default function PdfPreviewModal({
                 >
                   Sao chép link
                 </button>
+                <a
+                  href={cloudLink}
+                  download={`PhieuXN_${(patient.name || 'BenhNhan').replace(/\s+/g, '_')}_${patient.code}.pdf`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-2 py-0.5 rounded bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[10px] border border-emerald-600 transition flex items-center gap-1"
+                  title="Mở / Tải file PDF từ Cloud"
+                >
+                  <Download className="w-2.5 h-2.5" />
+                  <span>Tải PDF</span>
+                </a>
               </div>
             )}
           </div>
