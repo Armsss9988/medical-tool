@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   X,
   Printer,
@@ -26,7 +26,6 @@ import {
   EXPORT_STEP_ORDER,
   PdfFileRecord
 } from '@domain/exportTransaction';
-import { getPatientLedger } from '@infra/pdfLedger';
 
 interface PdfPreviewModalProps {
   isOpen: boolean;
@@ -62,7 +61,7 @@ export default function PdfPreviewModal({
   isExporting = false,
   currentStep = null,
   lastError = null,
-  showToast,
+  showToast: _showToast,
   onExportPdfAndUpload,
   onDownloadPdf,
   onRetryExport,
@@ -73,16 +72,7 @@ export default function PdfPreviewModal({
   const [zoomScale, setZoomScale] = useState<number>(0.85);
   // State xem lịch sử phiên bản PDF trên cloud
   const [showHistory, setShowHistory] = useState<boolean>(false);
-  const [historyList, setHistoryList] = useState<PdfFileRecord[]>([]);
-
-  // Tải danh sách lịch sử khi mở Modal
-  useEffect(() => {
-    if (isOpen && patient.code) {
-      getPatientLedger(patient.code).then((list) => {
-        setHistoryList(list);
-      });
-    }
-  }, [isOpen, patient.code, cloudLink]);
+  const [historyList] = useState<PdfFileRecord[]>([]);
 
   if (!isOpen) return null;
 
@@ -416,7 +406,7 @@ export default function PdfPreviewModal({
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(cloudLink);
-                    showToast('Đã sao chép đường dẫn PDF vào bộ nhớ tạm!', 'success');
+                    if (_showToast) _showToast('Đã sao chép đường dẫn PDF vào bộ nhớ tạm!', 'success');
                   }}
                   className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-sky-300 text-[10px] border border-slate-700 transition"
                   title="Sao chép đường dẫn xem PDF"
