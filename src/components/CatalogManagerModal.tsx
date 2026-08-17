@@ -1,11 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Plus, Trash2, Save, Search, Download, Upload, RotateCcw, Edit3, Layers, CheckSquare, Square, Stethoscope, UserPlus, ChevronDown, Check, Copy } from 'lucide-react';
+import { X, Plus, Trash2, Save, Search, Download, Upload, RotateCcw, Layers, CheckSquare, Square, Stethoscope, UserPlus, ChevronDown, Copy } from 'lucide-react';
 import { exportSampleExcelCatalog, parseExcelCatalog } from '@infra/excelService';
-import { DEFAULT_CATALOG, TEST_PACKAGES as INITIAL_PACKAGES, DEFAULT_TEST_GROUPS, DEFAULT_EQUIPMENTS } from '@data/defaultCatalog';
+import { DEFAULT_CATALOG, DEFAULT_TEST_GROUPS, DEFAULT_EQUIPMENTS } from '@data/defaultCatalog';
 import { CatalogItem, TestPackage, TestGroup, TestEquipment, Doctor } from '@domain/types';
-import { ManageCatalogUseCase } from '../usecases/ManageCatalogUseCase';
-
-const manageCatalogUseCase = new ManageCatalogUseCase();
 
 // ── GroupSearchCombobox: Dropdown search nhóm xét nghiệm + tạo mới khi Enter ──
 interface GroupSearchComboboxProps {
@@ -459,7 +456,6 @@ export default function CatalogManagerModal({
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [packageSearch, setPackageSearch] = useState('');
   const [selectedPackageId, setSelectedPackageId] = useState<string>('');
-  const [selectedItemCodes, setSelectedItemCodes] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (isOpen) {
@@ -554,11 +550,6 @@ export default function CatalogManagerModal({
   const handleDeleteItem = (code: string) => {
     if (confirm(`Bạn có chắc muốn xóa chỉ số [${code}] khỏi danh mục?`)) {
       setItems((prev) => prev.filter((i) => i.code !== code));
-      setSelectedItemCodes((prev) => {
-        const next = new Set(prev);
-        next.delete(code);
-        return next;
-      });
     }
   };
 
