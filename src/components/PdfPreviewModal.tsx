@@ -175,7 +175,7 @@ export default function PdfPreviewModal({
               <span>In Phiếu A4</span>
             </button>
 
-            {/* Nút Tải File PDF Trực Tiếp Về Máy */}
+            {/* Nút Tải File PDF Trực Tiếp Về Máy (Chỉ kích hoạt khi đã upload PDF lên Cloud) */}
             {onDownloadPdf && (
               <button
                 onClick={() => {
@@ -183,9 +183,13 @@ export default function PdfPreviewModal({
                   const fname = `PhieuXN_${(patient.name || 'BenhNhan').replace(/\s+/g, '_')}_${patient.code}.pdf`;
                   onDownloadPdf(elemId, fname);
                 }}
-                disabled={isExporting}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-xs font-bold shadow transition-all active:scale-95"
-                title="Tải trực tiếp file PDF chất lượng cao về máy tính"
+                disabled={!cloudLink || isExporting}
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold shadow transition-all active:scale-95 ${
+                  cloudLink && !isExporting
+                    ? 'bg-teal-600 hover:bg-teal-500 text-white cursor-pointer'
+                    : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
+                }`}
+                title={cloudLink ? "Tải trực tiếp file PDF chất lượng cao về máy tính" : "Vui lòng bấm 'Lưu PDF & Cloud' để tải lên trước"}
               >
                 <Download className="w-4 h-4" />
                 <span>Tải File PDF</span>

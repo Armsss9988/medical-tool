@@ -162,7 +162,7 @@ export default function ConclusionForm({
             </div>
           )}
 
-          {/* Secondary Actions in Grid */}
+          {/* Secondary Actions in Grid (2x2) */}
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -177,22 +177,18 @@ export default function ConclusionForm({
               <button
                 type="button"
                 onClick={onDownloadPdf}
-                disabled={isExporting}
-                className="py-2.5 px-3 bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold rounded-xl border border-teal-200 shadow-2xs transition-all active:scale-95 flex items-center justify-center space-x-1.5"
+                disabled={!cloudLink || isExporting}
+                className={`py-2.5 px-3 rounded-xl border shadow-2xs transition-all active:scale-95 flex items-center justify-center space-x-1.5 font-bold ${
+                  cloudLink && !isExporting
+                    ? 'bg-teal-50 hover:bg-teal-100 text-teal-800 border-teal-300'
+                    : 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
+                }`}
+                title={cloudLink ? "Tải file PDF về máy tính" : "Vui lòng Xuất File PDF & Tải Lên Cloud trước khi tải"}
               >
-                <Download className="w-3.5 h-3.5 text-teal-600" />
+                <Download className={`w-3.5 h-3.5 ${cloudLink ? 'text-teal-600' : 'text-slate-400'}`} />
                 <span>Tải File PDF Về Máy</span>
               </button>
-            ) : (
-              <button
-                type="button"
-                onClick={onSaveReport}
-                className="py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold rounded-xl border border-emerald-200 shadow-2xs transition-all active:scale-95 flex items-center justify-center space-x-1.5"
-              >
-                <BookmarkCheck className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Lưu Vào Sổ Lưu</span>
-              </button>
-            )}
+            ) : null}
 
             <button
               type="button"
@@ -212,6 +208,7 @@ export default function ConclusionForm({
                   ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
                   : 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
               }`}
+              title={cloudLink ? "Tải ảnh mã QR Code về máy" : "Vui lòng Xuất File PDF & Tải Lên Cloud trước khi tải QR"}
             >
               <QrCode className="w-3.5 h-3.5" />
               <span>Tải Ảnh QR Code</span>

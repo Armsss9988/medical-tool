@@ -38,32 +38,13 @@ export class PdfExportTransaction {
 
     try {
       // -------------------------------------------------------------
-      // BƯỚC 1: RENDER LOSSLESS PDF & TỰ ĐỘNG TẢI FILE VỀ MÁY
+      // BƯỚC 1: RENDER LOSSLESS PDF
       // -------------------------------------------------------------
       this.callbacks?.onStepStart?.('render_pdf');
       const t1Start = Date.now();
       
       const pdfRes = await generateHighQualityPdf(this.elementId, this.filename);
       pdfBlob = pdfRes.blob;
-
-      // Tự động tải file PDF trực tiếp về máy tính người dùng
-      try {
-        pdfRes.pdf.save(this.filename);
-      } catch (saveErr) {
-        console.warn('Không thể tự động save jsPDF, fallback qua Blob download:', saveErr);
-        try {
-          const downloadUrl = URL.createObjectURL(pdfBlob);
-          const a = document.createElement('a');
-          a.href = downloadUrl;
-          a.download = this.filename;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(downloadUrl);
-        } catch {
-          /* ignore */
-        }
-      }
 
       this.executedSteps.push({
         step: 'render_pdf',
@@ -74,7 +55,7 @@ export class PdfExportTransaction {
       this.callbacks?.onStepSuccess?.('render_pdf', { sizeBytes: pdfBlob.size });
 
       // -------------------------------------------------------------
-      // BƯỚC 2: UPLOAD CLOUD STORAGE (SUPABASE -> CLOUDINARY -> LOCAL)
+      // BƯỚC 2: UPLOAD CLOUD STORAGE (SUPABASE -> CLOUDINARY -> LOCAL) & LƯU FILE VỀ MÁY
       // -------------------------------------------------------------
       this.callbacks?.onStepStart?.('upload_cloud');
       const t2Start = Date.now();
@@ -86,6 +67,25 @@ export class PdfExportTransaction {
       const uploadRes = await uploadPdfToCloud(pdfBlob, versionedFilename);
       cloudUrl = uploadRes.url;
       uploadedFilename = uploadRes.filename || versionedFilename;
+
+      // Đã upload lên Cloud Storage thành công -> Tiến hành tự động lưu file PDF về máy tính người dùng
+      try {
+        pdfRes.pdf.save(uploadedFilename || this.filename);
+      } catch (saveErr) {
+        console.warn('Không thể tự động save jsPDF, fallback qua Blob download:', saveErr);
+        try {
+          const downloadUrl = URL.createObjectURL(pdfBlob);
+          const a = document.createElement('a');
+          a.href = downloadUrl;
+          a.download = uploadedFilename || this.filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(downloadUrl);
+        } catch {
+          /* ignore */
+        }
+      }
 
       // Đăng ký hành động Rollback nếu các bước sau thất bại
       if (uploadRes.provider === 'supabase' && uploadRes.url) {
