@@ -1,38 +1,30 @@
 import { useState } from "react";
 import Header from "./components/Header";
 import PatientForm from "./components/PatientForm";
-import ConclusionForm from "./components/ConclusionForm";
 import TestTable from "./components/TestTable";
+import ConclusionForm from "./components/ConclusionForm";
+import PrintReportView from "./components/PrintReportView";
+import FullAllergenReportView from "./components/FullAllergenReportView";
 import SettingsModal from "./components/SettingsModal";
-import CatalogManagerModal from "./components/CatalogManagerModal";
-import InvoiceModal from "./components/InvoiceModal";
 import PdfPreviewModal from "./components/PdfPreviewModal";
+import CatalogManagerModal, { CatalogTabType } from "./components/CatalogManagerModal";
+import InvoiceModal from "./components/InvoiceModal";
 import RevenueManagerModal from "./components/RevenueManagerModal";
 import ReportManagerModal from "./components/ReportManagerModal";
 import SendZaloModal from "./components/SendZaloModal";
 import TransactionLoadingModal from "./components/TransactionLoadingModal";
-import PrintReportView from "./components/PrintReportView";
-import FullAllergenReportView from "./components/FullAllergenReportView";
+
+import { parseExcelCatalog } from "@infra/excelService";
+import { openDataFolder } from "@infra/storage";
+import { generateZaloTextMessage, openZaloChat } from "@infra/zaloService";
+import { SelectedTest, Invoice, ToastType, MedicalReport } from "@domain/types";
+
+import { usePatientManager } from "./hooks/usePatientManager";
 import { useCatalogData } from "./hooks/useCatalogData";
 import { useReportExport } from "./hooks/useReportExport";
-import { useMedicalReports } from "./hooks/useMedicalReports";
-import { useInvoices } from "./hooks/useInvoices";
-import { useZaloMessaging } from "./hooks/useZaloMessaging";
-import { parseExcelCatalog } from "./infrastructure/excelService";
-import {
-  Patient,
-  SelectedTest,
-  Invoice,
-  MedicalReport,
-  ToastType,
-  CatalogTabType,
-  DEFAULT_PATIENT
-} from "./domain/types";
-import {
-  CheckCircle,
-  AlertCircle,
-  Info
-} from "lucide-react";
+import { useReportManager } from "./hooks/useReportManager";
+
+import { CheckCircle, AlertCircle, Info } from "lucide-react";
 
 export default function App() {
   // 1. STATE DANH MỤC & CẤU HÌNH HỆ THỐNG
@@ -55,13 +47,19 @@ export default function App() {
     setZaloConfig
   } = useCatalogData();
 
-  // 2. STATE KẾT QUẢ & CHỈ ĐỊNH XÉT NGHIỆM
-  const [patient, setPatient] = useState<Patient>({ ...DEFAULT_PATIENT });
+  // 2. STATE THÔNG TIN BỆNH NHÂN (Tự động tăng mã BN & BP)
+  const {
+    patient,
+    setPatient,
+    resetPatient
+  } = usePatientManager();
+
+  // 3. STATE KẾT QUẢ & CHỈ ĐỊNH XÉT NGHIỆM
   const [selectedTests, setSelectedTests] = useState<SelectedTest[]>([]);
   const [conclusion, setConclusion] = useState<string>("");
   const [doctorName, setDoctorName] = useState<string>("");
 
-  // 3. STATE CÁC MODAL
+  // 4. STATE CÁC MODAL
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
@@ -72,7 +70,10 @@ export default function App() {
   const [isZaloModalOpen, setIsZaloModalOpen] = useState(false);
   const [zaloTargetReport, setZaloTargetReport] = useState<MedicalReport | null>(null);
 
-  // TOAST THÔNG BÁO
+  // Sổ thu phí & hóa đơn
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+
+  // TOAST THÔNG BÁO NỔI
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
   const showToast = (message: string, type: ToastType = "info") => {
@@ -106,116 +107,74 @@ export default function App() {
         showToast("File Excel không đúng định dạng hoặc không có dữ liệu!", "error");
       }
     } catch (err) {
-      console.error(err);
-      showToast("Lỗi khi đọc file Excel!", "error");
+      console.error("Lỗi khi mở file Excel:", err);
+      showToast("Đã xảy ra lỗi khi đọc file Excel!", "error");
     }
   };
 
-  const handleOpenDataDirectory = () => {
-    showToast("Tính năng mở thư mục dữ liệu nội bộ được bảo vệ bởi trình duyệt. Vui lòng chọn file Excel qua nút Tải File.", "info");
-  };
-
-  // 6. MEDICAL REPORTS (SỔ LƯU TRỮ KẾT QUẢ)
+  // 6. SỔ LƯU PHIẾU XÉT NGHIỆM (REPORT MANAGER)
   const {
     reports,
-    saveReport,
+    saveOrUpdateReport,
     deleteReport,
     clearAllReports
-  } = useMedicalReports(cloudDbConfig);
+  } = useReportManager();
 
-  // 7. INVOICES (QUẢN LÝ THU PHÍ)
-  const {
-    invoices,
-    setInvoices,
-    saveInvoice
-  } = useInvoices();
-
-  // 8. ZALO MESSAGING HOOK
-  const {
-    generateZaloTextMessage,
-    openZaloChat
-  } = useZaloMessaging(zaloConfig);
-
-  // HANDLERS ĐIỀU HƯỚNG & THAO TÁC
-  const handleOpenCatalogModal = (tab?: CatalogTabType) => {
-    setCatalogModalTargetTab(tab || null);
-    setIsCatalogModalOpen(true);
-  };
-
-  const resetPatient = () => {
-    const timestamp = Date.now().toString().slice(-6);
-    setPatient({
-      ...DEFAULT_PATIENT,
-      code: `BN-${timestamp}`,
-      sampleCode: `BP-${timestamp}`
-    });
-  };
-
+  // Reset toàn bộ giao diện cho bệnh nhân mới
   const handleClearAll = () => {
     resetPatient();
     setSelectedTests([]);
     setConclusion("");
     setDoctorName("");
     resetExport();
-    showToast("Đã làm mới toàn bộ biểu mẫu để nhập bệnh nhân mới!", "info");
+    showToast("Đã làm mới thông tin cho bệnh nhân tiếp theo!", "info");
   };
 
-  const handleLoadReport = (report: MedicalReport) => {
-    setPatient({ ...report.patient });
-    setSelectedTests([...report.selectedTests]);
-    setConclusion(report.conclusion || "");
-    setDoctorName(report.doctorName || "");
+  // Nạp 1 phiếu xét nghiệm đã lưu lên màn hình làm việc
+  const handleLoadReport = (rep: MedicalReport) => {
+    setPatient({ ...rep.patient });
+    setSelectedTests([...rep.selectedTests]);
+    setConclusion(rep.conclusion || "");
+    setDoctorName(rep.doctorName || "");
+    resetExport();
     setIsReportManagerOpen(false);
-    showToast(`Đã nạp phiếu của bệnh nhân ${report.patient.name} (${report.code})!`, "success");
+    showToast(`Đã nạp thành công phiếu của bệnh nhân ${rep.patient.name} (${rep.code})!`, "success");
   };
 
-  const handlePreviewSavedReport = (report: MedicalReport) => {
-    setPatient({ ...report.patient });
-    setSelectedTests([...report.selectedTests]);
-    setConclusion(report.conclusion || "");
-    setDoctorName(report.doctorName || "");
+  // Xem trước phiếu đã lưu từ Sổ lưu
+  const handlePreviewSavedReport = (rep: MedicalReport) => {
+    setPatient({ ...rep.patient });
+    setSelectedTests([...rep.selectedTests]);
+    setConclusion(rep.conclusion || "");
+    setDoctorName(rep.doctorName || "");
     setIsReportManagerOpen(false);
     setIsPreviewOpen(true);
   };
 
-  const handleDuplicateReport = (report: MedicalReport) => {
-    const timestamp = Date.now().toString().slice(-6);
-    setPatient({
-      ...report.patient,
-      code: `BN-${timestamp}`,
-      sampleCode: `BP-${timestamp}`
-    });
-    setSelectedTests([...report.selectedTests]);
-    setConclusion(report.conclusion || "");
-    setDoctorName(report.doctorName || "");
+  // Nhân bản phiếu
+  const handleDuplicateReport = (rep: MedicalReport) => {
+    resetPatient();
+    setSelectedTests([...rep.selectedTests]);
+    setConclusion(rep.conclusion || "");
+    setDoctorName(rep.doctorName || "");
+    resetExport();
     setIsReportManagerOpen(false);
-    showToast(`Đã nhân bản phiếu cho mã mới BN-${timestamp}!`, "success");
+    showToast(`Đã nhân bản danh mục chỉ số từ bệnh nhân ${rep.patient.name}!`, "info");
   };
 
-  const handlePrintDirect = () => {
-    window.print();
-  };
-
+  // Lưu thủ công phiếu hiện tại
   const handleSaveCurrentReport = () => {
-    if (!patient.name || !patient.name.trim()) {
+    if (!patient.name.trim()) {
       showToast("Vui lòng nhập họ và tên bệnh nhân trước khi lưu!", "error");
       return;
     }
-    const isAllergen = selectedTests.some(
-      (t) => (t.category && t.category.includes("Dị Nguyên")) || t.unit === "IU/mL"
-    );
-    const saved = saveReport({
-      code: patient.code,
-      sampleCode: patient.sampleCode,
-      patient: { ...patient },
-      doctorName: doctorName || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long',
-      selectedTests: [...selectedTests],
-      conclusion: conclusion || '',
-      isAllergen,
+    const saved = saveOrUpdateReport({
+      patient,
+      selectedTests,
+      conclusion,
+      doctorName,
       cloudPdfUrl: cloudLink || undefined,
-      qrCodeDataUrl: qrCodeDataUrl || undefined,
-      status: cloudLink ? 'Đã xuất Cloud' : 'Đã có kết quả',
-      testCount: selectedTests.length
+      qrCodeDataUrl: qrCodeDataUrl || undefined
     });
     showToast(`Đã lưu phiếu của bệnh nhân ${saved.patient.name} (${saved.code}) vào Sổ Lưu!`, "success");
   };
@@ -236,18 +195,14 @@ export default function App() {
     );
 
     if (result && result.success) {
-      saveReport({
-        code: patient.code,
-        sampleCode: patient.sampleCode,
-        patient: { ...patient },
-        doctorName: doctorName || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long',
-        selectedTests: [...selectedTests],
-        conclusion: conclusion || '',
-        isAllergen,
+      saveOrUpdateReport({
+        patient,
+        selectedTests,
+        conclusion,
+        doctorName,
         cloudPdfUrl: result.finalUrl || undefined,
         qrCodeDataUrl: result.finalQrCodeDataUrl || undefined,
-        status: 'Đã xuất Cloud',
-        testCount: selectedTests.length
+        status: 'Đã xuất Cloud'
       });
     }
   };
@@ -292,8 +247,13 @@ export default function App() {
     const success = await openZaloChat(patient.phone, message);
 
     if (success) {
-      saveReport({
-        ...currentReport,
+      saveOrUpdateReport({
+        patient,
+        selectedTests,
+        conclusion,
+        doctorName,
+        cloudPdfUrl: cloudLink || undefined,
+        qrCodeDataUrl: qrCodeDataUrl || undefined,
         zaloSentAt: new Date().toISOString()
       });
       showToast(`Đã sao chép nội dung & mở Zalo gửi tới SĐT: ${patient.phone}`, "success");
@@ -334,7 +294,7 @@ export default function App() {
   const handleZnsSuccess = (reportCode: string) => {
     const rep = reports.find((r) => r.code === reportCode);
     if (rep) {
-      saveReport({
+      saveOrUpdateReport({
         ...rep,
         zaloSentAt: new Date().toISOString()
       });
@@ -342,8 +302,25 @@ export default function App() {
     showToast(`Đã gửi tin nhắn Zalo ZNS thành công tới phiếu ${reportCode}!`, "success");
   };
 
+  const handlePrintDirect = () => {
+    window.print();
+  };
+
+  const handleOpenDataDirectory = () => {
+    try {
+      openDataFolder();
+    } catch {
+      showToast("Tính năng mở thư mục chỉ khả dụng trong môi trường hệ thống hỗ trợ!", "info");
+    }
+  };
+
+  const handleOpenCatalogModal = (tab?: CatalogTabType) => {
+    setCatalogModalTargetTab(tab || null);
+    setIsCatalogModalOpen(true);
+  };
+
   const handleSaveInvoice = (inv: Invoice) => {
-    saveInvoice(inv);
+    setInvoices((prev) => [inv, ...prev]);
     showToast(`Đã tạo và lưu hóa đơn ${inv.code} cho bệnh nhân ${inv.patientName}!`, "success");
   };
 
