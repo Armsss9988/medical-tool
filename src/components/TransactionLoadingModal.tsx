@@ -1,7 +1,6 @@
 import { 
   CheckCircle2, 
   Loader2, 
-  AlertTriangle, 
   ShieldCheck, 
   FileText, 
   CloudUpload, 
@@ -12,8 +11,7 @@ import {
 import { 
   ExportStepName, 
   EXPORT_STEP_LABELS, 
-  EXPORT_STEP_ORDER,
-  ExportErrorDetail 
+  EXPORT_STEP_ORDER 
 } from '@domain/exportTransaction';
 import { Patient } from '@domain/types';
 
@@ -21,9 +19,6 @@ interface TransactionLoadingModalProps {
   isOpen: boolean;
   currentStep?: ExportStepName | null;
   patient?: Patient;
-  testCount?: number;
-  lastError?: ExportErrorDetail | null;
-  onRetry?: () => void;
 }
 
 const STEP_ICONS: Record<ExportStepName, React.ElementType> = {
@@ -45,10 +40,7 @@ const STEP_DESCRIPTIONS: Record<ExportStepName, string> = {
 export default function TransactionLoadingModal({
   isOpen,
   currentStep = null,
-  patient,
-  testCount = 0,
-  lastError = null,
-  onRetry
+  patient
 }: TransactionLoadingModalProps) {
   if (!isOpen) return null;
 

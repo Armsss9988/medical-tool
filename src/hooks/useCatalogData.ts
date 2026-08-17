@@ -3,7 +3,7 @@ import {
   CatalogItem, 
   TestPackage, 
   TestGroup, 
-  Equipment, 
+  TestEquipment, 
   Doctor, 
   Invoice, 
   ClinicInfo, 
@@ -44,6 +44,7 @@ const DEFAULT_CLOUD_DB_CONFIG: CloudDbConfig = {
 const DEFAULT_ZALO_CONFIG: ZaloZnsConfig = {
   enabled: false,
   appId: '',
+  secretKey: '',
   oaId: '',
   templateId: '',
   accessToken: '',
@@ -63,7 +64,7 @@ export function useCatalogData() {
     return loadState('testGroups', DEFAULT_TEST_GROUPS);
   });
 
-  const [equipments, setEquipments] = useState<Equipment[]>(() => {
+  const [equipments, setEquipments] = useState<TestEquipment[]>(() => {
     return loadState('equipments', DEFAULT_EQUIPMENTS);
   });
 

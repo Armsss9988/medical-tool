@@ -50,7 +50,7 @@ export const DEFAULT_TEST_GROUPS: TestGroup[] = [
 ];
 
 export const DEFAULT_CATALOG: CatalogItem[] = [
-  // 1. HUYẾT HỊC
+  // 1. HUYẾT HỌC
   { category: 'Huyết Học', code: 'RBC', name: 'RBC (Số lượng hồng cầu)', refMin: 3.8, refMax: 5.4, unit: 'T/L', refText: '3.8 - 5.4', price: 15000 },
   { category: 'Huyết Học', code: 'HGB', name: 'Hb (Huyết sắc tố)', refMin: 120, refMax: 160, unit: 'g/L', refText: '120 - 160', price: 15000 },
   { category: 'Huyết Học', code: 'HCT', name: 'HCT (Dung tích hồng cầu)', refMin: 35, refMax: 47, unit: '%', refText: '35 - 47', price: 15000 },
@@ -77,7 +77,7 @@ export const DEFAULT_CATALOG: CatalogItem[] = [
   { category: 'Miễn Dịch & Tầm Soát', code: 'HBSAG', name: 'HBsAg Rapid Test (Viêm gan B)', refMin: null, refMax: null, unit: 'Cut-off', refText: 'Âm tính (Negative)', price: 80000 },
   { category: 'Miễn Dịch & Tầm Soát', code: 'HP', name: 'HP Test (Vi khuẩn dạ dày)', refMin: null, refMax: null, unit: 'Cut-off', refText: 'Âm tính (Negative)', price: 100000 },
 
-  // 5. TRẬN BỘ 91 Dị NGUYÊN IgE CHUẨN PROTIA
+  // 5. TRỌN BỘ 91 DỊ NGUYÊN IgE CHUẨN PROTIA
   ...ALLERGEN_CATALOG_ITEMS
 ];
 
@@ -120,7 +120,7 @@ export const TEST_PACKAGES: TestPackage[] = [
   },
   {
     id: 'di_nguyen_ho_hap',
-    name: '�aba Gói Dị Nguyên Hô Hấp (Bụi, Lông thú, Nấm mốc)',
+    name: '🌸 Gói Dị Nguyên Hô Hấp (Bụi, Lông thú, Nấm mốc)',
     codes: ['d1', 'd2', 'e1', 'e5', 'm1', 'm2', 'm3', 'g2', 'w6', 'k82', 'h1', 't2', 't3', 't7', 'w1', 'w22'],
     price: 950000
   },
@@ -130,4 +130,13 @@ export const TEST_PACKAGES: TestPackage[] = [
     codes: ['f1', 'f2', 'f3', 'f4', 'f13', 'f14', 'f23', 'f24', 'f26', 'f27', 'f33', 'f83', 'f88', 'f81', 'f6', 'f9', 'f11', 'f45', 'f8'],
     price: 950000
   }
+];
+
+export const DEFAULT_TEST_PACKAGES = TEST_PACKAGES;
+
+export const DEFAULT_DOCTORS = [
+  { id: 'doc-1', name: 'BS. Trần Hoài Long', specialty: 'Bác sĩ Đa khoa / Xét nghiệm' },
+  { id: 'doc-2', name: 'Nguyễn Thị Thành Trung', specialty: 'Phụ trách chuyên môn' },
+  { id: 'doc-3', name: 'BS. CKI Lê Thị Mai', specialty: 'Chuyên khoa Miễn dịch - Dị ứng' },
+  { id: 'doc-4', name: 'BS. CKII Phạm Văn Dũng', specialty: 'Chuyên khoa Huyết học - Truyền máu' }
 ];

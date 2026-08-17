@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TestTube, Plus, Trash2, Search, Layers, Sparkles, AlertTriangle, CheckCircle, X } from 'lucide-react';
+import { TestTube, Plus, Trash2, Search, Layers, Sparkles, X } from 'lucide-react';
 import { evaluateResult } from '@domain/testResult';
 import { calculateAllergenGrade } from '@domain/allergen';
 import { CatalogItem, SelectedTest, TestPackage } from '@domain/types';
@@ -110,7 +110,7 @@ export default function TestTable({
 
         if (isAllergen) {
           const gradeRes = calculateAllergenGrade(rawVal);
-          autoNote = gradeRes.label;
+          autoNote = gradeRes.note;
         } else {
           const evalRes = evaluateResult(rawVal, t.refMin, t.refMax);
           autoNote = evalRes.label;
@@ -135,7 +135,7 @@ export default function TestTable({
     const pkg = testPackages.find((p) => p.id === pkgId);
     if (!pkg) return;
 
-    const itemsToAdd = catalog.filter((item) => pkg.testCodes.includes(item.code));
+    const itemsToAdd = catalog.filter((item) => pkg.codes.includes(item.code));
 
     setSelectedTests((prev) => {
       const existingCodes = new Set(prev.map((t) => t.code));
@@ -235,7 +235,7 @@ export default function TestTable({
               onClick={() => handleSelectPackage(pkg.id)}
               className="text-[11px] font-bold bg-white hover:bg-emerald-600 text-slate-700 hover:text-white px-2.5 py-1 rounded-lg border border-slate-200 hover:border-emerald-600 transition-all shadow-2xs active:scale-95"
             >
-              + {pkg.name} ({pkg.testCodes.length})
+              + {pkg.name} ({pkg.codes.length})
             </button>
           ))}
         </div>

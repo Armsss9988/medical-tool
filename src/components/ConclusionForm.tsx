@@ -1,4 +1,4 @@
-import { FileText, RotateCcw, Eye, CloudUpload, QrCode, CreditCard, CheckCircle2, BookmarkCheck, MessageSquare, SlidersHorizontal, Loader2 } from 'lucide-react';
+import { FileText, RotateCcw, Eye, CloudUpload, QrCode, CreditCard, BookmarkCheck, MessageSquare, SlidersHorizontal, Loader2 } from 'lucide-react';
 import DoctorSelectCombobox from './DoctorSelectCombobox';
 import { Doctor } from '@domain/types';
 import { ExportStepName, EXPORT_STEP_LABELS } from '@domain/exportTransaction';

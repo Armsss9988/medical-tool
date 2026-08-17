@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { X, CreditCard, Trash2 } from 'lucide-react';
 import { Invoice, Doctor } from '@domain/types';
 

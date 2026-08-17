@@ -15,7 +15,7 @@ import SendZaloModal from "./components/SendZaloModal";
 import TransactionLoadingModal from "./components/TransactionLoadingModal";
 
 import { parseExcelCatalog } from "@infra/excelService";
-import { openDataFolder, isElectron } from "@infra/storage";
+import { openDataFolder } from "@infra/storage";
 import { generateZaloTextMessage, openZaloChat } from "@infra/zaloService";
 import { SelectedTest, Invoice, ToastType, MedicalReport } from "@domain/types";
 
@@ -24,7 +24,7 @@ import { useCatalogData } from "./hooks/useCatalogData";
 import { useReportExport } from "./hooks/useReportExport";
 import { useReportManager } from "./hooks/useReportManager";
 
-import { CheckCircle, AlertCircle, Info, FolderOpen } from "lucide-react";
+import { CheckCircle, AlertCircle, Info } from "lucide-react";
 
 export default function App() {
   // 1. DOMAIN CUSTOM HOOKS
@@ -59,7 +59,7 @@ export default function App() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
-  const [catalogModalTargetTab, setCatalogModalTargetTab] = useState<CatalogTabType>("TESTS");
+  const [catalogModalTargetTab, setCatalogModalTargetTab] = useState<CatalogTabType | null>(null);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [isRevenueModalOpen, setIsRevenueModalOpen] = useState(false);
   const [isReportManagerOpen, setIsReportManagerOpen] = useState(false);
@@ -296,7 +296,7 @@ export default function App() {
     window.print();
   };
 
-  const handleOpenCatalogModal = (tab: CatalogTabType = "TESTS") => {
+  const handleOpenCatalogModal = (tab: CatalogTabType = "INDICATORS") => {
     setCatalogModalTargetTab(tab);
     setIsCatalogModalOpen(true);
   };
@@ -324,13 +324,15 @@ export default function App() {
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-900 pb-12 print:bg-white print:p-0 print:m-0">
       {/* 1. TOP HEADER NAVIGATION */}
       <Header
+        clinicInfo={clinicInfo}
         onOpenSettings={() => setIsSettingsOpen(true)}
-        onOpenCatalogModal={handleOpenCatalogModal}
+        onOpenCatalogModal={() => handleOpenCatalogModal("INDICATORS")}
         onOpenRevenueModal={() => setIsRevenueModalOpen(true)}
-        onOpenReportManager={() => setIsReportManagerOpen(true)}
+        onOpenReportManagerModal={() => setIsReportManagerOpen(true)}
         onOpenDataFolder={handleOpenDataDirectory}
         onLoadExcelFile={handleLoadExcelFile}
-        reportsCount={reports.length}
+        reportCount={reports.length}
+        invoiceCount={invoices.length}
       />
 
       {/* TOAST THÔNG BÁO NỔI GÓC PHẢI */}
@@ -436,16 +438,15 @@ export default function App() {
         onClose={() => setIsCatalogModalOpen(false)}
         targetTab={catalogModalTargetTab}
         catalog={catalog}
-        setCatalog={setCatalog}
+        onSaveCatalog={setCatalog}
         testPackages={testPackages}
-        setTestPackages={setTestPackages}
+        onSavePackages={setTestPackages}
         testGroups={testGroups}
-        setTestGroups={setTestGroups}
+        onSaveTestGroups={setTestGroups}
         equipments={equipments}
-        setEquipments={setEquipments}
+        onSaveEquipments={setEquipments}
         doctorsList={doctorsList}
-        setDoctorsList={setDoctorsList}
-        showToast={showToast}
+        onSaveDoctors={setDoctorsList}
       />
 
       <InvoiceModal
@@ -453,18 +454,19 @@ export default function App() {
         onClose={() => setIsInvoiceModalOpen(false)}
         patient={patient}
         selectedTests={selectedTests}
-        doctorName={doctorName}
-        clinicInfo={clinicInfo}
+        currentPackageId="all"
+        testPackages={testPackages}
+        doctorsList={doctorsList}
         onSaveInvoice={handleSaveInvoice}
-        showToast={showToast}
       />
 
       <RevenueManagerModal
         isOpen={isRevenueModalOpen}
         onClose={() => setIsRevenueModalOpen(false)}
         invoices={invoices}
-        setInvoices={setInvoices}
-        showToast={showToast}
+        onDeleteInvoice={(id) => setInvoices((prev) => prev.filter((inv) => inv.id !== id))}
+        onClearAllInvoices={() => setInvoices([])}
+        doctorsList={doctorsList}
       />
 
       {/* MODAL SỔ LƯU KẾT QUẢ XÉT NGHIỆM */}
@@ -502,7 +504,6 @@ export default function App() {
         isOpen={isExporting}
         currentStep={currentStep}
         patient={patient}
-        testCount={selectedTests.length}
       />
 
       {/* 4. ANCHOR THẺ ẨN CHỜ IN VÀ CHỤP CANVAS SẮC NÉT (PRINT TEMPLATES) */}

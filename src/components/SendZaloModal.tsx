@@ -8,9 +8,7 @@ import {
   ExternalLink, 
   Copy, 
   ShieldCheck, 
-  AlertCircle,
-  QrCode,
-  FileText
+  AlertCircle
 } from 'lucide-react';
 import { MedicalReport, ClinicInfo, ZaloZnsConfig, ToastType } from '@domain/types';
 import { 
