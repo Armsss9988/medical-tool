@@ -162,6 +162,24 @@ export class PdfExportTransaction {
       const error = err instanceof Error ? err : new Error(String(err));
       console.error('💥 Transaction xuất PDF thất bại! Đang tiến hành Rollback...', error);
 
+      // Xác định chính xác bước bị gián đoạn/gặp lỗi
+      const lastAttemptedStep: ExportStepName = !pdfBlob 
+        ? 'render_pdf' 
+        : !cloudUrl 
+        ? 'upload_cloud' 
+        : !qrDataUrl 
+        ? 'generate_qr' 
+        : 'save_metadata';
+
+      this.executedSteps.push({
+        step: lastAttemptedStep,
+        status: 'failed',
+        error: error.message,
+        durationMs: 0
+      });
+
+      this.callbacks?.onStepError?.(lastAttemptedStep, error);
+
       // Kích hoạt Rollback toàn bộ các thay đổi
       await this.rollback();
 
