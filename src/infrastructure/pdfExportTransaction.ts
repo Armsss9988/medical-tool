@@ -1,260 +1,195 @@
-/**
- * pdfExportTransaction.ts
- * Core class quản lý toàn bộ pipeline xuất PDF theo mô hình Transaction:
- * - Thực thi tuần tự 5 bước: render → upload → QR → save → notify
- * - Rollback tự động khi bất kỳ bước nào thất bại
- * - Retry thủ công thông qua `.retry()`
- * - Nút retry chỉ hiển thị khi `retryable = true`
- */
-
-import { exportToPdfFull } from './pdfService';
-import { uploadPdfToCloudinary } from './cloudService';
+import { 
+  ExportStepName, 
+  ExportStepResult, 
+  ExportTransactionResult, 
+  PdfFileRecord,
+  ExportErrorDetail 
+} from '@domain/exportTransaction';
+import { generateHighQualityPdf } from './pdfService';
+import { uploadPdfToCloud } from './cloudService';
 import { generateQrCodeDataUrl } from './qrService';
-import { addLedgerEntry, getOldVersionFilenames } from './pdfLedger';
-import { deleteSupabaseFile, deleteCloudinaryFile, cleanupOldVersions } from './cloudFileManager';
-import { DEFAULT_CLOUD_DB_CONFIG } from './cloudDbService';
-import {
-  ExportStepName,
-  ExportStepStatus,
-  ExportStepResult,
-  ExportTransactionResult,
-  ExportTransactionParams,
-  PdfFileRecord
-} from '../domain/exportTransaction';
+import { addLedgerRecord, getNextVersionForReport } from './pdfLedger';
+import { cleanupOldVersions, deleteSupabaseFile } from './cloudFileManager';
+
+export interface TransactionStepCallback {
+  onStepStart?: (step: ExportStepName) => void;
+  onStepSuccess?: (step: ExportStepName, result: any) => void;
+  onStepError?: (step: ExportStepName, error: Error) => void;
+  onRollback?: (step: ExportStepName) => void;
+}
 
 export class PdfExportTransaction {
-  private steps: ExportStepResult[] = [];
-  readonly transactionId: string;
-  private rollbackActions: Array<() => Promise<string>> = [];
+  private executedSteps: ExportStepResult[] = [];
+  private rollbackActions: Array<() => Promise<void>> = [];
 
-  // Lưu kết quả trung gian giữa các bước
-  private pdfBase64 = '';
-  private pdfBlob: Blob | null = null;
-  private cloudUrl = '';
-  private cloudProvider: 'supabase' | 'cloudinary' | 'local' = 'local';
-  private cloudPublicId = '';
-  private qrCodeDataUrl = '';
-  private ledgerRecord: PdfFileRecord | null = null;
+  constructor(
+    private elementId: string,
+    private filename: string,
+    private patientCode: string,
+    private patientName: string,
+    private callbacks?: TransactionStepCallback
+  ) {}
 
-  constructor() {
-    this.transactionId = `TX-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-  }
+  public async execute(): Promise<ExportTransactionResult> {
+    let pdfBlob: Blob | null = null;
+    let pdfBase64: string | null = null;
+    let cloudUrl: string | null = null;
+    let qrDataUrl: string | null = null;
+    let uploadedFilename: string | null = null;
+    let version = 1;
 
-  // ─── Thực thi toàn bộ pipeline ──────────────────────────────────────────────
-  async execute(params: ExportTransactionParams): Promise<ExportTransactionResult> {
-    const txStart = performance.now();
-    this.steps = [];
-    this.rollbackActions = [];
-
-    const {
-      elementId,
-      filename,
-      reportCode,
-      patientName,
-      supabaseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || DEFAULT_CLOUD_DB_CONFIG.supabaseUrl || '',
-      supabaseAnonKey = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || DEFAULT_CLOUD_DB_CONFIG.supabaseAnonKey || '',
-      cloudName = 'wzy6qu56',
-      uploadPreset = 'golab-clinic',
-      onProgress
-    } = params;
-
-    const notify = (step: ExportStepName, status: ExportStepStatus) => {
-      onProgress?.(step, status);
-    };
-
-    // ── STEP 1: Render PDF ────────────────────────────────────────────────────
-    notify('render_pdf', 'running');
-    const step1 = await this.runStep('render_pdf', async () => {
-      const res = await exportToPdfFull(elementId, filename, true);
-      if (!res?.pdfBase64) throw new Error('exportToPdfFull trả về kết quả rỗng');
-      this.pdfBase64 = res.pdfBase64;
-      this.pdfBlob = res.pdfBlob ?? null;
-      return { fileSize: res.pdfBlob?.size };
-    });
-    notify('render_pdf', step1.status);
-    if (step1.status === 'failed') return this.buildResult(txStart, false);
-
-    // ── STEP 2: Upload Cloud ──────────────────────────────────────────────────
-    notify('upload_cloud', 'running');
-    const step2 = await this.runStep('upload_cloud', async () => {
-      const cloudRes = await uploadPdfToCloudinary({
-        pdfBase64: this.pdfBase64,
-        filename,
-        supabaseUrl,
-        supabaseAnonKey,
-        cloudName,
-        uploadPreset
-      });
-      this.cloudUrl = cloudRes.url;
-      this.cloudPublicId = cloudRes.publicId || '';
-
-      // Xác định provider từ URL
-      if (this.cloudUrl.startsWith('data:')) {
-        this.cloudProvider = 'local';
-      } else if (this.cloudUrl.includes('cloudinary.com')) {
-        this.cloudProvider = 'cloudinary';
-      } else {
-        this.cloudProvider = 'supabase';
-      }
-
-      // Đăng ký rollback action: xóa file trên Cloud nếu các bước sau fail
-      const uploadedFilename = this.cloudPublicId || filename;
-
-      if (this.cloudProvider === 'supabase' && supabaseUrl && supabaseAnonKey) {
-        this.rollbackActions.push(async () => {
-          const deleted = await deleteSupabaseFile(uploadedFilename, { url: supabaseUrl, anonKey: supabaseAnonKey });
-          return deleted ? `Đã xóa file Supabase: ${uploadedFilename}` : `Không thể xóa file Supabase: ${uploadedFilename}`;
-        });
-      } else if (this.cloudProvider === 'cloudinary' && this.cloudPublicId) {
-        this.rollbackActions.push(async () => {
-          const deleted = await deleteCloudinaryFile(this.cloudPublicId, { cloudName, uploadPreset });
-          return deleted ? `Đã xóa file Cloudinary: ${this.cloudPublicId}` : `Không thể xóa file Cloudinary: ${this.cloudPublicId}`;
-        });
-      }
-
-      return { provider: this.cloudProvider, url: this.cloudUrl };
-    });
-    notify('upload_cloud', step2.status);
-    if (step2.status === 'failed') return this.buildResult(txStart, false);
-
-    // ── STEP 3: Tạo QR Code ───────────────────────────────────────────────────
-    notify('generate_qr', 'running');
-    const step3 = await this.runStep('generate_qr', async () => {
-      this.qrCodeDataUrl = await generateQrCodeDataUrl(this.cloudUrl);
-      if (!this.qrCodeDataUrl) throw new Error('generateQrCodeDataUrl trả về chuỗi rỗng');
-      return { qrLength: this.qrCodeDataUrl.length };
-    });
-    notify('generate_qr', step3.status);
-    if (step3.status === 'failed') {
-      // QR fail → rollback file đã upload
-      const rollbackDetails = await this.rollback();
-      return this.buildResult(txStart, false, rollbackDetails);
-    }
-
-    // ── STEP 4: Lưu Metadata & Ledger ────────────────────────────────────────
-    notify('save_metadata', 'running');
-    const step4 = await this.runStep('save_metadata', async () => {
-      const uploadedFilename = this.cloudPublicId || filename;
-
-      // Cleanup version cũ trên Cloud (giữ MAX_VERSIONS = 3)
-      const oldFiles = await getOldVersionFilenames(reportCode);
-      if (oldFiles.length > 0 && supabaseUrl && supabaseAnonKey) {
-        const supabaseOldFiles = oldFiles
-          .filter((f) => f.cloudProvider === 'supabase')
-          .map((f) => f.filename);
-        if (supabaseOldFiles.length > 0) {
-          await cleanupOldVersions(supabaseOldFiles, { url: supabaseUrl, anonKey: supabaseAnonKey });
-        }
-      }
-
-      // Thêm bản ghi vào ledger
-      this.ledgerRecord = await addLedgerEntry({
-        reportCode,
-        patientName,
-        filename: uploadedFilename,
-        cloudProvider: this.cloudProvider,
-        cloudUrl: this.cloudUrl,
-        publicId: this.cloudPublicId || undefined,
-        fileSize: this.pdfBlob?.size,
-        createdAt: new Date().toISOString(),
-        qrCodeDataUrl: this.qrCodeDataUrl,
-        transactionId: this.transactionId
-      });
-      return { ledgerVersion: this.ledgerRecord.version };
-    });
-    notify('save_metadata', step4.status);
-    if (step4.status === 'failed') {
-      const rollbackDetails = await this.rollback();
-      return this.buildResult(txStart, false, rollbackDetails);
-    }
-
-    // ── STEP 5: Hoàn tất ─────────────────────────────────────────────────────
-    notify('notify_complete', 'running');
-    this.addStep('notify_complete', 'success', performance.now(), 0);
-    notify('notify_complete', 'success');
-
-    return this.buildResult(txStart, true);
-  }
-
-  // ─── Rollback: thực thi tất cả rollback action theo thứ tự ngược ────────────
-  async rollback(): Promise<string[]> {
-    const details: string[] = [];
-    const reversed = [...this.rollbackActions].reverse();
-    for (const action of reversed) {
-      try {
-        const msg = await action();
-        details.push(msg);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        details.push(`Rollback error: ${msg}`);
-        console.error('[PdfExportTransaction] Rollback action failed:', err);
-      }
-    }
-    return details;
-  }
-
-  // ─── Chạy 1 step với error handling ─────────────────────────────────────────
-  private async runStep(
-    stepName: ExportStepName,
-    fn: () => Promise<Record<string, unknown> | undefined>
-  ): Promise<ExportStepResult> {
-    const start = performance.now();
     try {
-      const data = await fn();
-      const duration = performance.now() - start;
-      return this.addStep(stepName, 'success', start, duration, undefined, data);
+      // -------------------------------------------------------------
+      // BƯỚC 1: RENDER LOSSLESS PDF
+      // -------------------------------------------------------------
+      this.callbacks?.onStepStart?.('render_pdf');
+      const t1Start = Date.now();
+      
+      const pdfRes = await generateHighQualityPdf(this.elementId, this.filename);
+      pdfBlob = pdfRes.blob;
+      pdfBase64 = pdfRes.base64;
+
+      this.executedSteps.push({
+        step: 'render_pdf',
+        status: 'success',
+        durationMs: Date.now() - t1Start,
+        data: { sizeBytes: pdfBlob.size }
+      });
+      this.callbacks?.onStepSuccess?.('render_pdf', { sizeBytes: pdfBlob.size });
+
+      // -------------------------------------------------------------
+      // BƯỚC 2: UPLOAD CLOUD STORAGE (SUPABASE -> CLOUDINARY -> LOCAL)
+      // -------------------------------------------------------------
+      this.callbacks?.onStepStart?.('upload_cloud');
+      const t2Start = Date.now();
+
+      // Xác định phiên bản tiếp theo cho bệnh nhân này
+      version = await getNextVersionForReport(this.patientCode);
+      const versionedFilename = this.filename.replace(/\.pdf$/i, `_v${version}.pdf`);
+
+      const uploadRes = await uploadPdfToCloud(pdfBlob, versionedFilename);
+      cloudUrl = uploadRes.url;
+      uploadedFilename = uploadRes.filename || versionedFilename;
+
+      // Đăng ký hành động Rollback nếu các bước sau thất bại
+      if (uploadRes.provider === 'supabase' && uploadRes.url) {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://omydjydyavugxmqzffka.supabase.co';
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
+        
+        this.rollbackActions.push(async () => {
+          await deleteSupabaseFile(supabaseUrl, anonKey, 'reports', uploadedFilename!);
+        });
+      }
+
+      this.executedSteps.push({
+        step: 'upload_cloud',
+        status: 'success',
+        durationMs: Date.now() - t2Start,
+        data: { url: cloudUrl, provider: uploadRes.provider, version }
+      });
+      this.callbacks?.onStepSuccess?.('upload_cloud', { url: cloudUrl, provider: uploadRes.provider });
+
+      // -------------------------------------------------------------
+      // BƯỚC 3: GENERATE QR CODE TRA CỨU
+      // -------------------------------------------------------------
+      this.callbacks?.onStepStart?.('generate_qr');
+      const t3Start = Date.now();
+
+      qrDataUrl = await generateQrCodeDataUrl(cloudUrl);
+
+      this.executedSteps.push({
+        step: 'generate_qr',
+        status: 'success',
+        durationMs: Date.now() - t3Start,
+        data: { qrDataUrl }
+      });
+      this.callbacks?.onStepSuccess?.('generate_qr', { qrDataUrl });
+
+      // -------------------------------------------------------------
+      // BƯỚC 4: SAVE METADATA & VERSION LEDGER
+      // -------------------------------------------------------------
+      this.callbacks?.onStepStart?.('save_metadata');
+      const t4Start = Date.now();
+
+      const record: PdfFileRecord = {
+        id: crypto.randomUUID(),
+        reportId: this.patientCode,
+        patientCode: this.patientCode,
+        patientName: this.patientName,
+        filename: uploadedFilename || versionedFilename,
+        version: version,
+        cloudProvider: uploadRes.provider as any,
+        cloudUrl: cloudUrl,
+        qrDataUrl: qrDataUrl,
+        fileSizeBytes: pdfBlob.size,
+        createdAt: new Date().toISOString(),
+        isLatest: true
+      };
+
+      await addLedgerRecord(record);
+
+      // Dọn dẹp phiên bản cũ (giữ tối đa 3 phiên bản gần nhất)
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://omydjydyavugxmqzffka.supabase.co';
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
+      await cleanupOldVersions(this.patientCode, 3, { url: supabaseUrl, anonKey });
+
+      this.executedSteps.push({
+        step: 'save_metadata',
+        status: 'success',
+        durationMs: Date.now() - t4Start,
+        data: { recordId: record.id }
+      });
+      this.callbacks?.onStepSuccess?.('save_metadata', { recordId: record.id });
+
+      // -------------------------------------------------------------
+      // BƯỚC 5: NOTIFY COMPLETE
+      // -------------------------------------------------------------
+      this.callbacks?.onStepStart?.('notify_complete');
+      this.executedSteps.push({
+        step: 'notify_complete',
+        status: 'success',
+        durationMs: 0
+      });
+      this.callbacks?.onStepSuccess?.('notify_complete', { success: true });
+
+      return {
+        success: true,
+        finalUrl: cloudUrl,
+        finalQrCodeDataUrl: qrDataUrl,
+        version: version,
+        executedSteps: this.executedSteps,
+        rolledBack: false
+      };
+
     } catch (err) {
-      const duration = performance.now() - start;
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      console.error(`[PdfExportTransaction] Step "${stepName}" failed:`, err);
-      return this.addStep(stepName, 'failed', start, duration, errorMsg);
+      const error = err instanceof Error ? err : new Error(String(err));
+      console.error('💥 Transaction xuất PDF thất bại! Đang tiến hành Rollback...', error);
+
+      // Kích hoạt Rollback toàn bộ các thay đổi
+      await this.rollback();
+
+      return {
+        success: false,
+        finalUrl: null,
+        finalQrCodeDataUrl: null,
+        version: 0,
+        executedSteps: this.executedSteps,
+        rolledBack: true,
+        error: error.message
+      };
     }
   }
 
-  private addStep(
-    step: ExportStepName,
-    status: ExportStepStatus,
-    startedAt: number,
-    durationMs: number,
-    error?: string,
-    data?: Record<string, unknown>
-  ): ExportStepResult {
-    const result: ExportStepResult = { step, status, startedAt, durationMs, error, data };
-    // Cập nhật nếu step đã tồn tại
-    const idx = this.steps.findIndex((s) => s.step === step);
-    if (idx >= 0) {
-      this.steps[idx] = result;
-    } else {
-      this.steps.push(result);
+  private async rollback(): Promise<void> {
+    for (const action of this.rollbackActions.reverse()) {
+      try {
+        await action();
+      } catch (rbErr) {
+        console.error('Lỗi khi thực thi Rollback action:', rbErr);
+      }
     }
-    return result;
-  }
-
-  // ─── Build kết quả cuối cùng ─────────────────────────────────────────────────
-  private buildResult(
-    txStart: number,
-    success: boolean,
-    rollbackDetails: string[] = []
-  ): ExportTransactionResult {
-    return {
-      transactionId: this.transactionId,
-      success,
-      steps: this.steps,
-      totalDurationMs: performance.now() - txStart,
-      finalUrl: success ? this.cloudUrl : undefined,
-      finalQrCodeDataUrl: success ? this.qrCodeDataUrl : undefined,
-      cloudProvider: success ? this.cloudProvider : undefined,
-      rollbackPerformed: rollbackDetails.length > 0,
-      rollbackDetails
-    };
-  }
-
-  // ─── Truy vấn trạng thái step cụ thể ────────────────────────────────────────
-  getStep(name: ExportStepName): ExportStepResult | undefined {
-    return this.steps.find((s) => s.step === name);
-  }
-
-  getFailedStep(): ExportStepResult | undefined {
-    return this.steps.find((s) => s.status === 'failed');
+    this.callbacks?.onRollback?.(
+      this.executedSteps[this.executedSteps.length - 1]?.step || 'render_pdf'
+    );
   }
 }

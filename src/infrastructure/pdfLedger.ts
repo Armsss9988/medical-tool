@@ -1,111 +1,69 @@
+import { PdfFileRecord } from '@domain/exportTransaction';
+import { loadState, saveState } from './storage';
+
+const LEDGER_STORAGE_KEY = 'golab_pdf_ledger';
+
 /**
- * pdfLedger.ts
- * Sổ cái (Ledger) ghi nhận lịch sử xuất PDF:
- * - Mỗi lần xuất thành công = 1 PdfFileRecord mới
- * - Version tăng dần, version cũ đánh dấu isLatest = false
- * - Chỉ giữ 3 version mới nhất (MAX_VERSIONS_PER_REPORT)
- * - Persist qua storage.ts (localStorage / Electron file)
+ * Lấy toàn bộ danh sách phiên bản PDF trong sổ cái Ledger
  */
-
-import { loadData, saveData } from './storage';
-import { PdfFileRecord } from '../domain/exportTransaction';
-
-const LEDGER_KEY = 'pdf_ledger';
-const MAX_VERSIONS_PER_REPORT = 3;
-
-// ─── Đọc toàn bộ ledger ───────────────────────────────────────────────────────
-export async function loadLedger(): Promise<PdfFileRecord[]> {
-  return loadData<PdfFileRecord[]>(LEDGER_KEY, []);
+export async function getAllLedgerRecords(): Promise<PdfFileRecord[]> {
+  return loadState<PdfFileRecord[]>(LEDGER_STORAGE_KEY, []);
 }
 
-// ─── Lưu toàn bộ ledger ──────────────────────────────────────────────────────
-async function saveLedger(records: PdfFileRecord[]): Promise<void> {
-  await saveData(LEDGER_KEY, records);
-}
-
-// ─── Thêm bản ghi mới, đánh dấu cũ, giữ ≤ MAX_VERSIONS ─────────────────────
-export async function addLedgerEntry(
-  record: Omit<PdfFileRecord, 'version' | 'isLatest' | 'id'>
-): Promise<PdfFileRecord> {
-  const ledger = await loadLedger();
-
-  // Lấy các bản ghi của cùng reportCode
-  const existing = ledger.filter((r) => r.reportCode === record.reportCode);
-
-  // Xác định version tiếp theo
-  const nextVersion = existing.length > 0
-    ? Math.max(...existing.map((r) => r.version)) + 1
-    : 1;
-
-  // Đánh dấu tất cả bản ghi cũ là không còn là latest
-  const updatedLedger = ledger.map((r) =>
-    r.reportCode === record.reportCode ? { ...r, isLatest: false } : r
-  );
-
-  // Tạo bản ghi mới
-  const newRecord: PdfFileRecord = {
-    ...record,
-    id: `PDF-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    version: nextVersion,
-    isLatest: true
-  };
-
-  updatedLedger.unshift(newRecord);
-
-  // Giữ tối đa MAX_VERSIONS_PER_REPORT cho mỗi reportCode
-  const final = pruneOldVersions(updatedLedger, record.reportCode);
-  await saveLedger(final);
-
-  console.info(`[PdfLedger] Thêm bản ghi v${nextVersion} cho ${record.reportCode}: ${record.cloudUrl}`);
-  return newRecord;
-}
-
-// ─── Xóa version vượt quá giới hạn (trả về filename bị xóa khỏi ledger) ─────
-function pruneOldVersions(ledger: PdfFileRecord[], reportCode: string): PdfFileRecord[] {
-  const forReport = ledger
-    .filter((r) => r.reportCode === reportCode)
-    .sort((a, b) => b.version - a.version);
-
-  const toKeep = new Set(forReport.slice(0, MAX_VERSIONS_PER_REPORT).map((r) => r.id));
-
-  return ledger.filter((r) => r.reportCode !== reportCode || toKeep.has(r.id));
-}
-
-// ─── Lấy danh sách version PDF của 1 phiếu (mới nhất trước) ─────────────────
-export async function getLedgerByReport(reportCode: string): Promise<PdfFileRecord[]> {
-  const ledger = await loadLedger();
-  return ledger
-    .filter((r) => r.reportCode === reportCode)
+/**
+ * Lấy danh sách các phiên bản PDF của 1 hồ sơ / bệnh nhân cụ thể
+ */
+export async function getLedgerByReport(patientCode: string): Promise<PdfFileRecord[]> {
+  const all = await getAllLedgerRecords();
+  return all
+    .filter((r) => r.patientCode === patientCode || r.reportId === patientCode)
     .sort((a, b) => b.version - a.version);
 }
 
-// ─── Lấy version mới nhất ────────────────────────────────────────────────────
-export async function getLatestVersion(reportCode: string): Promise<PdfFileRecord | null> {
-  const records = await getLedgerByReport(reportCode);
-  return records.find((r) => r.isLatest) ?? records[0] ?? null;
+/**
+ * Xác định số phiên bản tiếp theo cho bệnh nhân
+ */
+export async function getNextVersionForReport(patientCode: string): Promise<number> {
+  const existing = await getLedgerByReport(patientCode);
+  if (existing.length === 0) return 1;
+  const maxVer = Math.max(...existing.map((r) => r.version || 1));
+  return maxVer + 1;
 }
 
-// ─── Đánh dấu 1 bản ghi là không hợp lệ (dùng khi rollback xóa file) ────────
-export async function invalidateLedgerEntry(id: string): Promise<void> {
-  const ledger = await loadLedger();
-  const updated = ledger.map((r) =>
-    r.id === id
-      ? { ...r, isLatest: false, cloudUrl: '', cloudProvider: 'local' as const }
-      : r
-  );
-  await saveLedger(updated);
-  console.info(`[PdfLedger] Đã vô hiệu hóa bản ghi: ${id}`);
+/**
+ * Ghi nhận một bản ghi xuất PDF mới vào sổ cái Ledger
+ */
+export async function addLedgerRecord(record: PdfFileRecord): Promise<void> {
+  const all = await getAllLedgerRecords();
+
+  // Đánh dấu các bản ghi cũ của cùng bệnh nhân thành isLatest = false
+  const updatedAll = all.map((item) => {
+    if (item.patientCode === record.patientCode || item.reportId === record.reportId) {
+      return { ...item, isLatest: false };
+    }
+    return item;
+  });
+
+  const nextList = [record, ...updatedAll];
+  saveState(LEDGER_STORAGE_KEY, nextList);
 }
 
-// ─── Lấy các filename cũ (không phải latest) để cleanup trên Cloud ───────────
-export async function getOldVersionFilenames(reportCode: string): Promise<{ filename: string; cloudProvider: string; publicId?: string }[]> {
-  const records = await getLedgerByReport(reportCode);
-  return records
-    .filter((r) => !r.isLatest && r.cloudUrl && !r.cloudUrl.startsWith('data:'))
-    .map((r) => ({ filename: r.filename, cloudProvider: r.cloudProvider, publicId: r.publicId }));
-}
+/**
+ * Xóa các bản ghi cũ khỏi sổ cái Ledger khi đã dọn dẹp trên Cloud
+ */
+export async function pruneLedgerRecords(
+  patientCode: string,
+  keepRecordIds: string[]
+): Promise<void> {
+  const all = await getAllLedgerRecords();
+  const keepSet = new Set(keepRecordIds);
 
-// ─── Xóa toàn bộ ledger (chỉ dùng khi reset dữ liệu) ────────────────────────
-export async function clearLedger(): Promise<void> {
-  await saveLedger([]);
+  const filtered = all.filter((item) => {
+    if (item.patientCode === patientCode || item.reportId === patientCode) {
+      return keepSet.has(item.id);
+    }
+    return true;
+  });
+
+  saveState(LEDGER_STORAGE_KEY, filtered);
 }

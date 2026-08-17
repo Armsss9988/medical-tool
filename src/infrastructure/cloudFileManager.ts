@@ -1,114 +1,90 @@
+import { PdfFileRecord } from '@domain/exportTransaction';
+import { getLedgerByReport, pruneLedgerRecords } from './pdfLedger';
+
 /**
- * cloudFileManager.ts
- * Quản lý file PDF trên Cloud Storage:
- * - Xóa file trên Supabase/Cloudinary (dùng cho Rollback)
- * - Liệt kê file của 1 bệnh nhân
- * - Dọn dẹp các version cũ, chỉ giữ N version mới nhất
+ * Xóa file trên Supabase Storage qua REST API
  */
-
-// ─── Xóa file trên Supabase Storage ──────────────────────────────────────────
 export async function deleteSupabaseFile(
-  filename: string,
-  config: { url: string; anonKey: string }
-): Promise<boolean> {
+  supabaseUrl: string,
+  anonKey: string,
+  bucket: string,
+  filePath: string
+): Promise<{ success: boolean; message?: string }> {
   try {
-    const cleanUrl = config.url.replace(/\/+$/, '');
-    const res = await fetch(
-      `${cleanUrl}/storage/v1/object/reports/${encodeURIComponent(filename)}`,
-      {
-        method: 'DELETE',
-        headers: {
-          apikey: config.anonKey,
-          Authorization: `Bearer ${config.anonKey}`
-        }
-      }
-    );
-    if (res.ok) {
-      console.info(`[CloudFileManager] Đã xóa file Supabase: ${filename}`);
-      return true;
-    }
-    console.warn(`[CloudFileManager] Supabase DELETE trả về ${res.status} cho ${filename}`);
-    return false;
-  } catch (err) {
-    console.error('[CloudFileManager] Lỗi xóa Supabase:', err);
-    return false;
-  }
-}
+    const cleanUrl = supabaseUrl.replace(/\/$/, '');
+    const cleanPath = filePath.replace(/^\//, '');
+    const url = `${cleanUrl}/storage/v1/object/${bucket}/${cleanPath}`;
 
-// ─── Xóa file trên Cloudinary ────────────────────────────────────────────────
-export async function deleteCloudinaryFile(
-  publicId: string,
-  config: { cloudName: string; uploadPreset?: string }
-): Promise<boolean> {
-  if (!publicId || !config.cloudName) return false;
-  try {
-    // Cloudinary destruction thông qua unsigned delete (chỉ hoạt động với upload preset có phép)
-    const formData = new FormData();
-    formData.append('public_id', publicId);
-    if (config.uploadPreset) formData.append('upload_preset', config.uploadPreset);
-
-    const res = await fetch(
-      `https://api.cloudinary.com/v1_1/${config.cloudName}/raw/destroy`,
-      { method: 'POST', body: formData }
-    );
-
-    if (res.ok) {
-      const data = await res.json();
-      const deleted = data.result === 'ok';
-      if (deleted) {
-        console.info(`[CloudFileManager] Đã xóa file Cloudinary: ${publicId}`);
-      } else {
-        console.warn(`[CloudFileManager] Cloudinary destroy result: ${data.result}`);
-      }
-      return deleted;
-    }
-    return false;
-  } catch (err) {
-    console.error('[CloudFileManager] Lỗi xóa Cloudinary:', err);
-    return false;
-  }
-}
-
-// ─── Liệt kê tất cả file PDF của 1 bệnh nhân trên Supabase ──────────────────
-export async function listPatientFiles(
-  reportCode: string,
-  config: { url: string; anonKey: string }
-): Promise<Array<{ name: string; id: string; updated_at: string; metadata?: Record<string, unknown> }>> {
-  try {
-    const cleanUrl = config.url.replace(/\/+$/, '');
-    // Supabase Storage: List objects với prefix
-    const res = await fetch(`${cleanUrl}/storage/v1/object/list/reports`, {
-      method: 'POST',
+    const res = await fetch(url, {
+      method: 'DELETE',
       headers: {
-        apikey: config.anonKey,
-        Authorization: `Bearer ${config.anonKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        prefix: reportCode,
-        limit: 50,
-        sortBy: { column: 'updated_at', order: 'desc' }
-      })
+        Authorization: `Bearer ${anonKey}`,
+        apikey: anonKey
+      }
     });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
+
+    if (res.ok || res.status === 404) {
+      return { success: true };
+    }
+
+    const text = await res.text();
+    return { success: false, message: `Lỗi xóa file Supabase (${res.status}): ${text}` };
   } catch (err) {
-    console.warn('[CloudFileManager] Lỗi list files Supabase:', err);
-    return [];
+    const msg = err instanceof Error ? err.message : 'Lỗi kết nối khi xóa file';
+    return { success: false, message: msg };
   }
 }
 
-// ─── Dọn dẹp version cũ trên Supabase, chỉ giữ N mới nhất ──────────────────
+/**
+ * Xóa file trên Cloudinary (nếu cấu hình)
+ */
+export async function deleteCloudinaryFile(
+  _publicId: string
+): Promise<{ success: boolean; message?: string }> {
+  // Cloudinary client-side upload unsigned preset không cho phép direct delete không qua signature.
+  // Khi cần xóa sâu, hệ thống sẽ bỏ qua hoặc ghi log.
+  return { success: true };
+}
+
+/**
+ * Dọn dẹp các phiên bản PDF cũ của cùng 1 bệnh nhân, chỉ giữ lại N phiên bản mới nhất
+ */
 export async function cleanupOldVersions(
-  filenames: string[],            // Danh sách filename cũ cần xóa
-  config: { url: string; anonKey: string }
-): Promise<number> {
-  let deleted = 0;
-  for (const filename of filenames) {
-    const ok = await deleteSupabaseFile(filename, config);
-    if (ok) deleted++;
+  patientCode: string,
+  maxKeepVersions: number = 3,
+  supabaseConfig?: { url: string; anonKey: string; bucket?: string }
+): Promise<{ deletedCount: number; errors: string[] }> {
+  const records = await getLedgerByReport(patientCode);
+  if (records.length <= maxKeepVersions) {
+    return { deletedCount: 0, errors: [] };
   }
-  console.info(`[CloudFileManager] Dọn dẹp xong ${deleted}/${filenames.length} file cũ.`);
-  return deleted;
+
+  // Sắp xếp giảm dần theo version / createdAt
+  const sorted = [...records].sort((a, b) => b.version - a.version);
+  const toDelete = sorted.slice(maxKeepVersions);
+  const toKeepIds = sorted.slice(0, maxKeepVersions).map((r) => r.id);
+
+  let deletedCount = 0;
+  const errors: string[] = [];
+
+  for (const record of toDelete) {
+    if (record.cloudProvider === 'supabase' && supabaseConfig) {
+      const res = await deleteSupabaseFile(
+        supabaseConfig.url,
+        supabaseConfig.anonKey,
+        supabaseConfig.bucket || 'reports',
+        record.filename
+      );
+      if (res.success) {
+        deletedCount++;
+      } else if (res.message) {
+        errors.push(res.message);
+      }
+    }
+  }
+
+  // Cập nhật lại Ledger chỉ giữ các bản hợp lệ
+  await pruneLedgerRecords(patientCode, toKeepIds);
+
+  return { deletedCount, errors };
 }

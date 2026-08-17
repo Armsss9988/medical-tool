@@ -1,221 +1,159 @@
-import { useState, useEffect, useRef } from "react";
-import { DEFAULT_CATALOG, TEST_PACKAGES as INITIAL_PACKAGES, DEFAULT_TEST_GROUPS, DEFAULT_EQUIPMENTS } from "@data/defaultCatalog";
-import { loadData, saveData } from "@infra/storage";
-import { DEFAULT_CLOUD_DB_CONFIG, syncTableToCloud, fetchTableFromCloud } from "@infra/cloudDbService";
-import { DEFAULT_ZALO_CONFIG } from "@infra/zaloService";
-import { CatalogItem, TestPackage, TestGroup, TestEquipment, Doctor, Invoice, ClinicInfo, CloudDbConfig, ZaloZnsConfig } from "@domain/types";
-
-const DEFAULT_DOCTORS: Doctor[] = [
-  { id: "BS01", name: "BS. Trần Hoài Long", specialty: "Bác sĩ xét nghiệm chính", phone: "0912345678" },
-  { id: "BS02", name: "BS. Nguyễn Thị Mai", specialty: "Nội khoa - Dị ứng", phone: "0987654321" },
-  { id: "BS03", name: "BS. CKII. Lê Anh Minh", specialty: "Trưởng khoa xét nghiệm", phone: "0905123456" }
-];
+import { useState, useEffect } from 'react';
+import { 
+  CatalogItem, 
+  TestPackage, 
+  TestGroup, 
+  Equipment, 
+  Doctor, 
+  Invoice, 
+  ClinicInfo, 
+  CloudDbConfig, 
+  ZaloZnsConfig 
+} from '@domain/types';
+import { 
+  DEFAULT_CATALOG, 
+  DEFAULT_TEST_PACKAGES, 
+  DEFAULT_TEST_GROUPS, 
+  DEFAULT_EQUIPMENTS, 
+  DEFAULT_DOCTORS 
+} from '@data/defaultCatalog';
+import { loadState, saveState } from '@infra/storage';
+import { 
+  fetchCatalogFromSupabase, 
+  fetchPackagesFromSupabase, 
+  fetchGroupsFromSupabase, 
+  fetchEquipmentsFromSupabase, 
+  fetchDoctorsFromSupabase,
+  fetchClinicInfoFromSupabase
+} from '@infra/cloudDbService';
 
 const DEFAULT_CLINIC_INFO: ClinicInfo = {
-  name: "TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH",
-  address: "Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị",
-  phone: "032.855.3773",
-  website: "golab.com.vn",
-  defaultDoctor: "Nguyễn Thị Thành Trung"
+  name: 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH',
+  address: 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị',
+  phone: '032.855.3773',
+  website: 'golab.com.vn',
+  defaultDoctor: 'Nguyễn Thị Thành Trung'
+};
+
+const DEFAULT_CLOUD_DB_CONFIG: CloudDbConfig = {
+  supabaseUrl: import.meta.env.VITE_SUPABASE_URL || 'https://omydjydyavugxmqzffka.supabase.co',
+  supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9teWRqeWR5YXZ1Z3htcXpmZmthIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIwNDQ5ODgsImV4cCI6MjA1NzYyMDk4OH0.Tqg-H9V2lU6J7B3e2z5s3r9w8v7x6y5z4a3b2c1d0e',
+  enabled: true
+};
+
+const DEFAULT_ZALO_CONFIG: ZaloZnsConfig = {
+  enabled: false,
+  appId: '',
+  oaId: '',
+  templateId: '',
+  accessToken: '',
+  autoSendOnExport: false
 };
 
 export function useCatalogData() {
-  const [catalog, setCatalog] = useState<CatalogItem[]>(DEFAULT_CATALOG);
-  const [testPackages, setTestPackages] = useState<TestPackage[]>(INITIAL_PACKAGES);
-  const [testGroups, setTestGroups] = useState<TestGroup[]>(DEFAULT_TEST_GROUPS);
-  const [equipments, setEquipments] = useState<TestEquipment[]>(DEFAULT_EQUIPMENTS);
-  const [doctorsList, setDoctorsList] = useState<Doctor[]>(DEFAULT_DOCTORS);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [clinicInfo, setClinicInfo] = useState<ClinicInfo>(DEFAULT_CLINIC_INFO);
-  const [cloudDbConfig, setCloudDbConfig] = useState<CloudDbConfig>(DEFAULT_CLOUD_DB_CONFIG);
-  const [zaloConfig, setZaloConfig] = useState<ZaloZnsConfig>(DEFAULT_ZALO_CONFIG);
+  const [catalog, setCatalog] = useState<CatalogItem[]>(() => {
+    return loadState('catalog', DEFAULT_CATALOG);
+  });
 
-  const isDataLoadedRef = useRef(false);
+  const [testPackages, setTestPackages] = useState<TestPackage[]>(() => {
+    return loadState('testPackages', DEFAULT_TEST_PACKAGES);
+  });
+
+  const [testGroups, setTestGroups] = useState<TestGroup[]>(() => {
+    return loadState('testGroups', DEFAULT_TEST_GROUPS);
+  });
+
+  const [equipments, setEquipments] = useState<Equipment[]>(() => {
+    return loadState('equipments', DEFAULT_EQUIPMENTS);
+  });
+
+  const [doctorsList, setDoctorsList] = useState<Doctor[]>(() => {
+    return loadState('doctorsList', DEFAULT_DOCTORS);
+  });
+
+  const [invoices, setInvoices] = useState<Invoice[]>(() => {
+    return loadState('invoices', []);
+  });
+
+  const [clinicInfo, setClinicInfo] = useState<ClinicInfo>(() => {
+    return loadState('clinicInfo', DEFAULT_CLINIC_INFO);
+  });
+
+  const [cloudDbConfig, setCloudDbConfig] = useState<CloudDbConfig>(() => {
+    return loadState('cloudDbConfig', DEFAULT_CLOUD_DB_CONFIG);
+  });
+
+  const [zaloConfig, setZaloConfig] = useState<ZaloZnsConfig>(() => {
+    return loadState('zaloConfig', DEFAULT_ZALO_CONFIG);
+  });
+
+  // Tự động lưu Local Storage khi state thay đổi
+  useEffect(() => {
+    saveState('catalog', catalog);
+  }, [catalog]);
 
   useEffect(() => {
-    async function initData() {
-      try {
-        const loadedCatalog = await loadData<CatalogItem[]>("catalog_data", DEFAULT_CATALOG);
-        const loadedPackages = await loadData<TestPackage[]>("test_packages", INITIAL_PACKAGES);
-        const loadedDoctors = await loadData<Doctor[]>("doctors_catalog", DEFAULT_DOCTORS);
-        const loadedGroups = await loadData<TestGroup[]>("test_groups", DEFAULT_TEST_GROUPS);
-        const loadedEquipments = await loadData<TestEquipment[]>("equipments_catalog", DEFAULT_EQUIPMENTS);
-        const loadedInvoices = await loadData<Invoice[]>("invoices_data", []);
-        const loadedClinicInfo = await loadData<ClinicInfo>("clinic_info", DEFAULT_CLINIC_INFO);
-        const loadedCloudConfig = await loadData<CloudDbConfig>("cloud_db_config", DEFAULT_CLOUD_DB_CONFIG);
-        const loadedZaloConfig = await loadData<ZaloZnsConfig>("zalo_zns_config", DEFAULT_ZALO_CONFIG);
-
-        setCatalog(loadedCatalog);
-        setTestPackages(loadedPackages);
-        setDoctorsList(loadedDoctors);
-        setTestGroups(loadedGroups);
-        setEquipments(loadedEquipments);
-        setInvoices(loadedInvoices);
-        setClinicInfo(loadedClinicInfo);
-        setCloudDbConfig(loadedCloudConfig);
-        setZaloConfig(loadedZaloConfig);
-
-        if (loadedCloudConfig.enabled && loadedCloudConfig.supabaseUrl) {
-          try {
-            const cloudCatalog = await fetchTableFromCloud<CatalogItem[]>("catalog_data", loadedCloudConfig);
-            if (cloudCatalog && cloudCatalog.length > 0) setCatalog(cloudCatalog);
-
-            const cloudPackages = await fetchTableFromCloud<TestPackage[]>("test_packages", loadedCloudConfig);
-            if (cloudPackages && cloudPackages.length > 0) setTestPackages(cloudPackages);
-
-            const cloudDoctors = await fetchTableFromCloud<Doctor[]>("doctors_catalog", loadedCloudConfig);
-            if (cloudDoctors && cloudDoctors.length > 0) setDoctorsList(cloudDoctors);
-
-            const cloudGroups = await fetchTableFromCloud<TestGroup[]>("test_groups", loadedCloudConfig);
-            if (cloudGroups && cloudGroups.length > 0) setTestGroups(cloudGroups);
-
-            const cloudEquipments = await fetchTableFromCloud<TestEquipment[]>("equipments_catalog", loadedCloudConfig);
-            if (cloudEquipments && cloudEquipments.length > 0) setEquipments(cloudEquipments);
-
-            const cloudInvoices = await fetchTableFromCloud<Invoice[]>("invoices_data", loadedCloudConfig);
-            if (cloudInvoices && cloudInvoices.length > 0) setInvoices(cloudInvoices);
-
-            const cloudClinicInfo = await fetchTableFromCloud<ClinicInfo>("clinic_info", loadedCloudConfig);
-            if (cloudClinicInfo) setClinicInfo(cloudClinicInfo);
-          } catch (cloudErr) {
-            console.warn("[CloudDB] Lỗi khi nạp dữ liệu từ Cloud:", cloudErr);
-          }
-        }
-      } catch (err) {
-        console.error("Lỗi khi nạp dữ liệu từ Storage:", err);
-      } finally {
-        isDataLoadedRef.current = true;
-      }
-    }
-
-    initData();
-  }, []);
+    saveState('testPackages', testPackages);
+  }, [testPackages]);
 
   useEffect(() => {
-    if (!isDataLoadedRef.current) return;
-    saveData("catalog_data", catalog);
-    if (cloudDbConfig.enabled && cloudDbConfig.autoSync) {
-      syncTableToCloud("catalog_data", catalog, cloudDbConfig);
-    }
-  }, [catalog, cloudDbConfig]);
+    saveState('testGroups', testGroups);
+  }, [testGroups]);
 
   useEffect(() => {
-    if (!isDataLoadedRef.current) return;
-    saveData("test_packages", testPackages);
-    if (cloudDbConfig.enabled && cloudDbConfig.autoSync) {
-      syncTableToCloud("test_packages", testPackages, cloudDbConfig);
-    }
-  }, [testPackages, cloudDbConfig]);
+    saveState('equipments', equipments);
+  }, [equipments]);
 
   useEffect(() => {
-    if (!isDataLoadedRef.current) return;
-    saveData("test_groups", testGroups);
-    if (cloudDbConfig.enabled && cloudDbConfig.autoSync) {
-      syncTableToCloud("test_groups", testGroups, cloudDbConfig);
-    }
-  }, [testGroups, cloudDbConfig]);
+    saveState('doctorsList', doctorsList);
+  }, [doctorsList]);
 
   useEffect(() => {
-    if (!isDataLoadedRef.current) return;
-    saveData("equipments_catalog", equipments);
-    if (cloudDbConfig.enabled && cloudDbConfig.autoSync) {
-      syncTableToCloud("equipments_catalog", equipments, cloudDbConfig);
-    }
-  }, [equipments, cloudDbConfig]);
+    saveState('invoices', invoices);
+  }, [invoices]);
 
   useEffect(() => {
-    if (!isDataLoadedRef.current) return;
-    saveData("doctors_catalog", doctorsList);
-    if (cloudDbConfig.enabled && cloudDbConfig.autoSync) {
-      syncTableToCloud("doctors_catalog", doctorsList, cloudDbConfig);
-    }
-  }, [doctorsList, cloudDbConfig]);
+    saveState('clinicInfo', clinicInfo);
+  }, [clinicInfo]);
 
   useEffect(() => {
-    if (!isDataLoadedRef.current) return;
-    saveData("invoices_data", invoices);
-    if (cloudDbConfig.enabled && cloudDbConfig.autoSync) {
-      syncTableToCloud("invoices_data", invoices, cloudDbConfig);
-    }
-  }, [invoices, cloudDbConfig]);
-
-  useEffect(() => {
-    if (!isDataLoadedRef.current) return;
-    saveData("clinic_info", clinicInfo);
-    if (cloudDbConfig.enabled && cloudDbConfig.autoSync) {
-      syncTableToCloud("clinic_info", clinicInfo, cloudDbConfig);
-    }
-  }, [clinicInfo, cloudDbConfig]);
-
-  useEffect(() => {
-    if (!isDataLoadedRef.current) return;
-    saveData("cloud_db_config", cloudDbConfig);
+    saveState('cloudDbConfig', cloudDbConfig);
   }, [cloudDbConfig]);
 
   useEffect(() => {
-    if (!isDataLoadedRef.current) return;
-    saveData("zalo_zns_config", zaloConfig);
+    saveState('zaloConfig', zaloConfig);
   }, [zaloConfig]);
 
-  const addCatalogItem = (item: CatalogItem) => {
-    setCatalog((prev) => [...prev, item]);
-  };
+  // Tự động đồng bộ từ Supabase nếu bật cấu hình
+  useEffect(() => {
+    if (!cloudDbConfig.enabled || !cloudDbConfig.supabaseUrl || !cloudDbConfig.supabaseAnonKey) {
+      return;
+    }
 
-  const updateCatalogItem = (item: CatalogItem) => {
-    setCatalog((prev) => prev.map((c) => (c.code === item.code ? item : c)));
-  };
+    const syncCloudData = async () => {
+      try {
+        const [cloudCatalog, cloudPackages, cloudGroups, cloudEquip, cloudDocs, cloudClinic] = await Promise.all([
+          fetchCatalogFromSupabase(cloudDbConfig),
+          fetchPackagesFromSupabase(cloudDbConfig),
+          fetchGroupsFromSupabase(cloudDbConfig),
+          fetchEquipmentsFromSupabase(cloudDbConfig),
+          fetchDoctorsFromSupabase(cloudDbConfig),
+          fetchClinicInfoFromSupabase(cloudDbConfig)
+        ]);
 
-  const deleteCatalogItem = (code: string) => {
-    setCatalog((prev) => prev.filter((c) => c.code !== code));
-  };
+        if (cloudCatalog && cloudCatalog.length > 0) setCatalog(cloudCatalog);
+        if (cloudPackages && cloudPackages.length > 0) setTestPackages(cloudPackages);
+        if (cloudGroups && cloudGroups.length > 0) setTestGroups(cloudGroups);
+        if (cloudEquip && cloudEquip.length > 0) setEquipments(cloudEquip);
+        if (cloudDocs && cloudDocs.length > 0) setDoctorsList(cloudDocs);
+        if (cloudClinic && cloudClinic.name) setClinicInfo(cloudClinic);
+      } catch (err) {
+        console.warn('Không thể đồng bộ tự động từ Supabase:', err);
+      }
+    };
 
-  const addDoctor = (doc: Doctor) => {
-    setDoctorsList((prev) => [...prev, doc]);
-  };
-
-  const updateDoctor = (doc: Doctor) => {
-    setDoctorsList((prev) => prev.map((d) => (d.id === doc.id ? doc : d)));
-  };
-
-  const deleteDoctor = (id: string) => {
-    setDoctorsList((prev) => prev.filter((d) => d.id !== id));
-  };
-
-  const addPackage = (pkg: TestPackage) => {
-    setTestPackages((prev) => [...prev, pkg]);
-  };
-
-  const updatePackage = (pkg: TestPackage) => {
-    setTestPackages((prev) => prev.map((p) => (p.id === pkg.id ? pkg : p)));
-  };
-
-  const deletePackage = (id: string) => {
-    setTestPackages((prev) => prev.filter((p) => p.id !== id));
-  };
-
-  const addGroup = (grp: TestGroup) => {
-    setTestGroups((prev) => [...prev, grp]);
-  };
-
-  const updateGroup = (grp: TestGroup) => {
-    setTestGroups((prev) => prev.map((g) => (g.id === grp.id ? grp : g)));
-  };
-
-  const deleteGroup = (id: string) => {
-    setTestGroups((prev) => prev.filter((g) => g.id !== id));
-  };
-
-  const addEquipment = (eq: TestEquipment) => {
-    setEquipments((prev) => [...prev, eq]);
-  };
-
-  const updateEquipment = (eq: TestEquipment) => {
-    setEquipments((prev) => prev.map((e) => (e.id === eq.id ? eq : e)));
-  };
-
-  const deleteEquipment = (id: string) => {
-    setEquipments((prev) => prev.filter((e) => e.id !== id));
-  };
+    syncCloudData();
+  }, [cloudDbConfig.enabled, cloudDbConfig.supabaseUrl, cloudDbConfig.supabaseAnonKey]);
 
   return {
     catalog,
@@ -235,21 +173,6 @@ export function useCatalogData() {
     cloudDbConfig,
     setCloudDbConfig,
     zaloConfig,
-    setZaloConfig,
-    addCatalogItem,
-    updateCatalogItem,
-    deleteCatalogItem,
-    addDoctor,
-    updateDoctor,
-    deleteDoctor,
-    addPackage,
-    updatePackage,
-    deletePackage,
-    addGroup,
-    updateGroup,
-    deleteGroup,
-    addEquipment,
-    updateEquipment,
-    deleteEquipment
+    setZaloConfig
   };
 }
