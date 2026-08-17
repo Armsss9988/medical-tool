@@ -50,7 +50,11 @@ export function useReportManager() {
     const nowIso = new Date().toISOString();
     const existingIndex = params.id
       ? reports.findIndex((r) => r.id === params.id)
-      : reports.findIndex((r) => r.code === params.patient.code);
+      : reports.findIndex(
+          (r) =>
+            (params.patient.code && (r.code === params.patient.code || r.patient?.code === params.patient.code)) ||
+            (params.patient.name && params.patient.name.trim() && r.patient?.name === params.patient.name && r.patient?.code === params.patient.code)
+        );
 
     let defaultStatus: ReportStatus = 'Đã có kết quả';
     if (params.cloudPdfUrl) {
@@ -82,13 +86,15 @@ export function useReportManager() {
     };
 
     setReports((prev) => {
+      let next: MedicalReport[];
       if (existingIndex >= 0) {
-        const next = [...prev];
+        next = [...prev];
         next[existingIndex] = updatedReport;
-        return next;
       } else {
-        return [updatedReport, ...prev];
+        next = [updatedReport, ...prev];
       }
+      saveData('medical_reports', next);
+      return next;
     });
 
     return updatedReport;
@@ -96,19 +102,28 @@ export function useReportManager() {
 
   // 4. Xóa 1 phiếu
   const deleteReport = (id: string) => {
-    setReports((prev) => prev.filter((r) => r.id !== id));
+    setReports((prev) => {
+      const next = prev.filter((r) => r.id !== id);
+      saveData('medical_reports', next);
+      return next;
+    });
   };
 
   // 5. Xóa toàn bộ phiếu
   const clearAllReports = () => {
     setReports([]);
+    saveData('medical_reports', []);
   };
 
   // 6. Cập nhật trạng thái phiếu
   const updateReportStatus = (id: string, newStatus: ReportStatus) => {
-    setReports((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: newStatus, updatedAt: new Date().toISOString() } : r))
-    );
+    setReports((prev) => {
+      const next = prev.map((r) =>
+        r.id === id ? { ...r, status: newStatus, updatedAt: new Date().toISOString() } : r
+      );
+      saveData('medical_reports', next);
+      return next;
+    });
   };
 
   return {

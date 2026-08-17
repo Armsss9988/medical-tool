@@ -90,7 +90,6 @@ export default function App() {
     lastError,
     handleExportPdfAndUploadCloud,
     handleDownloadPdf,
-    handleRetryExport,
     handleDownloadQrCode,
     resetExport
   } = useReportExport(showToast);
@@ -195,15 +194,16 @@ export default function App() {
     );
 
     if (result && result.success) {
-      saveOrUpdateReport({
+      const saved = saveOrUpdateReport({
         patient,
         selectedTests,
         conclusion,
-        doctorName,
+        doctorName: doctorName || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long',
         cloudPdfUrl: result.finalUrl || undefined,
         qrCodeDataUrl: result.finalQrCodeDataUrl || undefined,
         status: 'Đã xuất Cloud'
       });
+      showToast(`Đã xuất Cloud & tự động lưu phiếu bệnh nhân ${saved.patient.name} (${saved.code}) vào Sổ Lưu!`, "success");
     }
   };
 
@@ -438,7 +438,7 @@ export default function App() {
         showToast={showToast}
         onExportPdfAndUpload={handleExportPdfAndUpload}
         onDownloadPdf={handleDownloadPdf}
-        onRetryExport={handleRetryExport}
+        onRetryExport={handleExportPdfAndUpload}
         onPrintDirect={handlePrintDirect}
         onDownloadQrCode={() => handleDownloadQrCode(patient.name, patient.code)}
       />
