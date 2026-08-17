@@ -341,3 +341,26 @@ export async function generateHighQualityPdf(
 
   return { pdf, blob, base64 };
 }
+
+/**
+ * Tải trực tiếp file PDF chất lượng cao về máy tính người dùng (1-Click Download)
+ */
+export async function downloadPdfDirectly(
+  elementId: string,
+  filename: string = 'PhieuKetQua.pdf'
+): Promise<Blob> {
+  const res = await generateHighQualityPdf(elementId, filename);
+  try {
+    res.pdf.save(filename);
+  } catch {
+    const url = URL.createObjectURL(res.blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+  return res.blob;
+}

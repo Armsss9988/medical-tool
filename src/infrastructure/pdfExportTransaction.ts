@@ -38,13 +38,32 @@ export class PdfExportTransaction {
 
     try {
       // -------------------------------------------------------------
-      // BƯỚC 1: RENDER LOSSLESS PDF
+      // BƯỚC 1: RENDER LOSSLESS PDF & TỰ ĐỘNG TẢI FILE VỀ MÁY
       // -------------------------------------------------------------
       this.callbacks?.onStepStart?.('render_pdf');
       const t1Start = Date.now();
       
       const pdfRes = await generateHighQualityPdf(this.elementId, this.filename);
       pdfBlob = pdfRes.blob;
+
+      // Tự động tải file PDF trực tiếp về máy tính người dùng
+      try {
+        pdfRes.pdf.save(this.filename);
+      } catch (saveErr) {
+        console.warn('Không thể tự động save jsPDF, fallback qua Blob download:', saveErr);
+        try {
+          const downloadUrl = URL.createObjectURL(pdfBlob);
+          const a = document.createElement('a');
+          a.href = downloadUrl;
+          a.download = this.filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(downloadUrl);
+        } catch {
+          /* ignore */
+        }
+      }
 
       this.executedSteps.push({
         step: 'render_pdf',

@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { ToastType } from '@domain/types';
 import { downloadDataUrlAsImage } from '@infra/qrService';
+import { downloadPdfDirectly } from '@infra/pdfService';
 import { PdfExportTransaction } from '@infra/pdfExportTransaction';
 import {
   ExportStepName,
@@ -68,7 +69,7 @@ export function useReportExport(
         if (result.finalQrCodeDataUrl) {
           setQrCodeDataUrl(result.finalQrCodeDataUrl);
         }
-        showToast('Xuất PDF và lưu trữ Cloud thành công! Sẵn sàng in hoặc quét QR.', 'success');
+        showToast('Xuất PDF và lưu trữ Cloud thành công! Đã tải file về máy tính.', 'success');
       } else {
         // Xử lý khi transaction thất bại (đã có rollback tự động trong Transaction class)
         const failedStep = result.executedSteps.find((s) => s.status === 'failed');
@@ -102,6 +103,21 @@ export function useReportExport(
     } finally {
       setIsExporting(false);
       setCurrentStep(null);
+    }
+  };
+
+  // ─── Tải trực tiếp file PDF về máy (1-Click Download) ────────────────────────
+  const handleDownloadPdf = async (
+    elementId: string,
+    filename: string
+  ): Promise<void> => {
+    try {
+      showToast('Đang tạo và tải file PDF chất lượng cao...', 'info');
+      await downloadPdfDirectly(elementId, filename);
+      showToast(`Đã tải file PDF "${filename}" về máy tính thành công!`, 'success');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Lỗi xuất PDF';
+      showToast(`Không thể tải file PDF: ${msg}`, 'error');
     }
   };
 
@@ -143,6 +159,7 @@ export function useReportExport(
     lastError,
     lastTransactionResult,
     handleExportPdfAndUploadCloud,
+    handleDownloadPdf,
     handleRetryExport,
     handleDownloadQrCode,
     resetExport
