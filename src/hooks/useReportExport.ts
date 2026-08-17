@@ -4,7 +4,6 @@ import { downloadDataUrlAsImage } from '@infra/qrService';
 import { PdfExportTransaction } from '@infra/pdfExportTransaction';
 import {
   ExportStepName,
-  ExportStepStatus,
   ExportErrorDetail,
   ExportTransactionResult,
   EXPORT_STEP_LABELS
@@ -46,21 +45,21 @@ export function useReportExport(
     const cleanCode = reportCode || filename.replace(/^PhieuXN_[^_]+_/, '').replace(/\.pdf$/, '') || 'BN-TEMP';
     const cleanPatientName = patientName || 'BenhNhan';
 
-    const tx = new PdfExportTransaction();
+    const tx = new PdfExportTransaction(
+      elementId,
+      filename,
+      cleanCode,
+      cleanPatientName,
+      {
+        onStepStart: (step: ExportStepName) => {
+          setCurrentStep(step);
+          showToast(EXPORT_STEP_LABELS[step] || 'Đang xử lý...', 'info');
+        }
+      }
+    );
 
     try {
-      const result = await tx.execute({
-        elementId,
-        filename,
-        reportCode: cleanCode,
-        patientName: cleanPatientName,
-        onProgress: (step: ExportStepName, status: ExportStepStatus) => {
-          if (status === 'running') {
-            setCurrentStep(step);
-            showToast(EXPORT_STEP_LABELS[step] || 'Đang xử lý...', 'info');
-          }
-        }
-      });
+      const result = await tx.execute();
 
       setLastTransactionResult(result);
 
@@ -72,17 +71,17 @@ export function useReportExport(
         showToast('Xuất PDF và lưu trữ Cloud thành công! Sẵn sàng in hoặc quét QR.', 'success');
       } else {
         // Xử lý khi transaction thất bại (đã có rollback tự động trong Transaction class)
-        const failedStep = result.steps.find((s) => s.status === 'failed');
+        const failedStep = result.executedSteps.find((s) => s.status === 'failed');
         const errorDetail: ExportErrorDetail = {
           step: failedStep?.step || 'upload_cloud',
-          message: failedStep?.error || 'Lỗi không xác định trong tiến trình',
+          message: failedStep?.error || result.error || 'Lỗi không xác định trong tiến trình',
           timestamp: new Date().toISOString(),
           retryable: true
         };
         setLastError(errorDetail);
 
         let errorMsg = `Lỗi ở bước [${EXPORT_STEP_LABELS[errorDetail.step] || errorDetail.step}]: ${errorDetail.message}`;
-        if (result.rollbackPerformed) {
+        if (result.rolledBack) {
           errorMsg += ' (Đã tự động Rollback dữ liệu an toàn)';
         }
         showToast(errorMsg, 'error');
@@ -119,10 +118,9 @@ export function useReportExport(
 
   const handleDownloadQrCode = (patientName: string, patientCode: string) => {
     if (!qrCodeDataUrl) {
-      showToast('Chưa có mã QR Code. Hãy nhấn xuất PDF & Cloud trước!', 'error');
+      showToast('Chưa có ảnh mã QR Code để tải về!', 'error');
       return;
     }
-
     const safeName = (patientName || 'BenhNhan').replace(/\s+/g, '_');
     const qrFilename = `QRCode_PhieuKham_${safeName}_${patientCode}.png`;
     downloadDataUrlAsImage(qrCodeDataUrl, qrFilename);
@@ -134,7 +132,7 @@ export function useReportExport(
     setQrCodeDataUrl('');
     setLastError(null);
     setLastTransactionResult(null);
-    setCurrentStep(null);
+    lastParamsRef.current = null;
   };
 
   return {

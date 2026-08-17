@@ -68,3 +68,11 @@ export async function getDataDirPath(): Promise<string> {
   }
   return 'localStorage (đang chạy trên trình duyệt)';
 }
+
+export function loadState<T>(key: string, defaultValue: T): T {
+  return loadDataSync<T>(key, defaultValue);
+}
+
+export function saveState<T>(key: string, data: T): void {
+  saveData<T>(key, data);
+}

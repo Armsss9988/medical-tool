@@ -231,3 +231,68 @@ export async function sendZaloZnsNotification(
     };
   }
 }
+
+/**
+ * Alias for sendZaloZnsNotification to match SendZaloModal
+ */
+export async function sendZaloZnsMessage(
+  report: MedicalReport,
+  clinicInfo: ClinicInfo,
+  config: ZaloZnsConfig,
+  customNote?: string
+): Promise<ZaloSendResult> {
+  return sendZaloZnsNotification(config, report, clinicInfo, customNote);
+}
+
+/**
+ * Kiểm tra kết nối cấu hình Zalo OA (Access Token & Template ID)
+ */
+export async function testZaloConnection(
+  config: ZaloZnsConfig
+): Promise<{ success: boolean; message: string }> {
+  if (!config.enabled) {
+    return { success: false, message: 'Tính năng Zalo ZNS đang bị tắt.' };
+  }
+  if (!config.accessToken || !config.accessToken.trim()) {
+    return { success: false, message: 'Chưa nhập Access Token Zalo OA!' };
+  }
+
+  try {
+    const targetUrl = config.proxyUrl && config.proxyUrl.trim()
+      ? config.proxyUrl.trim()
+      : 'https://openapi.zalo.me/v2.0/oa/getoa';
+
+    const res = await fetch(targetUrl, {
+      method: 'GET',
+      headers: {
+        access_token: config.accessToken.trim()
+      }
+    });
+
+    if (!res.ok) {
+      return {
+        success: false,
+        message: `Máy chủ Zalo phản hồi lỗi HTTP ${res.status}: ${res.statusText}`
+      };
+    }
+
+    const data = await res.json();
+    if (data.error === 0) {
+      const oaName = data.data?.name || 'Zalo Official Account';
+      return {
+        success: true,
+        message: `Kết nối Zalo OA thành công! OA: "${oaName}" (ID: ${data.data?.oa_id || config.oaId || 'OK'})`
+      };
+    }
+
+    return {
+      success: false,
+      message: `Lỗi Zalo OA [${data.error}]: ${data.message || 'Access Token không hợp lệ hoặc đã hết hạn.'}`
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `Không thể kết nối đến máy chủ Zalo (${err.message || 'Lỗi mạng hoặc CORS'})`
+    };
+  }
+}

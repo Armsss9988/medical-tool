@@ -61,7 +61,7 @@ function sanitizeOklchColors(element: HTMLElement) {
  */
 export async function generateHighQualityPdf(
   elementId: string,
-  filename: string = 'PhieuKetQua.pdf'
+  _filename: string = 'PhieuKetQua.pdf'
 ): Promise<PdfExportResult> {
   const element = document.getElementById(elementId);
   if (!element) {

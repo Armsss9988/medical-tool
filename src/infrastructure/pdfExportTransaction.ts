@@ -2,8 +2,7 @@ import {
   ExportStepName, 
   ExportStepResult, 
   ExportTransactionResult, 
-  PdfFileRecord,
-  ExportErrorDetail 
+  PdfFileRecord 
 } from '@domain/exportTransaction';
 import { generateHighQualityPdf } from './pdfService';
 import { uploadPdfToCloud } from './cloudService';
@@ -32,7 +31,6 @@ export class PdfExportTransaction {
 
   public async execute(): Promise<ExportTransactionResult> {
     let pdfBlob: Blob | null = null;
-    let pdfBase64: string | null = null;
     let cloudUrl: string | null = null;
     let qrDataUrl: string | null = null;
     let uploadedFilename: string | null = null;
@@ -47,7 +45,6 @@ export class PdfExportTransaction {
       
       const pdfRes = await generateHighQualityPdf(this.elementId, this.filename);
       pdfBlob = pdfRes.blob;
-      pdfBase64 = pdfRes.base64;
 
       this.executedSteps.push({
         step: 'render_pdf',

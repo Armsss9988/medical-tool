@@ -136,3 +136,40 @@ export async function uploadPdfToCloudinary({
     publicId: cleanFilename
   };
 }
+
+/**
+ * Hàm upload PDF lên Cloud tiêu chuẩn cho Transaction Pipeline
+ */
+export async function uploadPdfToCloud(
+  pdfBlobOrBase64: Blob | string,
+  filename: string
+): Promise<{ url: string; provider: 'supabase' | 'cloudinary' | 'local'; filename: string }> {
+  let base64 = '';
+  if (typeof pdfBlobOrBase64 === 'string') {
+    base64 = pdfBlobOrBase64;
+  } else {
+    base64 = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsDataURL(pdfBlobOrBase64);
+    });
+  }
+
+  const res = await uploadPdfToCloudinary({
+    pdfBase64: base64,
+    filename
+  });
+
+  let provider: 'supabase' | 'cloudinary' | 'local' = 'local';
+  if (res.url.includes('supabase.co')) {
+    provider = 'supabase';
+  } else if (res.url.includes('cloudinary.com')) {
+    provider = 'cloudinary';
+  }
+
+  return {
+    url: res.url,
+    provider,
+    filename: res.publicId || filename
+  };
+}

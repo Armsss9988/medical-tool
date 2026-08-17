@@ -1,4 +1,3 @@
-import { PdfFileRecord } from '@domain/exportTransaction';
 import { getLedgerByReport, pruneLedgerRecords } from './pdfLedger';
 
 /**

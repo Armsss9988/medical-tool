@@ -142,3 +142,27 @@ export async function seedAllDefaultDataToSupabase(config: CloudDbConfig): Promi
     return { success: false, message: `Lỗi đồng bộ dữ liệu gốc: ${errMsg}` };
   }
 }
+
+export async function fetchCatalogFromSupabase(config: CloudDbConfig) {
+  return fetchTableFromCloud<any[]>('catalog_data', config);
+}
+
+export async function fetchPackagesFromSupabase(config: CloudDbConfig) {
+  return fetchTableFromCloud<any[]>('test_packages', config);
+}
+
+export async function fetchGroupsFromSupabase(config: CloudDbConfig) {
+  return fetchTableFromCloud<any[]>('test_groups', config);
+}
+
+export async function fetchEquipmentsFromSupabase(config: CloudDbConfig) {
+  return fetchTableFromCloud<any[]>('equipments_catalog', config);
+}
+
+export async function fetchDoctorsFromSupabase(config: CloudDbConfig) {
+  return fetchTableFromCloud<any[]>('doctors_list', config);
+}
+
+export async function fetchClinicInfoFromSupabase(config: CloudDbConfig) {
+  return fetchTableFromCloud<any>('clinic_info', config);
+}
