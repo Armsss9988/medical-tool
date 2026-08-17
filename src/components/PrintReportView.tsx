@@ -1,10 +1,10 @@
+import { Fragment } from 'react';
 import { evaluateResult } from '@domain/testResult';
 import { downloadQrCodeImage } from '@infra/qrService';
 import { Download } from 'lucide-react';
 import golabLogo from '@assets/golabLogoDataUrl';
 import doctorStamp from '@assets/doctorStampDataUrl';
 import { Patient, SelectedTest, ClinicInfo } from '@domain/types';
-import React from 'react';
 
 interface PrintReportViewProps {
   elementId?: string;
@@ -32,7 +32,7 @@ export default function PrintReportView({
     address: 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị',
     phone: '032.855.3773',
     website: 'golab.com.vn',
-    defaultDoctor: 'BS. Trần Hoài Long'
+    defaultDoctor: 'Nguyễn Thị Thành Trung'
   }
 }: PrintReportViewProps) {
   const tests = selectedTests || [];
@@ -53,15 +53,15 @@ export default function PrintReportView({
   return (
     <div
       id={elementId}
-      style={{ width: '210mm', minHeight: '297mm', maxWidth: '210mm', boxSizing: 'border-box' }}
-      className="w-[210mm] max-w-[210mm] min-h-[297mm] bg-white text-slate-900 font-sans p-6 mx-auto text-xs leading-normal flex flex-col justify-between print:p-4 print:max-w-none print:shadow-none print:w-full"
+      style={{ width: '210mm', maxWidth: '210mm', boxSizing: 'border-box' }}
+      className="w-[210mm] max-w-[210mm] bg-white text-slate-900 font-sans p-6 mx-auto text-xs leading-normal flex flex-col justify-start print:p-4 print:max-w-none print:shadow-none print:w-full"
     >
       
       {/* KHUNG NỘI DUNG CHÍNH (TOP & MIDDLE) */}
       <div className="flex-1 flex flex-col justify-start">
         
         {/* HEADER PHÒNG KHÁM & MÃ QR */}
-        <div className="flex items-start justify-between border-b border-slate-300 pb-3 mb-3">
+        <div data-avoid-break="true" className="header-section flex items-start justify-between border-b border-slate-300 pb-3 mb-3">
           <div className="flex items-center space-x-3">
             <div className="h-16 w-32 flex items-center justify-start shrink-0">
               <img
@@ -98,38 +98,38 @@ export default function PrintReportView({
             <div className="flex flex-col items-center justify-center p-1 bg-slate-50 border border-slate-200 rounded shrink-0">
               <img
                 src={finalQrCode}
-                alt="Mã QR Tra Cứu"
-                className="w-16 h-16 object-contain"
+                alt="QR Code Tra Cứu"
+                className="w-14 h-14 object-contain"
                 loading="eager"
                 decoding="sync"
               />
+              <span className="text-[8px] font-mono text-sky-700 font-bold mt-0.5">QR Tra Cứu</span>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center p-2 bg-slate-50 border border-dashed border-slate-300 rounded text-center shrink-0 w-24">
+              <span className="text-[8.5px] text-slate-400 font-medium leading-tight">Chưa tạo mã QR</span>
               <button
                 type="button"
-                onClick={() => downloadQrCodeImage(finalQrCode, `QRCode_${patient.code || 'Golab'}.png`)}
-                title="Tải ảnh QR Code về máy"
-                className="mt-0.5 flex items-center space-x-0.5 text-[8.5px] text-sky-700 font-bold hover:underline print:hidden"
+                onClick={() => downloadQrCodeImage('', 'QRCode.png')}
+                disabled
+                className="mt-1 flex items-center space-x-0.5 text-[8px] text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded cursor-not-allowed"
               >
                 <Download className="w-2.5 h-2.5" />
                 <span>Tải QR</span>
               </button>
             </div>
-          ) : (
-            <div className="text-right shrink-0">
-              <span className="text-[10px] font-mono text-slate-500 block">Mã phiếu XN:</span>
-              <span className="text-xs font-mono font-bold text-sky-900">{patient.code}</span>
-            </div>
           )}
         </div>
 
         {/* TIÊU ĐỀ PHIẾU KẾT QUẢ */}
-        <div className="text-center my-3">
+        <div data-avoid-break="true" className="text-center my-3">
           <h2 className="text-xl font-black text-sky-900 uppercase tracking-wide">
             PHIẾU TRẢ KẾT QUẢ XÉT NGHIỆM
           </h2>
         </div>
 
         {/* BẢNG THÔNG TIN BỆNH NHÂN CHUẨN 12 TRƯỜNG (6 HÀNG x 4 CỘT) */}
-        <div className="border border-slate-300 rounded mb-3 overflow-hidden">
+        <div data-avoid-break="true" className="patient-table-section border border-slate-300 rounded mb-3 overflow-hidden">
           <table className="w-full text-xs border-collapse">
             <tbody>
               {/* Hàng 1 */}
@@ -190,85 +190,86 @@ export default function PrintReportView({
                 <th className="py-1.5 px-2 w-24 text-center align-middle whitespace-nowrap">GHI CHÚ</th>
               </tr>
             </thead>
-            <tbody>
-              {Object.keys(groupedCategories).length === 0 ? (
+            <tbody className="divide-y divide-slate-200">
+              {tests.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-6 text-center text-slate-400 italic align-middle">
-                    Chưa có chỉ số xét nghiệm nào được chọn.
+                  <td colSpan={7} className="py-6 text-center text-slate-400 italic">
+                    Chưa có chỉ số xét nghiệm nào được chọn
                   </td>
                 </tr>
               ) : (
-                Object.keys(groupedCategories).map((categoryName) => {
-                  const catTests = groupedCategories[categoryName];
-                  return (
-                    <React.Fragment key={categoryName}>
-                      {/* Tiêu đề nhóm */}
-                      <tr className="bg-sky-50/70 border-b border-t border-sky-200">
-                        <td colSpan={7} className="py-1 px-3 font-bold text-sky-900 uppercase text-[11px] align-middle">
-                          {categoryName}
-                        </td>
-                      </tr>
+                Object.entries(groupedCategories).map(([category, items]) => (
+                  <Fragment key={category}>
+                    {/* Header nhóm chỉ số */}
+                    <tr data-avoid-break="true" className="bg-sky-50/80 font-bold text-sky-950 border-b border-slate-200">
+                      <td colSpan={7} className="py-1.5 px-3 uppercase text-[11px] tracking-wide">
+                        • {category}
+                      </td>
+                    </tr>
 
-                      {/* Các dòng chỉ số */}
-                      {catTests.map((t, idx) => {
-                        const evalState = evaluateResult(t.result, t.refMin, t.refMax);
-                        const isAbnormal = evalState === 'HIGH' || evalState === 'LOW';
+                    {/* Danh sách các chỉ số trong nhóm */}
+                    {items.map((t, idx) => {
+                      const evalRes = evaluateResult(t.result, t.refMin, t.refMax);
+                      const isAbnormal = evalRes.status !== 'normal';
 
-                        return (
-                          <tr key={t.code || idx} className="border-b border-slate-200 hover:bg-slate-50/50">
-                            <td className="py-1 px-2 text-center text-slate-500 font-mono border-r border-slate-200 align-middle">
-                              {idx + 1}
-                            </td>
-                            <td className="py-1 px-3 border-r border-slate-200 font-medium text-slate-900 align-middle">
-                              <span>{t.name}</span>
-                              <span className="text-[10px] text-slate-400 font-mono ml-1">({t.code})</span>
-                            </td>
-                            <td
-                              className={`py-1 px-2.5 text-center font-mono font-bold border-r border-slate-200 align-middle ${
-                                isAbnormal ? 'text-red-600 bg-red-50/40' : 'text-slate-900'
-                              }`}
-                            >
-                              {t.result || '---'}
-                            </td>
-                            <td className="py-1 px-2 text-center text-slate-600 font-mono border-r border-slate-200 align-middle">
-                              {t.unit || ''}
-                            </td>
-                            <td className="py-1 px-2.5 text-center text-slate-600 font-mono border-r border-slate-200 align-middle">
-                              {t.refText || (t.refMin !== null && t.refMax !== null ? `${t.refMin} - ${t.refMax}` : 'Bình thường')}
-                            </td>
-                            <td className="py-1 px-2.5 text-center text-slate-600 text-[10.5px] border-r border-slate-200 align-middle">
-                              {t.equipment || 'Máy Sinh Hóa Tự Động'}
-                            </td>
-                            <td className="py-1 px-2 text-center text-[10px] text-slate-500 align-middle">
-                              {t.note || (isAbnormal ? (evalState === 'HIGH' ? 'Tăng cao' : 'Giảm') : 'Bình thường')}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </React.Fragment>
-                  );
-                })
+                      return (
+                        <tr
+                          data-avoid-break="true"
+                          key={t.code || idx}
+                          className={`hover:bg-slate-50 transition-colors ${
+                            isAbnormal ? 'bg-amber-50/60 font-semibold' : 'bg-white'
+                          }`}
+                        >
+                          <td className="py-1 px-2 text-center font-mono text-slate-500 border-r border-slate-200 align-middle">
+                            {idx + 1}
+                          </td>
+                          <td className="py-1 px-3 font-semibold text-slate-900 border-r border-slate-200 align-middle">
+                            {t.name}
+                          </td>
+                          <td
+                            className={`py-1 px-2.5 text-center font-mono font-bold border-r border-slate-200 align-middle ${
+                              isAbnormal ? 'text-red-600' : 'text-slate-800'
+                            }`}
+                          >
+                            {t.result || '---'}
+                          </td>
+                          <td className="py-1 px-2 text-center font-mono text-slate-600 border-r border-slate-200 align-middle">
+                            {t.unit || '---'}
+                          </td>
+                          <td className="py-1 px-2.5 text-center font-mono text-slate-600 border-r border-slate-200 align-middle">
+                            {t.refText || (t.refMin !== null && t.refMax !== null ? `${t.refMin} - ${t.refMax}` : '---')}
+                          </td>
+                          <td className="py-1 px-2.5 text-center text-[10px] text-slate-500 border-r border-slate-200 align-middle">
+                            {t.equipment || 'Tự động'}
+                          </td>
+                          <td
+                            className={`py-1 px-2 text-center text-[10px] font-bold align-middle ${
+                              isAbnormal ? 'text-red-600' : 'text-slate-500'
+                            }`}
+                          >
+                            {evalRes.label}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </Fragment>
+                ))
               )}
             </tbody>
           </table>
         </div>
 
-        {/* PHẦN KẾT LUẬN & ĐỀ NGHỊ BÁC SĨ */}
+        {/* KHỐI KẾT LUẬN CỦA BÁC SĨ (TRÁNH BỊ CẮT ĐÔI KHI QUA TRANG) */}
         {conclusion && (
-          <div className="border border-sky-200 bg-sky-50/30 rounded p-2.5 mb-3">
-            <p className="font-bold text-sky-950 uppercase text-[11px] mb-1">
-              KẾT LUẬN & ĐỀ NGHỊ CỦA BÁC SĨ:
-            </p>
-            <p className="text-slate-800 whitespace-pre-wrap leading-normal font-medium">
-              {conclusion}
-            </p>
+          <div data-avoid-break="true" className="conclusion-section border border-sky-200 bg-sky-50/50 rounded p-2.5 mb-3 text-xs">
+            <span className="font-bold text-sky-950 uppercase tracking-wide">KẾT LUẬN / ĐỀ NGHỊ CỦA BÁC SĨ: </span>
+            <span className="font-semibold text-slate-800">{conclusion}</span>
           </div>
         )}
-
       </div>
 
-      {/* FOOTER: CHỮ KÝ VÀ DẤU BÁC SĨ (LUÔN NẰM DƯỚI ĐÁY TRANG A4) */}
-      <div className="mt-3 pt-2 border-t border-slate-300">
+      {/* FOOTER: CHỮ KÝ VÀ DẤU BÁC SĨ (TRÁNH BỊ CẮT ĐÔI KHI QUA TRANG) */}
+      <div data-avoid-break="true" className="signature-section mt-3 pt-2 border-t border-slate-300">
         <div className="flex items-start justify-between text-center">
           
           {/* Bên trái: Chú thích & Lưu ý */}
@@ -278,10 +279,10 @@ export default function PrintReportView({
             <p>- Vui lòng mang phiếu này khi đến tái khám hoặc tư vấn bác sĩ chuyên khoa.</p>
           </div>
 
-          {/* Bên phải: Chữ ký & Đóng dấu Bác sĩ */}
+          {/* Bên phải: Chữ ký & Đóng dấu Phụ trách chuyên môn */}
           <div className="text-center min-w-[210px]">
             <p className="text-[10px] text-slate-600 italic">Ngày {currentDateStr}</p>
-            <p className="text-[11px] font-bold uppercase text-slate-900 mt-1 mb-1">BÁC SĨ / KTV XÉT NGHIỆM</p>
+            <p className="text-[11px] font-bold uppercase text-slate-900 mt-1 mb-1">PHỤ TRÁCH CHUYÊN MÔN</p>
             <div className="h-24 flex items-center justify-center my-1">
               <img
                 src={currentStamp}
@@ -297,7 +298,7 @@ export default function PrintReportView({
               />
             </div>
             <p className="text-xs font-bold text-slate-900 uppercase">
-              {doctorName || clinicInfo.defaultDoctor || 'BS. CKII. Lê Anh Minh'}
+              {clinicInfo.defaultDoctor || 'Nguyễn Thị Thành Trung'}
             </p>
           </div>
 

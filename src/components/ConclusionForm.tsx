@@ -1,7 +1,7 @@
-import React from 'react';
-import { FileText, RotateCcw, Eye, CloudUpload, QrCode, CreditCard, CheckCircle2, BookmarkCheck, MessageSquare, SlidersHorizontal } from 'lucide-react';
+import { FileText, RotateCcw, Eye, CloudUpload, QrCode, CreditCard, CheckCircle2, BookmarkCheck, MessageSquare, SlidersHorizontal, Loader2 } from 'lucide-react';
 import DoctorSelectCombobox from './DoctorSelectCombobox';
 import { Doctor } from '@domain/types';
+import { ExportStepName, EXPORT_STEP_LABELS } from '@domain/exportTransaction';
 
 interface ConclusionFormProps {
   conclusion: string;
@@ -9,6 +9,8 @@ interface ConclusionFormProps {
   doctorName: string;
   setDoctorName: (val: string) => void;
   cloudLink: string;
+  isExporting?: boolean;
+  currentStep?: ExportStepName | null;
   onExportPdfAndUpload: () => void;
   onOpenPreview: () => void;
   onSaveReport?: () => void;
@@ -34,6 +36,8 @@ export default function ConclusionForm({
   doctorName, 
   setDoctorName,
   cloudLink,
+  isExporting = false,
+  currentStep = null,
   onExportPdfAndUpload,
   onOpenPreview,
   onSaveReport,
@@ -49,7 +53,7 @@ export default function ConclusionForm({
     if (!conclusion.trim()) {
       setConclusion(template);
     } else {
-      setConclusion((prev) => `${prev.trim()}. ${template}`);
+      setConclusion(`${conclusion.trim()}. ${template}`);
     }
   };
 
@@ -115,10 +119,20 @@ export default function ConclusionForm({
           <button
             type="button"
             onClick={onExportPdfAndUpload}
-            className="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:from-emerald-800 active:to-teal-800 text-white font-extrabold rounded-xl shadow-md shadow-emerald-700/20 border border-emerald-500/50 transition-all active:scale-[0.98] flex items-center justify-center space-x-2 text-xs tracking-wide"
+            disabled={isExporting}
+            className="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:from-emerald-800 active:to-teal-800 disabled:opacity-75 disabled:cursor-not-allowed text-white font-extrabold rounded-xl shadow-md shadow-emerald-700/20 border border-emerald-500/50 transition-all active:scale-[0.98] flex items-center justify-center space-x-2 text-xs tracking-wide"
           >
-            <CloudUpload className="w-4 h-4 text-emerald-100" />
-            <span>Xuất File PDF & Tải Lên Cloud (1-Click)</span>
+            {isExporting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+                <span>{currentStep ? EXPORT_STEP_LABELS[currentStep] : 'Đang xử lý Transaction...'}</span>
+              </>
+            ) : (
+              <>
+                <CloudUpload className="w-4 h-4 text-emerald-100" />
+                <span>Xuất File PDF & Tải Lên Cloud (1-Click)</span>
+              </>
+            )}
           </button>
 
           {/* Fast Action: Gửi Zalo Cho Bệnh Nhân (1-Click) */}
@@ -151,59 +165,53 @@ export default function ConclusionForm({
             <button
               type="button"
               onClick={onOpenPreview}
-              className="py-2.5 px-3 bg-slate-800 hover:bg-slate-900 active:bg-slate-950 text-white font-bold rounded-xl shadow-xs border border-slate-700 transition-all active:scale-95 flex items-center justify-center space-x-1.5"
+              className="py-2.5 px-3 bg-sky-50 hover:bg-sky-100 text-sky-800 font-bold rounded-xl border border-sky-200 shadow-2xs transition-all active:scale-95 flex items-center justify-center space-x-1.5"
             >
-              <Eye className="w-4 h-4 text-slate-300" />
-              <span>Xem Trước PDF</span>
+              <Eye className="w-3.5 h-3.5 text-sky-600" />
+              <span>Xem Trước Phiếu (A4)</span>
             </button>
 
-            {onSaveReport && (
-              <button
-                type="button"
-                onClick={onSaveReport}
-                className="py-2.5 px-3 bg-sky-700 hover:bg-sky-800 active:bg-sky-900 text-white font-bold rounded-xl shadow-xs border border-sky-600 transition-all active:scale-95 flex items-center justify-center space-x-1.5"
-              >
-                <BookmarkCheck className="w-4 h-4 text-sky-200" />
-                <span>Lưu Vào Sổ Phiếu</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={onSaveReport}
+              className="py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold rounded-xl border border-emerald-200 shadow-2xs transition-all active:scale-95 flex items-center justify-center space-x-1.5"
+            >
+              <BookmarkCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Lưu Vào Sổ Lưu</span>
+            </button>
 
             <button
               type="button"
               onClick={onDownloadQrCode}
               disabled={!cloudLink}
-              className={`py-2.5 px-3 font-bold rounded-xl border transition-all flex items-center justify-center space-x-1.5 ${
+              className={`py-2.5 px-3 rounded-xl border shadow-2xs transition-all active:scale-95 flex items-center justify-center space-x-1.5 font-bold ${
                 cloudLink
-                  ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-400 shadow-xs active:scale-95'
-                  : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                  ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
+                  : 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
               }`}
             >
-              <QrCode className="w-4 h-4" />
-              <span>Tải QR Code</span>
-              {cloudLink && <CheckCircle2 className="w-3 h-3 text-slate-950" />}
+              <QrCode className="w-3.5 h-3.5" />
+              <span>Tải Ảnh QR Code</span>
             </button>
 
             <button
               type="button"
               onClick={onOpenInvoiceModal}
-              className="py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold rounded-xl shadow-xs border border-indigo-500 transition-all active:scale-95 flex items-center justify-center space-x-1.5"
+              className="py-2.5 px-3 bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold rounded-xl border border-teal-200 shadow-2xs transition-all active:scale-95 flex items-center justify-center space-x-1.5"
             >
-              <CreditCard className="w-4 h-4 text-indigo-200" />
-              <span>Tạo Hóa Đơn</span>
+              <CreditCard className="w-3.5 h-3.5 text-teal-600" />
+              <span>Tạo Hóa Đơn Thu Phí</span>
             </button>
           </div>
-        </div>
 
-        {/* Footer Reset Action */}
-        <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-          <span className="text-[11px] text-slate-400 font-medium">Bác sĩ kiểm tra kỹ trước khi in</span>
+          {/* Reset Button */}
           <button
             type="button"
             onClick={onResetAll}
-            className="text-xs text-slate-500 hover:text-rose-600 font-bold inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg hover:bg-rose-50 transition-all active:scale-95"
+            className="w-full py-2 px-3 text-slate-500 hover:text-slate-700 hover:bg-slate-100 font-semibold rounded-xl border border-dashed border-slate-300 transition-all flex items-center justify-center space-x-1"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>Làm Mới Nhập Bệnh Nhân Mới</span>
+            <span>Làm Mới Toàn Bộ (Bệnh Nhân Mới)</span>
           </button>
         </div>
       </div>

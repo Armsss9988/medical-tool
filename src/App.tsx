@@ -12,6 +12,7 @@ import InvoiceModal from "./components/InvoiceModal";
 import RevenueManagerModal from "./components/RevenueManagerModal";
 import ReportManagerModal from "./components/ReportManagerModal";
 import SendZaloModal from "./components/SendZaloModal";
+import TransactionLoadingModal from "./components/TransactionLoadingModal";
 
 import { parseExcelCatalog } from "@infra/excelService";
 import { openDataFolder, isElectron } from "@infra/storage";
@@ -49,47 +50,39 @@ export default function App() {
     setZaloConfig
   } = useCatalogData();
 
-  // 2. REPORT MANAGER HOOK (SỔ LƯU PHIẾU XN)
-  const { 
-    reports, 
-    saveOrUpdateReport, 
-    deleteReport, 
-    clearAllReports 
-  } = useReportManager();
-
-  // 3. STATE KẾT QUẢ VÀ KẾT LUẬN
+  // 2. STATE KẾT QUẢ & CHỈ ĐỊNH XÉT NGHIỆM
   const [selectedTests, setSelectedTests] = useState<SelectedTest[]>([]);
   const [conclusion, setConclusion] = useState<string>("");
-  const [doctorName, setDoctorName] = useState<string>("BS. Trần Hoài Long");
+  const [doctorName, setDoctorName] = useState<string>("");
 
-  // 4. POPUPS & NOTIFICATION
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  // 3. STATE CÁC MODAL
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
-  const [catalogModalTargetTab, setCatalogModalTargetTab] = useState<CatalogTabType | null>(null);
+  const [catalogModalTargetTab, setCatalogModalTargetTab] = useState<CatalogTabType>("TESTS");
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [isRevenueModalOpen, setIsRevenueModalOpen] = useState(false);
   const [isReportManagerOpen, setIsReportManagerOpen] = useState(false);
   const [isZaloModalOpen, setIsZaloModalOpen] = useState(false);
   const [zaloTargetReport, setZaloTargetReport] = useState<MedicalReport | null>(null);
-  const [currentPackageId, setCurrentPackageId] = useState("all");
+
+  // TOAST THÔNG BÁO
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
-  const handleOpenCatalogModal = (tab?: CatalogTabType) => {
-    setCatalogModalTargetTab(tab || null);
-    setIsCatalogModalOpen(true);
-  };
-
-  const showToast = (message: string, type: ToastType = "success") => {
+  const showToast = (message: string, type: ToastType = "info") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
   };
 
-  // 4. REPORT EXPORT HOOK
+  // 4. REPORT EXPORT HOOK (TRANSACTION PIPELINE)
   const {
     cloudLink,
     qrCodeDataUrl,
+    isExporting,
+    currentStep,
+    lastError,
     handleExportPdfAndUploadCloud,
+    handleRetryExport,
     handleDownloadQrCode,
     resetExport
   } = useReportExport(showToast);
@@ -111,41 +104,60 @@ export default function App() {
     }
   };
 
-  const handleSelectPackage = (packageId: string) => {
-    setCurrentPackageId(packageId);
-    if (!packageId || packageId === "all") return;
+  // 6. SỔ LƯU PHIẾU XÉT NGHIỆM (REPORT MANAGER)
+  const {
+    reports,
+    saveOrUpdateReport,
+    deleteReport,
+    clearAllReports
+  } = useReportManager();
 
-    const pkg = testPackages.find((p) => p.id === packageId);
-    if (!pkg || !pkg.codes || pkg.codes.length === 0) return;
-
-    const selectedIndicators = catalog.filter((item) => pkg.codes.includes(item.code));
-
-    if (selectedIndicators.length === 0) {
-      showToast("Gói này không có chỉ số nào trong danh mục hiện tại!", "info");
-      return;
-    }
-
-    const formattedTests: SelectedTest[] = selectedIndicators.map((item) => {
-      const isAllergenItem = item.category?.includes("Dị Nguyên") || item.unit === "IU/mL";
-      return {
-        ...item,
-        result: "",
-        note: isAllergenItem ? "Âm tính (Độ 0)" : "Bình thường"
-      };
-    });
-
-    setSelectedTests(formattedTests);
-    showToast(`Đã nạp gói: ${pkg.name} (${formattedTests.length} chỉ số)!`, "success");
+  // Reset toàn bộ giao diện cho bệnh nhân mới
+  const handleClearAll = () => {
+    resetPatient();
+    setSelectedTests([]);
+    setConclusion("");
+    setDoctorName("");
+    resetExport();
+    showToast("Đã làm mới thông tin cho bệnh nhân tiếp theo!", "info");
   };
 
-  // 6. ACTION HANDLERS
-  const handlePrintDirect = () => {
-    window.print();
+  // Nạp 1 phiếu xét nghiệm đã lưu lên màn hình làm việc
+  const handleLoadReport = (rep: MedicalReport) => {
+    setPatient({ ...rep.patient });
+    setSelectedTests([...rep.selectedTests]);
+    setConclusion(rep.conclusion || "");
+    setDoctorName(rep.doctorName || "");
+    resetExport();
+    setIsReportManagerOpen(false);
+    showToast(`Đã nạp thành công phiếu của bệnh nhân ${rep.patient.name} (${rep.code})!`, "success");
   };
 
+  // Xem trước phiếu đã lưu từ Sổ lưu
+  const handlePreviewSavedReport = (rep: MedicalReport) => {
+    setPatient({ ...rep.patient });
+    setSelectedTests([...rep.selectedTests]);
+    setConclusion(rep.conclusion || "");
+    setDoctorName(rep.doctorName || "");
+    setIsReportManagerOpen(false);
+    setIsPreviewOpen(true);
+  };
+
+  // Nhân bản phiếu
+  const handleDuplicateReport = (rep: MedicalReport) => {
+    resetPatient();
+    setSelectedTests([...rep.selectedTests]);
+    setConclusion(rep.conclusion || "");
+    setDoctorName(rep.doctorName || "");
+    resetExport();
+    setIsReportManagerOpen(false);
+    showToast(`Đã nhân bản danh mục chỉ số từ bệnh nhân ${rep.patient.name}!`, "info");
+  };
+
+  // Lưu thủ công phiếu hiện tại
   const handleSaveCurrentReport = () => {
-    if (!patient.name?.trim()) {
-      showToast("Vui lòng nhập họ tên bệnh nhân trước khi lưu!", "error");
+    if (!patient.name.trim()) {
+      showToast("Vui lòng nhập họ và tên bệnh nhân trước khi lưu!", "error");
       return;
     }
     const saved = saveOrUpdateReport({
@@ -159,24 +171,32 @@ export default function App() {
     showToast(`Đã lưu phiếu của bệnh nhân ${saved.patient.name} (${saved.code}) vào Sổ Lưu!`, "success");
   };
 
-  const handleExportPdfAndUpload = () => {
+  const handleExportPdfAndUpload = async () => {
     const isAllergen = selectedTests.some(
       (t) => (t.category && t.category.includes("Dị Nguyên")) || t.unit === "IU/mL"
     );
     const elementId = isAllergen ? "printable-allergen-report" : "printable-medical-report";
     const filename = `PhieuXN_${(patient.name || "BenhNhan").replace(/\s+/g, "_")}_${patient.code}.pdf`;
     
-    // Tự động lưu phiếu vào sổ lưu khi kích hoạt xuất Cloud
-    saveOrUpdateReport({
-      patient,
-      selectedTests,
-      conclusion,
-      doctorName,
-      cloudPdfUrl: cloudLink || undefined,
-      qrCodeDataUrl: qrCodeDataUrl || undefined
-    });
+    // Thực thi transaction xuất PDF & upload Cloud với rollback an toàn
+    const result = await handleExportPdfAndUploadCloud(
+      elementId,
+      filename,
+      patient.code,
+      patient.name
+    );
 
-    handleExportPdfAndUploadCloud(elementId, filename);
+    if (result && result.success) {
+      saveOrUpdateReport({
+        patient,
+        selectedTests,
+        conclusion,
+        doctorName,
+        cloudPdfUrl: result.finalUrl || undefined,
+        qrCodeDataUrl: result.finalQrCodeDataUrl || undefined,
+        status: 'Đã xuất Cloud'
+      });
+    }
   };
 
   const handleDirectSendZalo = async () => {
@@ -206,18 +226,22 @@ export default function App() {
       testCount: selectedTests.length
     };
 
-    const messageText = generateZaloTextMessage(currentReport, clinicInfo);
-    const opened = await openZaloChat(patient.phone, messageText);
-    if (opened) {
-      // Auto save or update report
+    const message = generateZaloTextMessage(currentReport, clinicInfo, currentReport.cloudPdfUrl);
+    const success = await openZaloChat(patient.phone, message);
+
+    if (success) {
       saveOrUpdateReport({
-        ...currentReport,
+        patient,
+        selectedTests,
+        conclusion,
+        doctorName,
+        cloudPdfUrl: cloudLink || undefined,
+        qrCodeDataUrl: qrCodeDataUrl || undefined,
         zaloSentAt: new Date().toISOString()
       });
-      showToast(`Đã sao chép tin nhắn kèm link PDF & mở Zalo với BN ${patient.name || ''}! Nhấn Ctrl + V để gửi.`, 'success');
+      showToast(`Đã sao chép nội dung & mở Zalo gửi tới SĐT: ${patient.phone}`, "success");
     } else {
-      showToast('Số điện thoại không hợp lệ, vui lòng kiểm tra lại!', 'error');
-      handleOpenZaloModal();
+      showToast("Không thể mở Zalo. Vui lòng kiểm tra lại số điện thoại!", "error");
     }
   };
 
@@ -241,24 +265,12 @@ export default function App() {
       status: cloudLink ? 'Đã xuất Cloud' : 'Đã có kết quả',
       testCount: selectedTests.length
     };
+
     setZaloTargetReport(currentReport);
     setIsZaloModalOpen(true);
   };
 
-  const handleOpenZaloModalForReport = async (rep: MedicalReport) => {
-    if (rep.patient.phone && rep.patient.phone.trim()) {
-      const messageText = generateZaloTextMessage(rep, clinicInfo);
-      const opened = await openZaloChat(rep.patient.phone, messageText);
-      if (opened) {
-        saveOrUpdateReport({
-          ...rep,
-          zaloSentAt: new Date().toISOString()
-        });
-        showToast(`Đã sao chép tin nhắn kèm link PDF & mở Zalo với BN ${rep.patient.name}! Nhấn Ctrl + V để gửi.`, 'success');
-        return;
-      }
-    }
-    // Fallback if no phone
+  const handleOpenZaloModalForReport = (rep: MedicalReport) => {
     setZaloTargetReport(rep);
     setIsZaloModalOpen(true);
   };
@@ -266,81 +278,42 @@ export default function App() {
   const handleZnsSuccess = (msgId: string) => {
     if (zaloTargetReport) {
       saveOrUpdateReport({
-        ...zaloTargetReport,
-        status: 'Đã trả kết quả',
+        id: zaloTargetReport.id,
+        patient: zaloTargetReport.patient,
+        selectedTests: zaloTargetReport.selectedTests,
+        conclusion: zaloTargetReport.conclusion,
+        doctorName: zaloTargetReport.doctorName,
+        cloudPdfUrl: zaloTargetReport.cloudPdfUrl,
+        qrCodeDataUrl: zaloTargetReport.qrCodeDataUrl,
         zaloSentAt: new Date().toISOString(),
-        zaloMsgId: msgId
+        zaloMsgId: msgId,
+        status: 'Đã trả kết quả'
       });
-      showToast(`Đã cập nhật trạng thái trả kết quả Zalo cho BN ${zaloTargetReport.patient.name}!`, 'success');
     }
   };
 
-  const handleLoadReport = (rep: MedicalReport) => {
-    setPatient(rep.patient);
-    setSelectedTests(rep.selectedTests);
-    setConclusion(rep.conclusion || "");
-    setDoctorName(rep.doctorName || "BS. Trần Hoài Long");
-    showToast(`Đã nạp phiếu của bệnh nhân ${rep.patient.name} (${rep.code}) lên màn hình chính!`, "success");
+  const handlePrintDirect = () => {
+    window.print();
   };
 
-  const handlePreviewSavedReport = (rep: MedicalReport) => {
-    handleLoadReport(rep);
-    setIsPreviewOpen(true);
+  const handleOpenCatalogModal = (tab: CatalogTabType = "TESTS") => {
+    setCatalogModalTargetTab(tab);
+    setIsCatalogModalOpen(true);
   };
 
-  const handleDuplicateReport = (rep: MedicalReport) => {
-    resetPatient();
-    setPatient((prev) => ({
-      ...prev,
-      name: rep.patient.name,
-      dob: rep.patient.dob,
-      gender: rep.patient.gender,
-      phone: rep.patient.phone,
-      address: rep.patient.address,
-      diagnosis: rep.patient.diagnosis
-    }));
-    setSelectedTests(rep.selectedTests.map((t) => ({ ...t, result: "" })));
-    setConclusion("");
-    setDoctorName(rep.doctorName || "BS. Trần Hoài Long");
-    resetExport();
-    showToast(`Đã nhân bản thông tin bệnh nhân ${rep.patient.name} sang phiếu mới!`, "success");
-  };
-
-  const handleClearAll = () => {
-    if (window.confirm("Bạn có chắc chắn muốn xóa toàn bộ thông tin bệnh nhân và kết quả xét nghiệm hiện tại để nhập bệnh nhân mới?")) {
-      resetPatient();
-      setSelectedTests([]);
-      setConclusion("");
-      resetExport();
-      setCurrentPackageId("all");
-      showToast("Đã làm mới màn hình!", "info");
-    }
-  };
-
-  const handleSaveInvoice = (newInvoice: Invoice) => {
-    setInvoices((prev) => [newInvoice, ...prev]);
-    showToast(`Đã lưu hóa đơn ${newInvoice.code} (${newInvoice.finalAmount.toLocaleString("vi-VN")} VNĐ) & cộng sổ!`, "success");
-  };
-
-  const handleDeleteInvoice = (id: string) => {
-    setInvoices((prev) => prev.filter((inv) => inv.id !== id));
-    showToast("Đã xóa hóa đơn khỏi sổ sách!", "info");
-  };
-
-  const handleClearAllInvoices = () => {
-    setInvoices([]);
-    showToast("Đã xóa toàn bộ lịch sử hóa đơn!", "info");
-  };
-
-  const handleOpenDataFolder = async () => {
-    if (isElectron()) {
-      const folderPath = await openDataFolder();
-      if (folderPath) {
-        showToast(`Đã mở thư mục dữ liệu: ${folderPath}`, "info");
-      }
+  const handleOpenDataDirectory = async () => {
+    const dir = await openDataFolder();
+    if (dir) {
+      showToast(`Đã mở thư mục dữ liệu: ${dir}`, "success");
     } else {
-      showToast("Tính năng mở thư mục chỉ khả dụng khi chạy file .exe Electron", "info");
+      showToast("Tính năng này chỉ khả dụng khi chạy trên ứng dụng máy tính (Electron Desktop)!", "info");
     }
+  };
+
+  const handleSaveInvoice = (inv: Invoice) => {
+    const nextInvoices = [inv, ...invoices];
+    setInvoices(nextInvoices);
+    showToast(`Đã tạo và lưu hóa đơn ${inv.code} cho bệnh nhân ${inv.patientName}!`, "success");
   };
 
   const isAllergenPackage = selectedTests.some(
@@ -348,43 +321,37 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col font-sans pb-10">
-      {/* 1. HEADER CHÍNH ỨNG DỤNG */}
+    <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-900 pb-12 print:bg-white print:p-0 print:m-0">
+      {/* 1. TOP HEADER NAVIGATION */}
       <Header
-        clinicInfo={clinicInfo}
-        setClinicInfo={setClinicInfo}
-        onLoadExcelFile={handleLoadExcelFile}
-        catalog={catalog}
         onOpenSettings={() => setIsSettingsOpen(true)}
-        onOpenCatalogModal={() => handleOpenCatalogModal()}
+        onOpenCatalogModal={handleOpenCatalogModal}
         onOpenRevenueModal={() => setIsRevenueModalOpen(true)}
-        onOpenReportManagerModal={() => setIsReportManagerOpen(true)}
-        onOpenDataFolder={handleOpenDataFolder}
-        invoiceCount={invoices.length}
-        reportCount={reports.length}
+        onOpenReportManager={() => setIsReportManagerOpen(true)}
+        onOpenDataFolder={handleOpenDataDirectory}
+        onLoadExcelFile={handleLoadExcelFile}
+        reportsCount={reports.length}
       />
 
-      {/* TOAST NOTIFICATION FLOATING BANNER */}
+      {/* TOAST THÔNG BÁO NỔI GÓC PHẢI */}
       {toast && (
-        <div className="fixed top-4 right-4 z-[100] animate-in fade-in slide-in-from-top-3 duration-300">
-          <div
-            className={`flex items-center space-x-2.5 px-4 py-3 rounded-xl shadow-xl border text-sm font-medium ${
-              toast.type === "success"
-                ? "bg-emerald-600 text-white border-emerald-500"
-                : toast.type === "error"
-                ? "bg-rose-600 text-white border-rose-500"
-                : "bg-cyan-600 text-white border-cyan-500"
-            }`}
-          >
-            {toast.type === "success" && <CheckCircle className="w-5 h-5" />}
-            {toast.type === "error" && <AlertCircle className="w-5 h-5" />}
-            {toast.type === "info" && <Info className="w-5 h-5" />}
-            <span>{toast.message}</span>
-          </div>
+        <div
+          className={`fixed bottom-5 right-5 z-50 flex items-center space-x-2.5 px-4 py-3 rounded-xl shadow-2xl border text-xs font-bold animate-in slide-in-from-bottom-5 duration-200 ${
+            toast.type === "success"
+              ? "bg-emerald-950/90 text-emerald-200 border-emerald-500/50"
+              : toast.type === "error"
+              ? "bg-rose-950/90 text-rose-200 border-rose-500/50"
+              : "bg-slate-900/90 text-slate-100 border-slate-700"
+          }`}
+        >
+          {toast.type === "success" && <CheckCircle className="w-4 h-4 text-emerald-400" />}
+          {toast.type === "error" && <AlertCircle className="w-4 h-4 text-rose-400" />}
+          {toast.type === "info" && <Info className="w-4 h-4 text-sky-400" />}
+          <span>{toast.message}</span>
         </div>
       )}
 
-      {/* MAIN CONTAINER CONTENT */}
+      {/* 2. KHUNG NỘI DUNG CHÍNH (MAIN WORKSPACE) */}
       <main className="max-w-[1680px] w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 flex-grow">
         {/* PANEL TRÁI (COL-4): BỆNH NHÂN & KẾT LUẬN */}
         <section className="lg:col-span-4 flex flex-col space-y-5">
@@ -402,6 +369,8 @@ export default function App() {
             doctorName={doctorName}
             setDoctorName={setDoctorName}
             cloudLink={cloudLink}
+            isExporting={isExporting}
+            currentStep={currentStep}
             onExportPdfAndUpload={handleExportPdfAndUpload}
             onOpenPreview={() => setIsPreviewOpen(true)}
             onSaveReport={handleSaveCurrentReport}
@@ -420,32 +389,16 @@ export default function App() {
           <TestTable
             catalog={catalog}
             testPackages={testPackages}
+            testGroups={testGroups}
             selectedTests={selectedTests}
             setSelectedTests={setSelectedTests}
-            onSelectPackage={handleSelectPackage}
+            showToast={showToast}
+            onOpenInvoiceModal={() => setIsInvoiceModalOpen(true)}
           />
         </section>
       </main>
 
-      {/* FOOTER ACTIONS */}
-      <footer className="max-w-[1680px] w-full mx-auto px-4 md:px-6 mt-4 flex items-center justify-between text-xs text-slate-500">
-        <div className="flex items-center space-x-2">
-          <span className="font-semibold text-slate-600">GoLab Medical Diagnostic System</span>
-          <span>•</span>
-          <span>Phiên bản v2.0 Chuẩn Y Khoa</span>
-        </div>
-
-        <button
-          onClick={handleOpenDataFolder}
-          className="flex items-center space-x-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:border-slate-400 hover:bg-slate-50 rounded-xl shadow-2xs text-slate-700 font-bold transition-all active:scale-95"
-          title="Mở thư mục lưu trữ dữ liệu JSON trên đĩa C:"
-        >
-          <FolderOpen className="w-4 h-4 text-emerald-600" />
-          <span>Thư mục dữ liệu GoLabData</span>
-        </button>
-      </footer>
-
-      {/* CÁC POPUP MODAL */}
+      {/* 3. MODALS POPUP QUẢN LÝ */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -468,8 +421,12 @@ export default function App() {
         doctorName={doctorName}
         qrCodeDataUrl={qrCodeDataUrl}
         cloudLink={cloudLink}
+        isExporting={isExporting}
+        currentStep={currentStep}
+        lastError={lastError}
         showToast={showToast}
         onExportPdfAndUpload={handleExportPdfAndUpload}
+        onRetryExport={handleRetryExport}
         onPrintDirect={handlePrintDirect}
         onDownloadQrCode={() => handleDownloadQrCode(patient.name, patient.code)}
       />
@@ -479,58 +436,42 @@ export default function App() {
         onClose={() => setIsCatalogModalOpen(false)}
         targetTab={catalogModalTargetTab}
         catalog={catalog}
-        onSaveCatalog={(newCat) => {
-          setCatalog(newCat);
-          showToast(`Đã lưu bảng giá danh mục mới (${newCat.length} chỉ số)!`, "success");
-        }}
+        setCatalog={setCatalog}
         testPackages={testPackages}
-        onSavePackages={(newPkgs) => {
-          setTestPackages(newPkgs);
-          showToast("Đã cập nhật danh sách các gói xét nghiệm!", "success");
-        }}
+        setTestPackages={setTestPackages}
         testGroups={testGroups}
-        onSaveTestGroups={(newGroups) => {
-          setTestGroups(newGroups);
-        }}
+        setTestGroups={setTestGroups}
         equipments={equipments}
-        onSaveEquipments={(newEqs) => {
-          setEquipments(newEqs);
-        }}
+        setEquipments={setEquipments}
         doctorsList={doctorsList}
-        onSaveDoctors={(newDocs) => {
-          setDoctorsList(newDocs);
-          showToast("Đã cập nhật danh sách Bác sĩ chỉ định!", "success");
-        }}
+        setDoctorsList={setDoctorsList}
+        showToast={showToast}
       />
 
-      {/* MODAL HÓA ĐƠN & THANH TOÁN */}
       <InvoiceModal
         isOpen={isInvoiceModalOpen}
         onClose={() => setIsInvoiceModalOpen(false)}
         patient={patient}
         selectedTests={selectedTests}
-        currentPackageId={currentPackageId}
-        testPackages={testPackages}
-        doctorsList={doctorsList}
+        doctorName={doctorName}
+        clinicInfo={clinicInfo}
         onSaveInvoice={handleSaveInvoice}
+        showToast={showToast}
       />
 
-      {/* MODAL BÁO CÁO & SỔ SÁCH DOANH THU */}
       <RevenueManagerModal
         isOpen={isRevenueModalOpen}
         onClose={() => setIsRevenueModalOpen(false)}
         invoices={invoices}
-        onDeleteInvoice={handleDeleteInvoice}
-        onClearAllInvoices={handleClearAllInvoices}
-        doctorsList={doctorsList}
+        setInvoices={setInvoices}
+        showToast={showToast}
       />
 
-      {/* MODAL QUẢN LÝ SỔ LƯU PHIẾU XÉT NGHIỆM */}
+      {/* MODAL SỔ LƯU KẾT QUẢ XÉT NGHIỆM */}
       <ReportManagerModal
         isOpen={isReportManagerOpen}
         onClose={() => setIsReportManagerOpen(false)}
         reports={reports}
-        doctorsList={doctorsList}
         onLoadReport={handleLoadReport}
         onPreviewReport={handlePreviewSavedReport}
         onDuplicateReport={handleDuplicateReport}
@@ -555,6 +496,14 @@ export default function App() {
           onZnsSuccess={handleZnsSuccess}
         />
       )}
+
+      {/* MODAL GIAO DIỆN LOADING TRANSACTION */}
+      <TransactionLoadingModal
+        isOpen={isExporting}
+        currentStep={currentStep}
+        patient={patient}
+        testCount={selectedTests.length}
+      />
 
       {/* 4. ANCHOR THẺ ẨN CHỜ IN VÀ CHỤP CANVAS SẮC NÉT (PRINT TEMPLATES) */}
       <div 

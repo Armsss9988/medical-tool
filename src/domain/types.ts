@@ -2,7 +2,8 @@ export type Gender = 'Nam' | 'Nữ' | 'Khác';
 
 export type AllergenGrade = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
-export type ToastType = 'success' | 'error' | 'info';
+export type ToastType = 'success' | 'error' | 'info' | 'warning';
+
 
 export type ResultStatus = 'normal' | 'low' | 'high';
 
@@ -96,6 +97,9 @@ export interface Invoice {
   paymentMethod: 'Tiền mặt' | 'Chuyển khoản (VietQR)' | 'Quẹt thẻ';
   status: 'Đã thanh toán' | 'Chờ thanh toán';
   notes?: string;
+  patientCode?: string;
+  packageName?: string;
+  discountAmount?: number;
 }
 
 export interface ClinicInfo {

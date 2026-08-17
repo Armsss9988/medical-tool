@@ -40,6 +40,8 @@ export function useReportManager() {
     qrCodeDataUrl?: string;
     invoiceId?: string;
     status?: ReportStatus;
+    zaloSentAt?: string;
+    zaloMsgId?: string;
   }): MedicalReport => {
     const isAllergen = params.selectedTests.some(
       (t) => (t.category && t.category.includes('Dị Nguyên')) || t.unit === 'IU/mL'
@@ -74,7 +76,9 @@ export function useReportManager() {
       qrCodeDataUrl: params.qrCodeDataUrl ?? (existingIndex >= 0 ? reports[existingIndex].qrCodeDataUrl : undefined),
       invoiceId: params.invoiceId ?? (existingIndex >= 0 ? reports[existingIndex].invoiceId : undefined),
       status: finalStatus,
-      testCount: params.selectedTests.length
+      testCount: params.selectedTests.length,
+      zaloSentAt: params.zaloSentAt ?? (existingIndex >= 0 ? reports[existingIndex].zaloSentAt : undefined),
+      zaloMsgId: params.zaloMsgId ?? (existingIndex >= 0 ? reports[existingIndex].zaloMsgId : undefined)
     };
 
     setReports((prev) => {

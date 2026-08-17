@@ -77,7 +77,7 @@ export async function uploadPdfToCloudinary({
           'Content-Type': 'application/pdf',
           'x-upsert': 'true'
         },
-        body: bytes
+        body: new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' })
       });
 
       if (res.ok) {

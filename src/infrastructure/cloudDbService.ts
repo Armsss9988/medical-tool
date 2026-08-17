@@ -127,7 +127,7 @@ export async function seedAllDefaultDataToSupabase(config: CloudDbConfig): Promi
         address: 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị',
         phone: '032.855.3773',
         website: 'golab.com.vn',
-        defaultDoctor: 'BS. Trần Hoài Long'
+        defaultDoctor: 'Nguyễn Thị Thành Trung'
       }, config)
     ]);
 

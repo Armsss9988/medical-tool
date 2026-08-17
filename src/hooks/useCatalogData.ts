@@ -16,7 +16,7 @@ const DEFAULT_CLINIC_INFO: ClinicInfo = {
   address: "Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị",
   phone: "032.855.3773",
   website: "golab.com.vn",
-  defaultDoctor: "BS. Trần Hoài Long"
+  defaultDoctor: "Nguyễn Thị Thành Trung"
 };
 
 export function useCatalogData() {
@@ -38,168 +38,113 @@ export function useCatalogData() {
         const loadedCatalog = await loadData<CatalogItem[]>("catalog_data", DEFAULT_CATALOG);
         const loadedPackages = await loadData<TestPackage[]>("test_packages", INITIAL_PACKAGES);
         const loadedDoctors = await loadData<Doctor[]>("doctors_catalog", DEFAULT_DOCTORS);
-        const loadedInvoices = await loadData<Invoice[]>("invoices_history", []);
-        const loadedTestGroups = await loadData<TestGroup[]>("test_groups", DEFAULT_TEST_GROUPS);
+        const loadedGroups = await loadData<TestGroup[]>("test_groups", DEFAULT_TEST_GROUPS);
         const loadedEquipments = await loadData<TestEquipment[]>("equipments_catalog", DEFAULT_EQUIPMENTS);
-        const loadedClinic = await loadData<ClinicInfo>("clinic_info", DEFAULT_CLINIC_INFO);
-        const loadedCloudDbConfig = await loadData<CloudDbConfig>("cloud_db_config", DEFAULT_CLOUD_DB_CONFIG);
-        const loadedZaloConfig = await loadData<ZaloZnsConfig>("zalo_config", DEFAULT_ZALO_CONFIG);
-        
-        // Merge with env defaults so .env always provides fallback
-        setZaloConfig({
-          ...DEFAULT_ZALO_CONFIG,
-          ...loadedZaloConfig,
-          enabled: loadedZaloConfig.enabled !== undefined ? loadedZaloConfig.enabled : DEFAULT_ZALO_CONFIG.enabled
-        });
+        const loadedInvoices = await loadData<Invoice[]>("invoices_data", []);
+        const loadedClinicInfo = await loadData<ClinicInfo>("clinic_info", DEFAULT_CLINIC_INFO);
+        const loadedCloudConfig = await loadData<CloudDbConfig>("cloud_db_config", DEFAULT_CLOUD_DB_CONFIG);
+        const loadedZaloConfig = await loadData<ZaloZnsConfig>("zalo_zns_config", DEFAULT_ZALO_CONFIG);
 
-        const existingGroupNames = new Set(loadedTestGroups.map((g) => g.name.toLowerCase()));
-        const finalGroups = [...loadedTestGroups];
-        DEFAULT_TEST_GROUPS.forEach((defG) => {
-          if (!existingGroupNames.has(defG.name.toLowerCase())) {
-            finalGroups.push(defG);
-            existingGroupNames.add(defG.name.toLowerCase());
-          }
-        });
-
-        const existingEquipNames = new Set(loadedEquipments.map((e) => e.name.toLowerCase()));
-        const finalEquipments = [...loadedEquipments];
-        DEFAULT_EQUIPMENTS.forEach((defE) => {
-          if (!existingEquipNames.has(defE.name.toLowerCase())) {
-            finalEquipments.push(defE);
-            existingEquipNames.add(defE.name.toLowerCase());
-          }
-        });
-
-        const seenDocIds = new Set<string>();
-        const seenDocNames = new Set<string>();
-        const finalDoctors: Doctor[] = [];
-        [...loadedDoctors, ...DEFAULT_DOCTORS].forEach((d) => {
-          if (d && d.id && !seenDocIds.has(d.id) && !seenDocNames.has(d.name.toLowerCase())) {
-            seenDocIds.add(d.id);
-            seenDocNames.add(d.name.toLowerCase());
-            finalDoctors.push(d);
-          }
-        });
-
-        const existingCodes = new Set(loadedCatalog.map((c) => c.code));
-        const mergedCatalog = [...loadedCatalog];
-        let hasNewItems = false;
-        DEFAULT_CATALOG.forEach((item) => {
-          if (!existingCodes.has(item.code)) {
-            mergedCatalog.push(item);
-            existingCodes.add(item.code);
-            hasNewItems = true;
-          }
-        });
-
-        const mergedPackages = INITIAL_PACKAGES.map((defPkg) => {
-          const found = loadedPackages.find((p) => p.id === defPkg.id);
-          return found || defPkg;
-        });
-
-        setCatalog(mergedCatalog);
-        setTestPackages(mergedPackages);
-        setTestGroups(finalGroups);
-        setEquipments(finalEquipments);
-        setDoctorsList(finalDoctors);
+        setCatalog(loadedCatalog);
+        setTestPackages(loadedPackages);
+        setDoctorsList(loadedDoctors);
+        setTestGroups(loadedGroups);
+        setEquipments(loadedEquipments);
         setInvoices(loadedInvoices);
-        setClinicInfo(loadedClinic);
-        setCloudDbConfig(loadedCloudDbConfig);
+        setClinicInfo(loadedClinicInfo);
+        setCloudDbConfig(loadedCloudConfig);
+        setZaloConfig(loadedZaloConfig);
 
-        if (hasNewItems) {
-          saveData("catalog_data", mergedCatalog);
-        }
-
-        if (loadedCloudDbConfig.enabled && loadedCloudDbConfig.supabaseUrl) {
+        if (loadedCloudConfig.enabled && loadedCloudConfig.supabaseUrl) {
           try {
-            const cloudCat = await fetchTableFromCloud<CatalogItem[]>("catalog_data", loadedCloudDbConfig);
-            if (cloudCat && cloudCat.length > 0) {
-              setCatalog(cloudCat);
-              saveData("catalog_data", cloudCat);
-            }
-            const cloudPkgs = await fetchTableFromCloud<TestPackage[]>("test_packages", loadedCloudDbConfig);
-            if (cloudPkgs && cloudPkgs.length > 0) {
-              setTestPackages(cloudPkgs);
-              saveData("test_packages", cloudPkgs);
-            }
-            const cloudGroups = await fetchTableFromCloud<TestGroup[]>("test_groups", loadedCloudDbConfig);
-            if (cloudGroups && cloudGroups.length > 0) {
-              setTestGroups(cloudGroups);
-              saveData("test_groups", cloudGroups);
-            }
-            const cloudEquip = await fetchTableFromCloud<TestEquipment[]>("equipments_catalog", loadedCloudDbConfig);
-            if (cloudEquip && cloudEquip.length > 0) {
-              setEquipments(cloudEquip);
-              saveData("equipments_catalog", cloudEquip);
-            }
-            const cloudDocs = await fetchTableFromCloud<Doctor[]>("doctors_catalog", loadedCloudDbConfig);
-            if (cloudDocs && cloudDocs.length > 0) {
-              setDoctorsList(cloudDocs);
-              saveData("doctors_catalog", cloudDocs);
-            }
-            const cloudInvoices = await fetchTableFromCloud<Invoice[]>("invoices_history", loadedCloudDbConfig);
-            if (cloudInvoices && cloudInvoices.length > 0) {
-              setInvoices(cloudInvoices);
-              saveData("invoices_history", cloudInvoices);
-            }
-            const cloudClinic = await fetchTableFromCloud<ClinicInfo>("clinic_info", loadedCloudDbConfig);
-            if (cloudClinic && cloudClinic.name) {
-              setClinicInfo(cloudClinic);
-              saveData("clinic_info", cloudClinic);
-            }
+            const cloudCatalog = await fetchTableFromCloud<CatalogItem[]>("catalog_data", loadedCloudConfig);
+            if (cloudCatalog && cloudCatalog.length > 0) setCatalog(cloudCatalog);
+
+            const cloudPackages = await fetchTableFromCloud<TestPackage[]>("test_packages", loadedCloudConfig);
+            if (cloudPackages && cloudPackages.length > 0) setTestPackages(cloudPackages);
+
+            const cloudDoctors = await fetchTableFromCloud<Doctor[]>("doctors_catalog", loadedCloudConfig);
+            if (cloudDoctors && cloudDoctors.length > 0) setDoctorsList(cloudDoctors);
+
+            const cloudGroups = await fetchTableFromCloud<TestGroup[]>("test_groups", loadedCloudConfig);
+            if (cloudGroups && cloudGroups.length > 0) setTestGroups(cloudGroups);
+
+            const cloudEquipments = await fetchTableFromCloud<TestEquipment[]>("equipments_catalog", loadedCloudConfig);
+            if (cloudEquipments && cloudEquipments.length > 0) setEquipments(cloudEquipments);
+
+            const cloudInvoices = await fetchTableFromCloud<Invoice[]>("invoices_data", loadedCloudConfig);
+            if (cloudInvoices && cloudInvoices.length > 0) setInvoices(cloudInvoices);
+
+            const cloudClinicInfo = await fetchTableFromCloud<ClinicInfo>("clinic_info", loadedCloudConfig);
+            if (cloudClinicInfo) setClinicInfo(cloudClinicInfo);
           } catch (cloudErr) {
-            console.warn("[CloudSync] Không thể tải dữ liệu tự động từ Supabase:", cloudErr);
+            console.warn("[CloudDB] Lỗi khi nạp dữ liệu từ Cloud:", cloudErr);
           }
         }
       } catch (err) {
-        console.error("Lỗi khi tải dữ liệu khởi tạo:", err);
+        console.error("Lỗi khi nạp dữ liệu từ Storage:", err);
       } finally {
         isDataLoadedRef.current = true;
       }
     }
+
     initData();
   }, []);
 
   useEffect(() => {
     if (!isDataLoadedRef.current) return;
     saveData("catalog_data", catalog);
-    if (cloudDbConfig.enabled) syncTableToCloud("catalog_data", catalog, cloudDbConfig);
+    if (cloudDbConfig.enabled && cloudDbConfig.autoSync) {
+      syncTableToCloud("catalog_data", catalog, cloudDbConfig);
+    }
   }, [catalog, cloudDbConfig]);
 
   useEffect(() => {
     if (!isDataLoadedRef.current) return;
     saveData("test_packages", testPackages);
-    if (cloudDbConfig.enabled) syncTableToCloud("test_packages", testPackages, cloudDbConfig);
+    if (cloudDbConfig.enabled && cloudDbConfig.autoSync) {
+      syncTableToCloud("test_packages", testPackages, cloudDbConfig);
+    }
   }, [testPackages, cloudDbConfig]);
 
   useEffect(() => {
     if (!isDataLoadedRef.current) return;
     saveData("test_groups", testGroups);
-    if (cloudDbConfig.enabled) syncTableToCloud("test_groups", testGroups, cloudDbConfig);
+    if (cloudDbConfig.enabled && cloudDbConfig.autoSync) {
+      syncTableToCloud("test_groups", testGroups, cloudDbConfig);
+    }
   }, [testGroups, cloudDbConfig]);
 
   useEffect(() => {
     if (!isDataLoadedRef.current) return;
     saveData("equipments_catalog", equipments);
-    if (cloudDbConfig.enabled) syncTableToCloud("equipments_catalog", equipments, cloudDbConfig);
+    if (cloudDbConfig.enabled && cloudDbConfig.autoSync) {
+      syncTableToCloud("equipments_catalog", equipments, cloudDbConfig);
+    }
   }, [equipments, cloudDbConfig]);
 
   useEffect(() => {
     if (!isDataLoadedRef.current) return;
     saveData("doctors_catalog", doctorsList);
-    if (cloudDbConfig.enabled) syncTableToCloud("doctors_catalog", doctorsList, cloudDbConfig);
+    if (cloudDbConfig.enabled && cloudDbConfig.autoSync) {
+      syncTableToCloud("doctors_catalog", doctorsList, cloudDbConfig);
+    }
   }, [doctorsList, cloudDbConfig]);
 
   useEffect(() => {
     if (!isDataLoadedRef.current) return;
-    saveData("invoices_history", invoices);
-    if (cloudDbConfig.enabled) syncTableToCloud("invoices_history", invoices, cloudDbConfig);
+    saveData("invoices_data", invoices);
+    if (cloudDbConfig.enabled && cloudDbConfig.autoSync) {
+      syncTableToCloud("invoices_data", invoices, cloudDbConfig);
+    }
   }, [invoices, cloudDbConfig]);
 
   useEffect(() => {
     if (!isDataLoadedRef.current) return;
     saveData("clinic_info", clinicInfo);
-    if (cloudDbConfig.enabled) syncTableToCloud("clinic_info", clinicInfo, cloudDbConfig);
+    if (cloudDbConfig.enabled && cloudDbConfig.autoSync) {
+      syncTableToCloud("clinic_info", clinicInfo, cloudDbConfig);
+    }
   }, [clinicInfo, cloudDbConfig]);
 
   useEffect(() => {
@@ -209,8 +154,68 @@ export function useCatalogData() {
 
   useEffect(() => {
     if (!isDataLoadedRef.current) return;
-    saveData("zalo_config", zaloConfig);
+    saveData("zalo_zns_config", zaloConfig);
   }, [zaloConfig]);
+
+  const addCatalogItem = (item: CatalogItem) => {
+    setCatalog((prev) => [...prev, item]);
+  };
+
+  const updateCatalogItem = (item: CatalogItem) => {
+    setCatalog((prev) => prev.map((c) => (c.code === item.code ? item : c)));
+  };
+
+  const deleteCatalogItem = (code: string) => {
+    setCatalog((prev) => prev.filter((c) => c.code !== code));
+  };
+
+  const addDoctor = (doc: Doctor) => {
+    setDoctorsList((prev) => [...prev, doc]);
+  };
+
+  const updateDoctor = (doc: Doctor) => {
+    setDoctorsList((prev) => prev.map((d) => (d.id === doc.id ? doc : d)));
+  };
+
+  const deleteDoctor = (id: string) => {
+    setDoctorsList((prev) => prev.filter((d) => d.id !== id));
+  };
+
+  const addPackage = (pkg: TestPackage) => {
+    setTestPackages((prev) => [...prev, pkg]);
+  };
+
+  const updatePackage = (pkg: TestPackage) => {
+    setTestPackages((prev) => prev.map((p) => (p.id === pkg.id ? pkg : p)));
+  };
+
+  const deletePackage = (id: string) => {
+    setTestPackages((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  const addGroup = (grp: TestGroup) => {
+    setTestGroups((prev) => [...prev, grp]);
+  };
+
+  const updateGroup = (grp: TestGroup) => {
+    setTestGroups((prev) => prev.map((g) => (g.id === grp.id ? grp : g)));
+  };
+
+  const deleteGroup = (id: string) => {
+    setTestGroups((prev) => prev.filter((g) => g.id !== id));
+  };
+
+  const addEquipment = (eq: TestEquipment) => {
+    setEquipments((prev) => [...prev, eq]);
+  };
+
+  const updateEquipment = (eq: TestEquipment) => {
+    setEquipments((prev) => prev.map((e) => (e.id === eq.id ? eq : e)));
+  };
+
+  const deleteEquipment = (id: string) => {
+    setEquipments((prev) => prev.filter((e) => e.id !== id));
+  };
 
   return {
     catalog,
@@ -230,7 +235,21 @@ export function useCatalogData() {
     cloudDbConfig,
     setCloudDbConfig,
     zaloConfig,
-    setZaloConfig
+    setZaloConfig,
+    addCatalogItem,
+    updateCatalogItem,
+    deleteCatalogItem,
+    addDoctor,
+    updateDoctor,
+    deleteDoctor,
+    addPackage,
+    updatePackage,
+    deletePackage,
+    addGroup,
+    updateGroup,
+    deleteGroup,
+    addEquipment,
+    updateEquipment,
+    deleteEquipment
   };
 }
-

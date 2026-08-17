@@ -60,206 +60,91 @@ export function oklchToRgb(oklchStr: string): string {
     const m = m_ * m_ * m_;
     const s = s_ * s_ * s_;
 
-    const rLin = +4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s;
-    const gLin = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s;
-    const bLin = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s;
+    let r = +4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s;
+    let g = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s;
+    let b = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s;
 
-    const rS = rLin <= 0.0031308 ? 12.92 * rLin : 1.055 * Math.pow(rLin, 1 / 2.4) - 0.055;
-    const gS = gLin <= 0.0031308 ? 12.92 * gLin : 1.055 * Math.pow(gLin, 1 / 2.4) - 0.055;
-    const bS = bLin <= 0.0031308 ? 12.92 * bLin : 1.055 * Math.pow(bLin, 1 / 2.4) - 0.055;
+    const toSRGB = (c: number) => {
+      const clamped = Math.max(0, Math.min(1, c));
+      return clamped <= 0.0031308
+        ? 12.92 * clamped
+        : 1.055 * Math.pow(clamped, 1 / 2.4) - 0.055;
+    };
 
-    const rVal = Math.round(Math.max(0, Math.min(255, rS * 255)));
-    const gVal = Math.round(Math.max(0, Math.min(255, gS * 255)));
-    const bVal = Math.round(Math.max(0, Math.min(255, bS * 255)));
+    const R = Math.round(toSRGB(r) * 255);
+    const G = Math.round(toSRGB(g) * 255);
+    const B = Math.round(toSRGB(b) * 255);
 
-    return `rgb(${rVal}, ${gVal}, ${bVal})`;
+    return `rgb(${R}, ${G}, ${B})`;
   } catch {
     return '#1e293b';
   }
 }
 
-export function convertCssColors(cssText: string): string {
-  if (!cssText) return cssText;
-  return cssText
-    .replace(/oklch\([^)]+\)/gi, (m) => oklchToRgb(m))
-    .replace(/oklab\([^)]+\)/gi, '#1e293b')
-    .replace(/color-mix\([^)]+\)/gi, '#1e293b');
+/**
+ * Đảm bảo các style của phần tử clone được xử lý tương thích với html2canvas
+ */
+export function sanitizeStylesForCanvas(clonedDoc: Document, printElementId: string): void {
+  const clonedElement = clonedDoc.getElementById(printElementId);
+  if (!clonedElement) return;
+
+  clonedElement.style.display = 'block';
+  clonedElement.style.position = 'static';
+  clonedElement.style.visibility = 'visible';
+  clonedElement.style.opacity = '1';
+  clonedElement.style.transform = 'none';
+
+  const allElements = clonedElement.querySelectorAll('*');
+  allElements.forEach((node) => {
+    const el = node as HTMLElement;
+    if (el.style) {
+      if (el.style.color && el.style.color.includes('oklch')) {
+        el.style.color = oklchToRgb(el.style.color);
+      }
+      if (el.style.backgroundColor && el.style.backgroundColor.includes('oklch')) {
+        el.style.backgroundColor = oklchToRgb(el.style.backgroundColor);
+      }
+      if (el.style.borderColor && el.style.borderColor.includes('oklch')) {
+        el.style.borderColor = oklchToRgb(el.style.borderColor);
+      }
+    }
+  });
 }
 
 export interface ExportPdfResult {
   success: boolean;
-  pdfBase64: string;
-  pdfBlob?: Blob | null;
+  pdfBase64?: string;
+  pdfBlob?: Blob;
+  error?: string;
 }
 
-/**
- * Đảm bảo 100% tất cả hình ảnh (Logo, Con dấu, QR Code) trong phần tử đã decode hoàn tất
- */
 export async function ensureImagesLoadedAndReady(element: HTMLElement): Promise<void> {
   const images = Array.from(element.querySelectorAll('img'));
   if (images.length === 0) return;
 
-  const loadPromises = images.map((img) => {
-    return new Promise<void>((resolve) => {
-      // Chỉ đặt thuộc tính crossorigin cho URL từ xa (http/https), tuyệt đối không đặt cho data: URI
-      if (img.src && (img.src.startsWith('http://') || img.src.startsWith('https://')) && !img.getAttribute('crossorigin')) {
-        img.setAttribute('crossorigin', 'anonymous');
-      } else if (img.src && img.src.startsWith('data:')) {
-        img.removeAttribute('crossorigin');
+  await Promise.all(
+    images.map(async (img) => {
+      if (!img.complete) {
+        await new Promise<void>((resolve) => {
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+        });
       }
-      img.loading = 'eager';
-
-      if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
-        resolve();
-        return;
-      }
-
-      const timeoutId = setTimeout(() => {
-        resolve(); // Timeout an toàn 2500ms, không bao giờ để tiến trình bị treo
-      }, 2500);
-
-      const onDone = () => {
-        clearTimeout(timeoutId);
-        resolve();
-      };
-
-      img.onload = onDone;
-      img.onerror = onDone;
-
-      if ('decode' in img && typeof img.decode === 'function') {
-        img.decode().then(onDone).catch(onDone);
-      }
-    });
-  });
-
-  await Promise.all(loadPromises);
-  // Nghỉ 80ms để trình duyệt hoàn tất paint layout
-  await new Promise((resolve) => setTimeout(resolve, 80));
-}
-
-function sanitizeStylesForCanvas(clonedDoc: Document, printElementId: string) {
-  const styleTags = clonedDoc.querySelectorAll('style');
-  styleTags.forEach((styleTag) => {
-    if (styleTag.textContent) {
-      styleTag.textContent = convertCssColors(styleTag.textContent);
-    }
-  });
-
-  try {
-    const sheets = Array.from(clonedDoc.styleSheets);
-    sheets.forEach((sheet) => {
-      try {
-        const rules = sheet.cssRules || sheet.rules;
-        if (!rules) return;
-        for (let i = rules.length - 1; i >= 0; i--) {
-          const rule = rules[i] as CSSStyleRule;
-          if (rule.cssText && (rule.cssText.includes('oklch') || rule.cssText.includes('oklab') || rule.cssText.includes('color-mix'))) {
-            try {
-              const cleaned = convertCssColors(rule.cssText);
-              sheet.deleteRule(i);
-              sheet.insertRule(cleaned, i);
-            } catch {
-              /* ignore single rule parse error */
-            }
-          }
-        }
-      } catch {
-        /* ignore cross-origin sheet */
-      }
-    });
-  } catch {
-    /* ignore sheet error */
-  }
-
-  // Tiêm CSS reset chuyên dụng cho html2canvas để căn giữa hoàn hảo và chống lệch dòng chữ
-  const fixStyle = clonedDoc.createElement('style');
-  fixStyle.id = 'html2canvas-print-alignment-fix';
-  fixStyle.textContent = `
-    #${printElementId}, #${printElementId} * {
-      -webkit-font-smoothing: antialiased !important;
-      text-rendering: geometricPrecision !important;
-      box-sizing: border-box !important;
-    }
-    #${printElementId} {
-      font-family: Arial, "Helvetica Neue", Helvetica, "Segoe UI", sans-serif !important;
-      line-height: 1.25 !important;
-    }
-    #${printElementId} table {
-      border-collapse: collapse !important;
-      border-spacing: 0 !important;
-      width: 100% !important;
-    }
-    #${printElementId} tr {
-      vertical-align: middle !important;
-    }
-    #${printElementId} th {
-      vertical-align: middle !important;
-      line-height: 1.15 !important;
-      padding-top: 3.5px !important;
-      padding-bottom: 3.5px !important;
-    }
-    #${printElementId} td {
-      vertical-align: middle !important;
-      line-height: 1.15 !important;
-      padding-top: 2.5px !important;
-      padding-bottom: 2.5px !important;
-    }
-    #${printElementId} h1, #${printElementId} h2, #${printElementId} h3, #${printElementId} h4 {
-      line-height: 1.2 !important;
-    }
-    #${printElementId} p, #${printElementId} span {
-      line-height: 1.25 !important;
-    }
-  `;
-  clonedDoc.head.appendChild(fixStyle);
-
-  const printEl = clonedDoc.getElementById(printElementId);
-  if (printEl) {
-    printEl.style.display = 'block';
-    printEl.style.visibility = 'visible';
-    printEl.style.opacity = '1';
-    printEl.style.position = 'static';
-    printEl.style.transform = 'none';
-    printEl.style.width = '210mm';
-    printEl.style.minWidth = '210mm';
-    printEl.style.maxWidth = '210mm';
-    printEl.style.boxSizing = 'border-box';
-    printEl.style.backgroundColor = '#ffffff';
-    printEl.style.margin = '0 auto';
-    printEl.style.fontFamily = 'Arial, "Helvetica Neue", Helvetica, "Segoe UI", sans-serif';
-    printEl.style.lineHeight = '1.3';
-
-    const allElements = [printEl, ...Array.from(printEl.querySelectorAll('*'))];
-    allElements.forEach((node) => {
-      const htmlNode = node as HTMLElement;
-      if (htmlNode.style) {
-        const styleAttr = htmlNode.getAttribute('style') || '';
-        if (styleAttr.includes('oklch') || styleAttr.includes('oklab') || styleAttr.includes('color-mix')) {
-          htmlNode.setAttribute('style', convertCssColors(styleAttr));
+      if (typeof img.decode === 'function') {
+        try {
+          await img.decode();
+        } catch {
+          /* Ignore decode error */
         }
       }
-
-      // Đảm bảo tất cả thẻ img trong clonedDoc đều giữ đúng thuộc tính và nạp ngay
-      if (htmlNode.tagName.toLowerCase() === 'img') {
-        const img = htmlNode as HTMLImageElement;
-        if (img.src && (img.src.startsWith('http://') || img.src.startsWith('https://'))) {
-          img.crossOrigin = 'anonymous';
-        } else {
-          img.removeAttribute('crossorigin');
-        }
-        img.loading = 'eager';
-      }
-
-      // Căn giữa theo chiều dọc cho bảng
-      if (htmlNode.tagName.toLowerCase() === 'td' || htmlNode.tagName.toLowerCase() === 'th') {
-        htmlNode.style.verticalAlign = 'middle';
-      }
-    });
-  }
+    })
+  );
 }
 
 /**
- * Hàm xuất PDF cốt lõi: Render chất lượng cao, trả về đầy đủ Base64, Blob và tùy chọn lưu file
+ * Xuất phiếu trả kết quả ra file PDF A4 chuẩn y khoa
+ * - Độ phân giải siêu nét (scale 2.5)
+ * - Tự động nhận diện trang rời (.report-page) hoặc phân trang thông minh (avoid-break)
  */
 export async function exportToPdfFull(
   printElementId: string,
@@ -268,24 +153,23 @@ export async function exportToPdfFull(
 ): Promise<ExportPdfResult> {
   const element = document.getElementById(printElementId);
   if (!element) {
-    throw new Error(`Không tìm thấy phần tử HTML #${printElementId}`);
+    throw new Error(`Không tìm thấy phần tử HTML với ID: ${printElementId}`);
   }
 
-  try {
-    await Promise.race([
-      document.fonts.ready,
-      new Promise((resolve) => setTimeout(resolve, 600))
-    ]);
-  } catch {
-    /* fallback font ready */
-  }
-
-  const container = element.closest('.fixed, [style]') || element.parentElement;
-  const savedContainerStyle = container ? container.getAttribute('style') || '' : '';
-
+  const container = element.parentElement;
+  let savedContainerStyle = '';
   if (container && container !== element) {
-    (container as HTMLElement).style.cssText =
-      'position:fixed; left:0; top:0; width:210mm; min-width:210mm; z-index:-999; opacity:0; pointer-events:none; overflow:visible; transform:none;';
+    savedContainerStyle = container.getAttribute('style') || '';
+    container.style.display = 'block';
+    container.style.position = 'absolute';
+    container.style.left = '0px';
+    container.style.top = '0px';
+    container.style.width = '794px';
+    container.style.maxWidth = '794px';
+    container.style.opacity = '1';
+    container.style.zIndex = '-9999';
+    container.style.visibility = 'visible';
+    container.style.pointerEvents = 'none';
   }
 
   const originalDisplay = element.style.display;
@@ -294,23 +178,170 @@ export async function exportToPdfFull(
   // 1. Chờ tất cả ảnh (Logo, Con dấu, QR) tải và decode hoàn tất 100% trước khi render PDF
   await ensureImagesLoadedAndReady(element);
 
+  // 2. Thu thập danh sách vị trí các phần tử cần tránh cắt đôi (Avoid-Break Elements)
+  const containerRect = element.getBoundingClientRect();
+  const avoidSelector = '[data-avoid-break="true"], tr, .signature-section, .patient-table-section, .conclusion-section, .avoid-break';
+  const avoidElements = Array.from(element.querySelectorAll(avoidSelector));
+  const avoidBoxes = avoidElements.map((el) => {
+    const rect = el.getBoundingClientRect();
+    return {
+      top: rect.top - containerRect.top,
+      bottom: rect.bottom - containerRect.top,
+      height: rect.height
+    };
+  });
+
   try {
-    const canvas = await html2canvas(element, {
-      scale: 2.5, // 2.5 để hình ảnh và chữ sắc nét tuyệt đối chuẩn in ấn A4
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#ffffff',
-      logging: false,
-      imageTimeout: 15000,
-      scrollX: 0,
-      scrollY: 0,
-      x: 0,
-      y: 0,
-      windowWidth: 1200, // Cố định chiều rộng ngữ cảnh desktop chuẩn A4
-      onclone: (clonedDoc) => {
-        sanitizeStylesForCanvas(clonedDoc, printElementId);
-      }
+    const pdf = new jsPDF({
+      orientation: 'p',
+      unit: 'mm',
+      format: 'a4',
+      compress: true
     });
+
+    const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm
+    const pdfHeight = pdf.internal.pageSize.getHeight(); // 297mm
+
+    // Kiểm tra xem phần tử có chứa các trang độc lập (.report-page) không
+    const reportPages = Array.from(element.querySelectorAll<HTMLElement>('.report-page'));
+
+    if (reportPages.length > 0) {
+      // 1. CHẾ ĐỘ XUẤT THEO TỪNG TRANG CHUẨN (.report-page)
+      for (let pIdx = 0; pIdx < reportPages.length; pIdx++) {
+        const pageEl = reportPages[pIdx];
+        const pageCanvas = await html2canvas(pageEl, {
+          scale: 2.5,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+          imageTimeout: 15000,
+          scrollX: 0,
+          scrollY: 0,
+          x: 0,
+          y: 0,
+          windowWidth: 794,
+          onclone: (clonedDoc) => {
+            sanitizeStylesForCanvas(clonedDoc, printElementId);
+          }
+        });
+
+        const imgData = pageCanvas.toDataURL('image/png');
+        const pagePdfHeight = (pageCanvas.height * pdfWidth) / pageCanvas.width;
+
+        if (pIdx > 0) {
+          pdf.addPage();
+        }
+
+        pdf.addImage(
+          imgData,
+          'PNG',
+          0,
+          0,
+          pdfWidth,
+          Math.min(pdfHeight, pagePdfHeight),
+          undefined,
+          'SLOW'
+        );
+      }
+    } else {
+      // 2. CHẾ ĐỘ PHÂN TRANG THÔNG MINH (SMART PAGINATION ENGINE) CHO CÁC PHIẾU LIÊN TỤC
+      const canvas = await html2canvas(element, {
+        scale: 2.5,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        imageTimeout: 15000,
+        scrollX: 0,
+        scrollY: 0,
+        x: 0,
+        y: 0,
+        windowWidth: element.offsetWidth || 794,
+        onclone: (clonedDoc) => {
+          sanitizeStylesForCanvas(clonedDoc, printElementId);
+        }
+      });
+
+      // Chiều cao chuẩn 1 trang A4 tính theo tọa độ pixel của Canvas
+      const pageCanvasHeight = (canvas.width * pdfHeight) / pdfWidth;
+      const scaleToCanvas = containerRect.height > 0 ? canvas.height / containerRect.height : 1;
+
+      // Chuyển đổi vị trí các khối cần bảo vệ sang tọa độ Canvas
+      const scaledAvoidBoxes = avoidBoxes.map((b) => ({
+        top: b.top * scaleToCanvas,
+        bottom: b.bottom * scaleToCanvas,
+        height: b.height * scaleToCanvas
+      }));
+
+      let currentY = 0;
+      const pageSlices: { startY: number; endY: number }[] = [];
+
+      while (currentY < canvas.height - 2) {
+        const remainingHeight = canvas.height - currentY;
+
+        if (remainingHeight <= pageCanvasHeight) {
+          pageSlices.push({ startY: currentY, endY: canvas.height });
+          break;
+        }
+
+        const idealEndY = currentY + pageCanvasHeight;
+        let bestSplitY = idealEndY;
+
+        for (const box of scaledAvoidBoxes) {
+          if (box.top < idealEndY && box.bottom > idealEndY) {
+            if (box.top > currentY + pageCanvasHeight * 0.2) {
+              bestSplitY = Math.min(bestSplitY, box.top);
+            }
+          }
+        }
+
+        if (bestSplitY <= currentY + pageCanvasHeight * 0.2) {
+          bestSplitY = idealEndY;
+        }
+
+        pageSlices.push({ startY: currentY, endY: bestSplitY });
+        currentY = bestSplitY;
+      }
+
+      for (let i = 0; i < pageSlices.length; i++) {
+        const slice = pageSlices[i];
+        const sliceHeight = slice.endY - slice.startY;
+
+        const sliceCanvas = document.createElement('canvas');
+        sliceCanvas.width = canvas.width;
+        const topPadding = i > 0 ? 35 : 0;
+        sliceCanvas.height = Math.max(1, Math.round(sliceHeight + topPadding));
+        const ctx = sliceCanvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+          ctx.drawImage(
+            canvas,
+            0, slice.startY, canvas.width, sliceHeight,
+            0, topPadding, sliceCanvas.width, sliceHeight
+          );
+        }
+
+        const sliceImgData = sliceCanvas.toDataURL('image/png');
+        const slicePdfHeight = (sliceCanvas.height * pdfWidth) / canvas.width;
+
+        if (i > 0) {
+          pdf.addPage();
+        }
+
+        pdf.addImage(
+          sliceImgData,
+          'PNG',
+          0,
+          0,
+          pdfWidth,
+          slicePdfHeight,
+          undefined,
+          'SLOW'
+        );
+      }
+    }
 
     element.style.display = originalDisplay;
     if (container && container !== element) {
@@ -319,31 +350,6 @@ export async function exportToPdfFull(
       } else {
         container.removeAttribute('style');
       }
-    }
-
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF({
-      orientation: 'p',
-      unit: 'mm',
-      format: 'a4',
-      compress: true
-    });
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pdfWidth;
-    const imgHeight = (canvas.height * pdfWidth) / canvas.width;
-
-    let heightLeft = imgHeight;
-    let position = 0;
-
-    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-    heightLeft -= pdfHeight;
-
-    while (heightLeft >= 1) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-      heightLeft -= pdfHeight;
     }
 
     if (saveLocalFile) {

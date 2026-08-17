@@ -1,45 +1,120 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { ToastType } from '@domain/types';
-import { exportToPdfFull } from '@infra/pdfService';
-import { uploadPdfToCloudinary } from '@infra/cloudService';
-import { generateQrCodeDataUrl, downloadDataUrlAsImage } from '@infra/qrService';
+import { downloadDataUrlAsImage } from '@infra/qrService';
+import { PdfExportTransaction } from '@infra/pdfExportTransaction';
+import {
+  ExportStepName,
+  ExportStepStatus,
+  ExportErrorDetail,
+  ExportTransactionResult,
+  EXPORT_STEP_LABELS
+} from '@domain/exportTransaction';
+
+interface ExportHistoryParams {
+  elementId: string;
+  filename: string;
+  reportCode?: string;
+  patientName?: string;
+}
 
 export function useReportExport(
   showToast: (message: string, type?: ToastType) => void
 ) {
   const [cloudLink, setCloudLink] = useState<string>('');
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [currentStep, setCurrentStep] = useState<ExportStepName | null>(null);
+  const [lastError, setLastError] = useState<ExportErrorDetail | null>(null);
+  const [lastTransactionResult, setLastTransactionResult] = useState<ExportTransactionResult | null>(null);
+
+  // Lưu params lần xuất gần nhất để hỗ trợ Retry thủ công (Quyết định 2: B)
+  const lastParamsRef = useRef<ExportHistoryParams | null>(null);
 
   const handleExportPdfAndUploadCloud = async (
     elementId: string,
-    filename: string
-  ) => {
+    filename: string,
+    reportCode?: string,
+    patientName?: string
+  ): Promise<ExportTransactionResult | null> => {
+    // Lưu lại params cho retry
+    lastParamsRef.current = { elementId, filename, reportCode, patientName };
+
+    setIsExporting(true);
+    setLastError(null);
+    setCurrentStep('render_pdf');
+
+    const cleanCode = reportCode || filename.replace(/^PhieuXN_[^_]+_/, '').replace(/\.pdf$/, '') || 'BN-TEMP';
+    const cleanPatientName = patientName || 'BenhNhan';
+
+    const tx = new PdfExportTransaction();
+
     try {
-      showToast('Đang tạo file PDF A4 & tải lên Cloud Storage...', 'info');
-
-      const exportRes = await exportToPdfFull(elementId, filename, true);
-      if (!exportRes || !exportRes.pdfBase64) {
-        showToast('Không thể xuất file PDF. Vui lòng kiểm tra lại!', 'error');
-        return;
-      }
-
-      const cloudRes = await uploadPdfToCloudinary({
-        pdfBase64: exportRes.pdfBase64,
-        filename
+      const result = await tx.execute({
+        elementId,
+        filename,
+        reportCode: cleanCode,
+        patientName: cleanPatientName,
+        onProgress: (step: ExportStepName, status: ExportStepStatus) => {
+          if (status === 'running') {
+            setCurrentStep(step);
+            showToast(EXPORT_STEP_LABELS[step] || 'Đang xử lý...', 'info');
+          }
+        }
       });
 
-      const uploadedUrl = cloudRes.url;
-      setCloudLink(uploadedUrl);
+      setLastTransactionResult(result);
 
-      const qrUrl = await generateQrCodeDataUrl(uploadedUrl);
-      setQrCodeDataUrl(qrUrl);
+      if (result.success && result.finalUrl) {
+        setCloudLink(result.finalUrl);
+        if (result.finalQrCodeDataUrl) {
+          setQrCodeDataUrl(result.finalQrCodeDataUrl);
+        }
+        showToast('Xuất PDF và lưu trữ Cloud thành công! Sẵn sàng in hoặc quét QR.', 'success');
+      } else {
+        // Xử lý khi transaction thất bại (đã có rollback tự động trong Transaction class)
+        const failedStep = result.steps.find((s) => s.status === 'failed');
+        const errorDetail: ExportErrorDetail = {
+          step: failedStep?.step || 'upload_cloud',
+          message: failedStep?.error || 'Lỗi không xác định trong tiến trình',
+          timestamp: new Date().toISOString(),
+          retryable: true
+        };
+        setLastError(errorDetail);
 
-      showToast('Đã tải lên Cloud thành công! Nút "Tải QR Code" đã sẵn sàng.', 'success');
+        let errorMsg = `Lỗi ở bước [${EXPORT_STEP_LABELS[errorDetail.step] || errorDetail.step}]: ${errorDetail.message}`;
+        if (result.rollbackPerformed) {
+          errorMsg += ' (Đã tự động Rollback dữ liệu an toàn)';
+        }
+        showToast(errorMsg, 'error');
+      }
+
+      return result;
     } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : 'Không thể tải file lên Cloud';
-      console.error('Lỗi quy trình 1-Click:', err);
-      showToast(`Có lỗi xảy ra: ${errMsg}`, 'error');
+      const errMsg = err instanceof Error ? err.message : 'Lỗi hệ thống khi xuất file';
+      const errorDetail: ExportErrorDetail = {
+        step: 'render_pdf',
+        message: errMsg,
+        timestamp: new Date().toISOString(),
+        retryable: true
+      };
+      setLastError(errorDetail);
+      showToast(`Không thể hoàn tất quy trình xuất: ${errMsg}`, 'error');
+      return null;
+    } finally {
+      setIsExporting(false);
+      setCurrentStep(null);
     }
+  };
+
+  // ─── Retry thủ công lần xuất trước (Quyết định 2: B) ─────────────────────────
+  const handleRetryExport = async (): Promise<ExportTransactionResult | null> => {
+    if (!lastParamsRef.current) {
+      showToast('Không có dữ liệu xuất trước đó để thử lại!', 'warning');
+      return null;
+    }
+    const { elementId, filename, reportCode, patientName } = lastParamsRef.current;
+    showToast('Đang thử lại tiến trình xuất PDF & Upload...', 'info');
+    return handleExportPdfAndUploadCloud(elementId, filename, reportCode, patientName);
   };
 
   const handleDownloadQrCode = (patientName: string, patientCode: string) => {
@@ -57,12 +132,20 @@ export function useReportExport(
   const resetExport = () => {
     setCloudLink('');
     setQrCodeDataUrl('');
+    setLastError(null);
+    setLastTransactionResult(null);
+    setCurrentStep(null);
   };
 
   return {
     cloudLink,
     qrCodeDataUrl,
+    isExporting,
+    currentStep,
+    lastError,
+    lastTransactionResult,
     handleExportPdfAndUploadCloud,
+    handleRetryExport,
     handleDownloadQrCode,
     resetExport
   };
