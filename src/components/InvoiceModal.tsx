@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { X, CreditCard, CheckCircle } from 'lucide-react';
 import { Patient, SelectedTest, TestPackage, Doctor, Invoice } from '@domain/types';
 import { CreateInvoiceUseCase } from '../usecases/CreateInvoiceUseCase';
@@ -11,7 +11,7 @@ interface InvoiceModalProps {
   selectedTests: SelectedTest[];
   currentPackageId: string;
   testPackages: TestPackage[];
-  doctorsList: Doctor[];
+  doctorsList?: Doctor[];
   onSaveInvoice: (newInvoice: Invoice) => void;
 }
 
@@ -22,12 +22,11 @@ export default function InvoiceModal({
   selectedTests,
   currentPackageId,
   testPackages,
-  doctorsList,
   onSaveInvoice
 }: InvoiceModalProps) {
   const [discountVal, setDiscountVal] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<'Tiền mặt' | 'Chuyển khoản (VietQR)' | 'Quẹt thẻ'>('Tiền mặt');
-  const [doctorName, setDoctorName] = useState<string>('BS. Trần Hoài Long');
+  const doctorName = 'BS. Trần Hoài Long';
 
   if (!isOpen) return null;
 

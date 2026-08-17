@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { 
   X, 
   Search, 
@@ -99,64 +99,58 @@ export default function ReportManagerModal({
         }
       }
 
-      // Lọc theo ngày
-      const repDate = new Date(rep.createdAt);
-      if (dateFilter === 'TODAY' && repDate.toDateString() !== todayStr) {
-        return false;
-      }
-      if (dateFilter === 'YESTERDAY' && repDate.toDateString() !== yesterdayStr) {
-        return false;
-      }
-      if (dateFilter === 'LAST_7_DAYS' && repDate < sevenDaysAgo) {
-        return false;
-      }
-      if (dateFilter === 'THIS_MONTH') {
-        if (repDate.getMonth() !== now.getMonth() || repDate.getFullYear() !== now.getFullYear()) {
-          return false;
-        }
-      }
-
       // Lọc theo Bác sĩ
       if (selectedDoctor !== 'ALL' && rep.doctorName !== selectedDoctor) {
         return false;
       }
 
       // Lọc theo Loại phiếu
-      if (selectedType === 'STANDARD' && rep.isAllergen) {
-        return false;
-      }
-      if (selectedType === 'ALLERGEN' && !rep.isAllergen) {
-        return false;
-      }
+      if (selectedType === 'ALLERGEN' && !rep.isAllergen) return false;
+      if (selectedType === 'STANDARD' && rep.isAllergen) return false;
 
       // Lọc theo Trạng thái
       if (selectedStatus !== 'ALL' && rep.status !== selectedStatus) {
         return false;
       }
 
+      // Lọc theo Thời gian
+      const repDate = new Date(rep.createdAt);
+      if (dateFilter === 'TODAY') {
+        if (repDate.toDateString() !== todayStr) return false;
+      } else if (dateFilter === 'YESTERDAY') {
+        if (repDate.toDateString() !== yesterdayStr) return false;
+      } else if (dateFilter === 'LAST_7_DAYS') {
+        if (repDate < sevenDaysAgo) return false;
+      } else if (dateFilter === 'THIS_MONTH') {
+        if (repDate.getMonth() !== now.getMonth() || repDate.getFullYear() !== now.getFullYear()) {
+          return false;
+        }
+      }
+
       return true;
     });
-  }, [reports, searchTerm, dateFilter, selectedDoctor, selectedType, selectedStatus]);
+  }, [reports, searchTerm, selectedDoctor, selectedType, selectedStatus, dateFilter]);
 
-  // 3. Xử lý xuất Excel
-  const handleExportExcel = () => {
+  // 3. Xuất toàn bộ phiếu đã lọc ra Excel
+  const handleExportFilteredExcel = async () => {
     if (filteredReports.length === 0) {
-      showToast('Không có dữ liệu phiếu để xuất Excel!', 'info');
+      showToast('Không có dữ liệu phiếu xét nghiệm để xuất Excel!', 'error');
       return;
     }
     try {
-      exportReportsExcel(filteredReports);
-      showToast(`Đã xuất file Excel cho ${filteredReports.length} phiếu xét nghiệm!`, 'success');
+      showToast('Đang tạo file Excel danh sách phiếu xét nghiệm...', 'info');
+      await exportReportsExcel(filteredReports);
+      showToast(`Đã xuất thành công ${filteredReports.length} phiếu ra Excel!`, 'success');
     } catch (err) {
-      console.error('Lỗi xuất Excel:', err);
-      showToast('Có lỗi xảy ra khi tạo file Excel!', 'error');
+      console.error('Lỗi khi xuất file Excel:', err);
+      showToast('Đã xảy ra lỗi khi xuất file Excel!', 'error');
     }
   };
 
-  // 4. Tải trực tiếp mã QR
+  // 4. Tải mã QR Code của phiếu đã lưu
   const handleDownloadQr = (rep: MedicalReport) => {
     if (!rep.qrCodeDataUrl) {
-      showToast('Phiếu này chưa được tạo mã QR!', 'info');
+      showToast('Phiếu này chưa được tải lên Cloud hoặc chưa có mã QR!', 'error');
       return;
     }
     const safeName = (rep.patient.name || 'BenhNhan').replace(/\s+/g, '_');
@@ -165,437 +159,354 @@ export default function ReportManagerModal({
     showToast('Đã tải ảnh mã QR Code về máy!', 'success');
   };
 
-  // 5. Xóa an toàn
-  const handleDelete = (id: string, code: string, name: string) => {
-    if (window.confirm(`Bạn có chắc chắn muốn xóa phiếu của bệnh nhân ${name} (Mã: ${code}) khỏi sổ lưu?`)) {
-      onDeleteReport(id);
-      showToast(`Đã xóa phiếu ${code}!`, 'info');
-    }
-  };
-
-  // 6. Xóa toàn bộ
-  const handleClearAll = () => {
-    if (window.confirm('CẢNH BÁO: Thao tác này sẽ xóa toàn bộ lịch sử các phiếu xét nghiệm đã lưu trong sổ. Bạn có chắc chắn không?')) {
-      onClearAllReports();
-      showToast('Đã xóa toàn bộ lịch sử phiếu xét nghiệm!', 'info');
-    }
-  };
-
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-50 p-2 md:p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-6xl max-h-[94vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-150">
+    <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-md flex items-center justify-center p-3 md:p-6 overflow-hidden">
+      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden text-white animate-in fade-in zoom-in-95 duration-200">
         
-        {/* Header Modal */}
-        <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between border-b border-slate-800 shrink-0">
+        {/* HEADER MODAL */}
+        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90 shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-sky-500/20 font-bold border border-sky-400/30">
+            <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400">
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-extrabold text-sm md:text-base tracking-tight flex items-center gap-2">
-                Sổ Quản Lý & Lưu Trữ Phiếu Xét Nghiệm
+              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                Sổ Lưu Phiếu Kết Quả Xét Nghiệm
                 <span className="text-[11px] font-bold bg-sky-500/20 text-sky-300 border border-sky-400/30 px-2 py-0.5 rounded-full">
-                  {filteredReports.length} / {reports.length} phiếu
+                  {reports.length} Hồ Sơ
                 </span>
               </h3>
-              <p className="text-[11px] text-slate-400">
-                Tra cứu, nạp lại dữ liệu, in lại phiếu A4 hoặc xuất báo cáo Excel
+              <p className="text-xs text-slate-400">
+                Tra cứu, nạp lại, nhân bản và quản lý toàn bộ hồ sơ xét nghiệm đã lập
               </p>
             </div>
           </div>
 
           <div className="flex items-center space-x-2">
             <button
-              onClick={handleExportExcel}
-              disabled={filteredReports.length === 0}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 text-white text-xs font-bold shadow transition-all active:scale-95"
-              title="Xuất danh sách phiếu ra file Excel"
+              type="button"
+              onClick={handleExportFilteredExcel}
+              className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition active:scale-95"
             >
               <FileSpreadsheet className="w-4 h-4" />
-              <span className="hidden sm:inline">Xuất Excel</span>
+              <span>Xuất Sổ Excel</span>
             </button>
 
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Content Body */}
-        <div className="p-4 md:p-5 overflow-y-auto flex-grow text-xs space-y-4 bg-slate-50/50">
-          
-          {/* Top KPI Summary Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs flex items-center justify-between">
-              <div>
-                <span className="text-[11px] font-bold text-slate-500 uppercase block">Tổng Số Phiếu</span>
-                <span className="text-xl font-black font-mono text-slate-900">{stats.total}</span>
-              </div>
-              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-700">
-                <FileText className="w-4 h-4" />
-              </div>
+        {/* THỐNG KÊ KPI CARDS */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-slate-950/40 border-b border-slate-800/80 text-xs shrink-0">
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 flex items-center justify-between">
+            <div>
+              <p className="text-slate-400 font-medium text-[11px]">Tổng số phiếu</p>
+              <p className="text-lg font-black text-white font-mono mt-0.5">{stats.total}</p>
             </div>
-
-            <div className="bg-white border border-sky-100 rounded-xl p-3 shadow-2xs flex items-center justify-between">
-              <div>
-                <span className="text-[11px] font-bold text-sky-600 uppercase block">Hôm Nay</span>
-                <span className="text-xl font-black font-mono text-sky-900">{stats.today}</span>
-              </div>
-              <div className="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center text-sky-600">
-                <Clock className="w-4 h-4" />
-              </div>
-            </div>
-
-            <div className="bg-white border border-purple-100 rounded-xl p-3 shadow-2xs flex items-center justify-between">
-              <div>
-                <span className="text-[11px] font-bold text-purple-600 uppercase block">Panel Dị Nguyên</span>
-                <span className="text-xl font-black font-mono text-purple-900">{stats.allergen}</span>
-              </div>
-              <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600">
-                <Sparkles className="w-4 h-4" />
-              </div>
-            </div>
-
-            <div className="bg-white border border-emerald-100 rounded-xl p-3 shadow-2xs flex items-center justify-between">
-              <div>
-                <span className="text-[11px] font-bold text-emerald-600 uppercase block">Đã Lưu Cloud</span>
-                <span className="text-xl font-black font-mono text-emerald-900">{stats.cloud}</span>
-              </div>
-              <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
-                <Cloud className="w-4 h-4" />
-              </div>
-            </div>
+            <FileText className="w-5 h-5 text-sky-400/80" />
           </div>
 
-          {/* Search & Filters Toolbar */}
-          <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs space-y-3">
-            {/* Live Search Box */}
-            <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 flex items-center justify-between">
+            <div>
+              <p className="text-slate-400 font-medium text-[11px]">Lập hôm nay</p>
+              <p className="text-lg font-black text-emerald-400 font-mono mt-0.5">{stats.today}</p>
+            </div>
+            <Clock className="w-5 h-5 text-emerald-400/80" />
+          </div>
+
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 flex items-center justify-between">
+            <div>
+              <p className="text-slate-400 font-medium text-[11px]">Phiếu Dị Nguyên</p>
+              <p className="text-lg font-black text-purple-400 font-mono mt-0.5">{stats.allergen}</p>
+            </div>
+            <Sparkles className="w-5 h-5 text-purple-400/80" />
+          </div>
+
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 flex items-center justify-between">
+            <div>
+              <p className="text-slate-400 font-medium text-[11px]">Đã tải lên Cloud</p>
+              <p className="text-lg font-black text-amber-400 font-mono mt-0.5">{stats.cloud}</p>
+            </div>
+            <Cloud className="w-5 h-5 text-amber-400/80" />
+          </div>
+        </div>
+
+        {/* BỘ LỌC TÌM KIẾM & PHÂN LOẠI */}
+        <div className="p-4 bg-slate-900 border-b border-slate-800 space-y-3 shrink-0 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+            {/* Ô tìm kiếm từ khóa */}
+            <div className="sm:col-span-4 relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
               <input
                 type="text"
+                placeholder="Tìm họ tên, mã BN, SĐT, kết luận..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Tìm nhanh theo Họ tên, Mã BN, Số bệnh phẩm, SĐT, Chẩn đoán hoặc Kết luận..."
-                className="w-full pl-9 pr-8 py-2 bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 focus:border-sky-600 focus:ring-2 focus:ring-sky-100 rounded-xl text-slate-900 font-semibold focus:outline-none transition-all text-xs"
+                className="w-full pl-9 pr-3 py-2 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs font-medium"
               />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
             </div>
 
-            {/* Quick Filters Row */}
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100 text-[11px]">
-              {/* Date Filter Pills */}
-              <div className="flex items-center space-x-1 overflow-x-auto pb-1 sm:pb-0">
-                <span className="text-slate-400 font-bold mr-1 flex items-center gap-1">
-                  <Calendar className="w-3 h-3" />
-                  Ngày:
-                </span>
-                {[
-                  { key: 'ALL', label: 'Tất cả' },
-                  { key: 'TODAY', label: 'Hôm nay' },
-                  { key: 'YESTERDAY', label: 'Hôm qua' },
-                  { key: 'LAST_7_DAYS', label: '7 ngày qua' },
-                  { key: 'THIS_MONTH', label: 'Tháng này' }
-                ].map((item) => (
-                  <button
-                    key={item.key}
-                    onClick={() => setDateFilter(item.key as DateFilterType)}
-                    className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
-                      dateFilter === item.key
-                        ? 'bg-slate-900 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
+            {/* Lọc thời gian */}
+            <div className="sm:col-span-2">
+              <select
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value as DateFilterType)}
+                className="w-full px-3 py-2 bg-slate-800/80 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-semibold"
+              >
+                <option value="ALL">Mọi thời gian</option>
+                <option value="TODAY">Hôm nay</option>
+                <option value="YESTERDAY">Hôm qua</option>
+                <option value="LAST_7_DAYS">7 ngày qua</option>
+                <option value="THIS_MONTH">Tháng này</option>
+              </select>
+            </div>
+
+            {/* Lọc loại phiếu */}
+            <div className="sm:col-span-2">
+              <select
+                value={selectedType}
+                onChange={(e) => setSelectedType(e.target.value as any)}
+                className="w-full px-3 py-2 bg-slate-800/80 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-semibold"
+              >
+                <option value="ALL">Tất cả loại phiếu</option>
+                <option value="STANDARD">Phiếu thường</option>
+                <option value="ALLERGEN">Phiếu Dị nguyên</option>
+              </select>
+            </div>
+
+            {/* Lọc Bác sĩ */}
+            <div className="sm:col-span-2">
+              <select
+                value={selectedDoctor}
+                onChange={(e) => setSelectedDoctor(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-800/80 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-semibold"
+              >
+                <option value="ALL">Tất cả bác sĩ</option>
+                {doctorsList.map((d) => (
+                  <option key={d.id} value={d.name}>
+                    {d.name}
+                  </option>
                 ))}
-              </div>
-
-              {/* Dropdown Filters */}
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Doctor Filter */}
-                <select
-                  value={selectedDoctor}
-                  onChange={(e) => setSelectedDoctor(e.target.value)}
-                  className="bg-slate-100 border border-slate-200 text-slate-700 font-semibold rounded-lg px-2 py-1 focus:outline-none focus:border-sky-500"
-                >
-                  <option value="ALL">-- Tất cả Bác sĩ --</option>
-                  {doctorsList.map((doc, idx) => (
-                    <option key={`${doc.id || 'doc'}-${idx}`} value={doc.name}>
-                      {doc.name}
-                    </option>
-                  ))}
-                </select>
-
-                {/* Type Filter */}
-                <select
-                  value={selectedType}
-                  onChange={(e) => setSelectedType(e.target.value as 'ALL' | 'STANDARD' | 'ALLERGEN')}
-                  className="bg-slate-100 border border-slate-200 text-slate-700 font-semibold rounded-lg px-2 py-1 focus:outline-none focus:border-sky-500"
-                >
-                  <option value="ALL">-- Tất cả loại phiếu --</option>
-                  <option value="STANDARD">Xét nghiệm chuẩn A4</option>
-                  <option value="ALLERGEN">Panel Dị Nguyên 91</option>
-                </select>
-
-                {/* Status Filter */}
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="bg-slate-100 border border-slate-200 text-slate-700 font-semibold rounded-lg px-2 py-1 focus:outline-none focus:border-sky-500"
-                >
-                  <option value="ALL">-- Tất cả trạng thái --</option>
-                  <option value="Đã xuất Cloud">Đã xuất Cloud</option>
-                  <option value="Đã có kết quả">Đã có kết quả</option>
-                  <option value="Chờ xét nghiệm">Chờ xét nghiệm</option>
-                  <option value="Đã trả kết quả">Đã trả kết quả</option>
-                </select>
-              </div>
+              </select>
             </div>
-          </div>
 
-          {/* Table Container */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead className="bg-slate-800 text-white font-bold">
-                  <tr>
-                    <th className="p-3 w-12 text-center">STT</th>
-                    <th className="p-3">Mã BN & Bệnh Phẩm</th>
-                    <th className="p-3">Bệnh Nhân</th>
-                    <th className="p-3">Chỉ Số / Loại Phiếu</th>
-                    <th className="p-3">Bác Sĩ Chỉ Định</th>
-                    <th className="p-3">Trạng Thái</th>
-                    <th className="p-3">Thời Gian</th>
-                    <th className="p-3 text-center">Thao Tác</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredReports.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="p-10 text-center text-slate-400">
-                        <div className="flex flex-col items-center justify-center space-y-2">
-                          <AlertCircle className="w-8 h-8 text-slate-300" />
-                          <p className="font-semibold text-slate-500">
-                            {reports.length === 0
-                              ? 'Chưa có phiếu xét nghiệm nào được lưu trong sổ.'
-                              : 'Không tìm thấy phiếu nào phù hợp với bộ lọc hiện tại.'}
-                          </p>
-                          {searchTerm && (
-                            <button
-                              onClick={() => {
-                                setSearchTerm('');
-                                setDateFilter('ALL');
-                                setSelectedDoctor('ALL');
-                                setSelectedType('ALL');
-                                setSelectedStatus('ALL');
-                              }}
-                              className="text-sky-600 hover:underline font-bold text-xs"
-                            >
-                              Xóa bộ lọc để xem tất cả
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredReports.map((rep, idx) => (
-                      <tr key={rep.id} className="hover:bg-slate-50 transition-colors group">
-                        {/* STT */}
-                        <td className="p-3 text-center font-mono text-slate-400 font-bold">{idx + 1}</td>
-
-                        {/* Mã BN & Số bệnh phẩm */}
-                        <td className="p-3">
-                          <div className="font-mono font-bold text-rose-600 text-xs">{rep.code}</div>
-                          {rep.sampleCode && rep.sampleCode !== rep.code && (
-                            <div className="font-mono text-[10.5px] text-slate-500">BP: {rep.sampleCode}</div>
-                          )}
-                        </td>
-
-                        {/* Bệnh Nhân */}
-                        <td className="p-3">
-                          <div className="font-bold text-slate-900">{rep.patient.name || '---'}</div>
-                          <div className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
-                            <span className="font-medium">{rep.patient.gender}</span>
-                            <span>•</span>
-                            <span>{rep.patient.dob || '---'}</span>
-                            {rep.patient.phone && (
-                              <>
-                                <span>•</span>
-                                <span className="font-mono text-slate-600">{rep.patient.phone}</span>
-                              </>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Chỉ Số / Loại Phiếu */}
-                        <td className="p-3">
-                          <div className="flex items-center gap-1.5">
-                            {rep.isAllergen ? (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold bg-purple-100 text-purple-800 border border-purple-200">
-                                Panel Dị Nguyên 91
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
-                                {rep.testCount || rep.selectedTests.length} chỉ số
-                              </span>
-                            )}
-                          </div>
-                          {rep.conclusion && (
-                            <p className="text-[10.5px] text-slate-500 truncate max-w-[200px] mt-0.5" title={rep.conclusion}>
-                              KL: {rep.conclusion}
-                            </p>
-                          )}
-                        </td>
-
-                        {/* Bác Sĩ Chỉ Định */}
-                        <td className="p-3">
-                          <span className="font-semibold text-slate-700">{rep.doctorName || '---'}</span>
-                        </td>
-
-                        {/* Trạng Thái & Cloud Link */}
-                        <td className="p-3">
-                          <div className="flex flex-col gap-1 items-start">
-                            <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
-                                rep.status === 'Đã xuất Cloud'
-                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                  : rep.status === 'Đã có kết quả'
-                                  ? 'bg-sky-100 text-sky-800 border border-sky-300'
-                                  : 'bg-amber-100 text-amber-800 border border-amber-300'
-                              }`}
-                            >
-                              {rep.status}
-                            </span>
-                            {rep.cloudPdfUrl && (
-                              <a
-                                href={rep.cloudPdfUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-[10.5px] text-sky-600 hover:text-sky-800 font-medium inline-flex items-center gap-1 underline"
-                                title="Mở file PDF trên Cloud"
-                              >
-                                <Cloud className="w-3 h-3 text-sky-500" />
-                                <span>PDF Cloud</span>
-                              </a>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Thời Gian */}
-                        <td className="p-3 text-slate-500 whitespace-nowrap text-[11px]">
-                          <div>{new Date(rep.createdAt).toLocaleDateString('vi-VN')}</div>
-                          <div className="text-[10px] text-slate-400">
-                            {new Date(rep.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                        </td>
-
-                        {/* Thao Tác Action Buttons */}
-                        <td className="p-3 text-center whitespace-nowrap">
-                          <div className="flex items-center justify-center space-x-1">
-                            {/* Nạp lại vào màn hình chính */}
-                            <button
-                              onClick={() => {
-                                onLoadReport(rep);
-                                onClose();
-                              }}
-                              className="p-1.5 bg-slate-100 hover:bg-sky-100 text-slate-700 hover:text-sky-800 rounded-lg transition-colors"
-                              title="Nạp lại vào màn hình chính để sửa / cập nhật"
-                            >
-                              <RotateCcw className="w-4 h-4" />
-                            </button>
-
-                            {/* Xem trước & In */}
-                            <button
-                              onClick={() => onPreviewReport(rep)}
-                              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-lg transition-colors"
-                              title="Mở màn hình xem trước & in ấn"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-
-                            {/* Tải QR Code */}
-                            {rep.qrCodeDataUrl && (
-                              <button
-                                onClick={() => handleDownloadQr(rep)}
-                                className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 hover:text-amber-900 rounded-lg transition-colors"
-                                title="Tải ảnh mã QR Code"
-                              >
-                                <QrCode className="w-4 h-4" />
-                              </button>
-                            )}
-
-                            {/* Gửi Zalo */}
-                            {onOpenSendZaloModal && (
-                              <button
-                                onClick={() => onOpenSendZaloModal(rep)}
-                                className="p-1.5 bg-blue-50 hover:bg-blue-100 text-[#0068FF] hover:text-blue-800 rounded-lg transition-colors"
-                                title="Gửi kết quả xét nghiệm qua Zalo cho bệnh nhân"
-                              >
-                                <MessageSquare className="w-4 h-4" />
-                              </button>
-                            )}
-
-                            {/* Nhân bản phiếu */}
-                            <button
-                              onClick={() => onDuplicateReport(rep)}
-                              className="p-1.5 bg-slate-100 hover:bg-indigo-100 text-slate-700 hover:text-indigo-800 rounded-lg transition-colors"
-                              title="Nhân bản tạo phiếu mới cho bệnh nhân này"
-                            >
-                              <Copy className="w-4 h-4" />
-                            </button>
-
-                            {/* Xóa phiếu */}
-                            <button
-                              onClick={() => handleDelete(rep.id, rep.code, rep.patient.name)}
-                              className="p-1.5 bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 rounded-lg transition-colors"
-                              title="Xóa phiếu khỏi sổ lưu"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+            {/* Lọc trạng thái */}
+            <div className="sm:col-span-2">
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-800/80 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-semibold"
+              >
+                <option value="ALL">Tất cả trạng thái</option>
+                <option value="Chờ xét nghiệm">Chờ xét nghiệm</option>
+                <option value="Đã có kết quả">Đã có kết quả</option>
+                <option value="Đã xuất Cloud">Đã xuất Cloud</option>
+                <option value="Đã trả kết quả">Đã trả kết quả</option>
+              </select>
             </div>
           </div>
         </div>
 
-        {/* Footer Actions */}
-        <div className="bg-slate-50 px-5 py-3 border-t border-slate-200 flex items-center justify-between shrink-0">
+        {/* DANH SÁCH BẢNG HỒ SƠ PHIẾU XÉT NGHIỆM */}
+        <div className="flex-1 overflow-y-auto p-4 text-xs">
+          {filteredReports.length === 0 ? (
+            <div className="py-16 text-center text-slate-400 space-y-3">
+              <AlertCircle className="w-10 h-10 mx-auto text-slate-600" />
+              <p className="text-sm font-semibold">Không tìm thấy phiếu xét nghiệm nào phù hợp với bộ lọc!</p>
+              <p className="text-xs text-slate-500">Hãy thử xóa từ khóa tìm kiếm hoặc chọn "Mọi thời gian"</p>
+            </div>
+          ) : (
+            <div className="border border-slate-800 rounded-xl overflow-hidden shadow-inner">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-slate-800 text-slate-200 font-bold border-b border-slate-700">
+                  <tr>
+                    <th className="p-3 w-10 text-center">STT</th>
+                    <th className="p-3">Mã Phiếu & Thời Gian</th>
+                    <th className="p-3">Bệnh Nhân & Năm Sinh</th>
+                    <th className="p-3">Số ĐT & Địa Chỉ</th>
+                    <th className="p-3">Bác Sĩ & Loại Phiếu</th>
+                    <th className="p-3 text-center">Số Chỉ Số</th>
+                    <th className="p-3">Trạng Thái</th>
+                    <th className="p-3 text-right">Thao Tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800 bg-slate-900/50">
+                  {filteredReports.map((rep, idx) => {
+                    const isAllergen = rep.isAllergen;
+                    return (
+                      <tr key={rep.id} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="p-3 text-center text-slate-500 font-mono">{idx + 1}</td>
+
+                        {/* Mã phiếu & Ngày giờ */}
+                        <td className="p-3">
+                          <span className="font-mono font-bold text-sky-400 block">{rep.code}</span>
+                          <span className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                            <Calendar className="w-3 h-3 text-slate-500" />
+                            {new Date(rep.createdAt).toLocaleString('vi-VN')}
+                          </span>
+                        </td>
+
+                        {/* Bệnh nhân */}
+                        <td className="p-3">
+                          <strong className="text-white text-xs block uppercase font-bold">
+                            {rep.patient.name || '---'}
+                          </strong>
+                          <span className="text-[11px] text-slate-400">
+                            {rep.patient.dob || '---'} • {rep.patient.gender}
+                          </span>
+                        </td>
+
+                        {/* Số ĐT & Địa chỉ */}
+                        <td className="p-3 max-w-[180px]">
+                          <span className="font-mono text-slate-300 block">{rep.patient.phone || '---'}</span>
+                          <span className="text-[10.5px] text-slate-400 truncate block mt-0.5" title={rep.patient.address}>
+                            {rep.patient.address || 'Quảng Bình'}
+                          </span>
+                        </td>
+
+                        {/* Bác sĩ & Loại phiếu */}
+                        <td className="p-3">
+                          <span className="font-semibold text-slate-200 block">{rep.doctorName || 'BS. Trần Hoài Long'}</span>
+                          <span
+                            className={`inline-block text-[10px] font-extrabold px-2 py-0.5 rounded mt-1 ${
+                              isAllergen
+                                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                            }`}
+                          >
+                            {isAllergen ? 'Panel Dị Nguyên' : 'Xét Nghiệm Thường'}
+                          </span>
+                        </td>
+
+                        {/* Số lượng chỉ số */}
+                        <td className="p-3 text-center font-mono font-bold text-slate-300">
+                          {rep.testCount || rep.selectedTests.length}
+                        </td>
+
+                        {/* Trạng thái */}
+                        <td className="p-3">
+                          <span
+                            className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full ${
+                              rep.status === 'Đã trả kết quả'
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                : rep.status === 'Đã xuất Cloud'
+                                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                                : rep.status === 'Đã có kết quả'
+                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                : 'bg-slate-700 text-slate-300'
+                            }`}
+                          >
+                            {rep.status}
+                          </span>
+                        </td>
+
+                        {/* Action Buttons */}
+                        <td className="p-3 text-right">
+                          <div className="flex items-center justify-end space-x-1.5">
+                            {/* Nút Xem trước */}
+                            <button
+                              type="button"
+                              onClick={() => onPreviewReport(rep)}
+                              className="p-1.5 bg-slate-800 hover:bg-sky-600 text-slate-300 hover:text-white rounded-lg transition"
+                              title="Xem trước mẫu in A4"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Nút Nạp lại lên Form */}
+                            <button
+                              type="button"
+                              onClick={() => onLoadReport(rep)}
+                              className="p-1.5 bg-slate-800 hover:bg-emerald-600 text-slate-300 hover:text-white rounded-lg transition"
+                              title="Nạp phiếu này lên màn hình làm việc"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Nút Nhân bản danh mục */}
+                            <button
+                              type="button"
+                              onClick={() => onDuplicateReport(rep)}
+                              className="p-1.5 bg-slate-800 hover:bg-purple-600 text-slate-300 hover:text-white rounded-lg transition"
+                              title="Nhân bản danh mục chỉ số cho bệnh nhân mới"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Nút Gửi Zalo */}
+                            {onOpenSendZaloModal && (
+                              <button
+                                type="button"
+                                onClick={() => onOpenSendZaloModal(rep)}
+                                className="p-1.5 bg-slate-800 hover:bg-[#0068FF] text-slate-300 hover:text-white rounded-lg transition"
+                                title="Gửi kết quả qua Zalo cho bệnh nhân"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
+                            {/* Nút Tải QR Code */}
+                            {rep.qrCodeDataUrl && (
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadQr(rep)}
+                                className="p-1.5 bg-slate-800 hover:bg-amber-600 text-amber-400 hover:text-white rounded-lg transition"
+                                title="Tải ảnh QR Code tra cứu kết quả"
+                              >
+                                <QrCode className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
+                            {/* Nút Xóa phiếu */}
+                            <button
+                              type="button"
+                              onClick={() => onDeleteReport(rep.id)}
+                              className="p-1.5 bg-slate-800 hover:bg-rose-600 text-slate-400 hover:text-white rounded-lg transition"
+                              title="Xóa phiếu này khỏi Sổ lưu"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* FOOTER MODAL */}
+        <div className="px-6 py-3 border-t border-slate-800 flex items-center justify-between bg-slate-900/90 shrink-0 text-xs text-slate-400">
           <div>
-            {reports.length > 0 && (
-              <button
-                onClick={handleClearAll}
-                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-lg border border-rose-200 transition-all text-xs flex items-center space-x-1"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Xóa Sạch Lịch Sử Sổ Lưu</span>
-              </button>
-            )}
+            Hiển thị <strong className="text-white font-mono">{filteredReports.length}</strong> / {reports.length} hồ sơ phiếu xét nghiệm
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-3">
+            {reports.length > 0 && (
+              <button
+                type="button"
+                onClick={onClearAllReports}
+                className="px-3 py-1.5 bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/60 rounded-xl font-bold transition"
+              >
+                Xóa Toàn Bộ Sổ Lưu
+              </button>
+            )}
+
             <button
+              type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl transition-all active:scale-95"
+              className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition"
             >
-              Đóng
+              Đóng Cửa Sổ
             </button>
           </div>
         </div>

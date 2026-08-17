@@ -1,5 +1,5 @@
-import React from 'react';
-import { X, CreditCard, Trash2, FileSpreadsheet } from 'lucide-react';
+import { useState } from 'react';
+import { X, CreditCard, Trash2 } from 'lucide-react';
 import { Invoice, Doctor } from '@domain/types';
 
 interface RevenueManagerModalProps {
@@ -74,7 +74,7 @@ export default function RevenueManagerModal({
                   invoices.map((inv) => (
                     <tr key={inv.id} className="hover:bg-slate-50">
                       <td className="p-2.5 font-mono font-bold text-slate-900">{inv.code}</td>
-                      <td className="p-2.5 font-semibold text-slate-800">{inv.patientName} ({inv.patientCode})</td>
+                      <td className="p-2.5 font-semibold text-slate-800">{inv.patientName} {inv.patientCode ? `(${inv.patientCode})` : ''}</td>
                       <td className="p-2.5 text-slate-500">{new Date(inv.createdAt).toLocaleDateString('vi-VN')}</td>
                       <td className="p-2.5 text-slate-600">{inv.paymentMethod}</td>
                       <td className="p-2.5 text-right font-mono font-bold text-emerald-700">

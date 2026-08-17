@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, ChevronDown, Check, UserPlus } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, Check, UserPlus } from 'lucide-react';
 import { Doctor } from '@domain/types';
 
 interface DoctorSelectComboboxProps {
