@@ -456,6 +456,17 @@ export default function CatalogManagerModal({
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [packageSearch, setPackageSearch] = useState('');
   const [selectedPackageId, setSelectedPackageId] = useState<string>('');
+  const [newItem, setNewItem] = useState<CatalogItem>({
+    category: 'Sinh Hóa Máu',
+    code: '',
+    name: '',
+    refMin: null,
+    refMax: null,
+    unit: '',
+    refText: '',
+    price: 0,
+    equipment: 'Máy Sinh Hóa Tự Động Mindray BS-240'
+  });
 
   useEffect(() => {
     if (isOpen) {
@@ -552,18 +563,6 @@ export default function CatalogManagerModal({
       setItems((prev) => prev.filter((i) => i.code !== code));
     }
   };
-
-  const [newItem, setNewItem] = useState<CatalogItem>({
-    category: 'Sinh Hóa Máu',
-    code: '',
-    name: '',
-    refMin: null,
-    refMax: null,
-    unit: '',
-    refText: '',
-    price: 0,
-    equipment: 'Máy Sinh Hóa Tự Động Mindray BS-240'
-  });
 
   const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
