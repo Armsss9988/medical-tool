@@ -185,7 +185,7 @@ export default function FullAllergenReportView({
           </div>
 
           {/* Bảng Dịch Vụ / Gói Xét Nghiệm */}
-          <div className="border border-slate-300 rounded overflow-hidden mb-6">
+          <div className="border border-slate-300 rounded overflow-hidden mb-4">
             <table className="w-full text-xs border-collapse">
               <thead className="bg-slate-50 text-slate-900 font-bold border-b border-slate-300">
                 <tr>
@@ -213,32 +213,43 @@ export default function FullAllergenReportView({
               </tbody>
             </table>
           </div>
+
+          {/* Chữ Ký & Con Dấu Phụ Trách Chuyên Môn (Ngay dưới cuối bảng nội dung) */}
+          <div className="flex justify-end pt-3">
+            <div className="text-center min-w-[220px]">
+              <p className="text-[10.5px] text-slate-600 italic">Ngày {currentDateStr}</p>
+              <p className="text-xs font-bold uppercase text-slate-900 tracking-wide mb-1">
+                PHỤ TRÁCH CHUYÊN MÔN
+              </p>
+              <div className="h-28 flex items-center justify-center my-1">
+                <img
+                  src={currentStamp}
+                  alt="Con Dấu & Chữ Ký"
+                  className="h-28 w-auto object-contain max-w-[140px]"
+                  loading="eager"
+                  decoding="sync"
+                  onError={(e) => {
+                    const target = e.currentTarget as HTMLImageElement;
+                    target.onerror = null;
+                    target.src = doctorStamp;
+                  }}
+                />
+              </div>
+              <p className="text-xs font-bold text-slate-900">
+                {doctorName || clinicInfo.defaultDoctor || 'Nguyễn Thị Thành Trung'}
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Chữ Ký & Con Dấu Phụ Trách Chuyên Môn */}
-        <div className="flex justify-end pt-4">
-          <div className="text-center min-w-[220px]">
-            <p className="text-xs font-bold uppercase text-slate-900 tracking-wide mb-1">
-              PHỤ TRÁCH CHUYÊN MÔN
-            </p>
-            <div className="h-28 flex items-center justify-center my-1">
-              <img
-                src={currentStamp}
-                alt="Con Dấu & Chữ Ký"
-                className="h-28 w-auto object-contain max-w-[140px]"
-                loading="eager"
-                decoding="sync"
-                onError={(e) => {
-                  const target = e.currentTarget as HTMLImageElement;
-                  target.onerror = null;
-                  target.src = doctorStamp;
-                }}
-              />
-            </div>
-            <p className="text-xs font-bold text-slate-900">
-              {clinicInfo.defaultDoctor || 'Nguyễn Thị Thành Trung'}
-            </p>
-          </div>
+        {/* Footer Page 1 */}
+        <div className="mt-auto pt-2 border-t border-slate-200 flex items-center justify-between text-[8px] text-slate-500 uppercase font-mono">
+          <span>
+            HỆ THỐNG XÉT NGHIỆM GOLAB • {clinicInfo.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'} • HOTLINE: {clinicInfo.phone || '032.855.3773'}
+          </span>
+          <span className="font-bold text-sky-800">
+            Trang 1/{detailPages.length + 3}
+          </span>
         </div>
       </div>
 

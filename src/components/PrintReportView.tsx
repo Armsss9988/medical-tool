@@ -436,49 +436,49 @@ export default function PrintReportView({
                 <span className="font-semibold text-slate-800">{conclusion}</span>
               </div>
             )}
+
+            {/* 6. CHỮ KÝ VÀ DẤU BÁC SĨ (CHỈ XUẤT HIỆN Ở TRANG CUỐI - THIẾT LẬP NGAY DƯỚI CUỐI NỘI DUNG) */}
+            {page.showSignature && (
+              <div data-avoid-break="true" className="signature-section mt-3.5 pt-2.5 border-t border-slate-300">
+                <div className="flex items-start justify-between text-center">
+                  
+                  {/* Bên trái: Chú thích & Lưu ý */}
+                  <div className="text-left text-[9.5px] text-slate-500 space-y-0.5 max-w-[50%]">
+                    <p className="font-bold text-slate-700 uppercase">Lưu ý đối với bệnh nhân:</p>
+                    <p>- Phiếu kết quả này chỉ có giá trị tại thời điểm xét nghiệm.</p>
+                    <p>- Vui lòng mang phiếu này khi đến tái khám hoặc tư vấn bác sĩ chuyên khoa.</p>
+                  </div>
+
+                  {/* Bên phải: Chữ ký & Đóng dấu Phụ trách chuyên môn */}
+                  <div className="text-center min-w-[220px]">
+                    <p className="text-[10.5px] text-slate-600 italic">Ngày {currentDateStr}</p>
+                    <p className="text-[11.5px] font-bold uppercase text-slate-900 mt-0.5 mb-1 tracking-wide">PHỤ TRÁCH CHUYÊN MÔN</p>
+                    <div className="h-24 flex items-center justify-center my-0.5">
+                      <img
+                        src={currentStamp}
+                        alt="Đã ký & Đóng dấu"
+                        className="h-24 w-auto object-contain max-w-[130px]"
+                        loading="eager"
+                        decoding="sync"
+                        onError={(e) => {
+                          const target = e.currentTarget as HTMLImageElement;
+                          target.onerror = null;
+                          target.src = doctorStamp;
+                        }}
+                      />
+                    </div>
+                    <p className="text-xs font-bold text-slate-900 uppercase tracking-tight">
+                      {doctorName || clinicInfo.defaultDoctor || 'Nguyễn Thị Thành Trung'}
+                    </p>
+                  </div>
+
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* 6. FOOTER: CHỮ KÝ VÀ DẤU BÁC SĨ (CHỈ XUẤT HIỆN Ở TRANG CUỐI) */}
-          {page.showSignature && (
-            <div data-avoid-break="true" className="signature-section mt-auto pt-2 border-t border-slate-300">
-              <div className="flex items-start justify-between text-center">
-                
-                {/* Bên trái: Chú thích & Lưu ý */}
-                <div className="text-left text-[9.5px] text-slate-500 space-y-0.5 max-w-[50%]">
-                  <p className="font-bold text-slate-700 uppercase">Lưu ý đối với bệnh nhân:</p>
-                  <p>- Phiếu kết quả này chỉ có giá trị tại thời điểm xét nghiệm.</p>
-                  <p>- Vui lòng mang phiếu này khi đến tái khám hoặc tư vấn bác sĩ chuyên khoa.</p>
-                </div>
-
-                {/* Bên phải: Chữ ký & Đóng dấu Phụ trách chuyên môn */}
-                <div className="text-center min-w-[220px]">
-                  <p className="text-[10.5px] text-slate-600 italic">Ngày {currentDateStr}</p>
-                  <p className="text-[11.5px] font-bold uppercase text-slate-900 mt-0.5 mb-1 tracking-wide">PHỤ TRÁCH CHUYÊN MÔN</p>
-                  <div className="h-24 flex items-center justify-center my-0.5">
-                    <img
-                      src={currentStamp}
-                      alt="Đã ký & Đóng dấu"
-                      className="h-24 w-auto object-contain max-w-[130px]"
-                      loading="eager"
-                      decoding="sync"
-                      onError={(e) => {
-                        const target = e.currentTarget as HTMLImageElement;
-                        target.onerror = null;
-                        target.src = doctorStamp;
-                      }}
-                    />
-                  </div>
-                  <p className="text-xs font-bold text-slate-900 uppercase tracking-tight">
-                    {clinicInfo.defaultDoctor || 'Nguyễn Thị Thành Trung'}
-                  </p>
-                </div>
-
-              </div>
-            </div>
-          )}
-
           {/* 7. DÒNG PHÂN TRANG & BẢN QUYỀN CHÂN TRANG */}
-          <div className="mt-2 pt-1 border-t border-slate-200 flex items-center justify-between text-[8px] text-slate-500 uppercase font-mono tracking-tight">
+          <div className="mt-auto pt-1 border-t border-slate-200 flex items-center justify-between text-[8px] text-slate-500 uppercase font-mono tracking-tight">
             <span>
               HỆ THỐNG XÉT NGHIỆM GOLAB • {clinicInfo.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'} • HOTLINE: {clinicInfo.phone || '032.855.3773'}
             </span>
