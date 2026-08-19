@@ -9,6 +9,8 @@ interface PatientFormProps {
   onGenerateNewCode?: () => void;
   doctorsList: Doctor[];
   onOpenDoctorModal?: () => void;
+  doctorName?: string;
+  setDoctorName?: (val: string) => void;
 }
 
 export default function PatientForm({
@@ -17,7 +19,9 @@ export default function PatientForm({
   onPatientChange,
   onGenerateNewCode,
   doctorsList,
-  onOpenDoctorModal
+  onOpenDoctorModal,
+  doctorName,
+  setDoctorName
 }: PatientFormProps) {
   const [showMoreTimeFields, setShowMoreTimeFields] = useState(false);
 
@@ -241,8 +245,12 @@ export default function PatientForm({
             )}
           </div>
           <select
-            value={patient.address || (doctorsList[0]?.name || 'BS. Trần Hoài Long')}
-            onChange={(e) => handleChange('address', e.target.value)}
+            value={doctorName || patient.doctor || (doctorsList[0]?.name || 'BS. Trần Hoài Long')}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (setDoctorName) setDoctorName(val);
+              handleChange('doctor', val);
+            }}
             className="w-full bg-white border border-slate-300 focus:border-sky-600 focus:ring-2 focus:ring-sky-100 rounded-xl px-2.5 py-2 text-xs text-slate-900 font-bold focus:outline-none transition-all shadow-2xs truncate"
           >
             {doctorsList.map((doc, idx) => (
@@ -262,8 +270,8 @@ export default function PatientForm({
           <input
             type="text"
             placeholder="Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị"
-            value={patient.diagnosis || ''}
-            onChange={(e) => handleChange('diagnosis', e.target.value)}
+            value={patient.address || ''}
+            onChange={(e) => handleChange('address', e.target.value)}
             className="w-full bg-white border border-slate-300 focus:border-sky-600 focus:ring-2 focus:ring-sky-100 rounded-xl px-3 py-2 text-xs text-slate-900 font-medium focus:outline-none transition-all shadow-2xs"
           />
         </div>

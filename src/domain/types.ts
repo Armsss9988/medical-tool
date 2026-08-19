@@ -16,6 +16,7 @@ export interface Patient {
   phone: string;
   address: string;
   diagnosis: string;
+  doctor?: string;
   sampleCode?: string;
   sampleStatus?: string;
   orderedAt?: string;

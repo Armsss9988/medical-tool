@@ -53,7 +53,7 @@ export function generateZaloTextMessage(
   const hotline = clinicInfo.phone || '032.855.3773';
   const website = clinicInfo.website || 'golab.com.vn';
   const address = clinicInfo.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị';
-  const doctor = report.doctorName || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long';
+  const doctor = report.doctorName || report.patient?.doctor || 'BS. Trần Hoài Long';
 
   let msg = `🏥 *${clinicName}*\n`;
   msg += `*PHIẾU TRẢ KẾT QUẢ XÉT NGHIỆM Y KHOA*\n\n`;
@@ -144,7 +144,7 @@ export async function sendZaloZnsNotification(
     patient_code: report.code,
     sample_code: report.sampleCode || report.code,
     order_date: dateStr,
-    doctor_name: report.doctorName || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long',
+    doctor_name: report.doctorName || report.patient?.doctor || 'BS. Trần Hoài Long',
     conclusion: report.conclusion || 'Đã có kết quả xét nghiệm',
     doctor_note: customNote || '',
     pdf_url: report.cloudPdfUrl || '',

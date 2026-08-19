@@ -12,6 +12,7 @@ interface InvoiceModalProps {
   currentPackageId: string;
   testPackages: TestPackage[];
   doctorsList?: Doctor[];
+  doctorName?: string;
   onSaveInvoice: (newInvoice: Invoice) => void;
 }
 
@@ -22,11 +23,13 @@ export default function InvoiceModal({
   selectedTests,
   currentPackageId,
   testPackages,
+  doctorsList,
+  doctorName,
   onSaveInvoice
 }: InvoiceModalProps) {
   const [discountVal, setDiscountVal] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<'Tiền mặt' | 'Chuyển khoản (VietQR)' | 'Quẹt thẻ'>('Tiền mặt');
-  const doctorName = 'BS. Trần Hoài Long';
+  const selectedDoc = doctorName || patient.doctor || doctorsList?.[0]?.name || 'BS. Trần Hoài Long';
 
   if (!isOpen) return null;
 
@@ -41,7 +44,7 @@ export default function InvoiceModal({
     const invoice = usecase.execute({
       patient,
       selectedTests,
-      doctorName,
+      doctorName: selectedDoc,
       packageName: pkg ? pkg.name : 'Tùy chọn',
       discountAmount: discountVal,
       paymentMethod

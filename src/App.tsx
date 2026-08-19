@@ -198,7 +198,7 @@ export default function App() {
         patient,
         selectedTests,
         conclusion,
-        doctorName: doctorName || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long',
+        doctorName: doctorName || patient.doctor || 'BS. Trần Hoài Long',
         cloudPdfUrl: result.finalUrl || undefined,
         qrCodeDataUrl: result.finalQrCodeDataUrl || undefined,
         status: 'Đã xuất Cloud'
@@ -233,7 +233,7 @@ export default function App() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       patient: { ...patient },
-      doctorName: doctorName || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long',
+      doctorName: doctorName || patient.doctor || 'BS. Trần Hoài Long',
       selectedTests: [...selectedTests],
       conclusion: conclusion || '',
       isAllergen,
@@ -251,7 +251,7 @@ export default function App() {
         patient,
         selectedTests,
         conclusion,
-        doctorName,
+        doctorName: doctorName || patient.doctor || 'BS. Trần Hoài Long',
         cloudPdfUrl: cloudLink || undefined,
         qrCodeDataUrl: qrCodeDataUrl || undefined,
         zaloSentAt: new Date().toISOString()
@@ -273,7 +273,7 @@ export default function App() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       patient: { ...patient },
-      doctorName: doctorName || clinicInfo.defaultDoctor || 'BS. Trần Hoài Long',
+      doctorName: doctorName || patient.doctor || 'BS. Trần Hoài Long',
       selectedTests: [...selectedTests],
       conclusion: conclusion || '',
       isAllergen,
@@ -371,6 +371,8 @@ export default function App() {
             onGenerateNewCode={resetPatient}
             doctorsList={doctorsList}
             onOpenDoctorModal={() => handleOpenCatalogModal("DOCTORS")}
+            doctorName={doctorName}
+            setDoctorName={setDoctorName}
           />
 
           <ConclusionForm
@@ -467,6 +469,7 @@ export default function App() {
         currentPackageId="all"
         testPackages={testPackages}
         doctorsList={doctorsList}
+        doctorName={doctorName}
         onSaveInvoice={handleSaveInvoice}
       />
 
