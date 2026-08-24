@@ -1,13 +1,12 @@
-import { FileText, RotateCcw, Eye, CloudUpload, QrCode, CreditCard, BookmarkCheck, MessageSquare, SlidersHorizontal, Loader2, Download } from 'lucide-react';
-import DoctorSelectCombobox from './DoctorSelectCombobox';
-import { Doctor } from '@domain/types';
+import { useMemo } from 'react';
+import { FileText, RotateCcw, Eye, CloudUpload, QrCode, CreditCard, BookmarkCheck, MessageSquare, SlidersHorizontal, Loader2, Download, Zap } from 'lucide-react';
+import { SelectedTest } from '@domain/types';
 import { ExportStepName, EXPORT_STEP_LABELS } from '@domain/exportTransaction';
+import { evaluateResult } from '@domain/testResult';
 
 interface ConclusionFormProps {
   conclusion: string;
   setConclusion: (val: string) => void;
-  doctorName: string;
-  setDoctorName: (val: string) => void;
   cloudLink: string;
   isExporting?: boolean;
   currentStep?: ExportStepName | null;
@@ -20,8 +19,12 @@ interface ConclusionFormProps {
   onResetAll: () => void;
   onDownloadQrCode: () => void;
   onOpenInvoiceModal: () => void;
-  doctorsList?: Doctor[];
-  onOpenDoctorModal?: () => void;
+  /** Selected tests for smart auto-conclusion */
+  selectedTests?: SelectedTest[];
+  /** Phiếu hiện tại có bị outdated so với bản PDF cũ không */
+  isPdfOutdated?: boolean;
+  /** Phiên bản PDF hiện tại */
+  pdfVersion?: number;
 }
 
 const QUICK_CONCLUSION_TEMPLATES = [
@@ -34,8 +37,6 @@ const QUICK_CONCLUSION_TEMPLATES = [
 export default function ConclusionForm({ 
   conclusion, 
   setConclusion, 
-  doctorName, 
-  setDoctorName,
   cloudLink,
   isExporting = false,
   currentStep = null,
@@ -48,14 +49,71 @@ export default function ConclusionForm({
   onResetAll,
   onDownloadQrCode,
   onOpenInvoiceModal,
-  doctorsList = [],
-  onOpenDoctorModal
+  selectedTests = [],
+  isPdfOutdated = false,
+  pdfVersion
 }: ConclusionFormProps) {
   const handleApplyTemplate = (template: string) => {
     if (!conclusion.trim()) {
       setConclusion(template);
     } else {
       setConclusion(`${conclusion.trim()}. ${template}`);
+    }
+  };
+
+  // ─── SMART AUTO-CONCLUSION ─────────────────────────────────────────
+  const smartConclusion = useMemo(() => {
+    if (selectedTests.length === 0) return null;
+    
+    // Check if all tests have results
+    const testsWithResults = selectedTests.filter((t) => t.result && t.result.trim());
+    if (testsWithResults.length === 0) return null;
+
+    const abnormalTests: string[] = [];
+    const isAllergenBatch = selectedTests.some(
+      (t) => t.category?.includes('Dị Nguyên') || t.unit === 'IU/mL'
+    );
+
+    for (const t of testsWithResults) {
+      const isAllergen = t.category?.includes('Dị Nguyên') || t.unit === 'IU/mL';
+      if (isAllergen) {
+        // Skip allergen tests for standard conclusion
+        continue;
+      }
+      const evalRes = evaluateResult(t.result, t.refMin, t.refMax);
+      if (evalRes.status !== 'normal') {
+        abnormalTests.push(`${t.name} (${evalRes.label})`);
+      }
+    }
+
+    if (isAllergenBatch) {
+      // For allergen panels, check if any positive
+      const positiveAllergens = testsWithResults.filter((t) => {
+        const isAl = t.category?.includes('Dị Nguyên') || t.unit === 'IU/mL';
+        if (!isAl) return false;
+        return t.note && t.note.includes('Dương tính');
+      });
+      if (positiveAllergens.length === 0) {
+        return 'Kết quả xét nghiệm dị nguyên: Tất cả các chỉ số đều Âm tính';
+      }
+      const names = positiveAllergens.map((t) => t.name).join(', ');
+      return `Dương tính với: ${names}. Đề nghị kết hợp lâm sàng`;
+    }
+
+    if (abnormalTests.length === 0) {
+      return 'Các chỉ số xét nghiệm trong giới hạn bình thường';
+    }
+
+    if (abnormalTests.length <= 3) {
+      return `Chỉ số bất thường: ${abnormalTests.join(', ')}. Đề nghị theo dõi và tái khám`;
+    }
+
+    return `Có ${abnormalTests.length} chỉ số bất thường. Đề nghị xét nghiệm lại và theo dõi`;
+  }, [selectedTests]);
+
+  const handleApplySmartConclusion = () => {
+    if (smartConclusion) {
+      setConclusion(smartConclusion);
     }
   };
 
@@ -77,8 +135,38 @@ export default function ConclusionForm({
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className="font-bold text-slate-700">Kết Luận Của Bác Sĩ:</label>
-            <span className="text-[10.5px] text-slate-400 font-medium">Click mẫu nhanh bên dưới</span>
+            <div className="flex items-center gap-1.5">
+              {/* Smart auto-conclusion button */}
+              {smartConclusion && !conclusion.trim() && (
+                <button
+                  type="button"
+                  onClick={handleApplySmartConclusion}
+                  className="text-[10px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-800 px-2 py-0.5 rounded-md border border-amber-300 transition-all active:scale-95 flex items-center gap-1 animate-in fade-in duration-200"
+                  title={smartConclusion}
+                >
+                  <Zap className="w-3 h-3 text-amber-600" />
+                  <span>Tự động</span>
+                </button>
+              )}
+              <span className="text-[10.5px] text-slate-400 font-medium">Click mẫu nhanh bên dưới</span>
+            </div>
           </div>
+
+          {/* Smart conclusion suggestion banner */}
+          {smartConclusion && !conclusion.trim() && (
+            <button
+              type="button"
+              onClick={handleApplySmartConclusion}
+              className="w-full mb-2 p-2 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl text-left text-[11px] text-amber-800 font-medium transition-all active:scale-[0.99] group"
+            >
+              <span className="flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 text-amber-500 group-hover:text-amber-700 transition" />
+                <span className="font-bold text-amber-900">Gợi ý:</span>
+                <span className="truncate">{smartConclusion}</span>
+                <kbd className="ml-auto text-[9px] font-mono bg-amber-200 text-amber-700 px-1 py-0.5 rounded shrink-0">Click</kbd>
+              </span>
+            </button>
+          )}
 
           <textarea
             value={conclusion}
@@ -104,25 +192,34 @@ export default function ConclusionForm({
           </div>
         </div>
 
-        {/* Bác Sĩ Chỉ Định / Thực Hiện */}
-        <div>
-          <label className="block font-bold text-slate-700 mb-1.5">Bác Sĩ Chỉ Định / Người Đọc Phiếu:</label>
-          <DoctorSelectCombobox
-            doctorsList={doctorsList}
-            selectedDoctor={doctorName}
-            onSelectDoctor={(name) => setDoctorName(name)}
-            onOpenDoctorModal={onOpenDoctorModal}
-          />
-        </div>
+        {/* ═══ CẢNH BÁO PDF OUTDATED (NẾU ĐÃ SỬA DỮ LIỆU) ═══ */}
+        {isPdfOutdated && (
+          <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-xl flex items-center justify-between text-xs text-amber-900 animate-in fade-in duration-150">
+            <div className="flex items-center space-x-2">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
+              <span className="font-semibold">
+                Dữ liệu đã sửa so với bản PDF Cloud trước ({pdfVersion ? `v${pdfVersion}` : 'cũ'}).
+              </span>
+            </div>
+            <span className="text-[10.5px] bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-md font-extrabold shrink-0">
+              Cần Cập Nhật PDF
+            </span>
+          </div>
+        )}
 
         {/* Action Grid Buttons */}
         <div className="pt-2 space-y-2">
+
           {/* Hero Action: 1-Click PDF & Cloud Upload */}
           <button
             type="button"
             onClick={onExportPdfAndUpload}
             disabled={isExporting}
-            className="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:from-emerald-800 active:to-teal-800 disabled:opacity-75 disabled:cursor-not-allowed text-white font-extrabold rounded-xl shadow-md shadow-emerald-700/20 border border-emerald-500/50 transition-all active:scale-[0.98] flex items-center justify-center space-x-2 text-xs tracking-wide"
+            className={`w-full py-3 px-4 disabled:opacity-75 disabled:cursor-not-allowed text-white font-extrabold rounded-xl shadow-md border transition-all active:scale-[0.98] flex items-center justify-center space-x-2 text-xs tracking-wide ${
+              isPdfOutdated
+                ? 'bg-gradient-to-r from-amber-600 via-emerald-600 to-teal-600 hover:from-amber-500 hover:to-teal-500 shadow-amber-700/20 border-amber-500/50'
+                : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:from-emerald-800 active:to-teal-800 shadow-emerald-700/20 border-emerald-500/50'
+            }`}
           >
             {isExporting ? (
               <>
@@ -132,7 +229,8 @@ export default function ConclusionForm({
             ) : (
               <>
                 <CloudUpload className="w-4 h-4 text-emerald-100" />
-                <span>Xuất File PDF & Tải Lên Cloud (1-Click)</span>
+                <span>{isPdfOutdated ? 'Cập Nhật Lại File PDF & Tải Lên Cloud (1-Click)' : 'Xuất File PDF & Tải Lên Cloud (1-Click)'}</span>
+                <kbd className="text-[9px] font-mono bg-emerald-500/50 text-emerald-100 px-1.5 py-0.5 rounded ml-1">Ctrl+Shift+E</kbd>
               </>
             )}
           </button>
@@ -170,7 +268,8 @@ export default function ConclusionForm({
               className="py-2.5 px-3 bg-sky-50 hover:bg-sky-100 text-sky-800 font-bold rounded-xl border border-sky-200 shadow-2xs transition-all active:scale-95 flex items-center justify-center space-x-1.5"
             >
               <Eye className="w-3.5 h-3.5 text-sky-600" />
-              <span>Xem Trước Phiếu (A4)</span>
+              <span>Xem Trước (A4)</span>
+              <kbd className="text-[9px] font-mono bg-sky-100 text-sky-600 px-1 py-0.5 rounded">Ctrl+P</kbd>
             </button>
 
             {onDownloadPdf ? (
@@ -196,7 +295,8 @@ export default function ConclusionForm({
               className="py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold rounded-xl border border-emerald-200 shadow-2xs transition-all active:scale-95 flex items-center justify-center space-x-1.5"
             >
               <BookmarkCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Lưu Vào Sổ Lưu</span>
+              <span>Lưu Sổ Lưu</span>
+              <kbd className="text-[9px] font-mono bg-emerald-100 text-emerald-600 px-1 py-0.5 rounded">Ctrl+S</kbd>
             </button>
 
             <button
@@ -231,7 +331,8 @@ export default function ConclusionForm({
             className="w-full py-2 px-3 text-slate-500 hover:text-slate-700 hover:bg-slate-100 font-semibold rounded-xl border border-dashed border-slate-300 transition-all flex items-center justify-center space-x-1"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>Làm Mới Toàn Bộ (Bệnh Nhân Mới)</span>
+            <span>Làm Mới Toàn Bộ (BN Mới)</span>
+            <kbd className="text-[9px] font-mono bg-slate-100 text-slate-500 px-1 py-0.5 rounded ml-1">Ctrl+N</kbd>
           </button>
         </div>
       </div>

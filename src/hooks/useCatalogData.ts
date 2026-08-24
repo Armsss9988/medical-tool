@@ -32,7 +32,14 @@ const DEFAULT_CLINIC_INFO: ClinicInfo = {
   address: 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị',
   phone: '032.855.3773',
   website: 'golab.com.vn',
-  defaultDoctor: 'Nguyễn Thị Thành Trung'
+  defaultDoctor: 'Nguyễn Thị Thành Trung',
+  bankId: 'VBA',
+  bankName: 'Agribank',
+  bankAccountNo: '8888876781225',
+  bankAccountName: 'LE PHAN ANH',
+  bankBranch: 'Agribank - Chi nhánh Lý Thái Tổ - Quảng Bình',
+  cashierName: 'Lê Phan Anh',
+  accountantName: 'Trần Thị Thanh Hương'
 };
 
 const DEFAULT_CLOUD_DB_CONFIG: CloudDbConfig = {
@@ -167,8 +174,6 @@ export function useCatalogData() {
     setEquipments,
     doctorsList,
     setDoctorsList,
-    invoices,
-    setInvoices,
     clinicInfo,
     setClinicInfo,
     cloudDbConfig,

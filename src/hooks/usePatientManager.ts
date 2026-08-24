@@ -15,10 +15,10 @@ export function generateRandomSampleCode(): string {
   return String(Math.floor(10000 + Math.random() * 90000));
 }
 
-export function createDefaultPatient(): Patient {
+export function createDefaultPatient(customCode?: string): Patient {
   const today = getTodayFormattedStr();
   const sampleCodeVal = generateRandomSampleCode();
-  const ticketCode = PatientCode.create().value || sampleCodeVal;
+  const ticketCode = customCode || PatientCode.create().value || sampleCodeVal;
 
   return {
     code: ticketCode,
@@ -39,7 +39,7 @@ export function createDefaultPatient(): Patient {
 }
 
 export function usePatientManager() {
-  const [patient, setPatient] = useState<Patient>(createDefaultPatient);
+  const [patient, setPatient] = useState<Patient>(() => createDefaultPatient());
 
   const updatePatientField = <K extends keyof Patient>(field: K, value: Patient[K]) => {
     setPatient((prev) => {
@@ -53,8 +53,8 @@ export function usePatientManager() {
     });
   };
 
-  const resetPatient = () => {
-    setPatient(createDefaultPatient());
+  const resetPatient = (customCode?: string) => {
+    setPatient(createDefaultPatient(customCode));
   };
 
   return {

@@ -79,8 +79,14 @@ export interface InvoiceItem {
   code: string;
   name: string;
   price: number;
+  quantity?: number;
+  discount?: number;
   category?: string;
+  unit?: string;
 }
+
+export type PaymentMethod = 'Tiền mặt' | 'Chuyển khoản (VietQR)' | 'Quẹt thẻ' | 'Khác';
+export type InvoiceStatus = 'Đã thanh toán' | 'Chờ thanh toán' | 'Đã hủy / Hoàn tiền';
 
 export interface Invoice {
   id: string;
@@ -94,13 +100,18 @@ export interface Invoice {
   items: InvoiceItem[];
   totalAmount: number;
   discountPercent: number;
+  discountAmount?: number;
+  surchargeAmount?: number;
+  surchargeNote?: string;
   finalAmount: number;
-  paymentMethod: 'Tiền mặt' | 'Chuyển khoản (VietQR)' | 'Quẹt thẻ';
-  status: 'Đã thanh toán' | 'Chờ thanh toán';
+  paymentMethod: PaymentMethod;
+  status: InvoiceStatus;
   notes?: string;
   patientCode?: string;
   packageName?: string;
-  discountAmount?: number;
+  cashierName?: string;
+  reportId?: string;
+  paidAt?: string;
 }
 
 export interface ClinicInfo {
@@ -111,6 +122,14 @@ export interface ClinicInfo {
   defaultDoctor: string;
   logoUrl?: string;
   stampUrl?: string;
+  bankId?: string;          // Mã định danh ngân hàng (VD: VBA, ICB, VCB, MB, TCB...)
+  bankName?: string;        // Tên ngân hàng (VD: Agribank, VietinBank, Vietcombank...)
+  bankAccountNo?: string;   // Số tài khoản
+  bankAccountName?: string; // Tên chủ tài khoản
+  bankBranch?: string;      // Chi nhánh ngân hàng (VD: Agribank - Chi nhánh Lý Thái Tổ - Quảng Bình)
+  bankQrImageUrl?: string;  // Ảnh QR code tùy chỉnh do người dùng upload
+  cashierName?: string;     // Tên người lập phiếu (VD: Lê Phan Anh)
+  accountantName?: string;  // Tên kế toán xác nhận (VD: Trần Thị Thanh Hương)
 }
 
 export interface AllergenGradeResult {
@@ -131,7 +150,12 @@ export interface StorageResult {
   error?: string;
 }
 
-export type ReportStatus = 'Chờ xét nghiệm' | 'Đã có kết quả' | 'Đã xuất Cloud' | 'Đã trả kết quả';
+export type ReportStatus = 
+  | 'Chờ xét nghiệm' 
+  | 'Đã có kết quả' 
+  | 'Đã xuất Cloud' 
+  | 'Cần cập nhật PDF' 
+  | 'Đã trả kết quả';
 
 export interface ZaloZnsConfig {
   enabled: boolean;
@@ -170,5 +194,29 @@ export interface MedicalReport {
   testCount: number;
   zaloSentAt?: string;
   zaloMsgId?: string;
+  /** Dấu mốc thời gian xuất PDF gần nhất (ISO String) */
+  pdfGeneratedAt?: string;
+  /** Số phiên bản PDF (1, 2, 3...) */
+  pdfVersion?: number;
+  /** Cờ đánh dấu dữ liệu đã bị chỉnh sửa sau lần xuất PDF gần nhất */
+  isPdfOutdated?: boolean;
+}
+
+// ─── BATCH IMPORT / EXPORT TYPES ─────────────────────────────────────────────
+
+export interface BatchImportRow {
+  patient: Patient;
+  selectedTests: SelectedTest[];
+  conclusion: string;
+  doctorName: string;
+}
+
+export interface BatchExportProgress {
+  total: number;
+  completed: number;
+  current: string;
+  status: 'idle' | 'running' | 'done' | 'cancelled' | 'error';
+  errors: Array<{ code: string; patientName: string; error: string }>;
+  results: Array<{ code: string; patientName: string; cloudUrl: string; qrDataUrl: string; blob: Blob }>;
 }
 

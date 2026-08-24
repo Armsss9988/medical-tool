@@ -94,11 +94,11 @@ export default function PdfPreviewModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl flex flex-col w-full max-w-5xl h-[92vh] overflow-hidden text-slate-100">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-0 sm:p-3 md:p-6 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="bg-slate-900 border border-slate-700/80 sm:rounded-2xl shadow-2xl flex flex-col w-full h-full sm:max-w-5xl sm:h-[92vh] overflow-hidden text-slate-100">
         
         {/* Header Modal */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-6 py-3.5 border-b border-slate-800 gap-3 shrink-0 bg-slate-900/90 backdrop-blur">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 sm:px-6 py-3 sm:py-3.5 border-b border-slate-800 gap-2 sm:gap-3 shrink-0 bg-slate-900/90 backdrop-blur">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-sm border border-emerald-500/30">
               <FileText className="w-4 h-4" />

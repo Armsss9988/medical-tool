@@ -14,7 +14,10 @@ import {
   Sparkles, 
   Clock, 
   AlertCircle,
-  MessageSquare
+  MessageSquare,
+  AlertTriangle,
+  RefreshCw,
+  CheckCircle2
 } from 'lucide-react';
 import { MedicalReport, Doctor, ToastType } from '@domain/types';
 import { exportReportsExcel } from '@infra/excelService';
@@ -29,12 +32,17 @@ interface ReportManagerModalProps {
   onPreviewReport: (report: MedicalReport) => void;
   onDuplicateReport: (report: MedicalReport) => void;
   onOpenSendZaloModal?: (report: MedicalReport) => void;
+  onOpenBatchExportModal?: () => void;
+  onUpdateSingleReportPdf?: (report: MedicalReport) => void;
+  onBatchUpdateOutdatedReports?: (reports: MedicalReport[]) => void;
+  isUpdatingPdf?: boolean;
   onDeleteReport: (id: string) => void;
   onClearAllReports: () => void;
   showToast: (message: string, type?: ToastType) => void;
 }
 
 type DateFilterType = 'ALL' | 'TODAY' | 'YESTERDAY' | 'LAST_7_DAYS' | 'THIS_MONTH';
+type PdfStatusFilterType = 'ALL' | 'OUTDATED' | 'LATEST' | 'NOT_EXPORTED';
 
 export default function ReportManagerModal({
   isOpen,
@@ -45,6 +53,10 @@ export default function ReportManagerModal({
   onPreviewReport,
   onDuplicateReport,
   onOpenSendZaloModal,
+  onOpenBatchExportModal,
+  onUpdateSingleReportPdf,
+  onBatchUpdateOutdatedReports,
+  isUpdatingPdf = false,
   onDeleteReport,
   onClearAllReports,
   showToast
@@ -53,20 +65,26 @@ export default function ReportManagerModal({
   const [dateFilter, setDateFilter] = useState<DateFilterType>('ALL');
   const [selectedDoctor, setSelectedDoctor] = useState<string>('ALL');
   const [selectedType, setSelectedType] = useState<'ALL' | 'STANDARD' | 'ALLERGEN'>('ALL');
-  const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
+  const [pdfFilter, setPdfFilter] = useState<PdfStatusFilterType>('ALL');
 
-  // 1. Thống kê KPI tổng quan
+  // 1. Thống kê KPI tổng quan (bao gồm số phiếu PDF Outdated)
   const stats = useMemo(() => {
     const todayStr = new Date().toDateString();
     const todayCount = reports.filter((r) => new Date(r.createdAt).toDateString() === todayStr).length;
     const allergenCount = reports.filter((r) => r.isAllergen).length;
     const cloudCount = reports.filter((r) => !!r.cloudPdfUrl).length;
+    const outdatedCount = reports.filter((r) => r.isPdfOutdated || r.status === 'Cần cập nhật PDF').length;
+    const latestCount = reports.filter((r) => !!r.cloudPdfUrl && !r.isPdfOutdated && r.status !== 'Cần cập nhật PDF').length;
+    const notExportedCount = reports.filter((r) => !r.cloudPdfUrl).length;
 
     return {
       total: reports.length,
       today: todayCount,
       allergen: allergenCount,
-      cloud: cloudCount
+      cloud: cloudCount,
+      outdated: outdatedCount,
+      latest: latestCount,
+      notExported: notExportedCount
     };
   }, [reports]);
 
@@ -108,8 +126,14 @@ export default function ReportManagerModal({
       if (selectedType === 'ALLERGEN' && !rep.isAllergen) return false;
       if (selectedType === 'STANDARD' && rep.isAllergen) return false;
 
-      // Lọc theo Trạng thái
-      if (selectedStatus !== 'ALL' && rep.status !== selectedStatus) {
+      // Lọc theo Tình trạng PDF (Outdated / Latest / Not Exported)
+      if (pdfFilter === 'OUTDATED' && !rep.isPdfOutdated && rep.status !== 'Cần cập nhật PDF') {
+        return false;
+      }
+      if (pdfFilter === 'LATEST' && (!rep.cloudPdfUrl || rep.isPdfOutdated || rep.status === 'Cần cập nhật PDF')) {
+        return false;
+      }
+      if (pdfFilter === 'NOT_EXPORTED' && !!rep.cloudPdfUrl) {
         return false;
       }
 
@@ -129,9 +153,14 @@ export default function ReportManagerModal({
 
       return true;
     });
-  }, [reports, searchTerm, selectedDoctor, selectedType, selectedStatus, dateFilter]);
+  }, [reports, searchTerm, selectedDoctor, selectedType, pdfFilter, dateFilter]);
 
-  // 3. Xuất toàn bộ phiếu đã lọc ra Excel
+  // 3. Danh sách tất cả các phiếu đang bị Outdated
+  const allOutdatedReports = useMemo(() => {
+    return reports.filter((r) => r.isPdfOutdated || r.status === 'Cần cập nhật PDF');
+  }, [reports]);
+
+  // 4. Xuất toàn bộ phiếu đã lọc ra Excel
   const handleExportFilteredExcel = async () => {
     if (filteredReports.length === 0) {
       showToast('Không có dữ liệu phiếu xét nghiệm để xuất Excel!', 'error');
@@ -147,7 +176,7 @@ export default function ReportManagerModal({
     }
   };
 
-  // 4. Tải mã QR Code của phiếu đã lưu
+  // 5. Tải mã QR Code của phiếu đã lưu
   const handleDownloadQr = (rep: MedicalReport) => {
     if (!rep.qrCodeDataUrl) {
       showToast('Phiếu này chưa được tải lên Cloud hoặc chưa có mã QR!', 'error');
@@ -162,8 +191,8 @@ export default function ReportManagerModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-md flex items-center justify-center p-3 md:p-6 overflow-hidden">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden text-white animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 md:p-6 overflow-hidden animate-in fade-in duration-200">
+      <div className="bg-slate-900 border border-slate-700/80 sm:rounded-2xl shadow-2xl w-full h-full sm:h-auto sm:max-w-6xl sm:max-h-[92vh] flex flex-col overflow-hidden text-white animate-in zoom-in-95 duration-200">
         
         {/* HEADER MODAL */}
         <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90 shrink-0">
@@ -177,64 +206,118 @@ export default function ReportManagerModal({
                 <span className="text-[11px] font-bold bg-sky-500/20 text-sky-300 border border-sky-400/30 px-2 py-0.5 rounded-full">
                   {reports.length} Hồ Sơ
                 </span>
+                {stats.outdated > 0 && (
+                  <span className="text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 text-amber-400" />
+                    {stats.outdated} Cần cập nhật PDF
+                  </span>
+                )}
               </h3>
-              <p className="text-xs text-slate-400">
-                Tra cứu, nạp lại, nhân bản và quản lý toàn bộ hồ sơ xét nghiệm đã lập
+              <p className="text-xs text-slate-400 mt-0.5">
+                Tra cứu, nạp lại dữ liệu, quản lý trạng thái PDF Cloud, mã QR và xuất báo cáo
               </p>
             </div>
           </div>
 
           <div className="flex items-center space-x-2">
+            {onOpenBatchExportModal && (
+              <button
+                type="button"
+                onClick={onOpenBatchExportModal}
+                className="px-3 py-1.5 bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/40 rounded-xl text-xs font-bold transition flex items-center space-x-1.5"
+                title="Mở công cụ xuất hoặc nhập hàng loạt từ Excel"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                <span>Xuất/Nhập Hàng Loạt</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={handleExportFilteredExcel}
-              className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition active:scale-95"
+              className="px-3 py-1.5 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 border border-emerald-500/40 rounded-xl text-xs font-bold transition flex items-center space-x-1.5"
+              title="Xuất danh sách đang lọc ra file Excel"
             >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>Xuất Sổ Excel</span>
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Xuất Excel</span>
             </button>
 
             <button
+              type="button"
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* THỐNG KÊ KPI CARDS */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-slate-950/40 border-b border-slate-800/80 text-xs shrink-0">
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 flex items-center justify-between">
+        {/* THỐNG KÊ KPI CARDS (Bao gồm thẻ PDF Outdated) */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 p-4 bg-slate-950/50 border-b border-slate-800 shrink-0 text-xs">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
             <div>
-              <p className="text-slate-400 font-medium text-[11px]">Tổng số phiếu</p>
-              <p className="text-lg font-black text-white font-mono mt-0.5">{stats.total}</p>
+              <span className="text-[11px] text-slate-400 block font-medium">Tổng số phiếu</span>
+              <strong className="text-base font-extrabold text-white font-mono">{stats.total}</strong>
             </div>
             <FileText className="w-5 h-5 text-sky-400/80" />
           </div>
 
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 flex items-center justify-between">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
             <div>
-              <p className="text-slate-400 font-medium text-[11px]">Lập hôm nay</p>
-              <p className="text-lg font-black text-emerald-400 font-mono mt-0.5">{stats.today}</p>
+              <span className="text-[11px] text-slate-400 block font-medium">Phiếu hôm nay</span>
+              <strong className="text-base font-extrabold text-emerald-400 font-mono">{stats.today}</strong>
             </div>
             <Clock className="w-5 h-5 text-emerald-400/80" />
           </div>
 
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 flex items-center justify-between">
+          {/* KPI: PDF Lỗi Thời (Outdated) */}
+          <div 
+            onClick={() => setPdfFilter(pdfFilter === 'OUTDATED' ? 'ALL' : 'OUTDATED')}
+            className={`bg-slate-900 border rounded-xl p-3 flex items-center justify-between cursor-pointer transition ${
+              stats.outdated > 0 
+                ? 'border-amber-500/50 hover:bg-amber-950/20' 
+                : 'border-slate-800 opacity-80'
+            }`}
+            title="Click để lọc các phiếu cần cập nhật lại PDF"
+          >
             <div>
-              <p className="text-slate-400 font-medium text-[11px]">Phiếu Dị Nguyên</p>
-              <p className="text-lg font-black text-purple-400 font-mono mt-0.5">{stats.allergen}</p>
+              <span className="text-[11px] text-amber-400 block font-medium flex items-center gap-1">
+                <span>PDF lỗi thời</span>
+                {pdfFilter === 'OUTDATED' && <span className="text-[9px] bg-amber-400 text-slate-950 px-1 rounded font-black">Lọc</span>}
+              </span>
+              <strong className="text-base font-extrabold text-amber-400 font-mono">{stats.outdated}</strong>
             </div>
-            <Sparkles className="w-5 h-5 text-purple-400/80" />
+            <AlertTriangle className="w-5 h-5 text-amber-400/90" />
           </div>
 
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 flex items-center justify-between">
+          <div 
+            onClick={() => setPdfFilter(pdfFilter === 'LATEST' ? 'ALL' : 'LATEST')}
+            className="bg-slate-900 border border-slate-800 hover:border-emerald-500/50 rounded-xl p-3 flex items-center justify-between cursor-pointer transition"
+            title="Click để lọc các phiếu đã xuất PDF mới nhất"
+          >
             <div>
-              <p className="text-slate-400 font-medium text-[11px]">Đã tải lên Cloud</p>
-              <p className="text-lg font-black text-amber-400 font-mono mt-0.5">{stats.cloud}</p>
+              <span className="text-[11px] text-emerald-400 block font-medium flex items-center gap-1">
+                <span>PDF Cloud mới nhất</span>
+                {pdfFilter === 'LATEST' && <span className="text-[9px] bg-emerald-400 text-slate-950 px-1 rounded font-black">Lọc</span>}
+              </span>
+              <strong className="text-base font-extrabold text-emerald-400 font-mono">{stats.latest}</strong>
             </div>
-            <Cloud className="w-5 h-5 text-amber-400/80" />
+            <CheckCircle2 className="w-5 h-5 text-emerald-400/80" />
+          </div>
+
+          <div 
+            onClick={() => setPdfFilter(pdfFilter === 'NOT_EXPORTED' ? 'ALL' : 'NOT_EXPORTED')}
+            className="bg-slate-900 border border-slate-800 hover:border-slate-600 rounded-xl p-3 flex items-center justify-between cursor-pointer transition col-span-2 sm:col-span-1"
+            title="Click để lọc các phiếu chưa xuất PDF"
+          >
+            <div>
+              <span className="text-[11px] text-slate-400 block font-medium flex items-center gap-1">
+                <span>Chưa xuất PDF</span>
+                {pdfFilter === 'NOT_EXPORTED' && <span className="text-[9px] bg-slate-400 text-slate-950 px-1 rounded font-black">Lọc</span>}
+              </span>
+              <strong className="text-base font-extrabold text-slate-300 font-mono">{stats.notExported}</strong>
+            </div>
+            <Cloud className="w-5 h-5 text-slate-400/80" />
           </div>
         </div>
 
@@ -297,22 +380,44 @@ export default function ReportManagerModal({
               </select>
             </div>
 
-            {/* Lọc trạng thái */}
+            {/* Lọc Tình trạng PDF */}
             <div className="sm:col-span-2">
               <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
+                value={pdfFilter}
+                onChange={(e) => setPdfFilter(e.target.value as PdfStatusFilterType)}
                 className="w-full px-3 py-2 bg-slate-800/80 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-semibold"
               >
-                <option value="ALL">Tất cả trạng thái</option>
-                <option value="Chờ xét nghiệm">Chờ xét nghiệm</option>
-                <option value="Đã có kết quả">Đã có kết quả</option>
-                <option value="Đã xuất Cloud">Đã xuất Cloud</option>
-                <option value="Đã trả kết quả">Đã trả kết quả</option>
+                <option value="ALL">Tất cả tình trạng PDF</option>
+                <option value="OUTDATED">⚠️ Cần cập nhật PDF ({stats.outdated})</option>
+                <option value="LATEST">✅ PDF Cloud mới nhất</option>
+                <option value="NOT_EXPORTED">⏳ Chưa xuất PDF</option>
               </select>
             </div>
           </div>
         </div>
+
+        {/* ═══ BULK OUTDATED ACTION BANNER ═══ */}
+        {allOutdatedReports.length > 0 && (
+          <div className="px-6 py-2.5 bg-amber-950/60 border-b border-amber-500/30 flex items-center justify-between shrink-0 text-xs">
+            <div className="flex items-center space-x-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span className="text-amber-200 font-medium">
+                Phát hiện <strong className="text-amber-300 font-bold">{allOutdatedReports.length}</strong> phiếu có dữ liệu thay đổi sau khi xuất PDF.
+              </span>
+            </div>
+            {onBatchUpdateOutdatedReports && (
+              <button
+                type="button"
+                onClick={() => onBatchUpdateOutdatedReports(allOutdatedReports)}
+                disabled={isUpdatingPdf}
+                className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold rounded-lg transition active:scale-95 flex items-center space-x-1 shadow-sm disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isUpdatingPdf ? 'animate-spin' : ''}`} />
+                <span>⚡ Cập Nhật PDF Cho {allOutdatedReports.length} Phiếu Này</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* DANH SÁCH BẢNG HỒ SƠ PHIẾU XÉT NGHIỆM */}
         <div className="flex-1 overflow-y-auto p-4 text-xs">
@@ -333,15 +438,19 @@ export default function ReportManagerModal({
                     <th className="p-3">Số ĐT & Địa Chỉ</th>
                     <th className="p-3">Bác Sĩ & Loại Phiếu</th>
                     <th className="p-3 text-center">Số Chỉ Số</th>
-                    <th className="p-3">Trạng Thái</th>
+                    <th className="p-3">Tình Trạng PDF</th>
                     <th className="p-3 text-right">Thao Tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800 bg-slate-900/50">
                   {filteredReports.map((rep, idx) => {
                     const isAllergen = rep.isAllergen;
+                    const isOutdated = rep.isPdfOutdated || rep.status === 'Cần cập nhật PDF';
+                    const hasPdf = !!rep.cloudPdfUrl;
+                    const versionStr = rep.pdfVersion ? `v${rep.pdfVersion}` : 'v1';
+
                     return (
-                      <tr key={rep.id} className="hover:bg-slate-800/40 transition-colors">
+                      <tr key={rep.id} className={`hover:bg-slate-800/40 transition-colors ${isOutdated ? 'bg-amber-950/20' : ''}`}>
                         <td className="p-3 text-center text-slate-500 font-mono">{idx + 1}</td>
 
                         {/* Mã phiếu & Ngày giờ */}
@@ -390,27 +499,48 @@ export default function ReportManagerModal({
                           {rep.testCount || rep.selectedTests.length}
                         </td>
 
-                        {/* Trạng thái */}
+                        {/* Tình Trạng PDF & Version */}
                         <td className="p-3">
-                          <span
-                            className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full ${
-                              rep.status === 'Đã trả kết quả'
-                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                : rep.status === 'Đã xuất Cloud'
-                                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
-                                : rep.status === 'Đã có kết quả'
-                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                : 'bg-slate-700 text-slate-300'
-                            }`}
-                          >
-                            {rep.status}
-                          </span>
+                          {isOutdated ? (
+                            <div className="space-y-1">
+                              <span className="inline-flex items-center gap-1 text-[10.5px] font-extrabold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                <AlertTriangle className="w-3 h-3 text-amber-400" />
+                                <span>PDF cũ ({versionStr})</span>
+                              </span>
+                              <span className="block text-[9.5px] text-amber-400/80">Dữ liệu đã sửa đổi</span>
+                            </div>
+                          ) : hasPdf ? (
+                            <div className="space-y-0.5">
+                              <span className="inline-flex items-center gap-1 text-[10.5px] font-extrabold px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                <span>PDF Mới ({versionStr})</span>
+                              </span>
+                              <span className="block text-[9.5px] text-slate-400">Khớp Cloud 100%</span>
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700">
+                              <span>Chưa xuất PDF</span>
+                            </span>
+                          )}
                         </td>
 
                         {/* Action Buttons */}
                         <td className="p-3 text-right">
                           <div className="flex items-center justify-end space-x-1.5">
-                            {/* Nút Xem trước */}
+                            {/* Nút Cập Nhật PDF 1-Click (Khi phiếu bị Outdated) */}
+                            {isOutdated && onUpdateSingleReportPdf && (
+                              <button
+                                type="button"
+                                onClick={() => onUpdateSingleReportPdf(rep)}
+                                disabled={isUpdatingPdf}
+                                className="p-1.5 bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/40 rounded-lg transition"
+                                title="Cập nhật và xuất lại file PDF lên Cloud cho phiếu này"
+                              >
+                                <RefreshCw className={`w-3.5 h-3.5 ${isUpdatingPdf ? 'animate-spin' : ''}`} />
+                              </button>
+                            )}
+
+                            {/* Nút Xem trước A4 */}
                             <button
                               type="button"
                               onClick={() => onPreviewReport(rep)}

@@ -1,36 +1,52 @@
-import { Invoice, Patient, SelectedTest, InvoiceItem } from '../domain/types';
+import { Invoice, Patient, SelectedTest, InvoiceItem, PaymentMethod } from '../domain/types';
 import { Money } from '../domain/valueObjects/Money';
 
 export interface CreateInvoiceParams {
   patient: Patient;
-  selectedTests: SelectedTest[];
-  doctorName: string;
-  packageName: string;
+  selectedTests?: SelectedTest[];
+  items?: InvoiceItem[];
+  doctorName?: string;
+  packageName?: string;
   discountAmount?: number;
-  paymentMethod?: 'Tiền mặt' | 'Chuyển khoản (VietQR)' | 'Quẹt thẻ';
+  surchargeAmount?: number;
+  surchargeNote?: string;
+  paymentMethod?: PaymentMethod;
   invoicesCount?: number;
+  cashierName?: string;
+  notes?: string;
 }
 
 export class CreateInvoiceUseCase {
   public execute(params: CreateInvoiceParams): Invoice {
     const {
       patient,
-      selectedTests,
-      doctorName,
-      packageName,
+      selectedTests = [],
+      items: customItems,
+      doctorName = 'BS. Trần Hoài Long',
+      packageName = 'Tùy chọn',
       discountAmount = 0,
+      surchargeAmount = 0,
+      surchargeNote,
       paymentMethod = 'Tiền mặt',
-      invoicesCount = 0
+      invoicesCount = 0,
+      cashierName = 'Thu ngân viện',
+      notes = ''
     } = params;
 
-    const items: InvoiceItem[] = selectedTests.map((t) => ({
-      code: t.code,
-      name: t.name,
-      price: t.price || 0
-    }));
+    const items: InvoiceItem[] = customItems && customItems.length > 0
+      ? customItems
+      : selectedTests.map((t) => ({
+          code: t.code,
+          name: t.name,
+          price: t.price || 0,
+          quantity: 1,
+          category: t.category,
+          unit: t.unit || 'Lần'
+        }));
 
-    const rawTotal = items.reduce((sum, item) => sum + item.price, 0);
-    const totalMoney = new Money(rawTotal);
+    const rawSubtotal = items.reduce((sum, item) => sum + (item.price * (item.quantity || 1)), 0);
+    const totalWithSurcharge = rawSubtotal + surchargeAmount;
+    const totalMoney = new Money(totalWithSurcharge);
     const finalMoney = totalMoney.applyDiscount(discountAmount);
 
     const now = new Date();
@@ -47,15 +63,19 @@ export class CreateInvoiceUseCase {
       patientPhone: patient.phone || '',
       patientGender: patient.gender || 'Nam',
       patientCode: patient.code || 'BN-GOLAB',
-      doctorName: doctorName || 'Bác sĩ phòng khám',
-      packageName: packageName || 'Tùy chọn',
+      doctorName,
+      packageName,
       items,
-      totalAmount: totalMoney.amount,
-      discountPercent: rawTotal > 0 ? Math.round((discountAmount / rawTotal) * 100) : 0,
+      totalAmount: rawSubtotal,
+      discountPercent: totalWithSurcharge > 0 ? Math.round((discountAmount / totalWithSurcharge) * 100) : 0,
       discountAmount,
+      surchargeAmount: surchargeAmount > 0 ? surchargeAmount : undefined,
+      surchargeNote: surchargeAmount > 0 ? surchargeNote : undefined,
       finalAmount: finalMoney.amount,
       paymentMethod,
-      status: 'Đã thanh toán'
+      status: 'Đã thanh toán',
+      cashierName,
+      notes
     };
   }
 }

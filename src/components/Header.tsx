@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Activity, ListChecks, TrendingUp, FolderOpen, Clock, Phone, Globe, ShieldCheck, ClipboardList } from 'lucide-react';
+import { Settings, Activity, ListChecks, TrendingUp, FolderOpen, Clock, Phone, Globe, ShieldCheck, ClipboardList, Package, Menu, X } from 'lucide-react';
 import { ClinicInfo, CatalogItem } from '@domain/types';
 
 interface HeaderProps {
@@ -11,6 +11,7 @@ interface HeaderProps {
   onOpenCatalogModal: () => void;
   onOpenRevenueModal: () => void;
   onOpenReportManagerModal: () => void;
+  onOpenBatchExportModal?: () => void;
   onOpenDataFolder: () => void;
   invoiceCount?: number;
   reportCount?: number;
@@ -22,13 +23,14 @@ export default function Header({
   onOpenCatalogModal,
   onOpenRevenueModal,
   onOpenReportManagerModal,
+  onOpenBatchExportModal,
   onOpenDataFolder,
   invoiceCount = 0,
   reportCount = 0
 }: HeaderProps) {
-  // Live system clock ticker
   const [currentTime, setCurrentTime] = useState<string>('');
   const [currentDate, setCurrentDate] = useState<string>('');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
   useEffect(() => {
     const updateTime = () => {
@@ -41,38 +43,38 @@ export default function Header({
     return () => clearInterval(timer);
   }, []);
 
+  const handleMobileNav = (action: () => void) => {
+    action();
+    setIsMobileMenuOpen(false);
+  };
+
   return (
-    <header className="bg-slate-900 text-white border-b border-slate-800 px-4 lg:px-6 py-2.5 shadow-lg sticky top-0 z-40 backdrop-blur-md bg-slate-900/95">
-      <div className="max-w-[1680px] mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
+    <header className="bg-slate-900 text-white border-b border-slate-800 px-3 sm:px-4 lg:px-6 py-2 shadow-lg sticky top-0 z-40 backdrop-blur-md bg-slate-900/95">
+      <div className="max-w-[1680px] mx-auto flex items-center justify-between gap-2">
         
         {/* Left: Brand Identity & Clinic Info */}
-        <div className="flex items-center space-x-3.5 w-full md:w-auto">
+        <div className="flex items-center space-x-2.5 sm:space-x-3.5 min-w-0">
           <div className="relative flex-shrink-0">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-cyan-500 flex items-center justify-center text-white shadow-md shadow-sky-500/20 font-bold border border-sky-400/30">
-              <Activity className="w-5 h-5 animate-pulse" />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-cyan-500 flex items-center justify-center text-white shadow-md shadow-sky-500/20 font-bold border border-sky-400/30">
+              <Activity className="w-4 h-4 sm:w-5 sm:h-5 animate-pulse" />
             </div>
-            <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-slate-900 rounded-full" title="Hệ thống đang hoạt động" />
+            <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 bg-emerald-500 border-2 border-slate-900 rounded-full" title="Hệ thống đang hoạt động" />
           </div>
 
           <div className="min-w-0">
-            <div className="flex items-center space-x-2">
-              <h1 className="text-sm lg:text-base font-extrabold text-white tracking-tight truncate">
+            <div className="flex items-center space-x-1.5 sm:space-x-2">
+              <h1 className="text-xs sm:text-sm lg:text-base font-extrabold text-white tracking-tight truncate">
                 {clinicInfo.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'}
               </h1>
-              <span className="hidden sm:inline-flex items-center gap-1 text-[10px] uppercase font-extrabold bg-sky-500/15 text-sky-300 border border-sky-400/30 px-2 py-0.5 rounded-md shadow-xs">
+              <span className="hidden md:inline-flex items-center gap-1 text-[10px] uppercase font-extrabold bg-sky-500/15 text-sky-300 border border-sky-400/30 px-2 py-0.5 rounded-md shadow-xs">
                 <ShieldCheck className="w-3 h-3 text-sky-400" />
-                <span>GoLab System</span>
+                <span>GoLab</span>
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 font-medium">
-              <span className="truncate max-w-[320px] lg:max-w-none">{clinicInfo.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị'}</span>
+            <p className="text-[10px] sm:text-[11px] text-slate-400 flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 font-medium">
+              <span className="truncate max-w-[200px] sm:max-w-[320px] lg:max-w-none">{clinicInfo.address || 'Quảng Trị'}</span>
               <span className="text-slate-600 hidden sm:inline">•</span>
-              <span className="inline-flex items-center gap-1 text-slate-300">
-                <Globe className="w-3 h-3 text-sky-400" />
-                <strong className="text-sky-300 font-semibold">{clinicInfo.website || 'golab.com.vn'}</strong>
-              </span>
-              <span className="text-slate-600 hidden sm:inline">•</span>
-              <span className="inline-flex items-center gap-1 text-slate-300">
+              <span className="hidden sm:inline-flex items-center gap-1 text-slate-300">
                 <Phone className="w-3 h-3 text-emerald-400" />
                 <strong className="text-emerald-400 font-mono font-bold">{clinicInfo.phone || '032.855.3773'}</strong>
               </span>
@@ -80,11 +82,11 @@ export default function Header({
           </div>
         </div>
 
-        {/* Right: Clock & Action Hub */}
-        <div className="flex items-center space-x-2.5 w-full md:w-auto justify-end flex-wrap gap-y-2">
+        {/* Desktop Action Hub (hidden on small mobile) */}
+        <div className="hidden lg:flex items-center space-x-2 w-auto justify-end flex-wrap gap-y-1.5">
           
           {/* Live System Clock */}
-          <div className="hidden xl:flex items-center space-x-2 bg-slate-800/80 border border-slate-700/80 px-3 py-1.5 rounded-lg text-xs">
+          <div className="hidden xl:flex items-center space-x-2 bg-slate-800/80 border border-slate-700/80 px-2.5 py-1.5 rounded-lg text-xs">
             <Clock className="w-3.5 h-3.5 text-sky-400" />
             <div className="flex items-center space-x-1.5 font-mono">
               <span className="text-slate-200 font-bold">{currentTime || '--:--:--'}</span>
@@ -108,6 +110,19 @@ export default function Header({
               </span>
             )}
           </button>
+
+          {/* Import Batch & Xuất Đồng Loạt Button */}
+          {onOpenBatchExportModal && (
+            <button
+              type="button"
+              onClick={onOpenBatchExportModal}
+              title="Import dữ liệu batch từ Excel hoặc xuất PDF đồng loạt"
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-sky-600 hover:from-purple-500 hover:to-sky-500 text-white text-xs font-bold shadow-md shadow-purple-900/20 border border-purple-500/50 transition-all active:scale-95 group"
+            >
+              <Package className="w-3.5 h-3.5 text-purple-200 group-hover:scale-110 transition-transform" />
+              <span>Batch Export</span>
+            </button>
+          )}
 
           {/* Sổ Sách & Doanh Thu Button */}
           <button
@@ -133,7 +148,7 @@ export default function Header({
             className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white text-xs font-bold shadow-md shadow-sky-900/20 border border-sky-500/50 transition-all active:scale-95 group"
           >
             <ListChecks className="w-3.5 h-3.5 text-sky-200 group-hover:scale-110 transition-transform" />
-            <span>Quản Lý Danh Mục</span>
+            <span>Danh Mục</span>
           </button>
 
           {/* Mở Thư Mục Dữ Liệu Button */}
@@ -160,7 +175,114 @@ export default function Header({
           </button>
 
         </div>
+
+        {/* Mobile Hamburger & Quick Badges Bar (lg:hidden) */}
+        <div className="flex lg:hidden items-center space-x-1.5">
+          {/* Sổ Lưu Quick Icon Button */}
+          <button
+            type="button"
+            onClick={onOpenReportManagerModal}
+            className="relative p-2 rounded-lg bg-indigo-600 text-white shadow active:scale-95 transition"
+            title="Sổ Lưu Phiếu XN"
+          >
+            <ClipboardList className="w-4 h-4" />
+            {reportCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white font-mono text-[9px] font-black px-1 rounded-full border border-slate-900 shadow">
+                {reportCount}
+              </span>
+            )}
+          </button>
+
+          {/* Doanh Thu Quick Icon Button */}
+          <button
+            type="button"
+            onClick={onOpenRevenueModal}
+            className="relative p-2 rounded-lg bg-emerald-600 text-white shadow active:scale-95 transition"
+            title="Sổ Sách & Doanh Thu"
+          >
+            <TrendingUp className="w-4 h-4" />
+            {invoiceCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-amber-400 text-slate-900 font-mono text-[9px] font-black px-1 rounded-full border border-slate-900 shadow">
+                {invoiceCount}
+              </span>
+            )}
+          </button>
+
+          {/* Hamburger Menu Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="p-2 rounded-lg bg-slate-800 text-slate-200 hover:text-white border border-slate-700 active:scale-95 transition"
+            title="Menu chức năng"
+          >
+            {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
+
       </div>
+
+      {/* Mobile Drawer Dropdown Menu */}
+      {isMobileMenuOpen && (
+        <div className="lg:hidden border-t border-slate-800 bg-slate-900/98 px-3 py-3 mt-2 rounded-xl shadow-2xl space-y-2 animate-in slide-in-from-top-2 duration-200">
+          <div className="grid grid-cols-2 gap-2 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => handleMobileNav(onOpenReportManagerModal)}
+              className="p-2.5 bg-indigo-600/20 border border-indigo-500/30 text-indigo-200 rounded-xl flex items-center space-x-2 text-left active:scale-95 transition"
+            >
+              <ClipboardList className="w-4 h-4 text-indigo-400 shrink-0" />
+              <div className="truncate">
+                <span>Sổ Lưu Phiếu XN</span>
+                {reportCount > 0 && <span className="ml-1 text-white font-mono">({reportCount})</span>}
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleMobileNav(onOpenRevenueModal)}
+              className="p-2.5 bg-emerald-600/20 border border-emerald-500/30 text-emerald-200 rounded-xl flex items-center space-x-2 text-left active:scale-95 transition"
+            >
+              <TrendingUp className="w-4 h-4 text-emerald-400 shrink-0" />
+              <div className="truncate">
+                <span>Sổ Doanh Thu</span>
+                {invoiceCount > 0 && <span className="ml-1 text-white font-mono">({invoiceCount})</span>}
+              </div>
+            </button>
+
+            {onOpenBatchExportModal && (
+              <button
+                type="button"
+                onClick={() => handleMobileNav(onOpenBatchExportModal)}
+                className="p-2.5 bg-purple-600/20 border border-purple-500/30 text-purple-200 rounded-xl flex items-center space-x-2 text-left active:scale-95 transition"
+              >
+                <Package className="w-4 h-4 text-purple-400 shrink-0" />
+                <span className="truncate">Batch Export / Excel</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => handleMobileNav(onOpenCatalogModal)}
+              className="p-2.5 bg-sky-600/20 border border-sky-500/30 text-sky-200 rounded-xl flex items-center space-x-2 text-left active:scale-95 transition"
+            >
+              <ListChecks className="w-4 h-4 text-sky-400 shrink-0" />
+              <span className="truncate">Quản Lý Danh Mục</span>
+            </button>
+          </div>
+
+          <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => handleMobileNav(onOpenSettings)}
+              className="w-full py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-xs flex items-center justify-center space-x-2 transition active:scale-95 border border-slate-700"
+            >
+              <Settings className="w-4 h-4 text-emerald-400" />
+              <span>Cài Đặt & Cấu Hình Ngân Hàng / VietQR</span>
+            </button>
+          </div>
+        </div>
+      )}
     </header>
   );
 }
+

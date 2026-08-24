@@ -77,11 +77,13 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Định dạng Font Times New Roman toàn diện cho Mẫu Phiếu Kết Quả PDF */
+/* Định dạng Font Times New Roman toàn diện cho Mẫu Phiếu Kết Quả PDF & Biên Lai Thu Tiền */
 .report-page,
 .report-page *,
 .printable-report,
 .printable-report *,
+.receipt-print-page,
+.receipt-print-page *,
 #printable-medical-report,
 #printable-medical-report *,
 #printable-allergen-report,

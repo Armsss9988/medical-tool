@@ -1,8 +1,10 @@
+import { useState, useEffect } from 'react';
 import golabLogo from '@assets/golabLogoDataUrl';
 import doctorStamp from '@assets/doctorStampDataUrl';
 import { Patient, SelectedTest, ClinicInfo } from '@domain/types';
 import { calculateAllergenGrade } from '@domain/allergen';
 import { ALLERGEN_91_DATABASE, AllergenDatabaseItem } from '@data/allergenCatalog';
+import { generateQrCodeDataUrl } from '@infra/qrService';
 
 interface FullAllergenReportViewProps {
   elementId?: string;
@@ -34,9 +36,49 @@ export default function FullAllergenReportView({
   }
 }: FullAllergenReportViewProps) {
   const tests = allergenTests || selectedTests || [];
-  const finalQrCode = qrCodeDataUrl || qrCodeUrl;
-  const currentLogo = clinicInfo?.logoUrl || golabLogo;
-  const currentStamp = clinicInfo?.stampUrl || doctorStamp;
+  const [autoQrCode, setAutoQrCode] = useState<string>(qrCodeDataUrl || '');
+
+  useEffect(() => {
+    if (qrCodeDataUrl) {
+      setAutoQrCode(qrCodeDataUrl);
+      return;
+    }
+    if (qrCodeUrl) {
+      generateQrCodeDataUrl(qrCodeUrl).then((res) => {
+        if (res) setAutoQrCode(res);
+      });
+      return;
+    }
+    const baseUrl = clinicInfo?.website
+      ? (clinicInfo.website.startsWith('http') ? clinicInfo.website : `https://${clinicInfo.website}`)
+      : 'https://golab.com.vn';
+    const code = patient.code || `BN-${Date.now()}`;
+    const sample = patient.sampleCode || code;
+    const lookupUrl = `${baseUrl}/tra-cuu?code=${encodeURIComponent(code)}&sample=${encodeURIComponent(sample)}`;
+
+    generateQrCodeDataUrl(lookupUrl).then((res) => {
+      if (res) setAutoQrCode(res);
+    });
+  }, [qrCodeDataUrl, qrCodeUrl, patient.code, patient.sampleCode, clinicInfo?.website]);
+
+  const finalQrCode = qrCodeDataUrl || autoQrCode;
+  const currentLogo =
+    clinicInfo?.logoUrl &&
+    typeof clinicInfo.logoUrl === 'string' &&
+    clinicInfo.logoUrl.trim() !== '' &&
+    clinicInfo.logoUrl !== 'null' &&
+    clinicInfo.logoUrl !== 'undefined'
+      ? clinicInfo.logoUrl
+      : golabLogo;
+
+  const currentStamp =
+    clinicInfo?.stampUrl &&
+    typeof clinicInfo.stampUrl === 'string' &&
+    clinicInfo.stampUrl.trim() !== '' &&
+    clinicInfo.stampUrl !== 'null' &&
+    clinicInfo.stampUrl !== 'undefined'
+      ? clinicInfo.stampUrl
+      : doctorStamp;
 
   // Lấy dữ liệu chi tiết của từng dị nguyên (ghép nối từ ALLERGEN_91_DATABASE)
   const dbMap = new Map<string, AllergenDatabaseItem>();
@@ -96,12 +138,12 @@ export default function FullAllergenReportView({
         <div>
           {/* Header Phòng khám */}
           <div className="flex items-center justify-between border-b-2 border-sky-600 pb-3 mb-3">
-            <div className="flex items-center space-x-3.5">
-              <div className="h-16 w-32 flex items-center justify-start shrink-0">
+            <div className="flex items-center space-x-4">
+              <div className="h-[74px] w-[142px] flex items-center justify-center shrink-0">
                 <img
                   src={currentLogo}
                   alt="GoLab Logo"
-                  className="h-16 max-w-[128px] w-auto object-contain"
+                  className="max-h-full max-w-full w-auto h-auto object-contain object-center"
                   loading="eager"
                   decoding="sync"
                   onError={(e) => {
@@ -126,12 +168,16 @@ export default function FullAllergenReportView({
                 </p>
               </div>
             </div>
-            {finalQrCode && (
-              <div className="flex flex-col items-center justify-center p-1 bg-slate-50 border border-slate-300 rounded shrink-0">
-                <img src={finalQrCode} alt="QR Code Tra Cứu" className="w-13 h-13 object-contain" />
-                <span className="text-[9.5px] font-mono text-sky-700 font-bold mt-0.5">QR Tra Cứu</span>
-              </div>
-            )}
+            <div className="flex flex-col items-center justify-center p-1 bg-white border border-slate-300 rounded shadow-2xs shrink-0 min-w-[62px]">
+              {finalQrCode ? (
+                <img src={finalQrCode} alt="QR Code Tra Cứu" className="w-14 h-14 object-contain" />
+              ) : (
+                <div className="w-14 h-14 flex items-center justify-center bg-slate-50 text-[10px] text-slate-400 font-mono">
+                  QR
+                </div>
+              )}
+              <span className="text-[9.5px] font-mono text-sky-800 font-extrabold mt-0.5 tracking-tight">QR Tra Cứu</span>
+            </div>
           </div>
 
           {/* Tiêu đề trang 1 */}

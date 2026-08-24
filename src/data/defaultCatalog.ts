@@ -1,4 +1,5 @@
 import { ALLERGEN_91_DATABASE } from './allergenCatalog';
+import { NHI_CATALOG } from './nhiCatalog';
 import { CatalogItem, TestPackage, TestGroup, TestEquipment } from '../domain/types';
 
 const ALLERGEN_CATALOG_ITEMS: CatalogItem[] = ALLERGEN_91_DATABASE.map(item => {
@@ -23,17 +24,36 @@ const ALLERGEN_CATALOG_ITEMS: CatalogItem[] = ALLERGEN_91_DATABASE.map(item => {
 });
 
 export const DEFAULT_EQUIPMENTS: TestEquipment[] = [
-  { id: crypto.randomUUID(), name: 'Máy Phân Tích Huyết Học Sysmex XN-550', code: 'SYSMEX-XN550' },
-  { id: crypto.randomUUID(), name: 'Máy Sinh Hóa Tự Động Mindray BS-240', code: 'MINDRAY-BS240' },
-  { id: crypto.randomUUID(), name: 'Máy Phân Tích Nước Tiểu URIT-500B', code: 'URIT-500B' },
-  { id: crypto.randomUUID(), name: 'Máy Miễn Dịch Cobas e411', code: 'COBAS-E411' },
+  // Thiết bị từ Excel UPLOAD_PHAN_MEM_NHI (12 máy)
+  { id: crypto.randomUUID(), name: 'MS-H630 (Máy Phân Tích Huyết Học)', code: 'MS-H630' },
+  { id: crypto.randomUUID(), name: 'Dynex DS2 (ELISA Reader)', code: 'DYNEX-DS2' },
+  { id: crypto.randomUUID(), name: 'Roche cobas e 801 (Miễn Dịch)', code: 'COBAS-E801' },
+  { id: crypto.randomUUID(), name: 'Tosoh HLC-723G11 (Huyết Sắc Tố)', code: 'TOSOH-G11' },
+  { id: crypto.randomUUID(), name: 'MS-360 (Vi Chất)', code: 'MS-360' },
+  { id: crypto.randomUUID(), name: 'PROTIA Allergy-Q Smart Q-processor (Dị Nguyên)', code: 'PROTIA-ALLERGY-Q' },
+  { id: crypto.randomUUID(), name: 'Agilent 7850 ICP-MS (Nguyên Tố Vi Lượng)', code: 'AGILENT-7850' },
+  { id: crypto.randomUUID(), name: 'MEDIWISS AlleisaScreen 44 BLOTrix Reader C1', code: 'MEDIWISS-C1' },
+  { id: crypto.randomUUID(), name: 'MADx ALEX2 MAX 9k (Dị Nguyên Panel)', code: 'MADX-ALEX2' },
+  { id: crypto.randomUUID(), name: 'Applied Biosystems VeritiPro PCR (Di Truyền)', code: 'VERITIPRO-PCR' },
+  { id: crypto.randomUUID(), name: 'Kính Hiển Vi Quang Học', code: 'MICROSCOPE' },
+  { id: crypto.randomUUID(), name: 'Radiometer ABL90 FLEX (Khí Máu)', code: 'ABL90-FLEX' },
+  // Thiết bị cũ giữ lại
   { id: crypto.randomUUID(), name: 'Máy Đọc Dị Nguyên PROTIA Smart Analyzer', code: 'PROTIA-SMART' },
-  { id: crypto.randomUUID(), name: 'Máy Đông Máu Tự Động Stago', code: 'STAGO-COMPACT' },
   { id: crypto.randomUUID(), name: 'Thủ Công / Khác', code: 'MANUAL' }
 ];
 
 export const DEFAULT_TEST_GROUPS: TestGroup[] = [
+  // Nhóm từ Excel Nhi
   { id: crypto.randomUUID(), name: 'Huyết Học' },
+  { id: crypto.randomUUID(), name: 'Sinh Hóa' },
+  { id: crypto.randomUUID(), name: 'Huyết Sắc Tố' },
+  { id: crypto.randomUUID(), name: 'Ký Sinh Trùng' },
+  { id: crypto.randomUUID(), name: 'Vi Chất' },
+  { id: crypto.randomUUID(), name: 'Hóc Môn' },
+  { id: crypto.randomUUID(), name: 'Miễn Dịch' },
+  { id: crypto.randomUUID(), name: 'Dị Nguyên' },
+  { id: crypto.randomUUID(), name: 'Di Truyền' },
+  // Nhóm bổ sung
   { id: crypto.randomUUID(), name: 'Sinh Hóa Máu' },
   { id: crypto.randomUUID(), name: 'Đông Máu' },
   { id: crypto.randomUUID(), name: 'Nước Tiểu' },
@@ -50,34 +70,10 @@ export const DEFAULT_TEST_GROUPS: TestGroup[] = [
 ];
 
 export const DEFAULT_CATALOG: CatalogItem[] = [
-  // 1. HUYẾT HỌC
-  { category: 'Huyết Học', code: 'RBC', name: 'RBC (Số lượng hồng cầu)', refMin: 3.8, refMax: 5.4, unit: 'T/L', refText: '3.8 - 5.4', price: 15000 },
-  { category: 'Huyết Học', code: 'HGB', name: 'Hb (Huyết sắc tố)', refMin: 120, refMax: 160, unit: 'g/L', refText: '120 - 160', price: 15000 },
-  { category: 'Huyết Học', code: 'HCT', name: 'HCT (Dung tích hồng cầu)', refMin: 35, refMax: 47, unit: '%', refText: '35 - 47', price: 15000 },
-  { category: 'Huyết Học', code: 'MCV', name: 'MCV (Thể tích trung bình HC)', refMin: 80, refMax: 100, unit: 'fL', refText: '80 - 100', price: 10000 },
-  { category: 'Huyết Học', code: 'WBC', name: 'WBC (Số lượng bạch cầu)', refMin: 4.0, refMax: 10.0, unit: 'G/L', refText: '4.0 - 10.0', price: 15000 },
-  { category: 'Huyết Học', code: 'PLT', name: 'PLT (Số lượng tiểu cầu)', refMin: 150, refMax: 450, unit: 'G/L', refText: '150 - 450', price: 15000 },
+  // === 76 CHỈ SỐ NHI KHOA (từ Excel UPLOAD_PHAN_MEM_NHI) ===
+  ...NHI_CATALOG,
 
-  // 2. SINH HÓA MÁU
-  { category: 'Sinh Hóa Máu', code: 'GLU', name: 'Glucose (Đường huyết lúc đói)', refMin: 3.9, refMax: 6.4, unit: 'mmol/L', refText: '3.9 - 6.4', price: 35000 },
-  { category: 'Sinh Hóa Máu', code: 'URE', name: 'Ure máu', refMin: 2.5, refMax: 7.5, unit: 'mmol/L', refText: '2.5 - 7.5', price: 35000 },
-  { category: 'Sinh Hóa Máu', code: 'CREAT', name: 'Creatinine máu', refMin: 53, refMax: 110, unit: 'µmol/L', refText: '53 - 110', price: 40000 },
-  { category: 'Sinh Hóa Máu', code: 'AST', name: 'AST (GOT) - Men gan', refMin: 0, refMax: 37, unit: 'U/L', refText: '< 37', price: 40000 },
-  { category: 'Sinh Hóa Máu', code: 'ALT', name: 'ALT (GPT) - Men gan', refMin: 0, refMax: 40, unit: 'U/L', refText: '< 40', price: 40000 },
-  { category: 'Sinh Hóa Máu', code: 'CHO', name: 'Cholesterol toàn phần', refMin: 3.6, refMax: 5.2, unit: 'mmol/L', refText: '3.6 - 5.2', price: 40000 },
-  { category: 'Sinh Hóa Máu', code: 'TRI', name: 'Triglyceride (Mỡ máu)', refMin: 0.4, refMax: 1.7, unit: 'mmol/L', refText: '0.4 - 1.7', price: 40000 },
-  { category: 'Sinh Hóa Máu', code: 'URIC', name: 'Acid Uric (Gút)', refMin: 180, refMax: 420, unit: 'µmol/L', refText: '180 - 420', price: 45000 },
-
-  // 3. NƯỚC TIỂU
-  { category: 'Nước Tiểu', code: 'LEU_U', name: 'Bạch cầu (LEU) nước tiểu', refMin: 0, refMax: 10, unit: 'Cells/µL', refText: 'Âm tính (< 10)', price: 40000 },
-  { category: 'Nước Tiểu', code: 'PRO_U', name: 'Protein (PRO) nước tiểu', refMin: 0, refMax: 0.1, unit: 'g/L', refText: 'Âm tính (< 0.1)', price: 40000 },
-  { category: 'Nước Tiểu', code: 'GLU_U', name: 'Glucose (GLU) nước tiểu', refMin: 0, refMax: 0.8, unit: 'mmol/L', refText: 'Âm tính (< 0.8)', price: 40000 },
-
-  // 4. MIỄN DỊCH & TẦM SOÁT
-  { category: 'Miễn Dịch & Tầm Soát', code: 'HBSAG', name: 'HBsAg Rapid Test (Viêm gan B)', refMin: null, refMax: null, unit: 'Cut-off', refText: 'Âm tính (Negative)', price: 80000 },
-  { category: 'Miễn Dịch & Tầm Soát', code: 'HP', name: 'HP Test (Vi khuẩn dạ dày)', refMin: null, refMax: null, unit: 'Cut-off', refText: 'Âm tính (Negative)', price: 100000 },
-
-  // 5. TRỌN BỘ 91 DỊ NGUYÊN IgE CHUẨN PROTIA
+  // === 91 DỊ NGUYÊN IgE CHUẨN PROTIA (giữ nguyên) ===
   ...ALLERGEN_CATALOG_ITEMS
 ];
 

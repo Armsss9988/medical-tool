@@ -133,9 +133,9 @@ export async function seedAllDefaultDataToSupabase(config: CloudDbConfig): Promi
 
     const allSuccess = results.every(Boolean);
     if (allSuccess) {
-      return { success: true, message: 'Đã đẩy thành công toàn bộ dữ liệu gốc (130+ chỉ số, gói, nhóm, thiết bị) lên Supabase Cloud DB!' };
+      return { success: true, message: 'Đã đẩy thành công toàn bộ dữ liệu Nhi (76 chỉ số Nhi + 91 Dị Nguyên PROTIA + nhóm + thiết bị) lên Supabase Cloud DB!' };
     } else {
-      return { success: true, message: 'Đã sẵn sàng đẩy toàn bộ 130+ chỉ số & danh mục dữ liệu gốc lên Supabase Cloud DB!' };
+      return { success: true, message: 'Đã sẵn sàng đẩy toàn bộ 167 chỉ số (76 Nhi + 91 Dị Nguyên) & danh mục lên Supabase Cloud DB!' };
     }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : 'Lỗi không xác định';
@@ -165,4 +165,210 @@ export async function fetchDoctorsFromSupabase(config: CloudDbConfig) {
 
 export async function fetchClinicInfoFromSupabase(config: CloudDbConfig) {
   return fetchTableFromCloud<any>('clinic_info', config);
+}
+
+export async function fetchInvoicesFromSupabase(config: CloudDbConfig) {
+  return fetchTableFromCloud<any[]>('invoices_data', config);
+}
+
+/**
+ * Upsert catalog items lên Supabase theo code — KHÔNG ghi đè dữ liệu cũ.
+ * Logic: Fetch catalog hiện tại → merge newItems vào (add mới, update nếu trùng code) → ghi lại.
+ */
+export async function upsertCatalogItemsToSupabase(
+  newItems: any[],
+  config: CloudDbConfig
+): Promise<{ success: boolean; message: string; added: number; updated: number }> {
+  if (!config.enabled || !config.supabaseUrl) {
+    return { success: false, message: 'Chưa bật cấu hình Supabase Cloud DB!', added: 0, updated: 0 };
+  }
+
+  try {
+    // Bước 1: Fetch catalog hiện tại từ Supabase
+    const existing = await fetchTableFromCloud<any[]>('catalog_data', config) ?? [];
+
+    // Bước 2: Merge — index theo code
+    const byCode = new Map<string, any>();
+    for (const item of existing) {
+      if (item.code) byCode.set(item.code, item);
+    }
+
+    let added = 0;
+    let updated = 0;
+    for (const newItem of newItems) {
+      if (!newItem.code) continue;
+      if (byCode.has(newItem.code)) {
+        // Code đã tồn tại → update (ghi đè item đó)
+        byCode.set(newItem.code, { ...byCode.get(newItem.code), ...newItem });
+        updated++;
+      } else {
+        // Code mới → thêm vào
+        byCode.set(newItem.code, newItem);
+        added++;
+      }
+    }
+
+    const merged = Array.from(byCode.values());
+
+    // Bước 3: Ghi lại toàn bộ merged catalog
+    const ok = await syncTableToCloud('catalog_data', merged, config);
+    if (!ok) {
+      return { success: false, message: 'Lỗi khi ghi dữ liệu lên Supabase!', added, updated };
+    }
+
+    return {
+      success: true,
+      message: `Upsert thành công: +${added} chỉ số mới, cập nhật ${updated} chỉ số. Tổng: ${merged.length} chỉ số trong DB.`,
+      added,
+      updated
+    };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : 'Lỗi không xác định';
+    return { success: false, message: `Lỗi upsert catalog: ${errMsg}`, added: 0, updated: 0 };
+  }
+}
+
+/**
+ * Upsert danh sách thiết bị lên Supabase theo code — KHÔNG ghi đè thiết bị cũ.
+ */
+export async function upsertEquipmentsToSupabase(
+  newEquipments: any[],
+  config: CloudDbConfig
+): Promise<{ success: boolean; message: string }> {
+  if (!config.enabled || !config.supabaseUrl) {
+    return { success: false, message: 'Chưa bật cấu hình Supabase Cloud DB!' };
+  }
+
+  try {
+    const existing = await fetchTableFromCloud<any[]>('equipments_catalog', config) ?? [];
+    const byCode = new Map<string, any>();
+    for (const item of existing) {
+      if (item.code) byCode.set(item.code, item);
+    }
+    for (const item of newEquipments) {
+      if (!byCode.has(item.code)) {
+        byCode.set(item.code, item);
+      }
+    }
+    const merged = Array.from(byCode.values());
+    const ok = await syncTableToCloud('equipments_catalog', merged, config);
+    return ok
+      ? { success: true, message: `Đã cập nhật ${merged.length} thiết bị lên Supabase.` }
+      : { success: false, message: 'Lỗi ghi thiết bị lên Supabase!' };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : 'Lỗi không xác định';
+    return { success: false, message: `Lỗi upsert thiết bị: ${errMsg}` };
+  }
+}
+
+/**
+ * Fetch TOÀN BỘ dữ liệu từ Supabase và download về máy dưới dạng file JSON backup.
+ * Bao gồm: catalog_data, test_packages, test_groups, equipments_catalog, doctors_list, clinic_info.
+ */
+export async function backupAllDataFromSupabase(
+  config: CloudDbConfig
+): Promise<{ success: boolean; message: string }> {
+  if (!config.enabled || !config.supabaseUrl) {
+    return { success: false, message: 'Chưa bật cấu hình Supabase Cloud DB!' };
+  }
+
+  try {
+    const [catalog, packages, groups, equipments, doctors, clinic, invoices] = await Promise.all([
+      fetchTableFromCloud<any[]>('catalog_data', config),
+      fetchTableFromCloud<any[]>('test_packages', config),
+      fetchTableFromCloud<any[]>('test_groups', config),
+      fetchTableFromCloud<any[]>('equipments_catalog', config),
+      fetchTableFromCloud<any[]>('doctors_list', config),
+      fetchTableFromCloud<any>('clinic_info', config),
+      fetchTableFromCloud<any[]>('invoices_data', config),
+    ]);
+
+    const backup = {
+      _meta: {
+        backup_at: new Date().toISOString(),
+        supabase_url: config.supabaseUrl,
+        version: '1.0',
+        tables: ['catalog_data', 'test_packages', 'test_groups', 'equipments_catalog', 'doctors_list', 'clinic_info', 'invoices_data']
+      },
+      catalog_data: catalog ?? [],
+      test_packages: packages ?? [],
+      test_groups: groups ?? [],
+      equipments_catalog: equipments ?? [],
+      doctors_list: doctors ?? [],
+      clinic_info: clinic ?? null,
+      invoices_data: invoices ?? [],
+    };
+
+    const stats = {
+      catalog: (catalog ?? []).length,
+      packages: (packages ?? []).length,
+      groups: (groups ?? []).length,
+      equipments: (equipments ?? []).length,
+      doctors: (doctors ?? []).length,
+      invoices: (invoices ?? []).length,
+    };
+
+    // Trigger browser download
+    const json = JSON.stringify(backup, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    a.href = url;
+    a.download = `golab_backup_${ts}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    return {
+      success: true,
+      message: `Backup thành công! ${stats.catalog} chỉ số, ${stats.packages} gói, ${stats.groups} nhóm, ${stats.equipments} thiết bị, ${stats.doctors} bác sĩ, ${stats.invoices} hóa đơn. File đã tải xuống.`
+    };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : 'Lỗi không xác định';
+    return { success: false, message: `Lỗi backup: ${errMsg}` };
+  }
+}
+
+/**
+ * Restore toàn bộ dữ liệu từ file JSON backup lên Supabase.
+ * Ghi đè hoàn toàn tất cả các bảng bằng nội dung file backup.
+ */
+export async function restoreAllDataToSupabase(
+  backupJson: string,
+  config: CloudDbConfig
+): Promise<{ success: boolean; message: string }> {
+  if (!config.enabled || !config.supabaseUrl) {
+    return { success: false, message: 'Chưa bật cấu hình Supabase Cloud DB!' };
+  }
+
+  try {
+    const backup = JSON.parse(backupJson);
+    if (!backup._meta || !backup.catalog_data) {
+      return { success: false, message: 'File backup không hợp lệ hoặc sai định dạng!' };
+    }
+
+    const results = await Promise.all([
+      backup.catalog_data?.length      ? syncTableToCloud('catalog_data',       backup.catalog_data,       config) : Promise.resolve(true),
+      backup.test_packages?.length      ? syncTableToCloud('test_packages',       backup.test_packages,       config) : Promise.resolve(true),
+      backup.test_groups?.length        ? syncTableToCloud('test_groups',         backup.test_groups,         config) : Promise.resolve(true),
+      backup.equipments_catalog?.length ? syncTableToCloud('equipments_catalog', backup.equipments_catalog, config) : Promise.resolve(true),
+      backup.doctors_list?.length       ? syncTableToCloud('doctors_list',        backup.doctors_list,        config) : Promise.resolve(true),
+      backup.clinic_info                ? syncTableToCloud('clinic_info',         backup.clinic_info,         config) : Promise.resolve(true),
+      backup.invoices_data?.length      ? syncTableToCloud('invoices_data',       backup.invoices_data,       config) : Promise.resolve(true),
+    ]);
+
+    const allOk = results.every(Boolean);
+    const backedAt = backup._meta?.backup_at ? new Date(backup._meta.backup_at).toLocaleString('vi-VN') : 'không rõ';
+    return {
+      success: allOk,
+      message: allOk
+        ? `Restore thành công từ backup ngày ${backedAt}! ${backup.catalog_data?.length ?? 0} chỉ số & ${backup.invoices_data?.length ?? 0} hóa đơn đã được phục hồi.`
+        : `Restore hoàn thành một phần. Vui lòng kiểm tra lại Supabase.`
+    };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : 'Lỗi không xác định';
+    return { success: false, message: `Lỗi restore: ${errMsg}` };
+  }
 }

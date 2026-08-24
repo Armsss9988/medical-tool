@@ -1,6 +1,6 @@
+import { useState, useEffect } from 'react';
 import { evaluateResult } from '@domain/testResult';
-import { downloadQrCodeImage } from '@infra/qrService';
-import { Download } from 'lucide-react';
+import { generateQrCodeDataUrl } from '@infra/qrService';
 import golabLogo from '@assets/golabLogoDataUrl';
 import doctorStamp from '@assets/doctorStampDataUrl';
 import { Patient, SelectedTest, ClinicInfo } from '@domain/types';
@@ -43,9 +43,51 @@ export default function PrintReportView({
   }
 }: PrintReportViewProps) {
   const tests = selectedTests || [];
-  const finalQrCode = qrCodeDataUrl || qrCodeUrl;
-  const currentLogo = clinicInfo?.logoUrl || golabLogo;
-  const currentStamp = clinicInfo?.stampUrl || doctorStamp;
+  const [autoQrCode, setAutoQrCode] = useState<string>(qrCodeDataUrl || '');
+
+  useEffect(() => {
+    if (qrCodeDataUrl) {
+      setAutoQrCode(qrCodeDataUrl);
+      return;
+    }
+    if (qrCodeUrl) {
+      generateQrCodeDataUrl(qrCodeUrl).then((res) => {
+        if (res) setAutoQrCode(res);
+      });
+      return;
+    }
+    // Tự động tạo mã QR tra cứu trực tuyến thời gian thực
+    const baseUrl = clinicInfo?.website
+      ? (clinicInfo.website.startsWith('http') ? clinicInfo.website : `https://${clinicInfo.website}`)
+      : 'https://golab.com.vn';
+    const code = patient.code || `BN-${Date.now()}`;
+    const sample = patient.sampleCode || code;
+    const lookupUrl = `${baseUrl}/tra-cuu?code=${encodeURIComponent(code)}&sample=${encodeURIComponent(sample)}`;
+
+    generateQrCodeDataUrl(lookupUrl).then((res) => {
+      if (res) setAutoQrCode(res);
+    });
+  }, [qrCodeDataUrl, qrCodeUrl, patient.code, patient.sampleCode, clinicInfo?.website]);
+
+  const finalQrCode = qrCodeDataUrl || autoQrCode;
+
+  const currentLogo =
+    clinicInfo?.logoUrl &&
+    typeof clinicInfo.logoUrl === 'string' &&
+    clinicInfo.logoUrl.trim() !== '' &&
+    clinicInfo.logoUrl !== 'null' &&
+    clinicInfo.logoUrl !== 'undefined'
+      ? clinicInfo.logoUrl
+      : golabLogo;
+
+  const currentStamp =
+    clinicInfo?.stampUrl &&
+    typeof clinicInfo.stampUrl === 'string' &&
+    clinicInfo.stampUrl.trim() !== '' &&
+    clinicInfo.stampUrl !== 'null' &&
+    clinicInfo.stampUrl !== 'undefined'
+      ? clinicInfo.stampUrl
+      : doctorStamp;
 
   // 1. Gom nhóm các chỉ số theo danh mục
   const groupedCategories: Record<string, SelectedTest[]> = {};
@@ -67,8 +109,8 @@ export default function PrintReportView({
   });
 
   // 3. Phân chia trang thông minh (Smart Multi-page Pagination)
-  // Nếu có tối đa 7-8 dòng -> Giữ 1 trang duy nhất
-  const MAX_SINGLE_PAGE_ROWS = conclusion ? 7 : 8;
+  // Ngưỡng trang đơn tối ưu (lên tới 9 dòng nếu có kết luận, 11 dòng nếu không có kết luận)
+  const MAX_SINGLE_PAGE_ROWS = conclusion ? 9 : 11;
 
   const pages: Array<{
     isFirstPage: boolean;
@@ -198,12 +240,12 @@ export default function PrintReportView({
             {/* 1. HEADER TRANG (TRANG 1: HEADER ĐẦY ĐỦ | TRANG 2+: MINI HEADER) */}
             {page.isFirstPage ? (
               <div data-avoid-break="true" className="header-section flex items-center justify-between border-b-2 border-slate-300 pb-2.5 mb-2">
-                <div className="flex items-center space-x-3.5">
-                  <div className="h-16 w-32 flex items-center justify-start shrink-0">
+                <div className="flex items-center space-x-4">
+                  <div className="h-[74px] w-[142px] flex items-center justify-center shrink-0">
                     <img
                       src={currentLogo}
                       alt="GoLab Logo"
-                      className="h-16 max-w-[128px] w-auto object-contain"
+                      className="max-h-full max-w-full w-auto h-auto object-contain object-center"
                       loading="eager"
                       decoding="sync"
                       onError={(e) => {
@@ -230,8 +272,8 @@ export default function PrintReportView({
                 </div>
 
                 {/* Khung QR Code bên phải Header */}
-                {finalQrCode ? (
-                  <div className="flex flex-col items-center justify-center p-1 bg-white border border-slate-300 rounded shadow-2xs shrink-0">
+                <div className="flex flex-col items-center justify-center p-1 bg-white border border-slate-300 rounded shadow-2xs shrink-0 min-w-[62px]">
+                  {finalQrCode ? (
                     <img
                       src={finalQrCode}
                       alt="QR Code Tra Cứu"
@@ -239,22 +281,13 @@ export default function PrintReportView({
                       loading="eager"
                       decoding="sync"
                     />
-                    <span className="text-[9.5px] font-mono text-sky-800 font-extrabold mt-0.5 tracking-tight">QR Tra Cứu</span>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center p-1.5 bg-slate-50 border border-dashed border-slate-300 rounded text-center shrink-0 w-24">
-                    <span className="text-[11px] text-slate-400 font-medium leading-tight">Chưa tạo mã QR</span>
-                    <button
-                      type="button"
-                      onClick={() => downloadQrCodeImage('', 'QRCode.png')}
-                      disabled
-                      className="mt-1 flex items-center space-x-0.5 text-[10px] text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded cursor-not-allowed"
-                    >
-                      <Download className="w-2.5 h-2.5" />
-                      <span>Tải QR</span>
-                    </button>
-                  </div>
-                )}
+                  ) : (
+                    <div className="w-14 h-14 flex items-center justify-center bg-slate-50 text-[10px] text-slate-400 font-mono">
+                      QR
+                    </div>
+                  )}
+                  <span className="text-[9.5px] font-mono text-sky-800 font-extrabold mt-0.5 tracking-tight">QR Tra Cứu</span>
+                </div>
               </div>
             ) : (
               /* MINI HEADER CHO TRANG 2 TRỞ ĐI */

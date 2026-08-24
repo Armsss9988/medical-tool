@@ -172,3 +172,219 @@ export function exportReportsExcel(reports: import('../domain/types').MedicalRep
   XLSX.utils.book_append_sheet(wb, worksheet, 'Sổ Lưu Phiếu Xét Nghiệm');
   XLSX.writeFile(wb, `SoLuuPhieuXN_GoLab_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
+
+// ─── BATCH IMPORT / EXPORT ──────────────────────────────────────────────────
+
+import { BatchImportRow, SelectedTest, Patient, Gender } from '../domain/types';
+import { evaluateResult } from '../domain/testResult';
+import { calculateAllergenGrade } from '../domain/allergen';
+import { generatePatientCode, generateSecretToken } from '../domain/patient';
+
+/**
+ * Xuất file Excel template mẫu 2 sheet để người dùng điền dữ liệu batch.
+ * Sheet 1: Danh sách bệnh nhân
+ * Sheet 2: Ma trận kết quả xét nghiệm (mỗi cột = 1 chỉ số, mỗi hàng = 1 BN)
+ */
+export function exportBatchTemplateExcel(catalog: CatalogItem[]): void {
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1: Thông tin bệnh nhân
+  const patientSample = [
+    {
+      'Mã BN (*)': 'XN-20260821-001',
+      'Họ và Tên (*)': 'NGUYỄN VĂN A',
+      'Năm Sinh': '1992',
+      'Giới Tính': 'Nam',
+      'Số Điện Thoại': '0987654321',
+      'Địa Chỉ': 'Đồng Hới, Quảng Bình',
+      'BS Chỉ Định': 'BS. Trần Hoài Long',
+      'Kết Luận': 'Các chỉ số trong giới hạn bình thường'
+    },
+    {
+      'Mã BN (*)': 'XN-20260821-002',
+      'Họ và Tên (*)': 'TRẦN THỊ B',
+      'Năm Sinh': '1985',
+      'Giới Tính': 'Nữ',
+      'Số Điện Thoại': '0912345678',
+      'Địa Chỉ': 'Đồng Hới, Quảng Bình',
+      'BS Chỉ Định': 'BS. Trần Hoài Long',
+      'Kết Luận': ''
+    }
+  ];
+  const wsPatient = XLSX.utils.json_to_sheet(patientSample);
+  wsPatient['!cols'] = [
+    { wch: 22 }, { wch: 28 }, { wch: 12 }, { wch: 10 },
+    { wch: 16 }, { wch: 30 }, { wch: 24 }, { wch: 40 }
+  ];
+  XLSX.utils.book_append_sheet(wb, wsPatient, 'Bệnh Nhân');
+
+  // Sheet 2: Ma trận kết quả xét nghiệm
+  // Header = Mã BN | Tên chỉ số 1 (code1) | Tên chỉ số 2 (code2) | ...
+  const topCatalogItems = catalog.slice(0, 30); // Lấy tối đa 30 chỉ số đầu tiên làm mẫu
+  const resultHeaders: Record<string, string>[] = patientSample.map((p) => {
+    const row: Record<string, string> = { 'Mã BN (*)': p['Mã BN (*)'] };
+    topCatalogItems.forEach((item) => {
+      const colName = `${item.name} [${item.code}]`;
+      row[colName] = '';
+    });
+    return row;
+  });
+
+  const wsResult = XLSX.utils.json_to_sheet(resultHeaders);
+  const resultCols: { wch: number }[] = [{ wch: 22 }];
+  topCatalogItems.forEach(() => resultCols.push({ wch: 18 }));
+  wsResult['!cols'] = resultCols;
+  XLSX.utils.book_append_sheet(wb, wsResult, 'Kết Quả XN');
+
+  XLSX.writeFile(wb, `GoLab_Batch_Template_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
+/**
+ * Đọc file Excel batch 2 sheet → parse thành BatchImportRow[].
+ * Sheet 1 ("Bệnh Nhân"): thông tin bệnh nhân
+ * Sheet 2 ("Kết Quả XN"): ma trận kết quả, header có dạng "Tên chỉ số [MÃ_CODE]"
+ */
+export function parseExcelBatchPatients(
+  fileOrBuffer: Blob | ArrayBuffer,
+  catalog: CatalogItem[]
+): Promise<BatchImportRow[]> {
+  return new Promise((resolve, reject) => {
+    try {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          if (!e.target?.result) return resolve([]);
+          const data = new Uint8Array(e.target.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+
+          if (workbook.SheetNames.length < 2) {
+            return reject(new Error('File Excel cần có ít nhất 2 Sheet: "Bệnh Nhân" và "Kết Quả XN"'));
+          }
+
+          // Parse Sheet 1: Bệnh Nhân
+          const wsPatient = workbook.Sheets[workbook.SheetNames[0]];
+          const patientRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wsPatient, { defval: '' });
+
+          // Parse Sheet 2: Kết Quả XN
+          const wsResult = workbook.Sheets[workbook.SheetNames[1]];
+          const resultRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wsResult, { defval: '' });
+
+          // Build lookup: code BN → result row
+          const resultByCode = new Map<string, Record<string, unknown>>();
+          for (const row of resultRows) {
+            const code = String(row['Mã BN (*)'] || row['Mã BN'] || row['Code'] || '').trim();
+            if (code) resultByCode.set(code, row);
+          }
+
+          // Build catalog lookup: code → CatalogItem
+          const catalogByCode = new Map<string, CatalogItem>();
+          const catalogByName = new Map<string, CatalogItem>();
+          for (const item of catalog) {
+            catalogByCode.set(item.code.trim().toLowerCase(), item);
+            catalogByName.set(item.name.trim().toLowerCase(), item);
+          }
+
+          // Parse từng bệnh nhân
+          const results: BatchImportRow[] = [];
+
+          for (const pRow of patientRows) {
+            const code = String(pRow['Mã BN (*)'] || pRow['Mã BN'] || pRow['Code'] || '').trim();
+            const name = String(pRow['Họ và Tên (*)'] || pRow['Họ và Tên'] || pRow['Họ Tên'] || pRow['Name'] || '').trim();
+
+            if (!name) continue; // Bỏ qua hàng trống
+
+            const patient: Patient = {
+              code: code || generatePatientCode(),
+              secretToken: generateSecretToken(),
+              name: name.toUpperCase(),
+              dob: String(pRow['Năm Sinh'] || pRow['Ngày Sinh'] || pRow['DOB'] || ''),
+              gender: (String(pRow['Giới Tính'] || pRow['Gender'] || 'Nam').trim() as Gender) || 'Nam',
+              phone: String(pRow['Số Điện Thoại'] || pRow['SĐT'] || pRow['Phone'] || ''),
+              address: String(pRow['Địa Chỉ'] || pRow['Address'] || ''),
+              diagnosis: String(pRow['Chẩn Đoán'] || pRow['Diagnosis'] || '')
+            };
+
+            const doctorName = String(pRow['BS Chỉ Định'] || pRow['Bác Sĩ'] || pRow['Doctor'] || 'BS. Trần Hoài Long');
+            const conclusion = String(pRow['Kết Luận'] || pRow['Conclusion'] || '');
+
+            // Map kết quả xét nghiệm từ Sheet 2
+            const selectedTests: SelectedTest[] = [];
+            const resultRow = resultByCode.get(patient.code);
+
+            if (resultRow) {
+              // Iterate qua tất cả cột của result row (trừ cột Mã BN)
+              for (const [colHeader, rawValue] of Object.entries(resultRow)) {
+                if (colHeader === 'Mã BN (*)' || colHeader === 'Mã BN' || colHeader === 'Code') continue;
+
+                const resultStr = String(rawValue || '').trim();
+                if (!resultStr) continue; // Bỏ qua ô trống
+
+                // Tìm chỉ số trong catalog theo header format "Tên chỉ số [CODE]"
+                let catalogItem: CatalogItem | undefined;
+
+                const codeMatch = colHeader.match(/\[([^\]]+)\]/);
+                if (codeMatch) {
+                  const extractedCode = codeMatch[1].trim().toLowerCase();
+                  catalogItem = catalogByCode.get(extractedCode);
+                }
+
+                if (!catalogItem) {
+                  // Fallback: tìm theo tên chỉ số (bỏ phần [CODE] nếu có)
+                  const cleanName = colHeader.replace(/\s*\[[^\]]*\]\s*$/, '').trim().toLowerCase();
+                  catalogItem = catalogByName.get(cleanName);
+                }
+
+                if (!catalogItem) {
+                  // Nếu vẫn không tìm thấy, tạo chỉ số tạm thời
+                  catalogItem = {
+                    category: 'Nhập từ Excel',
+                    code: colHeader.replace(/\s*\[[^\]]*\]\s*$/, '').trim(),
+                    name: colHeader.replace(/\s*\[[^\]]*\]\s*$/, '').trim(),
+                    refMin: null,
+                    refMax: null,
+                    unit: '',
+                    refText: ''
+                  };
+                }
+
+                // Auto evaluate result
+                const isAllergen = catalogItem.category?.includes('Dị Nguyên') || catalogItem.unit === 'IU/mL';
+                let autoNote = 'Bình thường';
+
+                if (isAllergen) {
+                  const gradeRes = calculateAllergenGrade(resultStr);
+                  autoNote = gradeRes.note;
+                } else {
+                  const evalRes = evaluateResult(resultStr, catalogItem.refMin, catalogItem.refMax);
+                  autoNote = evalRes.label;
+                }
+
+                selectedTests.push({
+                  ...catalogItem,
+                  result: resultStr,
+                  note: autoNote
+                });
+              }
+            }
+
+            results.push({
+              patient,
+              selectedTests,
+              conclusion,
+              doctorName
+            });
+          }
+
+          resolve(results);
+        } catch (err) {
+          reject(err);
+        }
+      };
+      reader.onerror = (error) => reject(error);
+      reader.readAsArrayBuffer(fileOrBuffer as Blob);
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
