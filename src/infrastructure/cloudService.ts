@@ -25,6 +25,29 @@ function base64ToUint8Array(base64: string): Uint8Array {
   return bytes;
 }
 
+export function cleanCloudFilename(filename: string): string {
+  return (filename || 'Phieu_Xet_Nghiem.pdf')
+    .replace(/\.pdf$/i, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .replace(/_+/g, '_') + '.pdf';
+}
+
+export function getPredictedCloudUrl(
+  filename: string,
+  supabaseUrl: string = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || DEFAULT_CLOUD_DB_CONFIG.supabaseUrl || ''
+): string {
+  const cleanFilename = cleanCloudFilename(filename);
+  if (supabaseUrl) {
+    const cleanUrl = supabaseUrl.replace(/\/+$/, '');
+    return `${cleanUrl}/storage/v1/object/public/reports/${encodeURIComponent(cleanFilename)}`;
+  }
+  return `https://golab.com.vn/tra-cuu?file=${encodeURIComponent(cleanFilename)}`;
+}
+
 /**
  * Tải file PDF ngầm 1-Click lên Cloud Storage (Ưu tiên Supabase Storage -> Cloudinary -> Local Data URL Fallback)
  * Đảm bảo 100% không bao giờ bị crash hoặc ném lỗi chặn quy trình người dùng.
@@ -37,14 +60,7 @@ export async function uploadPdfToCloudinary({
   supabaseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || DEFAULT_CLOUD_DB_CONFIG.supabaseUrl || '',
   supabaseAnonKey = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || DEFAULT_CLOUD_DB_CONFIG.supabaseAnonKey || ''
 }: CloudUploadOptions): Promise<CloudUploadResult> {
-  const cleanFilename = (filename || 'Phieu_Xet_Nghiem.pdf')
-    .replace(/\.pdf$/i, '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .replace(/[^a-zA-Z0-9_-]/g, '_')
-    .replace(/_+/g, '_') + '.pdf';
+  const cleanFilename = cleanCloudFilename(filename);
 
   // Chuẩn hóa chuỗi Base64
   const rawBase64 = (pdfBase64 || '').replace(/^data:application\/pdf;base64,/, '').trim();

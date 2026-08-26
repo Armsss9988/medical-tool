@@ -7,8 +7,9 @@ import {
   Doctor, 
   ClinicInfo, 
   CloudDbConfig, 
-  ZaloZnsConfig 
-} from '@domain/types';
+  ZaloZnsConfig,
+  STORAGE_KEYS
+} from '@domain';
 import { 
   DEFAULT_CATALOG, 
   DEFAULT_TEST_PACKAGES, 
@@ -59,68 +60,68 @@ const DEFAULT_ZALO_CONFIG: ZaloZnsConfig = {
 
 export function useCatalogData() {
   const [catalog, setCatalog] = useState<CatalogItem[]>(() => {
-    return loadState('catalog', DEFAULT_CATALOG);
+    return loadState(STORAGE_KEYS.CATALOG, DEFAULT_CATALOG);
   });
 
   const [testPackages, setTestPackages] = useState<TestPackage[]>(() => {
-    return loadState('testPackages', DEFAULT_TEST_PACKAGES);
+    return loadState(STORAGE_KEYS.TEST_PACKAGES, DEFAULT_TEST_PACKAGES);
   });
 
   const [testGroups, setTestGroups] = useState<TestGroup[]>(() => {
-    return loadState('testGroups', DEFAULT_TEST_GROUPS);
+    return loadState(STORAGE_KEYS.TEST_GROUPS, DEFAULT_TEST_GROUPS);
   });
 
   const [equipments, setEquipments] = useState<TestEquipment[]>(() => {
-    return loadState('equipments', DEFAULT_EQUIPMENTS);
+    return loadState(STORAGE_KEYS.EQUIPMENTS, DEFAULT_EQUIPMENTS);
   });
 
   const [doctorsList, setDoctorsList] = useState<Doctor[]>(() => {
-    return loadState('doctorsList', DEFAULT_DOCTORS);
+    return loadState(STORAGE_KEYS.DOCTORS, DEFAULT_DOCTORS);
   });
 
   const [clinicInfo, setClinicInfo] = useState<ClinicInfo>(() => {
-    return loadState('clinicInfo', DEFAULT_CLINIC_INFO);
+    return loadState(STORAGE_KEYS.CLINIC_INFO, DEFAULT_CLINIC_INFO);
   });
 
   const [cloudDbConfig, setCloudDbConfig] = useState<CloudDbConfig>(() => {
-    return loadState('cloudDbConfig', DEFAULT_CLOUD_DB_CONFIG);
+    return loadState(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
   });
 
   const [zaloConfig, setZaloConfig] = useState<ZaloZnsConfig>(() => {
-    return loadState('zaloConfig', DEFAULT_ZALO_CONFIG);
+    return loadState(STORAGE_KEYS.ZALO_CONFIG, DEFAULT_ZALO_CONFIG);
   });
 
   // Tự động lưu Local Storage khi state thay đổi
   useEffect(() => {
-    saveState('catalog', catalog);
+    saveState(STORAGE_KEYS.CATALOG, catalog);
   }, [catalog]);
 
   useEffect(() => {
-    saveState('testPackages', testPackages);
+    saveState(STORAGE_KEYS.TEST_PACKAGES, testPackages);
   }, [testPackages]);
 
   useEffect(() => {
-    saveState('testGroups', testGroups);
+    saveState(STORAGE_KEYS.TEST_GROUPS, testGroups);
   }, [testGroups]);
 
   useEffect(() => {
-    saveState('equipments', equipments);
+    saveState(STORAGE_KEYS.EQUIPMENTS, equipments);
   }, [equipments]);
 
   useEffect(() => {
-    saveState('doctorsList', doctorsList);
+    saveState(STORAGE_KEYS.DOCTORS, doctorsList);
   }, [doctorsList]);
 
   useEffect(() => {
-    saveState('clinicInfo', clinicInfo);
+    saveState(STORAGE_KEYS.CLINIC_INFO, clinicInfo);
   }, [clinicInfo]);
 
   useEffect(() => {
-    saveState('cloudDbConfig', cloudDbConfig);
+    saveState(STORAGE_KEYS.CLOUD_DB, cloudDbConfig);
   }, [cloudDbConfig]);
 
   useEffect(() => {
-    saveState('zaloConfig', zaloConfig);
+    saveState(STORAGE_KEYS.ZALO_CONFIG, zaloConfig);
   }, [zaloConfig]);
 
   // Tự động đồng bộ từ Supabase nếu bật cấu hình
@@ -152,7 +153,7 @@ export function useCatalogData() {
     };
 
     syncCloudData();
-  }, [cloudDbConfig.enabled, cloudDbConfig.supabaseUrl, cloudDbConfig.supabaseAnonKey]);
+  }, [cloudDbConfig]);
 
   return {
     catalog,

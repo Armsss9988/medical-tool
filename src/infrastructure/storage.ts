@@ -66,6 +66,25 @@ export async function saveData<T>(key: string, data: T): Promise<StorageResult> 
     }
     return { success: true };
   } catch (err: unknown) {
+    // If QuotaExceededError on browser localStorage, sanitize heavy fields and retry
+    if (err instanceof Error && (err.name === 'QuotaExceededError' || err.message.includes('quota')) && Array.isArray(data)) {
+      try {
+        const sanitized = data.map((item: unknown) => {
+          if (item && typeof item === 'object' && 'qrCodeDataUrl' in item) {
+            const copy = { ...(item as Record<string, unknown>) };
+            delete copy.qrCodeDataUrl;
+            return copy;
+          }
+          return item;
+        });
+        const serialized = JSON.stringify(sanitized);
+        const lsKey = `medical_${key}`;
+        localStorage.setItem(lsKey, serialized);
+        return { success: true };
+      } catch (innerErr) {
+        console.error('[GoLabStorage] LocalStorage quota exceeded even after sanitizing:', innerErr);
+      }
+    }
     const errMsg = err instanceof Error ? err.message : 'Lỗi localStorage';
     return { success: false, error: errMsg };
   }

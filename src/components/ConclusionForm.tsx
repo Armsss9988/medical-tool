@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import { FileText, RotateCcw, Eye, CloudUpload, QrCode, CreditCard, BookmarkCheck, MessageSquare, SlidersHorizontal, Loader2, Download, Zap } from 'lucide-react';
-import { SelectedTest } from '@domain/types';
+import { SelectedTest } from '@domain';
+import { hasAllergenTests, isAllergenTest } from '@domain/allergenDetector';
 import { ExportStepName, EXPORT_STEP_LABELS } from '@domain/exportTransaction';
-import { evaluateResult } from '@domain/testResult';
+import { evaluateTestIndicator } from '@domain/testResult';
 
 interface ConclusionFormProps {
   conclusion: string;
@@ -74,25 +75,23 @@ export default function ConclusionForm({
 
   // ─── SMART AUTO-CONCLUSION ─────────────────────────────────────────
   const smartConclusion = useMemo(() => {
-    if (selectedTests.length === 0) return null;
+    const safeTests = selectedTests || [];
+    if (safeTests.length === 0) return null;
     
     // Check if all tests have results
-    const testsWithResults = selectedTests.filter((t) => t.result && t.result.trim());
+    const testsWithResults = safeTests.filter((t) => t.result && t.result.trim());
     if (testsWithResults.length === 0) return null;
 
     const abnormalTests: string[] = [];
-    const isAllergenBatch = selectedTests.some(
-      (t) => t.category?.includes('Dị Nguyên') || t.unit === 'IU/mL'
-    );
+    const isAllergenBatch = hasAllergenTests(safeTests);
 
     for (const t of testsWithResults) {
-      const isAllergen = t.category?.includes('Dị Nguyên') || t.unit === 'IU/mL';
-      if (isAllergen) {
-        // Skip allergen tests for standard conclusion
+      if (isAllergenTest(t)) {
+        // Skip allergen specific tests for general abnormal list
         continue;
       }
-      const evalRes = evaluateResult(t.result, t.refMin, t.refMax);
-      if (evalRes.status !== 'normal') {
+      const evalRes = evaluateTestIndicator(t.code, t.category, t.unit, t.result, t.refMin, t.refMax);
+      if (evalRes.isAbnormal) {
         abnormalTests.push(`${t.name} (${evalRes.label})`);
       }
     }
@@ -100,8 +99,7 @@ export default function ConclusionForm({
     if (isAllergenBatch) {
       // For allergen panels, check if any positive
       const positiveAllergens = testsWithResults.filter((t) => {
-        const isAl = t.category?.includes('Dị Nguyên') || t.unit === 'IU/mL';
-        if (!isAl) return false;
+        if (!isAllergenTest(t)) return false;
         return t.note && t.note.includes('Dương tính');
       });
       if (positiveAllergens.length === 0) {

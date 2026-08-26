@@ -19,6 +19,7 @@ import {
 import PrintReportView from './PrintReportView';
 import FullAllergenReportView from './FullAllergenReportView';
 import { ClinicInfo, Patient, SelectedTest, ToastType } from '@domain/types';
+import { hasAllergenTests } from '@domain/allergenDetector';
 import {
   ExportStepName,
   ExportErrorDetail,
@@ -32,7 +33,7 @@ interface PdfPreviewModalProps {
   onClose: () => void;
   clinicInfo: ClinicInfo;
   patient: Patient;
-  selectedTests: SelectedTest[];
+  selectedTests?: SelectedTest[];
   conclusion?: string;
   doctorName?: string;
   qrCodeDataUrl?: string;
@@ -53,9 +54,9 @@ export default function PdfPreviewModal({
   onClose,
   clinicInfo,
   patient,
-  selectedTests,
-  conclusion,
-  doctorName,
+  selectedTests = [],
+  conclusion = '',
+  doctorName = '',
   qrCodeDataUrl,
   cloudLink,
   isExporting = false,
@@ -76,10 +77,27 @@ export default function PdfPreviewModal({
 
   if (!isOpen) return null;
 
+  const safePatient: Patient = patient || {
+    code: 'BN-GOLAB',
+    secretToken: '',
+    name: 'Bệnh nhân mới',
+    dob: '',
+    gender: 'Nam',
+    phone: '',
+    address: '',
+    diagnosis: '',
+    sampleCode: 'BN-GOLAB',
+    sampleStatus: 'Đạt',
+    orderedAt: '',
+    paidAt: undefined,
+    receivedAt: '',
+    returnedAt: ''
+  };
+
+  const safeSelectedTests = selectedTests || [];
+
   // Nhận diện loại báo cáo: Xét nghiệm thông thường hay Booklet Dị nguyên 6 trang
-  const isAllergenPackage = selectedTests.some(
-    (t) => (t.category && t.category.includes('Dị Nguyên')) || t.unit === 'IU/mL'
-  );
+  const isAllergenPackage = hasAllergenTests(safeSelectedTests);
 
   const handleZoomIn = () => {
     setZoomScale((prev) => Math.min(prev + 0.1, 1.5));
@@ -113,7 +131,7 @@ export default function PdfPreviewModal({
                 )}
               </h3>
               <p className="text-[11px] text-slate-400">
-                Bệnh nhân: <strong className="text-slate-200">{patient.name || 'Bệnh nhân mới'}</strong> ({patient.code})
+                Bệnh nhân: <strong className="text-slate-200">{safePatient.name || 'Bệnh nhân mới'}</strong> ({safePatient.code})
               </p>
             </div>
           </div>
@@ -180,7 +198,7 @@ export default function PdfPreviewModal({
               <button
                 onClick={() => {
                   const elemId = isAllergenPackage ? 'preview-allergen-element' : 'preview-print-element';
-                  const fname = `PhieuXN_${(patient.name || 'BenhNhan').replace(/\s+/g, '_')}_${patient.code}.pdf`;
+                  const fname = `PhieuXN_${(safePatient.name || 'BenhNhan').replace(/\s+/g, '_')}_${safePatient.code}.pdf`;
                   onDownloadPdf(elemId, fname);
                 }}
                 disabled={!cloudLink || isExporting}
@@ -376,8 +394,8 @@ export default function PdfPreviewModal({
               <FullAllergenReportView
                 elementId="preview-allergen-element"
                 clinicInfo={clinicInfo}
-                patient={patient}
-                selectedTests={selectedTests}
+                patient={safePatient}
+                selectedTests={safeSelectedTests}
                 doctorName={doctorName}
                 qrCodeDataUrl={qrCodeDataUrl}
               />
@@ -385,8 +403,8 @@ export default function PdfPreviewModal({
               <PrintReportView
                 elementId="preview-print-element"
                 clinicInfo={clinicInfo}
-                patient={patient}
-                selectedTests={selectedTests}
+                patient={safePatient}
+                selectedTests={safeSelectedTests}
                 conclusion={conclusion}
                 doctorName={doctorName}
                 qrCodeDataUrl={qrCodeDataUrl}
@@ -398,7 +416,7 @@ export default function PdfPreviewModal({
         {/* Footer Modal Đóng */}
         <div className="bg-slate-900 px-6 py-2.5 border-t border-slate-800 flex items-center justify-between shrink-0">
           <div className="text-[11px] text-slate-400 flex items-center gap-3">
-            <span>Danh mục: <strong className="text-sky-400">{selectedTests.length} chỉ số</strong></span>
+            <span>Danh mục: <strong className="text-sky-400">{safeSelectedTests.length} chỉ số</strong></span>
             {cloudLink && (
               <div className="flex items-center gap-2">
                 <span className="text-emerald-400 flex items-center gap-1 font-mono truncate max-w-[320px]">
@@ -419,7 +437,7 @@ export default function PdfPreviewModal({
                 </button>
                 <a
                   href={cloudLink}
-                  download={`PhieuXN_${(patient.name || 'BenhNhan').replace(/\s+/g, '_')}_${patient.code}.pdf`}
+                  download={`PhieuXN_${(safePatient.name || 'BenhNhan').replace(/\s+/g, '_')}_${safePatient.code}.pdf`}
                   target="_blank"
                   rel="noreferrer"
                   className="px-2 py-0.5 rounded bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[10px] border border-emerald-600 transition flex items-center gap-1"

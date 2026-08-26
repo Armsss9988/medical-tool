@@ -1,9 +1,16 @@
+import { PatientCode } from './valueObjects/PatientCode';
+import { SecretToken } from './valueObjects/SecretToken';
+
+// ─── BACKWARD COMPATIBILITY WRAPPERS ────────────────────────────────────────
+// These functions delegate to Value Objects (PatientCode, SecretToken).
+// DEPRECATED: New code should use PatientCode.create() and SecretToken.create() directly.
+
+/** @deprecated Use PatientCode.create() or PatientCode.generateNextCode() instead */
 export function generatePatientCode(): string {
-  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const randomNum = Math.floor(100 + Math.random() * 900);
-  return `XN-${dateStr}-${randomNum}`;
+  return PatientCode.create().value;
 }
 
+/** @deprecated Use SecretToken.create() instead */
 export function generateSecretToken(): string {
-  return Math.random().toString(36).substring(2, 10);
+  return SecretToken.create().value;
 }

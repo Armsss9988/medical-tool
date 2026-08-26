@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, Plus, Trash2, Save, Search, Download, Upload, RotateCcw, Layers, CheckSquare, Square, Stethoscope, UserPlus, ChevronDown, Copy } from 'lucide-react';
 import { exportSampleExcelCatalog, parseExcelCatalog } from '@infra/excelService';
 import { DEFAULT_CATALOG, DEFAULT_TEST_GROUPS, DEFAULT_EQUIPMENTS } from '@data/defaultCatalog';
-import { CatalogItem, TestPackage, TestGroup, TestEquipment, Doctor } from '@domain/types';
+import { CatalogItem, TestPackage, TestGroup, TestEquipment, Doctor, CATALOG_TAB, CatalogTabType } from '@domain';
 
 // ── GroupSearchCombobox: Dropdown search nhóm xét nghiệm + tạo mới khi Enter ──
 interface GroupSearchComboboxProps {
@@ -413,7 +413,6 @@ function EquipmentSearchCombobox({
 }
 
 // ── CatalogManagerModal ──
-export type CatalogTabType = 'INDICATORS' | 'PACKAGES_INDICATOR' | 'ALLERGENS' | 'PACKAGES_ALLERGEN' | 'DOCTORS';
 
 interface CatalogManagerModalProps {
   isOpen: boolean;
@@ -446,7 +445,7 @@ export default function CatalogManagerModal({
   doctorsList = [],
   onSaveDoctors
 }: CatalogManagerModalProps) {
-  const [activeTab, setActiveTab] = useState<CatalogTabType>('INDICATORS');
+  const [activeTab, setActiveTab] = useState<CatalogTabType>(CATALOG_TAB.INDICATORS);
   const [items, setItems] = useState<CatalogItem[]>(catalog);
   const [packages, setPackages] = useState<TestPackage[]>(testPackages);
   const [groups, setGroups] = useState<TestGroup[]>(testGroups);
@@ -547,7 +546,7 @@ export default function CatalogManagerModal({
   };
 
   // Item change handlers
-  const handleItemChange = (code: string, field: keyof CatalogItem, value: any) => {
+  const handleItemChange = <K extends keyof CatalogItem>(code: string, field: K, value: CatalogItem[K]) => {
     setItems((prev) =>
       prev.map((item) => {
         if (item.code === code) {

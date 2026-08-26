@@ -75,11 +75,18 @@ export class ReportStateMachine {
       const patientChanged = updates.patient && (
         updates.patient.name !== current.patient.name ||
         updates.patient.dob !== current.patient.dob ||
-        updates.patient.gender !== current.patient.gender
+        updates.patient.gender !== current.patient.gender ||
+        updates.patient.phone !== current.patient.phone ||
+        updates.patient.address !== current.patient.address ||
+        updates.patient.diagnosis !== current.patient.diagnosis ||
+        updates.patient.sampleCode !== current.patient.sampleCode ||
+        updates.patient.sampleStatus !== current.patient.sampleStatus
       );
+      const doctorChanged = updates.doctorName !== undefined && updates.doctorName !== current.doctorName;
       const conclusionChanged = updates.conclusion !== undefined && updates.conclusion !== current.conclusion;
+      const sampleCodeChanged = updates.sampleCode !== undefined && updates.sampleCode !== current.sampleCode;
 
-      if (testsChanged || patientChanged || conclusionChanged) {
+      if (testsChanged || patientChanged || doctorChanged || conclusionChanged || sampleCodeChanged) {
         isPdfOutdated = true;
       }
     }

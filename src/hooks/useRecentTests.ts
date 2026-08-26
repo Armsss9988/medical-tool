@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import { STORAGE_KEYS } from '@domain';
 
-const STORAGE_KEY = 'golab_recent_tests';
 const MAX_RECENT = 15;
 
 interface RecentTestItem {
@@ -19,7 +19,7 @@ export function useRecentTests() {
   // Load from localStorage on mount
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(STORAGE_KEYS.RECENT_TESTS);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
@@ -34,7 +34,7 @@ export function useRecentTests() {
   // Persist to localStorage whenever recentTests changes
   const persist = useCallback((items: RecentTestItem[]) => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      localStorage.setItem(STORAGE_KEYS.RECENT_TESTS, JSON.stringify(items));
     } catch {
       // Silently ignore storage errors
     }
@@ -66,7 +66,7 @@ export function useRecentTests() {
   const clearRecent = useCallback(() => {
     setRecentTests([]);
     try {
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STORAGE_KEYS.RECENT_TESTS);
     } catch {
       // Silently ignore
     }

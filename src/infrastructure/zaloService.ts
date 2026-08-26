@@ -222,12 +222,13 @@ export async function sendZaloZnsNotification(
       error: resJson.error,
       message: vietnameseError
     };
-  } catch (err: any) {
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : 'Lỗi mạng hoặc CORS';
     console.error('[ZaloZNS] Gửi tin ZNS lỗi:', err);
     return {
       success: false,
       error: -99,
-      message: `Không thể kết nối đến máy chủ Zalo (${err.message || 'Lỗi mạng hoặc CORS'}). Bạn có thể dùng nút 'Mở Chat Zalo (1-Click)' để gửi trực tiếp.`
+      message: `Không thể kết nối đến máy chủ Zalo (${errMsg}). Bạn có thể dùng nút 'Mở Chat Zalo (1-Click)' để gửi trực tiếp.`
     };
   }
 }
@@ -289,10 +290,11 @@ export async function testZaloConnection(
       success: false,
       message: `Lỗi Zalo OA [${data.error}]: ${data.message || 'Access Token không hợp lệ hoặc đã hết hạn.'}`
     };
-  } catch (err: any) {
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : 'Lỗi mạng hoặc CORS';
     return {
       success: false,
-      message: `Không thể kết nối đến máy chủ Zalo (${err.message || 'Lỗi mạng hoặc CORS'})`
+      message: `Không thể kết nối đến máy chủ Zalo (${errMsg})`
     };
   }
 }

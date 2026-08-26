@@ -176,8 +176,7 @@ export function exportReportsExcel(reports: import('../domain/types').MedicalRep
 // ─── BATCH IMPORT / EXPORT ──────────────────────────────────────────────────
 
 import { BatchImportRow, SelectedTest, Patient, Gender } from '../domain/types';
-import { evaluateResult, evaluateTestIndicator } from '../domain/testResult';
-import { calculateAllergenGrade } from '../domain/allergen';
+import { evaluateTestIndicator } from '../domain/testResult';
 import { generatePatientCode, generateSecretToken } from '../domain/patient';
 
 /**

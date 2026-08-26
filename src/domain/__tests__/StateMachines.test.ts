@@ -97,4 +97,39 @@ describe('Domain State Machines', () => {
     expect(refundedInvoice.status).toBe('Đã hủy / Hoàn tiền');
     expect(refundedInvoice.notes).toContain('Bệnh nhân yêu cầu hủy');
   });
+
+  it('ReportStateMachine: should mark isPdfOutdated when doctor or patient info changes after export', () => {
+    const report = ReportStateMachine.createInitialReport({
+      code: 'XN-004',
+      sampleCode: 'MAU-004',
+      patient: mockPatient,
+      doctorName: 'BS. Long',
+      selectedTests: [{ category: 'Sinh hóa', code: 'GLU', name: 'Glucose', refMin: 3.9, refMax: 6.4, unit: 'mmol/L', refText: '', result: '5.2', note: 'Bình thường' }]
+    });
+
+    const exported = ReportStateMachine.onExportCloud(report, 'https://cloud.com/report.pdf');
+    expect(exported.status).toBe('Đã xuất Cloud');
+    expect(exported.isPdfOutdated).toBe(false);
+    expect(exported.pdfVersion).toBe(1);
+
+    // Update doctorName -> should become Outdated
+    const updatedDoctor = ReportStateMachine.onUpdateReport(exported, {
+      doctorName: 'BS. Nguyễn Văn B'
+    });
+    expect(updatedDoctor.isPdfOutdated).toBe(true);
+    expect(updatedDoctor.status).toBe('Cần cập nhật PDF');
+
+    // Update patient phone -> should also become Outdated
+    const updatedPhone = ReportStateMachine.onUpdateReport(exported, {
+      patient: { ...mockPatient, phone: '0988888888' }
+    });
+    expect(updatedPhone.isPdfOutdated).toBe(true);
+    expect(updatedPhone.status).toBe('Cần cập nhật PDF');
+
+    // Re-export -> version should increment to 2 and clear outdated flag
+    const reExported = ReportStateMachine.onExportCloud(updatedPhone, 'https://cloud.com/report_v2.pdf');
+    expect(reExported.isPdfOutdated).toBe(false);
+    expect(reExported.pdfVersion).toBe(2);
+    expect(reExported.status).toBe('Đã xuất Cloud');
+  });
 });

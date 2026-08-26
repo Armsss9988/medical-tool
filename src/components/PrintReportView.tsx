@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { evaluateResult } from '@domain/testResult';
 import { generateQrCodeDataUrl } from '@infra/qrService';
 import golabLogo from '@assets/golabLogoDataUrl';
@@ -25,7 +25,7 @@ interface FlatEntry {
   idx?: number;
 }
 
-export default function PrintReportView({
+function PrintReportView({
   elementId = 'printable-medical-report',
   patient,
   selectedTests = [],
@@ -277,6 +277,7 @@ export default function PrintReportView({
                     <img
                       src={finalQrCode}
                       alt="QR Code Tra Cứu"
+                      data-qr="true"
                       className="w-14 h-14 object-contain"
                       loading="eager"
                       decoding="sync"
@@ -329,13 +330,13 @@ export default function PrintReportView({
                       <td className="py-2 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle leading-snug">Họ và tên:</td>
                       <td className="py-2 px-3 font-bold text-red-600 uppercase border-r border-b border-slate-300 align-middle truncate text-[14px] leading-snug">{patient.name || '---'}</td>
                       <td className="py-2 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle leading-snug">Năm sinh:</td>
-                      <td className="py-2 px-3 font-medium text-slate-800 border-b border-slate-300 align-middle truncate leading-snug">{patient.dob || (patient as any).year || '---'}</td>
+                      <td className="py-2 px-3 font-medium text-slate-800 border-b border-slate-300 align-middle truncate leading-snug">{patient.dob || '---'}</td>
                     </tr>
                     {/* Hàng 2 */}
                     <tr>
                       <td className="py-2 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle leading-snug">Giới tính:</td>
                       <td className="py-2 px-3 font-medium text-slate-800 border-r border-b border-slate-300 align-middle leading-snug">{patient.gender || 'Nam'}</td>
-                      <td className="py-2 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-slate-300 align-middle leading-snug">Số điện thoại:</td>
+                      <td className="py-2 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle leading-snug">Số điện thoại:</td>
                       <td className="py-2 px-3 font-mono text-slate-800 border-b border-slate-300 align-middle leading-snug">{patient.phone || '---'}</td>
                     </tr>
                     {/* Hàng 3: Địa chỉ span 3 cột */}
@@ -353,16 +354,16 @@ export default function PrintReportView({
                     {/* Hàng 5 */}
                     <tr>
                       <td className="py-2 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle leading-snug">T/G chỉ định:</td>
-                      <td className="py-2 px-3 font-mono text-slate-700 border-r border-slate-300 align-middle leading-snug">{patient.orderedAt || (patient as any).orderTime || currentDateStr}</td>
+                      <td className="py-2 px-3 font-mono text-slate-700 border-r border-b border-slate-300 align-middle leading-snug">{patient.orderedAt || currentDateStr}</td>
                       <td className="py-2 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-slate-300 align-middle leading-snug">T/G đóng phí:</td>
-                      <td className="py-2 px-3 font-mono text-slate-700 border-b border-slate-300 align-middle leading-snug">{patient.paidAt || (patient as any).paidTime || currentDateStr}</td>
+                      <td className="py-2 px-3 font-mono text-slate-700 border-b border-slate-300 align-middle leading-snug">{patient.paidAt || currentDateStr}</td>
                     </tr>
                     {/* Hàng 6 */}
                     <tr>
                       <td className="py-2 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-slate-300 align-middle leading-snug">T/G nhận mẫu:</td>
-                      <td className="py-2 px-3 font-mono text-slate-700 border-r border-slate-300 align-middle leading-snug">{patient.receivedAt || (patient as any).sampleTime || currentDateStr}</td>
+                      <td className="py-2 px-3 font-mono text-slate-700 border-r border-slate-300 align-middle leading-snug">{patient.receivedAt || currentDateStr}</td>
                       <td className="py-2 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-slate-300 align-middle leading-snug">T/G trả kết quả:</td>
-                      <td className="py-2 px-3 font-mono text-slate-700 align-middle leading-snug">{patient.returnedAt || (patient as any).resultTime || currentDateStr}</td>
+                      <td className="py-2 px-3 font-mono text-slate-700 align-middle leading-snug">{patient.returnedAt || currentDateStr}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -522,3 +523,6 @@ export default function PrintReportView({
     </div>
   );
 }
+
+export default memo(PrintReportView);
+

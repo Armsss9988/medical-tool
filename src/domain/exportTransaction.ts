@@ -7,7 +7,7 @@ export type ExportStepName =
 
 export type ExportStepStatus = 'idle' | 'running' | 'success' | 'failed' | 'rolled_back';
 
-export interface ExportStepResult<T = any> {
+export interface ExportStepResult<T = Record<string, string | number | boolean | null | undefined>> {
   step: ExportStepName;
   status: ExportStepStatus;
   data?: T;

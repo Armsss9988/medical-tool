@@ -11,6 +11,14 @@ export type ClinicalStatus = 'Chờ xét nghiệm' | 'Đã có kết quả' | '�
 export type DocumentStatus = 'Chưa xuất PDF' | 'Đã xuất Cloud' | 'Cần cập nhật PDF';
 export type BillingStatus = 'Chưa thu phí' | 'Đã thanh toán' | 'Đã hủy / Hoàn tiền';
 export type SampleStatus = 'Đạt' | 'Không đạt' | 'Đang lấy mẫu';
+export type PaymentMethod = 'Tiền mặt' | 'Chuyển khoản (VietQR)' | 'Quẹt thẻ' | 'Khác';
+export type InvoiceStatus = BillingStatus;
+export type ReportStatus = 
+  | 'Chờ xét nghiệm' 
+  | 'Đã có kết quả' 
+  | 'Đã xuất Cloud' 
+  | 'Cần cập nhật PDF' 
+  | 'Đã trả kết quả';
 
 export interface Patient {
   code: string;
@@ -90,9 +98,6 @@ export interface InvoiceItem {
   unit?: string;
 }
 
-export type PaymentMethod = 'Tiền mặt' | 'Chuyển khoản (VietQR)' | 'Quẹt thẻ' | 'Khác';
-export type InvoiceStatus = BillingStatus;
-
 export interface Invoice {
   id: string;
   code: string;
@@ -154,13 +159,6 @@ export interface StorageResult {
   path?: string;
   error?: string;
 }
-
-export type ReportStatus = 
-  | 'Chờ xét nghiệm' 
-  | 'Đã có kết quả' 
-  | 'Đã xuất Cloud' 
-  | 'Cần cập nhật PDF' 
-  | 'Đã trả kết quả';
 
 export interface ZaloZnsConfig {
   enabled: boolean;

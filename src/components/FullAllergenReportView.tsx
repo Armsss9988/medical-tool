@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import golabLogo from '@assets/golabLogoDataUrl';
 import doctorStamp from '@assets/doctorStampDataUrl';
 import { Patient, SelectedTest, ClinicInfo } from '@domain/types';
 import { calculateAllergenGrade } from '@domain/allergen';
+import { getAllergenGradeClasses } from '@domain/allergenDetector';
 import { ALLERGEN_91_DATABASE, AllergenDatabaseItem } from '@data/allergenCatalog';
 import { generateQrCodeDataUrl } from '@infra/qrService';
 
@@ -18,7 +19,7 @@ interface FullAllergenReportViewProps {
   clinicInfo?: ClinicInfo;
 }
 
-export default function FullAllergenReportView({
+function FullAllergenReportView({
   elementId = 'printable-allergen-report',
   patient,
   allergenTests,
@@ -97,12 +98,14 @@ export default function FullAllergenReportView({
     const grade = gradeRes.grade;
     const isPositive = isTIgE ? false : grade >= 1;
 
+    const ext = t as SelectedTest & { allergenName?: string; route?: string };
+
     return {
       tt: idx + 1,
       code: t.code || dbItem?.code || `DN${idx + 1}`,
       name: t.name || dbItem?.name || 'Dị nguyên',
-      allergenName: (t as any).allergenName || dbItem?.allergenName || t.name,
-      route: (t as any).route || dbItem?.route || 'Đường tiêu hóa / Hô hấp',
+      allergenName: ext.allergenName || dbItem?.allergenName || t.name,
+      route: ext.route || dbItem?.route || 'Đường tiêu hóa / Hô hấp',
       normalRef: isTIgE ? '<15,0' : (dbItem?.normalRef || (t.refMin !== null && t.refMax !== null ? `${t.refMin} - ${t.refMax}` : '<0,34')),
       result: t.result || (isTIgE ? '' : '<0,15'),
       grade: grade,
@@ -175,7 +178,7 @@ export default function FullAllergenReportView({
             </div>
             <div className="flex flex-col items-center justify-center p-1 bg-white border border-slate-300 rounded shadow-2xs shrink-0 min-w-[62px]">
               {finalQrCode ? (
-                <img src={finalQrCode} alt="QR Code Tra Cứu" className="w-14 h-14 object-contain" />
+                <img src={finalQrCode} alt="QR Code Tra Cứu" data-qr="true" className="w-14 h-14 object-contain" />
               ) : (
                 <div className="w-14 h-14 flex items-center justify-center bg-slate-50 text-[10px] text-slate-400 font-mono">
                   QR
@@ -387,17 +390,26 @@ export default function FullAllergenReportView({
                     </td>
                   </tr>
                 ) : (
-                  positiveList.map((pos, idx) => (
-                    <tr key={pos.code || idx} className="bg-red-50/40 font-bold text-red-700 text-[13.5px]">
-                      <td className="py-2 px-3 text-center border-r border-slate-300 align-middle leading-snug">{idx + 1}</td>
-                      <td className="py-2 px-4 border-r border-slate-300 align-middle leading-snug">{pos.name}</td>
-                      <td className="py-2 px-4 border-r border-slate-300 italic font-medium text-red-600 align-middle leading-snug">{pos.allergenName}</td>
-                      <td className="py-2 px-3 text-center font-mono border-r border-slate-300 align-middle leading-snug">{pos.code}</td>
-                      <td className="py-2 px-4 text-center font-mono text-[14.5px] align-middle leading-snug">
-                        {pos.isTIgE ? <span className="text-[12px]">{pos.result} <span className="text-slate-500 text-[10px]">(IU/ml)</span></span> : pos.grade}
-                      </td>
-                    </tr>
-                  ))
+                  positiveList.map((pos, idx) => {
+                    const gradeStyle = getAllergenGradeClasses(pos.grade, pos.isTIgE);
+                    return (
+                      <tr key={pos.code || idx} className={`${gradeStyle.rowBg} font-bold ${gradeStyle.textColor} text-[13.5px]`}>
+                        <td className="py-2 px-3 text-center border-r border-slate-300 align-middle leading-snug">{idx + 1}</td>
+                        <td className={`py-2 px-4 border-r border-slate-300 align-middle leading-snug ${gradeStyle.nameColor}`}>{pos.name}</td>
+                        <td className="py-2 px-4 border-r border-slate-300 italic font-medium opacity-90 align-middle leading-snug">{pos.allergenName}</td>
+                        <td className="py-2 px-3 text-center font-mono border-r border-slate-300 align-middle leading-snug">{pos.code}</td>
+                        <td className="py-2 px-4 text-center font-mono text-[14.5px] align-middle leading-snug">
+                          {pos.isTIgE ? (
+                            <span className="text-[12px]">{pos.result} <span className="text-slate-500 text-[10px]">(IU/ml)</span></span>
+                          ) : (
+                            <span className={`inline-block min-w-[28px] px-2.5 py-0.5 rounded-md font-black border ${gradeStyle.badgeBg}`}>
+                              {pos.grade}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -427,13 +439,53 @@ export default function FullAllergenReportView({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-300">
-                    <tr><td className="py-1 text-center border-r border-slate-300 align-middle leading-snug">0</td><td className="py-1 text-center font-mono text-red-600 border-r border-slate-300 align-middle leading-snug">&lt;0,34</td><td className="py-1 text-center font-semibold text-slate-700 align-middle leading-snug">Không phản ứng</td></tr>
-                    <tr className="bg-amber-50/50"><td className="py-1 text-center border-r border-slate-300 font-bold align-middle leading-snug">1</td><td className="py-1 text-center font-mono text-red-600 border-r border-slate-300 align-middle leading-snug">0,35 - 0,69</td><td className="py-1 text-center font-bold text-amber-800 align-middle leading-snug">Yếu</td></tr>
-                    <tr className="bg-amber-50/70"><td className="py-1 text-center border-r border-slate-300 font-bold align-middle leading-snug">2</td><td className="py-1 text-center font-mono text-red-600 border-r border-slate-300 align-middle leading-snug">0,70 - 3,49</td><td className="py-1 text-center font-bold text-amber-900 align-middle leading-snug">Trung bình</td></tr>
-                    <tr className="bg-red-50/50"><td className="py-1 text-center border-r border-slate-300 font-bold align-middle leading-snug">3</td><td className="py-1 text-center font-mono text-red-600 border-r border-slate-300 align-middle leading-snug">3,50 - 17,49</td><td className="py-1 text-center font-bold text-red-700 align-middle leading-snug">Khá</td></tr>
-                    <tr className="bg-red-50/70"><td className="py-1 text-center border-r border-slate-300 font-bold align-middle leading-snug">4</td><td className="py-1 text-center font-mono text-red-600 border-r border-slate-300 align-middle leading-snug">17,50 - 49,99</td><td className="py-1 text-center font-bold text-red-800 align-middle leading-snug">Mạnh</td></tr>
-                    <tr className="bg-red-100/60"><td className="py-1 text-center border-r border-slate-300 font-bold align-middle leading-snug">5</td><td className="py-1 text-center font-mono text-red-600 border-r border-slate-300 align-middle leading-snug">50,00 - 99,99</td><td className="py-1 text-center font-bold text-red-900 align-middle leading-snug">Rất mạnh</td></tr>
-                    <tr className="bg-red-100"><td className="py-1 text-center border-r border-slate-300 font-bold align-middle leading-snug">6</td><td className="py-1 text-center font-mono text-red-600 border-r border-slate-300 align-middle leading-snug">&gt;100,0</td><td className="py-1 text-center font-black text-red-950 align-middle leading-snug">Cực mạnh</td></tr>
+                    <tr>
+                      <td className="py-1 text-center border-r border-slate-300 align-middle leading-snug">0</td>
+                      <td className="py-1 text-center font-mono text-slate-600 border-r border-slate-300 align-middle leading-snug">&lt;0,34</td>
+                      <td className="py-1 text-center font-semibold text-slate-700 align-middle leading-snug">Không phản ứng</td>
+                    </tr>
+                    <tr className="bg-amber-50/50">
+                      <td className="py-1 text-center border-r border-slate-300 font-bold align-middle leading-snug">
+                        <span className="inline-block px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200">1</span>
+                      </td>
+                      <td className="py-1 text-center font-mono text-amber-800 border-r border-slate-300 align-middle leading-snug">0,35 - 0,69</td>
+                      <td className="py-1 text-center font-bold text-amber-800 align-middle leading-snug">Yếu</td>
+                    </tr>
+                    <tr className="bg-amber-50/70">
+                      <td className="py-1 text-center border-r border-slate-300 font-bold align-middle leading-snug">
+                        <span className="inline-block px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300">2</span>
+                      </td>
+                      <td className="py-1 text-center font-mono text-amber-900 border-r border-slate-300 align-middle leading-snug">0,70 - 3,49</td>
+                      <td className="py-1 text-center font-bold text-amber-900 align-middle leading-snug">Trung bình</td>
+                    </tr>
+                    <tr className="bg-red-50/50">
+                      <td className="py-1 text-center border-r border-slate-300 font-bold align-middle leading-snug">
+                        <span className="inline-block px-1.5 py-0.2 rounded bg-red-50 text-red-700 border border-red-200">3</span>
+                      </td>
+                      <td className="py-1 text-center font-mono text-red-700 border-r border-slate-300 align-middle leading-snug">3,50 - 17,49</td>
+                      <td className="py-1 text-center font-bold text-red-700 align-middle leading-snug">Khá</td>
+                    </tr>
+                    <tr className="bg-red-50/70">
+                      <td className="py-1 text-center border-r border-slate-300 font-bold align-middle leading-snug">
+                        <span className="inline-block px-1.5 py-0.2 rounded bg-red-100 text-red-800 border border-red-300">4</span>
+                      </td>
+                      <td className="py-1 text-center font-mono text-red-800 border-r border-slate-300 align-middle leading-snug">17,50 - 49,99</td>
+                      <td className="py-1 text-center font-bold text-red-800 align-middle leading-snug">Mạnh</td>
+                    </tr>
+                    <tr className="bg-red-100/60">
+                      <td className="py-1 text-center border-r border-slate-300 font-bold align-middle leading-snug">
+                        <span className="inline-block px-1.5 py-0.2 rounded bg-red-200 text-red-900 border border-red-400">5</span>
+                      </td>
+                      <td className="py-1 text-center font-mono text-red-900 border-r border-slate-300 align-middle leading-snug">50,00 - 99,99</td>
+                      <td className="py-1 text-center font-bold text-red-900 align-middle leading-snug">Rất mạnh</td>
+                    </tr>
+                    <tr className="bg-red-100">
+                      <td className="py-1 text-center border-r border-slate-300 font-bold align-middle leading-snug">
+                        <span className="inline-block px-1.5 py-0.2 rounded bg-red-200 text-red-950 border border-red-500">6</span>
+                      </td>
+                      <td className="py-1 text-center font-mono text-red-950 border-r border-slate-300 align-middle leading-snug">&gt;100,0</td>
+                      <td className="py-1 text-center font-black text-red-950 align-middle leading-snug">Cực mạnh</td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -519,43 +571,29 @@ export default function FullAllergenReportView({
                 </thead>
                 <tbody className="divide-y divide-slate-300">
                   {pageItems.map((item) => {
-                    // Màu gradient khớp bảng "DIỄN GIẢI ĐỘ DƯƠNG TÍNH" trong MỘT SỐ LƯU Ý
-                    const gradeRowBg = item.isTIgE ? 'bg-sky-50/40'
-                      : item.grade >= 6 ? 'bg-red-100'
-                      : item.grade >= 5 ? 'bg-red-100/60'
-                      : item.grade >= 4 ? 'bg-red-50/70'
-                      : item.grade >= 3 ? 'bg-red-50/50'
-                      : item.grade >= 2 ? 'bg-amber-50/70'
-                      : item.grade >= 1 ? 'bg-amber-50/50'
-                      : 'bg-white';
-
-                    const gradeTextColor = item.isTIgE ? 'text-sky-700'
-                      : item.grade >= 6 ? 'text-red-950'
-                      : item.grade >= 5 ? 'text-red-900'
-                      : item.grade >= 4 ? 'text-red-800'
-                      : item.grade >= 3 ? 'text-red-700'
-                      : item.grade >= 2 ? 'text-amber-900'
-                      : item.grade >= 1 ? 'text-amber-800'
-                      : 'text-slate-800';
-
-                    const resultTextColor = item.isPositive ? 'text-red-600' : 'text-slate-800';
+                    const gradeStyle = getAllergenGradeClasses(item.grade, item.isTIgE);
+                    const resultTextColor = item.isPositive ? `${gradeStyle.textColor} font-bold` : 'text-slate-800';
 
                     return (
                     <tr 
                       key={item.code} 
-                      className={`hover:bg-slate-50 ${gradeRowBg}`}
+                      className={`hover:bg-slate-50 ${gradeStyle.rowBg}`}
                     >
                       <td className="py-1.5 px-1 text-center font-mono text-slate-500 border-r border-slate-300 align-middle leading-snug">{item.tt}</td>
                       <td className="py-1.5 px-1 text-center font-mono font-bold text-sky-800 border-r border-slate-300 text-[12px] align-middle leading-snug">{item.code}</td>
-                      <td className="py-1.5 px-2 font-semibold text-slate-900 border-r border-slate-300 text-[12px] align-middle leading-snug">{item.name}</td>
+                      <td className={`py-1.5 px-2 font-semibold ${item.isPositive ? gradeStyle.nameColor : 'text-slate-900'} border-r border-slate-300 text-[12px] align-middle leading-snug`}>{item.name}</td>
                       <td className="py-1.5 px-2 italic text-slate-600 border-r border-slate-300 text-[12px] align-middle leading-snug">{item.allergenName}</td>
                       <td className="py-1.5 px-2 text-slate-600 border-r border-slate-300 text-[11px] align-middle leading-snug">{item.route}</td>
                       <td className="py-1.5 px-1.5 text-center font-mono text-slate-600 border-r border-slate-300 text-[11.5px] align-middle leading-snug">{item.normalRef}</td>
-                      <td className={`py-1.5 px-1.5 text-center font-mono font-bold border-r border-slate-300 text-[12.5px] align-middle leading-snug ${resultTextColor}`}>
+                      <td className={`py-1.5 px-1.5 text-center font-mono border-r border-slate-300 text-[12.5px] align-middle leading-snug ${resultTextColor}`}>
                         {item.result}
                       </td>
-                      <td className={`py-1.5 px-1 text-center font-mono font-bold border-r border-slate-300 text-[13px] align-middle leading-snug ${gradeTextColor}`}>
-                        {item.isTIgE ? '' : (item.isPositive ? item.grade : '')}
+                      <td className="py-1.5 px-1 text-center font-mono font-bold border-r border-slate-300 text-[13px] align-middle leading-snug">
+                        {item.isTIgE ? '' : (item.isPositive ? (
+                          <span className={`inline-block min-w-[22px] px-1.5 py-0.2 rounded font-black border ${gradeStyle.badgeBg}`}>
+                            {item.grade}
+                          </span>
+                        ) : '')}
                       </td>
                       <td className="py-1.5 px-2 text-slate-600 text-[11px] leading-snug align-middle">
                         {item.isTIgE ? <span className="italic text-sky-700 font-semibold">Không tính độ</span> : item.note}
@@ -632,3 +670,6 @@ export default function FullAllergenReportView({
     </div>
   );
 }
+
+export default memo(FullAllergenReportView);
+

@@ -177,7 +177,7 @@ export function sanitizeDocumentOklch(doc: Document | HTMLElement) {
 
   // 2. Quét và chuyển đổi các thuộc tính màu trên từng phần tử DOM
   const allEls = Array.from(doc.querySelectorAll('*')) as HTMLElement[];
-  const colorProps = [
+  const colorProps: Array<keyof CSSStyleDeclaration & string> = [
     'color',
     'backgroundColor',
     'borderColor',
@@ -201,9 +201,9 @@ export function sanitizeDocumentOklch(doc: Document | HTMLElement) {
     try {
       const comp = window.getComputedStyle(el);
       for (const prop of colorProps) {
-        const val = (comp as any)[prop];
+        const val = comp[prop];
         if (typeof val === 'string' && (val.includes('okl') || val.includes('lab(') || val.includes('lch('))) {
-          (el.style as any)[prop] = sanitizeAllModernColors(val);
+          el.style.setProperty(prop.replace(/([A-Z])/g, '-$1').toLowerCase(), sanitizeAllModernColors(val));
         }
       }
     } catch {

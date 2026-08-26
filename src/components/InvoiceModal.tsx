@@ -3,7 +3,10 @@ import {
   X, CreditCard, CheckCircle, Printer, Plus, Trash2, QrCode, Copy, Check,
   ZoomIn, ZoomOut, RotateCcw, AlertCircle, Save, Clock
 } from 'lucide-react';
-import { Patient, SelectedTest, TestPackage, Doctor, Invoice, InvoiceItem, ClinicInfo, PaymentMethod } from '@domain/types';
+import { 
+  Patient, SelectedTest, TestPackage, Doctor, Invoice, InvoiceItem, ClinicInfo, 
+  PaymentMethod, BillingStatus, BILLING_STATUS, PAYMENT_METHOD 
+} from '@domain';
 import { buildInvoiceItems } from '@domain/pricing';
 import PrintReceiptView from './PrintReceiptView';
 
@@ -49,7 +52,7 @@ export default function InvoiceModal({
   const [discountVal, setDiscountVal] = useState<number>(0);
 
   // 3. HÌNH THỨC THANH TOÁN & BÁC SĨ
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Chuyển khoản (VietQR)');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PAYMENT_METHOD.BANK_TRANSFER);
   const [selectedDoc, setSelectedDoc] = useState<string>(doctorName || 'BS. Trần Hoài Long');
   const [cashier, setCashier] = useState<string>(clinicInfo?.cashierName || 'Lê Phan Anh');
   const [invoiceNote, setInvoiceNote] = useState<string>('');
@@ -105,7 +108,7 @@ export default function InvoiceModal({
   }, [patient.code]);
 
   // Cập nhật số lượng hoặc giá từng dòng
-  const handleItemChange = (idx: number, field: 'quantity' | 'price' | 'name', value: any) => {
+  const handleItemChange = <K extends keyof InvoiceItem>(idx: number, field: K, value: InvoiceItem[K]) => {
     setItems((prev) => {
       const updated = [...prev];
       updated[idx] = { ...updated[idx], [field]: value };
@@ -162,7 +165,7 @@ export default function InvoiceModal({
     discountPercent,
     finalAmount,
     paymentMethod,
-    status: 'Đã thanh toán',
+    status: BILLING_STATUS.PAID,
     notes: invoiceNote,
     reportId: currentReportId || undefined,
     paidAt: new Date().toISOString(),
@@ -173,7 +176,7 @@ export default function InvoiceModal({
     window.print();
   };
 
-  const handleSaveWithStatus = (targetStatus: 'Đã thanh toán' | 'Chưa thu phí') => {
+  const handleSaveWithStatus = (targetStatus: BillingStatus) => {
     let reportIdToLink = currentReportId;
 
     // Nếu phiếu chưa được lưu, tự động kích hoạt lưu phiếu xét nghiệm trước
@@ -188,7 +191,7 @@ export default function InvoiceModal({
       return;
     }
 
-    const isPaid = targetStatus === 'Đã thanh toán';
+    const isPaid = targetStatus === BILLING_STATUS.PAID;
 
     onSaveInvoice({
       ...currentInvoice,

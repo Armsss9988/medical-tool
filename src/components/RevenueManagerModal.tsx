@@ -1,16 +1,16 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   X, CreditCard, Trash2, Search, Calendar, FileSpreadsheet, Printer,
   TrendingUp, Users, DollarSign, Eye, AlertCircle, CheckCircle, Percent,
   Clock, Undo2, AlertTriangle
 } from 'lucide-react';
-import { Invoice, Doctor, ClinicInfo, MedicalReport, TestPackage } from '@domain/types';
+import { 
+  Invoice, Doctor, ClinicInfo, MedicalReport, TestPackage, ToastType,
+  BILLING_STATUS, PAYMENT_METHOD, DATE_FILTER, DateFilterType, REVENUE_TAB, RevenueTabType 
+} from '@domain';
 import { computePricingWithPackages } from '@domain/pricing';
 import { exportRevenueExcel } from '@infra/excelService';
 import PrintReceiptView from './PrintReceiptView';
-
-type DateFilterType = 'ALL' | 'TODAY' | 'YESTERDAY' | 'LAST_7_DAYS' | 'THIS_MONTH' | 'LAST_MONTH' | 'CUSTOM';
-type RevenueTabType = 'INVOICES' | 'PENDING_PAYMENT' | 'DOCTORS' | 'DAILY_REPORT';
 
 interface RevenueManagerModalProps {
   isOpen: boolean;
@@ -24,7 +24,7 @@ interface RevenueManagerModalProps {
   onClearAllInvoices: () => void;
   doctorsList?: Doctor[];
   clinicInfo?: ClinicInfo;
-  showToast?: (message: string, type?: any) => void;
+  showToast?: (message: string, type?: ToastType) => void;
 }
 
 export default function RevenueManagerModal({
@@ -41,14 +41,14 @@ export default function RevenueManagerModal({
   clinicInfo,
   showToast
 }: RevenueManagerModalProps) {
-  const [activeTab, setActiveTab] = useState<RevenueTabType>('INVOICES');
+  const [activeTab, setActiveTab] = useState<RevenueTabType>(REVENUE_TAB.INVOICES);
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [dateFilter, setDateFilter] = useState<DateFilterType>('ALL');
+  const [dateFilter, setDateFilter] = useState<DateFilterType>(DATE_FILTER.ALL);
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
-  const [selectedDoctor, setSelectedDoctor] = useState<string>('ALL');
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('ALL');
-  const [selectedStatus] = useState<string>('ALL');
+  const [selectedDoctor, setSelectedDoctor] = useState<string>(DATE_FILTER.ALL);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>(DATE_FILTER.ALL);
+  const [selectedStatus] = useState<string>(DATE_FILTER.ALL);
 
   // Hoa hồng bác sĩ (% mặc định = 10%)
   const [doctorCommissionRates, setDoctorCommissionRates] = useState<Record<string, number>>({});
@@ -84,35 +84,35 @@ export default function RevenueManagerModal({
       }
 
       // Lọc theo Bác sĩ
-      if (selectedDoctor !== 'ALL' && inv.doctorName !== selectedDoctor) {
+      if (selectedDoctor !== DATE_FILTER.ALL && inv.doctorName !== selectedDoctor) {
         return false;
       }
 
       // Lọc theo Hình thức thanh toán
-      if (selectedPaymentMethod !== 'ALL' && inv.paymentMethod !== selectedPaymentMethod) {
+      if (selectedPaymentMethod !== DATE_FILTER.ALL && inv.paymentMethod !== selectedPaymentMethod) {
         return false;
       }
 
       // Lọc theo Trạng thái
-      if (selectedStatus !== 'ALL' && inv.status !== selectedStatus) {
+      if (selectedStatus !== DATE_FILTER.ALL && inv.status !== selectedStatus) {
         return false;
       }
 
       // Lọc theo Thời gian
       const invDate = new Date(inv.createdAt);
-      if (dateFilter === 'TODAY') {
+      if (dateFilter === DATE_FILTER.TODAY) {
         if (invDate.toDateString() !== todayStr) return false;
-      } else if (dateFilter === 'YESTERDAY') {
+      } else if (dateFilter === DATE_FILTER.YESTERDAY) {
         if (invDate.toDateString() !== yesterdayStr) return false;
-      } else if (dateFilter === 'LAST_7_DAYS') {
+      } else if (dateFilter === DATE_FILTER.LAST_7_DAYS) {
         if (invDate < sevenDaysAgo) return false;
-      } else if (dateFilter === 'THIS_MONTH') {
+      } else if (dateFilter === DATE_FILTER.THIS_MONTH) {
         if (invDate.getMonth() !== now.getMonth() || invDate.getFullYear() !== now.getFullYear()) return false;
-      } else if (dateFilter === 'LAST_MONTH') {
+      } else if (dateFilter === DATE_FILTER.LAST_MONTH) {
         const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
         const lastMonthYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
         if (invDate.getMonth() !== lastMonth || invDate.getFullYear() !== lastMonthYear) return false;
-      } else if (dateFilter === 'CUSTOM') {
+      } else if (dateFilter === DATE_FILTER.CUSTOM) {
         if (customStartDate && new Date(customStartDate) > invDate) return false;
         if (customEndDate) {
           const end = new Date(customEndDate);
@@ -130,7 +130,7 @@ export default function RevenueManagerModal({
     return reports.filter((rep) => {
       const isPaid = invoices.some(
         (inv) =>
-          inv.status === 'Đã thanh toán' &&
+          inv.status === BILLING_STATUS.PAID &&
           (inv.id === rep.invoiceId ||
             inv.reportId === rep.id ||
             (inv.patientCode && (inv.patientCode === rep.code || inv.patientCode === rep.patient?.code)))
@@ -148,7 +148,7 @@ export default function RevenueManagerModal({
       }
 
       // Lọc theo Bác sĩ
-      if (selectedDoctor !== 'ALL' && rep.doctorName !== selectedDoctor) {
+      if (selectedDoctor !== DATE_FILTER.ALL && rep.doctorName !== selectedDoctor) {
         return false;
       }
 
@@ -162,11 +162,11 @@ export default function RevenueManagerModal({
       const sevenDaysAgo = new Date(now);
       sevenDaysAgo.setDate(now.getDate() - 7);
 
-      if (dateFilter === 'TODAY' && repDate.toDateString() !== todayStr) return false;
-      if (dateFilter === 'YESTERDAY' && repDate.toDateString() !== yesterdayStr) return false;
-      if (dateFilter === 'LAST_7_DAYS' && repDate < sevenDaysAgo) return false;
-      if (dateFilter === 'THIS_MONTH' && (repDate.getMonth() !== now.getMonth() || repDate.getFullYear() !== now.getFullYear())) return false;
-      if (dateFilter === 'CUSTOM') {
+      if (dateFilter === DATE_FILTER.TODAY && repDate.toDateString() !== todayStr) return false;
+      if (dateFilter === DATE_FILTER.YESTERDAY && repDate.toDateString() !== yesterdayStr) return false;
+      if (dateFilter === DATE_FILTER.LAST_7_DAYS && repDate < sevenDaysAgo) return false;
+      if (dateFilter === DATE_FILTER.THIS_MONTH && (repDate.getMonth() !== now.getMonth() || repDate.getFullYear() !== now.getFullYear())) return false;
+      if (dateFilter === DATE_FILTER.CUSTOM) {
         if (customStartDate && new Date(customStartDate) > repDate) return false;
         if (customEndDate) {
           const end = new Date(customEndDate);
@@ -180,22 +180,22 @@ export default function RevenueManagerModal({
   }, [reports, invoices, searchTerm, selectedDoctor, dateFilter, customStartDate, customEndDate]);
 
   // Tính tiền tạm tính cho từng phiếu chưa thu (ưu tiên giá gói)
-  const getEstimatedFee = (rep: MedicalReport) => {
+  const getEstimatedFee = useCallback((rep: MedicalReport) => {
     if (!rep.selectedTests || rep.selectedTests.length === 0) return 0;
     return computePricingWithPackages(
       rep.selectedTests.map((t) => t.code),
       rep.selectedTests,
       testPackages
     ).total;
-  };
+  }, [testPackages]);
 
   const totalPendingAmount = useMemo(() => {
     return pendingReports.reduce((sum, rep) => sum + getEstimatedFee(rep), 0);
-  }, [pendingReports]);
+  }, [pendingReports, getEstimatedFee]);
 
   // 2. TÍNH TOÁN CÁC THẺ KPI TÀI CHÍNH
   const kpis = useMemo(() => {
-    const paidInvoices = filteredInvoices.filter((i) => i.status === 'Đã thanh toán');
+    const paidInvoices = filteredInvoices.filter((i) => i.status === BILLING_STATUS.PAID);
     const totalFinal = paidInvoices.reduce((sum, inv) => sum + (inv.finalAmount || 0), 0);
     const totalRaw = paidInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
     const totalDiscount = paidInvoices.reduce((sum, inv) => sum + (inv.discountAmount || 0), 0);
@@ -203,9 +203,9 @@ export default function RevenueManagerModal({
     const aov = count > 0 ? Math.round(totalFinal / count) : 0;
 
     // Cơ cấu thanh toán
-    const cashTotal = paidInvoices.filter((i) => i.paymentMethod === 'Tiền mặt').reduce((s, i) => s + (i.finalAmount || 0), 0);
-    const vietQrTotal = paidInvoices.filter((i) => i.paymentMethod === 'Chuyển khoản (VietQR)').reduce((s, i) => s + (i.finalAmount || 0), 0);
-    const posTotal = paidInvoices.filter((i) => i.paymentMethod === 'Quẹt thẻ').reduce((s, i) => s + (i.finalAmount || 0), 0);
+    const cashTotal = paidInvoices.filter((i) => i.paymentMethod === PAYMENT_METHOD.CASH).reduce((s, i) => s + (i.finalAmount || 0), 0);
+    const vietQrTotal = paidInvoices.filter((i) => i.paymentMethod === PAYMENT_METHOD.BANK_TRANSFER).reduce((s, i) => s + (i.finalAmount || 0), 0);
+    const posTotal = paidInvoices.filter((i) => i.paymentMethod === PAYMENT_METHOD.POS_CARD).reduce((s, i) => s + (i.finalAmount || 0), 0);
 
     return {
       totalFinal,

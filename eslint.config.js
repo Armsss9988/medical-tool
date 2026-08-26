@@ -70,6 +70,10 @@ export default [
           pattern: 'src/hooks/**'
         },
         {
+          type: 'contexts',
+          pattern: 'src/contexts/**'
+        },
+        {
           type: 'components',
           pattern: 'src/components/**'
         },
@@ -95,7 +99,7 @@ export default [
           caughtErrorsIgnorePattern: '^_'
         }
       ],
-      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-explicit-any': 'error',
 
       // 2. React Rules
       'react/react-in-jsx-scope': 'off',
@@ -146,8 +150,22 @@ export default [
                 { to: { element: { type: 'data' } } }
               ]
             },
+            // Contexts layer: Global and feature-level React state providers.
+            // Can depend on Domain, UseCases, Infrastructure, Data, Hooks, Contexts.
+            // CANNOT depend on Components or Entry.
+            {
+              from: { element: { type: 'contexts' } },
+              allow: [
+                { to: { element: { type: 'domain' } } },
+                { to: { element: { type: 'usecases' } } },
+                { to: { element: { type: 'infrastructure' } } },
+                { to: { element: { type: 'hooks' } } },
+                { to: { element: { type: 'data' } } },
+                { to: { element: { type: 'contexts' } } }
+              ]
+            },
             // Hooks layer: React presentation controllers.
-            // Can depend on Domain, UseCases, Infrastructure, Data.
+            // Can depend on Domain, UseCases, Infrastructure, Data, Hooks, Contexts.
             // CANNOT depend on Components.
             {
               from: { element: { type: 'hooks' } },
@@ -156,7 +174,8 @@ export default [
                 { to: { element: { type: 'usecases' } } },
                 { to: { element: { type: 'infrastructure' } } },
                 { to: { element: { type: 'data' } } },
-                { to: { element: { type: 'hooks' } } }
+                { to: { element: { type: 'hooks' } } },
+                { to: { element: { type: 'contexts' } } }
               ]
             },
             // Components layer: Presentation UI.
@@ -167,6 +186,7 @@ export default [
                 { to: { element: { type: 'usecases' } } },
                 { to: { element: { type: 'infrastructure' } } },
                 { to: { element: { type: 'hooks' } } },
+                { to: { element: { type: 'contexts' } } },
                 { to: { element: { type: 'data' } } },
                 { to: { element: { type: 'components' } } }
               ]
@@ -179,6 +199,7 @@ export default [
                 { to: { element: { type: 'usecases' } } },
                 { to: { element: { type: 'infrastructure' } } },
                 { to: { element: { type: 'hooks' } } },
+                { to: { element: { type: 'contexts' } } },
                 { to: { element: { type: 'data' } } },
                 { to: { element: { type: 'components' } } },
                 { to: { element: { type: 'entry' } } }

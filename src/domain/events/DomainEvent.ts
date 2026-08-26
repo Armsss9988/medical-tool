@@ -1,13 +1,13 @@
 import { Invoice, MedicalReport, PaymentMethod, InvoiceStatus } from '../types';
 
-export interface DomainEvent<T = any> {
+export interface DomainEvent<T = unknown> {
   eventId: string;
   occurredAt: string;
   eventType: string;
   payload: T;
 }
 
-export type DomainEventHandler<T = any> = (event: DomainEvent<T>) => void | Promise<void>;
+export type DomainEventHandler<T = unknown> = (event: DomainEvent<T>) => void | Promise<void>;
 
 // 1. REPORT EVENTS
 export const REPORT_EVENT_TYPES = {

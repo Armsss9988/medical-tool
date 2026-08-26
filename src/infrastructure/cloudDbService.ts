@@ -1,5 +1,30 @@
-import { CloudDbConfig } from '../domain/types';
+import {
+  CloudDbConfig,
+  CatalogItem,
+  TestPackage,
+  TestGroup,
+  TestEquipment,
+  Doctor,
+  ClinicInfo,
+  Invoice
+} from '../domain/types';
 import { DEFAULT_CATALOG, TEST_PACKAGES, DEFAULT_TEST_GROUPS, DEFAULT_EQUIPMENTS } from '../data/defaultCatalog';
+
+export interface DatabaseBackupFile {
+  _meta: {
+    backup_at: string;
+    supabase_url: string;
+    version: string;
+    tables: string[];
+  };
+  catalog_data: CatalogItem[];
+  test_packages: TestPackage[];
+  test_groups: TestGroup[];
+  equipments_catalog: TestEquipment[];
+  doctors_list: Doctor[];
+  clinic_info: ClinicInfo | null;
+  invoices_data: Invoice[];
+}
 
 export const DEFAULT_CLOUD_DB_CONFIG: CloudDbConfig = {
   enabled: true,
@@ -100,9 +125,9 @@ export async function fetchTableFromCloud<T>(
 
     if (!res.ok) return null;
 
-    const rows = await res.json();
+    const rows = (await res.json()) as Array<{ data: T }>;
     if (Array.isArray(rows) && rows.length > 0 && rows[0].data) {
-      return rows[0].data as T;
+      return rows[0].data;
     }
     return null;
   } catch (err) {
@@ -143,32 +168,32 @@ export async function seedAllDefaultDataToSupabase(config: CloudDbConfig): Promi
   }
 }
 
-export async function fetchCatalogFromSupabase(config: CloudDbConfig) {
-  return fetchTableFromCloud<any[]>('catalog_data', config);
+export async function fetchCatalogFromSupabase(config: CloudDbConfig): Promise<CatalogItem[] | null> {
+  return fetchTableFromCloud<CatalogItem[]>('catalog_data', config);
 }
 
-export async function fetchPackagesFromSupabase(config: CloudDbConfig) {
-  return fetchTableFromCloud<any[]>('test_packages', config);
+export async function fetchPackagesFromSupabase(config: CloudDbConfig): Promise<TestPackage[] | null> {
+  return fetchTableFromCloud<TestPackage[]>('test_packages', config);
 }
 
-export async function fetchGroupsFromSupabase(config: CloudDbConfig) {
-  return fetchTableFromCloud<any[]>('test_groups', config);
+export async function fetchGroupsFromSupabase(config: CloudDbConfig): Promise<TestGroup[] | null> {
+  return fetchTableFromCloud<TestGroup[]>('test_groups', config);
 }
 
-export async function fetchEquipmentsFromSupabase(config: CloudDbConfig) {
-  return fetchTableFromCloud<any[]>('equipments_catalog', config);
+export async function fetchEquipmentsFromSupabase(config: CloudDbConfig): Promise<TestEquipment[] | null> {
+  return fetchTableFromCloud<TestEquipment[]>('equipments_catalog', config);
 }
 
-export async function fetchDoctorsFromSupabase(config: CloudDbConfig) {
-  return fetchTableFromCloud<any[]>('doctors_list', config);
+export async function fetchDoctorsFromSupabase(config: CloudDbConfig): Promise<Doctor[] | null> {
+  return fetchTableFromCloud<Doctor[]>('doctors_list', config);
 }
 
-export async function fetchClinicInfoFromSupabase(config: CloudDbConfig) {
-  return fetchTableFromCloud<any>('clinic_info', config);
+export async function fetchClinicInfoFromSupabase(config: CloudDbConfig): Promise<ClinicInfo | null> {
+  return fetchTableFromCloud<ClinicInfo>('clinic_info', config);
 }
 
-export async function fetchInvoicesFromSupabase(config: CloudDbConfig) {
-  return fetchTableFromCloud<any[]>('invoices_data', config);
+export async function fetchInvoicesFromSupabase(config: CloudDbConfig): Promise<Invoice[] | null> {
+  return fetchTableFromCloud<Invoice[]>('invoices_data', config);
 }
 
 /**
@@ -176,7 +201,7 @@ export async function fetchInvoicesFromSupabase(config: CloudDbConfig) {
  * Logic: Fetch catalog hiện tại → merge newItems vào (add mới, update nếu trùng code) → ghi lại.
  */
 export async function upsertCatalogItemsToSupabase(
-  newItems: any[],
+  newItems: CatalogItem[],
   config: CloudDbConfig
 ): Promise<{ success: boolean; message: string; added: number; updated: number }> {
   if (!config.enabled || !config.supabaseUrl) {
@@ -185,10 +210,10 @@ export async function upsertCatalogItemsToSupabase(
 
   try {
     // Bước 1: Fetch catalog hiện tại từ Supabase
-    const existing = await fetchTableFromCloud<any[]>('catalog_data', config) ?? [];
+    const existing = (await fetchTableFromCloud<CatalogItem[]>('catalog_data', config)) ?? [];
 
     // Bước 2: Merge — index theo code
-    const byCode = new Map<string, any>();
+    const byCode = new Map<string, CatalogItem>();
     for (const item of existing) {
       if (item.code) byCode.set(item.code, item);
     }
@@ -199,7 +224,8 @@ export async function upsertCatalogItemsToSupabase(
       if (!newItem.code) continue;
       if (byCode.has(newItem.code)) {
         // Code đã tồn tại → update (ghi đè item đó)
-        byCode.set(newItem.code, { ...byCode.get(newItem.code), ...newItem });
+        const current = byCode.get(newItem.code)!;
+        byCode.set(newItem.code, { ...current, ...newItem });
         updated++;
       } else {
         // Code mới → thêm vào
@@ -232,7 +258,7 @@ export async function upsertCatalogItemsToSupabase(
  * Upsert danh sách thiết bị lên Supabase theo code — KHÔNG ghi đè thiết bị cũ.
  */
 export async function upsertEquipmentsToSupabase(
-  newEquipments: any[],
+  newEquipments: TestEquipment[],
   config: CloudDbConfig
 ): Promise<{ success: boolean; message: string }> {
   if (!config.enabled || !config.supabaseUrl) {
@@ -240,13 +266,13 @@ export async function upsertEquipmentsToSupabase(
   }
 
   try {
-    const existing = await fetchTableFromCloud<any[]>('equipments_catalog', config) ?? [];
-    const byCode = new Map<string, any>();
+    const existing = (await fetchTableFromCloud<TestEquipment[]>('equipments_catalog', config)) ?? [];
+    const byCode = new Map<string, TestEquipment>();
     for (const item of existing) {
       if (item.code) byCode.set(item.code, item);
     }
     for (const item of newEquipments) {
-      if (!byCode.has(item.code)) {
+      if (item.code && !byCode.has(item.code)) {
         byCode.set(item.code, item);
       }
     }
@@ -263,7 +289,7 @@ export async function upsertEquipmentsToSupabase(
 
 /**
  * Fetch TOÀN BỘ dữ liệu từ Supabase và download về máy dưới dạng file JSON backup.
- * Bao gồm: catalog_data, test_packages, test_groups, equipments_catalog, doctors_list, clinic_info.
+ * Bao gồm: catalog_data, test_packages, test_groups, equipments_catalog, doctors_list, clinic_info, invoices_data.
  */
 export async function backupAllDataFromSupabase(
   config: CloudDbConfig
@@ -274,16 +300,16 @@ export async function backupAllDataFromSupabase(
 
   try {
     const [catalog, packages, groups, equipments, doctors, clinic, invoices] = await Promise.all([
-      fetchTableFromCloud<any[]>('catalog_data', config),
-      fetchTableFromCloud<any[]>('test_packages', config),
-      fetchTableFromCloud<any[]>('test_groups', config),
-      fetchTableFromCloud<any[]>('equipments_catalog', config),
-      fetchTableFromCloud<any[]>('doctors_list', config),
-      fetchTableFromCloud<any>('clinic_info', config),
-      fetchTableFromCloud<any[]>('invoices_data', config),
+      fetchTableFromCloud<CatalogItem[]>('catalog_data', config),
+      fetchTableFromCloud<TestPackage[]>('test_packages', config),
+      fetchTableFromCloud<TestGroup[]>('test_groups', config),
+      fetchTableFromCloud<TestEquipment[]>('equipments_catalog', config),
+      fetchTableFromCloud<Doctor[]>('doctors_list', config),
+      fetchTableFromCloud<ClinicInfo>('clinic_info', config),
+      fetchTableFromCloud<Invoice[]>('invoices_data', config),
     ]);
 
-    const backup = {
+    const backup: DatabaseBackupFile = {
       _meta: {
         backup_at: new Date().toISOString(),
         supabase_url: config.supabaseUrl,
@@ -344,7 +370,7 @@ export async function restoreAllDataToSupabase(
   }
 
   try {
-    const backup = JSON.parse(backupJson);
+    const backup = JSON.parse(backupJson) as Partial<DatabaseBackupFile>;
     if (!backup._meta || !backup.catalog_data) {
       return { success: false, message: 'File backup không hợp lệ hoặc sai định dạng!' };
     }

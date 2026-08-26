@@ -18,10 +18,15 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
+      "@domain": ["src/domain"],
       "@domain/*": ["src/domain/*"],
+      "@infra": ["src/infrastructure"],
       "@infra/*": ["src/infrastructure/*"],
+      "@data": ["src/data"],
       "@data/*": ["src/data/*"],
+      "@components": ["src/components"],
       "@components/*": ["src/components/*"],
+      "@assets": ["src/assets"],
       "@assets/*": ["src/assets/*"]
     }
   },

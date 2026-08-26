@@ -1,8 +1,7 @@
 import { Invoice, Patient, SelectedTest, InvoiceItem, PaymentMethod, InvoiceStatus, TestPackage } from '../domain/types';
 import { Money } from '../domain/valueObjects/Money';
-import { domainEventBus } from '../domain/events/DomainEventBus';
-import { INVOICE_EVENT_TYPES } from '../domain/events/DomainEvent';
 import { buildInvoiceItems } from '../domain/pricing';
+import { DEFAULTS } from '../domain/constants/defaults';
 
 export interface CreateInvoiceParams {
   patient: Patient;
@@ -30,14 +29,14 @@ export class CreateInvoiceUseCase {
       selectedTests = [],
       testPackages = [],
       items: customItems,
-      doctorName = 'BS. Trần Hoài Long',
-      packageName = 'Tùy chọn',
+      doctorName = DEFAULTS.DOCTOR_NAME,
+      packageName = DEFAULTS.PACKAGE_NAME,
       discountAmount = 0,
       surchargeAmount = 0,
       surchargeNote,
       paymentMethod = 'Tiền mặt',
       invoicesCount = 0,
-      cashierName = 'Thu ngân viện',
+      cashierName = DEFAULTS.CASHIER_NAME,
       notes = '',
       status = 'Chưa thu phí'
     } = params;
@@ -85,18 +84,9 @@ export class CreateInvoiceUseCase {
       paidAt
     };
 
-    // Phát Domain Event: Hóa đơn được tạo
-    domainEventBus.emit(INVOICE_EVENT_TYPES.CREATED, { invoice });
-
-    // Nếu tạo ở trạng thái Đã thanh toán, phát thêm event PAID
-    if (isPaid) {
-      domainEventBus.emit(INVOICE_EVENT_TYPES.PAID, {
-        invoice,
-        paymentMethod,
-        paidAt: paidAt!,
-        reportId: params.reportId
-      });
-    }
+    // DESIGN DECISION: UseCase KHÔNG phát Domain Events.
+    // Hooks (useInvoiceManager) là owner duy nhất phát events để tránh double-emit.
+    // UseCase chỉ chịu trách nhiệm tạo Invoice object thuần (pure business transformation).
 
     return invoice;
   }

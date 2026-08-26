@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { MedicalReport, Patient, SelectedTest, ReportStatus } from '@domain/types';
+import { MedicalReport, Patient, SelectedTest, ReportStatus, STORAGE_KEYS } from '@domain';
+import { hasAllergenTests } from '@domain/allergenDetector';
 import { ReportStateMachine } from '@domain/stateMachine/ReportStateMachine';
 import { loadData, saveData, loadState } from '@infra/storage';
 import { domainEventBus } from '@domain/events/DomainEventBus';
@@ -16,34 +17,45 @@ import {
 export function useReportManager() {
   // 1. Tải danh sách phiếu đã lưu đồng bộ từ Storage ngay từ render đầu tiên
   const [reports, setReports] = useState<MedicalReport[]>(() => {
-    return loadState<MedicalReport[]>('medical_reports', []);
+    return loadState<MedicalReport[]>(STORAGE_KEYS.REPORTS, []);
   });
-  const isLoadedRef = useRef(true);
+  const isLoadedRef = useRef(false);
 
-  // 2. Nếu trong môi trường Electron, tải bổ sung từ file hệ thống
+  // 2. Nếu trong môi trường Electron, tải bổ sung từ file hệ thống và merge an toàn
   useEffect(() => {
     async function initReports() {
       try {
-        const savedReports = await loadData<MedicalReport[]>('medical_reports', []);
+        const savedReports = await loadData<MedicalReport[]>(STORAGE_KEYS.REPORTS, []);
         if (Array.isArray(savedReports) && savedReports.length > 0) {
-          setReports(savedReports);
+          setReports((prev) => {
+            const reportMap = new Map<string, MedicalReport>();
+            savedReports.forEach((r) => reportMap.set(r.id, r));
+            prev.forEach((r) => {
+              if (!reportMap.has(r.id)) {
+                reportMap.set(r.id, r);
+              }
+            });
+            return Array.from(reportMap.values());
+          });
         }
       } catch (err) {
         console.error('Lỗi khi tải danh sách phiếu xét nghiệm:', err);
+      } finally {
+        isLoadedRef.current = true;
       }
     }
     initReports();
   }, []);
 
-  // 3. Tự động lưu khi danh sách reports thay đổi
+  // 3. Tự động lưu khi danh sách reports thay đổi sau khi đã ready
   useEffect(() => {
     if (!isLoadedRef.current) return;
-    saveData('medical_reports', reports);
+    saveData(STORAGE_KEYS.REPORTS, reports);
   }, [reports]);
 
   // 4. LẮNG NGHE DOMAIN EVENTS ĐỂ TỰ ĐỘNG ĐỒNG BỘ HIỆU ỨNG LIÊN ĐỚI (CASCADE SYNC)
   useEffect(() => {
-    // 4.1. Khi Hóa đơn được thanh toán -> Cập nhật trạng thái phiếu sang Đã thu
+    // 4.1. Khi Hóa đơn được thanh toán -> Cập nhật trạng thái phiếu sang Đã thu (khớp chính xác theo ID)
     const unsubPaid = domainEventBus.subscribe<InvoicePaidPayload>(
       INVOICE_EVENT_TYPES.PAID,
       ({ payload }) => {
@@ -52,8 +64,7 @@ export function useReportManager() {
           const targetIndex = prev.findIndex(
             (r) =>
               (targetReportId && r.id === targetReportId) ||
-              (payload.invoice.id && r.invoiceId === payload.invoice.id) ||
-              (payload.invoice.patientCode && r.code === payload.invoice.patientCode)
+              (payload.invoice.id && r.invoiceId === payload.invoice.id)
           );
           if (targetIndex < 0) return prev;
 
@@ -66,7 +77,6 @@ export function useReportManager() {
 
           const next = [...prev];
           next[targetIndex] = updated;
-          saveData('medical_reports', next);
           return next;
         });
       }
@@ -79,7 +89,7 @@ export function useReportManager() {
         setReports((prev) => {
           const targetIndex = prev.findIndex(
             (r) =>
-              r.invoiceId === payload.invoiceId ||
+              (payload.invoiceId && r.invoiceId === payload.invoiceId) ||
               (payload.reportId && r.id === payload.reportId)
           );
           if (targetIndex < 0) return prev;
@@ -89,7 +99,6 @@ export function useReportManager() {
 
           const next = [...prev];
           next[targetIndex] = updated;
-          saveData('medical_reports', next);
           return next;
         });
       }
@@ -102,7 +111,7 @@ export function useReportManager() {
         setReports((prev) => {
           const targetIndex = prev.findIndex(
             (r) =>
-              r.invoiceId === payload.invoiceId ||
+              (payload.invoiceId && r.invoiceId === payload.invoiceId) ||
               (payload.reportId && r.id === payload.reportId)
           );
           if (targetIndex < 0) return prev;
@@ -112,7 +121,6 @@ export function useReportManager() {
 
           const next = [...prev];
           next[targetIndex] = updated;
-          saveData('medical_reports', next);
           return next;
         });
       }
@@ -133,7 +141,6 @@ export function useReportManager() {
           );
           const next = [...prev];
           next[idx] = updated;
-          saveData('medical_reports', next);
           return next;
         });
       }
@@ -150,7 +157,6 @@ export function useReportManager() {
           const updated = ReportStateMachine.onSendZalo(prev[idx], payload.msgId);
           const next = [...prev];
           next[idx] = updated;
-          saveData('medical_reports', next);
           return next;
         });
       }
@@ -166,6 +172,11 @@ export function useReportManager() {
   }, []);
 
   // 5. Thêm mới hoặc cập nhật phiếu thông qua Domain State Machine & Phát Event
+  //    FIX: Compute report update BEFORE setState to avoid closure race condition.
+  //    Sử dụng reportsRef để đọc state đồng bộ, tránh side-effect bên trong setState callback.
+  const reportsRef = useRef(reports);
+  reportsRef.current = reports;
+
   const saveOrUpdateReport = (params: {
     id?: string;
     patient: Patient;
@@ -182,102 +193,89 @@ export function useReportManager() {
     pdfVersion?: number;
     isPdfOutdated?: boolean;
   }): MedicalReport => {
-    let returnedReport: MedicalReport | null = null;
-    let isNewReport = false;
+    const prev = reportsRef.current;
 
-    setReports((prev) => {
-      const idx = params.id
-        ? prev.findIndex((r) => r.id === params.id)
-        : prev.findIndex(
+    // Tìm phiếu hiện có (theo ID hoặc mã bệnh nhân)
+    const idx = params.id
+      ? prev.findIndex((r) => r.id === params.id)
+      : prev.findIndex(
+          (r) => params.patient.code && (r.code === params.patient.code || r.patient?.code === params.patient.code)
+        );
+
+    const existingItem = idx >= 0 ? prev[idx] : null;
+    const isNewReport = !existingItem;
+
+    let updatedReport: MedicalReport;
+
+    if (!existingItem) {
+      // Tạo mới thông qua State Machine
+      updatedReport = ReportStateMachine.createInitialReport({
+        id: params.id,
+        code: params.patient.code || `BN-${Date.now()}`,
+        sampleCode: params.patient.sampleCode || params.patient.code || `BN-${Date.now()}`,
+        patient: params.patient,
+        doctorName: params.doctorName,
+        selectedTests: params.selectedTests,
+        conclusion: params.conclusion,
+        isAllergen: hasAllergenTests(params.selectedTests),
+        invoiceId: params.invoiceId
+      });
+
+      if (params.cloudPdfUrl) {
+        updatedReport = ReportStateMachine.onExportCloud(updatedReport, params.cloudPdfUrl, params.qrCodeDataUrl);
+      }
+    } else {
+      // Cập nhật thông qua State Machine
+      updatedReport = ReportStateMachine.onUpdateReport(existingItem, {
+        patient: params.patient,
+        selectedTests: params.selectedTests,
+        conclusion: params.conclusion,
+        doctorName: params.doctorName,
+        cloudPdfUrl: params.cloudPdfUrl ?? existingItem.cloudPdfUrl,
+        qrCodeDataUrl: params.qrCodeDataUrl ?? existingItem.qrCodeDataUrl,
+        invoiceId: params.invoiceId ?? existingItem.invoiceId,
+        zaloSentAt: params.zaloSentAt ?? existingItem.zaloSentAt,
+        zaloMsgId: params.zaloMsgId ?? existingItem.zaloMsgId,
+        isPdfOutdated: params.isPdfOutdated,
+        status: params.status
+      });
+
+      if (params.cloudPdfUrl && params.cloudPdfUrl !== existingItem.cloudPdfUrl) {
+        updatedReport = ReportStateMachine.onExportCloud(updatedReport, params.cloudPdfUrl, params.qrCodeDataUrl);
+      }
+    }
+
+    // Update state với report đã computed sẵn (không có side-effect trong callback)
+    setReports((currentPrev) => {
+      // Re-check index against latest state in case of concurrent updates
+      const currentIdx = params.id
+        ? currentPrev.findIndex((r) => r.id === params.id)
+        : currentPrev.findIndex(
             (r) => params.patient.code && (r.code === params.patient.code || r.patient?.code === params.patient.code)
           );
 
-      const existingItem = idx >= 0 ? prev[idx] : null;
-      isNewReport = !existingItem;
-
-      let updatedReport: MedicalReport;
-
-      if (!existingItem) {
-        // Tạo mới thông qua State Machine
-        const isAllergen = params.selectedTests.some(
-          (t) => (t.category && t.category.includes('Dị Nguyên')) || t.unit === 'IU/mL'
-        );
-        updatedReport = ReportStateMachine.createInitialReport({
-          id: params.id,
-          code: params.patient.code || `BN-${Date.now()}`,
-          sampleCode: params.patient.sampleCode || params.patient.code || `BN-${Date.now()}`,
-          patient: params.patient,
-          doctorName: params.doctorName,
-          selectedTests: params.selectedTests,
-          conclusion: params.conclusion,
-          isAllergen,
-          invoiceId: params.invoiceId
-        });
-
-        if (params.cloudPdfUrl) {
-          updatedReport = ReportStateMachine.onExportCloud(updatedReport, params.cloudPdfUrl, params.qrCodeDataUrl);
-        }
-      } else {
-        // Cập nhật thông qua State Machine
-        updatedReport = ReportStateMachine.onUpdateReport(existingItem, {
-          patient: params.patient,
-          selectedTests: params.selectedTests,
-          conclusion: params.conclusion,
-          doctorName: params.doctorName,
-          cloudPdfUrl: params.cloudPdfUrl ?? existingItem.cloudPdfUrl,
-          qrCodeDataUrl: params.qrCodeDataUrl ?? existingItem.qrCodeDataUrl,
-          invoiceId: params.invoiceId ?? existingItem.invoiceId,
-          zaloSentAt: params.zaloSentAt ?? existingItem.zaloSentAt,
-          zaloMsgId: params.zaloMsgId ?? existingItem.zaloMsgId,
-          isPdfOutdated: params.isPdfOutdated,
-          status: params.status
-        });
-
-        if (params.cloudPdfUrl && params.cloudPdfUrl !== existingItem.cloudPdfUrl) {
-          updatedReport = ReportStateMachine.onExportCloud(updatedReport, params.cloudPdfUrl, params.qrCodeDataUrl);
-        }
+      if (currentIdx >= 0) {
+        const next = [...currentPrev];
+        next[currentIdx] = updatedReport;
+        return next;
       }
-
-      returnedReport = updatedReport;
-
-      let next: MedicalReport[];
-      if (idx >= 0) {
-        next = [...prev];
-        next[idx] = updatedReport;
-      } else {
-        next = [updatedReport, ...prev];
-      }
-      saveData('medical_reports', next);
-      return next;
+      return [updatedReport, ...currentPrev];
     });
 
-    const finalReport = returnedReport || ReportStateMachine.createInitialReport({
-      id: params.id,
-      code: params.patient.code || `BN-${Date.now()}`,
-      sampleCode: params.patient.sampleCode || params.patient.code || `BN-${Date.now()}`,
-      patient: params.patient,
-      doctorName: params.doctorName,
-      selectedTests: params.selectedTests,
-      conclusion: params.conclusion,
-      invoiceId: params.invoiceId
-    });
-
-    // Phát Domain Event: REPORT_SAVED
+    // Phát Domain Event: REPORT_SAVED (sử dụng report đã computed)
     domainEventBus.emit(REPORT_EVENT_TYPES.SAVED, {
-      report: finalReport,
+      report: updatedReport,
       isNew: isNewReport
     });
 
-    return finalReport;
+    return updatedReport;
   };
 
   // 6. Cập nhật hàng loạt phiếu (Dùng sau khi chạy batch re-export)
   const bulkUpdateReports = (updatedList: MedicalReport[]) => {
     setReports((prev) => {
       const updatedMap = new Map(updatedList.map((r) => [r.id, r]));
-      const next = prev.map((r) => updatedMap.get(r.id) || r);
-      saveData('medical_reports', next);
-      return next;
+      return prev.map((r) => updatedMap.get(r.id) || r);
     });
   };
 
@@ -288,9 +286,7 @@ export function useReportManager() {
     setReports((prev) => {
       const target = prev.find((r) => r.id === id);
       if (target) deletedReportCode = target.code;
-      const next = prev.filter((r) => r.id !== id);
-      saveData('medical_reports', next);
-      return next;
+      return prev.filter((r) => r.id !== id);
     });
 
     // Phát Domain Event: REPORT_DELETED
@@ -303,17 +299,14 @@ export function useReportManager() {
   // 8. Xóa toàn bộ phiếu
   const clearAllReports = () => {
     setReports([]);
-    saveData('medical_reports', []);
   };
 
   // 9. Cập nhật trạng thái phiếu
   const updateReportStatus = (id: string, newStatus: ReportStatus) => {
     setReports((prev) => {
-      const next = prev.map((r) =>
+      return prev.map((r) =>
         r.id === id ? { ...r, status: newStatus, updatedAt: new Date().toISOString() } : r
       );
-      saveData('medical_reports', next);
-      return next;
     });
   };
 

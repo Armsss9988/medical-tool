@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { 
   X, 
   Search, 
@@ -19,7 +19,10 @@ import {
   CheckCircle2,
   CreditCard
 } from 'lucide-react';
-import { MedicalReport, Doctor, ToastType, Invoice } from '@domain/types';
+import { 
+  MedicalReport, Doctor, ToastType, Invoice, 
+  BILLING_STATUS, REPORT_STATUS, DATE_FILTER, DateFilterType 
+} from '@domain';
 import { ReportStateMachine } from '@domain/index';
 import { exportReportsExcel } from '@infra/excelService';
 import { downloadDataUrlAsImage } from '@infra/qrService';
@@ -44,9 +47,9 @@ interface ReportManagerModalProps {
   showToast: (message: string, type?: ToastType) => void;
 }
 
-type DateFilterType = 'ALL' | 'TODAY' | 'YESTERDAY' | 'LAST_7_DAYS' | 'THIS_MONTH';
 type PdfStatusFilterType = 'ALL' | 'OUTDATED' | 'LATEST' | 'NOT_EXPORTED';
 type PaymentFilterType = 'ALL' | 'PAID' | 'UNPAID';
+type ReportTypeFilter = 'ALL' | 'STANDARD' | 'ALLERGEN';
 
 export default function ReportManagerModal({
   isOpen,
@@ -70,12 +73,12 @@ export default function ReportManagerModal({
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [dateFilter, setDateFilter] = useState<DateFilterType>('ALL');
   const [selectedDoctor, setSelectedDoctor] = useState<string>('ALL');
-  const [selectedType, setSelectedType] = useState<'ALL' | 'STANDARD' | 'ALLERGEN'>('ALL');
+  const [selectedType, setSelectedType] = useState<ReportTypeFilter>('ALL');
   const [pdfFilter, setPdfFilter] = useState<PdfStatusFilterType>('ALL');
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilterType>('ALL');
 
   // Helper tìm kiếm hóa đơn tương ứng với 1 phiếu xét nghiệm
-  const getInvoiceForReport = (rep: MedicalReport): Invoice | undefined => {
+  const getInvoiceForReport = useCallback((rep: MedicalReport): Invoice | undefined => {
     if (rep.invoiceId) {
       const byId = invoices.find((i) => i.id === rep.invoiceId);
       if (byId) return byId;
@@ -83,7 +86,7 @@ export default function ReportManagerModal({
     return invoices.find(
       (i) => i.reportId === rep.id || (i.patientCode && (i.patientCode === rep.code || i.patientCode === rep.patient?.code))
     );
-  };
+  }, [invoices]);
 
   // 1. Thống kê KPI tổng quan (bao gồm số phiếu PDF Outdated & Tình trạng Thu Phí)
   const stats = useMemo(() => {
@@ -91,12 +94,12 @@ export default function ReportManagerModal({
     const todayCount = reports.filter((r) => new Date(r.createdAt).toDateString() === todayStr).length;
     const allergenCount = reports.filter((r) => r.isAllergen).length;
     const cloudCount = reports.filter((r) => !!r.cloudPdfUrl).length;
-    const outdatedCount = reports.filter((r) => r.isPdfOutdated || r.status === 'Cần cập nhật PDF').length;
-    const latestCount = reports.filter((r) => !!r.cloudPdfUrl && !r.isPdfOutdated && r.status !== 'Cần cập nhật PDF').length;
+    const outdatedCount = reports.filter((r) => r.isPdfOutdated || r.status === REPORT_STATUS.OUTDATED).length;
+    const latestCount = reports.filter((r) => !!r.cloudPdfUrl && !r.isPdfOutdated && r.status !== REPORT_STATUS.OUTDATED).length;
     const notExportedCount = reports.filter((r) => !r.cloudPdfUrl).length;
     const paidCount = reports.filter((r) => {
       const inv = getInvoiceForReport(r);
-      return Boolean(inv ? inv.status === 'Đã thanh toán' : r.patient?.paidAt);
+      return Boolean(inv ? inv.status === BILLING_STATUS.PAID : r.patient?.paidAt);
     }).length;
     const unpaidCount = reports.length - paidCount;
 
@@ -111,7 +114,7 @@ export default function ReportManagerModal({
       paidCount,
       unpaidCount
     };
-  }, [reports, invoices]);
+  }, [reports, getInvoiceForReport]);
 
   // 2. Lọc danh sách phiếu theo các tiêu chí
   const filteredReports = useMemo(() => {
@@ -143,7 +146,7 @@ export default function ReportManagerModal({
       }
 
       // Lọc theo Bác sĩ
-      if (selectedDoctor !== 'ALL' && rep.doctorName !== selectedDoctor) {
+      if (selectedDoctor !== DATE_FILTER.ALL && rep.doctorName !== selectedDoctor) {
         return false;
       }
 
@@ -152,10 +155,10 @@ export default function ReportManagerModal({
       if (selectedType === 'STANDARD' && rep.isAllergen) return false;
 
       // Lọc theo Tình trạng PDF (Outdated / Latest / Not Exported)
-      if (pdfFilter === 'OUTDATED' && !rep.isPdfOutdated && rep.status !== 'Cần cập nhật PDF') {
+      if (pdfFilter === 'OUTDATED' && !rep.isPdfOutdated && rep.status !== REPORT_STATUS.OUTDATED) {
         return false;
       }
-      if (pdfFilter === 'LATEST' && (!rep.cloudPdfUrl || rep.isPdfOutdated || rep.status === 'Cần cập nhật PDF')) {
+      if (pdfFilter === 'LATEST' && (!rep.cloudPdfUrl || rep.isPdfOutdated || rep.status === REPORT_STATUS.OUTDATED)) {
         return false;
       }
       if (pdfFilter === 'NOT_EXPORTED' && !!rep.cloudPdfUrl) {
@@ -164,19 +167,19 @@ export default function ReportManagerModal({
 
       // Lọc theo Tình trạng Thu Phí
       const inv = getInvoiceForReport(rep);
-      const isPaid = Boolean(inv ? inv.status === 'Đã thanh toán' : rep.patient?.paidAt);
+      const isPaid = Boolean(inv ? inv.status === BILLING_STATUS.PAID : rep.patient?.paidAt);
       if (paymentFilter === 'PAID' && !isPaid) return false;
       if (paymentFilter === 'UNPAID' && isPaid) return false;
 
       // Lọc theo Thời gian
       const repDate = new Date(rep.createdAt);
-      if (dateFilter === 'TODAY') {
+      if (dateFilter === DATE_FILTER.TODAY) {
         if (repDate.toDateString() !== todayStr) return false;
-      } else if (dateFilter === 'YESTERDAY') {
+      } else if (dateFilter === DATE_FILTER.YESTERDAY) {
         if (repDate.toDateString() !== yesterdayStr) return false;
-      } else if (dateFilter === 'LAST_7_DAYS') {
+      } else if (dateFilter === DATE_FILTER.LAST_7_DAYS) {
         if (repDate < sevenDaysAgo) return false;
-      } else if (dateFilter === 'THIS_MONTH') {
+      } else if (dateFilter === DATE_FILTER.THIS_MONTH) {
         if (repDate.getMonth() !== now.getMonth() || repDate.getFullYear() !== now.getFullYear()) {
           return false;
         }
@@ -184,11 +187,11 @@ export default function ReportManagerModal({
 
       return true;
     });
-  }, [reports, invoices, searchTerm, selectedDoctor, selectedType, pdfFilter, paymentFilter, dateFilter]);
+  }, [reports, getInvoiceForReport, searchTerm, selectedDoctor, selectedType, pdfFilter, paymentFilter, dateFilter]);
 
   // 3. Danh sách tất cả các phiếu đang bị Outdated
   const allOutdatedReports = useMemo(() => {
-    return reports.filter((r) => r.isPdfOutdated || r.status === 'Cần cập nhật PDF');
+    return reports.filter((r) => r.isPdfOutdated || r.status === REPORT_STATUS.OUTDATED);
   }, [reports]);
 
   // 4. Xuất toàn bộ phiếu đã lọc ra Excel
@@ -411,7 +414,7 @@ export default function ReportManagerModal({
             <div className="sm:col-span-2">
               <select
                 value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value as any)}
+                onChange={(e) => setSelectedType(e.target.value as ReportTypeFilter)}
                 className="w-full px-3 py-2 bg-slate-800/80 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-semibold"
               >
                 <option value="ALL">Tất cả loại phiếu</option>

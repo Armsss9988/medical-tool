@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Invoice, InvoiceStatus } from '@domain/types';
+import { Invoice, InvoiceStatus, STORAGE_KEYS, BILLING_STATUS } from '@domain';
 import { loadData, saveData, loadState } from '@infra/storage';
 import { domainEventBus } from '@domain/events/DomainEventBus';
 import {
@@ -11,29 +11,38 @@ import {
 export function useInvoiceManager() {
   // 1. Tải danh sách hóa đơn từ storage ngay render đầu tiên
   const [invoices, setInvoices] = useState<Invoice[]>(() => {
-    return loadState<Invoice[]>('invoices', []);
+    return loadState<Invoice[]>(STORAGE_KEYS.INVOICES, []);
   });
-  const isLoadedRef = useRef(true);
+  const isLoadedRef = useRef(false);
 
-  // 2. Môi trường Electron: tải thêm từ file hệ thống nếu có
+  // 2. Môi trường Electron: tải thêm từ file hệ thống nếu có và merge an toàn
   useEffect(() => {
     async function initInvoices() {
       try {
-        const saved = await loadData<Invoice[]>('invoices', []);
+        const saved = await loadData<Invoice[]>(STORAGE_KEYS.INVOICES, []);
         if (Array.isArray(saved) && saved.length > 0) {
-          setInvoices(saved);
+          setInvoices((prev) => {
+            const map = new Map<string, Invoice>();
+            saved.forEach((i) => map.set(i.id, i));
+            prev.forEach((i) => {
+              if (!map.has(i.id)) map.set(i.id, i);
+            });
+            return Array.from(map.values());
+          });
         }
       } catch (err) {
         console.error('Lỗi khi nạp danh sách hóa đơn từ storage:', err);
+      } finally {
+        isLoadedRef.current = true;
       }
     }
     initInvoices();
   }, []);
 
-  // 3. Tự động lưu khi invoices thay đổi
+  // 3. Tự động lưu khi invoices thay đổi sau khi storage đã ready
   useEffect(() => {
     if (!isLoadedRef.current) return;
-    saveData('invoices', invoices);
+    saveData(STORAGE_KEYS.INVOICES, invoices);
   }, [invoices]);
 
   // 4. LẮNG NGHE DOMAIN EVENTS TỪ CÁC THỰC THỂ KHÁC
@@ -46,11 +55,9 @@ export function useInvoiceManager() {
           const hasLinked = prev.some((inv) => inv.reportId === payload.reportId);
           if (!hasLinked) return prev;
 
-          const next = prev.map((inv) =>
+          return prev.map((inv) =>
             inv.reportId === payload.reportId ? { ...inv, reportId: undefined } : inv
           );
-          saveData('invoices', next);
-          return next;
         });
       }
     );
@@ -64,26 +71,23 @@ export function useInvoiceManager() {
   const saveOrUpdateInvoice = (invoice: Invoice): Invoice => {
     setInvoices((prev) => {
       const idx = prev.findIndex((inv) => inv.id === invoice.id || (inv.code && inv.code === invoice.code));
-      let next: Invoice[];
       if (idx >= 0) {
-        next = [...prev];
+        const next = [...prev];
         next[idx] = { ...invoice };
-      } else {
-        next = [invoice, ...prev];
+        return next;
       }
-      saveData('invoices', next);
-      return next;
+      return [invoice, ...prev];
     });
 
     // Phát sự kiện tương ứng với trạng thái hóa đơn
-    if (invoice.status === 'Đã thanh toán') {
+    if (invoice.status === BILLING_STATUS.PAID) {
       domainEventBus.emit(INVOICE_EVENT_TYPES.PAID, {
         invoice,
         paymentMethod: invoice.paymentMethod,
         paidAt: invoice.paidAt || new Date().toISOString(),
         reportId: invoice.reportId
       });
-    } else if (invoice.status === 'Đã hủy / Hoàn tiền') {
+    } else if (invoice.status === BILLING_STATUS.REFUNDED) {
       domainEventBus.emit(INVOICE_EVENT_TYPES.CANCELLED, {
         invoiceId: invoice.id,
         reportId: invoice.reportId,
@@ -102,9 +106,7 @@ export function useInvoiceManager() {
 
     setInvoices((prev) => {
       deletedInvoice = prev.find((inv) => inv.id === id);
-      const next = prev.filter((inv) => inv.id !== id);
-      saveData('invoices', next);
-      return next;
+      return prev.filter((inv) => inv.id !== id);
     });
 
     // Phát Domain Event: INVOICE_DELETED
@@ -117,7 +119,6 @@ export function useInvoiceManager() {
   // 7. Xóa tất cả hóa đơn
   const clearAllInvoices = () => {
     setInvoices([]);
-    saveData('invoices', []);
   };
 
   // 8. Cập nhật trạng thái hóa đơn
@@ -125,15 +126,13 @@ export function useInvoiceManager() {
     let updatedInv: Invoice | undefined;
 
     setInvoices((prev) => {
-      const next = prev.map((inv) => {
+      return prev.map((inv) => {
         if (inv.id === id) {
           updatedInv = { ...inv, status };
           return updatedInv;
         }
         return inv;
       });
-      saveData('invoices', next);
-      return next;
     });
 
     if (updatedInv) {

@@ -19,24 +19,24 @@ export class DomainEventBus {
    * Đăng ký lắng nghe sự kiện domain
    * @returns Hàm hủy đăng ký (unsubscribe)
    */
-  public subscribe<T = any>(
+  public subscribe<T = unknown>(
     eventType: string,
     handler: DomainEventHandler<T>
   ): () => void {
     if (!this.handlers.has(eventType)) {
       this.handlers.set(eventType, new Set());
     }
-    this.handlers.get(eventType)!.add(handler as DomainEventHandler);
+    this.handlers.get(eventType)!.add(handler as DomainEventHandler<unknown>);
 
     return () => {
-      this.unsubscribe(eventType, handler as DomainEventHandler);
+      this.unsubscribe(eventType, handler as DomainEventHandler<unknown>);
     };
   }
 
   /**
    * Hủy đăng ký handler
    */
-  public unsubscribe(eventType: string, handler: DomainEventHandler): void {
+  public unsubscribe(eventType: string, handler: DomainEventHandler<unknown>): void {
     const set = this.handlers.get(eventType);
     if (set) {
       set.delete(handler);
@@ -49,9 +49,9 @@ export class DomainEventBus {
   /**
    * Phát sự kiện tới tất cả các subscriber đã đăng ký
    */
-  public publish<T = any>(event: DomainEvent<T>): void {
+  public publish<T = unknown>(event: DomainEvent<T>): void {
     // Lưu lịch sử để phục vụ audit/debug
-    this.eventHistory.unshift(event);
+    this.eventHistory.unshift(event as DomainEvent<unknown>);
     if (this.eventHistory.length > this.maxHistorySize) {
       this.eventHistory.pop();
     }
@@ -77,7 +77,7 @@ export class DomainEventBus {
   /**
    * Tạo nhanh và phát sự kiện
    */
-  public emit<T = any>(eventType: string, payload: T): DomainEvent<T> {
+  public emit<T = unknown>(eventType: string, payload: T): DomainEvent<T> {
     const event: DomainEvent<T> = {
       eventId: crypto.randomUUID(),
       occurredAt: new Date().toISOString(),

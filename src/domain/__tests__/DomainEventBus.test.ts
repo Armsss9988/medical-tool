@@ -1,8 +1,51 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { domainEventBus } from '../events/DomainEventBus';
 import { INVOICE_EVENT_TYPES, REPORT_EVENT_TYPES } from '../events/DomainEvent';
+import type { Invoice, MedicalReport } from '../types';
 
 describe('DomainEventBus', () => {
+  const mockInvoice: Invoice = {
+    id: 'inv-1',
+    code: 'HD-001',
+    createdAt: '2026-08-25T10:00:00.000Z',
+    patientName: 'Nguyen Van A',
+    patientDob: '1990',
+    patientPhone: '0901234567',
+    patientGender: 'Nam',
+    doctorName: 'BS. Long',
+    items: [],
+    totalAmount: 100000,
+    discountPercent: 0,
+    finalAmount: 100000,
+    paymentMethod: 'Tiền mặt',
+    status: 'Đã thanh toán',
+    reportId: 'rep-1'
+  };
+
+  const mockReport: MedicalReport = {
+    id: 'rep-1',
+    code: 'BN-001',
+    sampleCode: 'BN-001',
+    createdAt: '2026-08-25T10:00:00.000Z',
+    updatedAt: '2026-08-25T10:00:00.000Z',
+    patient: {
+      code: 'BN-001',
+      secretToken: 'ABC123',
+      name: 'Nguyen Van A',
+      dob: '1990',
+      gender: 'Nam',
+      phone: '0901234567',
+      address: '',
+      diagnosis: ''
+    },
+    doctorName: 'BS. Long',
+    selectedTests: [],
+    conclusion: '',
+    isAllergen: false,
+    status: 'Đã có kết quả',
+    testCount: 0
+  };
+
   beforeEach(() => {
     domainEventBus.clear();
   });
@@ -12,7 +55,7 @@ describe('DomainEventBus', () => {
     const unsub = domainEventBus.subscribe(INVOICE_EVENT_TYPES.PAID, handler);
 
     const eventPayload = {
-      invoice: { id: 'inv-1', code: 'HD-001' } as any,
+      invoice: mockInvoice,
       paymentMethod: 'Tiền mặt' as const,
       paidAt: '2026-08-25T10:00:00.000Z',
       reportId: 'rep-1'
@@ -34,7 +77,7 @@ describe('DomainEventBus', () => {
   });
 
   it('should maintain event history', () => {
-    domainEventBus.emit(REPORT_EVENT_TYPES.SAVED, { report: { id: 'rep-1' } as any, isNew: true });
+    domainEventBus.emit(REPORT_EVENT_TYPES.SAVED, { report: mockReport, isNew: true });
     domainEventBus.emit(REPORT_EVENT_TYPES.DELETED, { reportId: 'rep-1' });
 
     const history = domainEventBus.getHistory();

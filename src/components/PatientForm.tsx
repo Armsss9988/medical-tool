@@ -1,11 +1,11 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { User, Hash, Calendar, Phone, Stethoscope, ChevronDown, ChevronUp, MapPin, Sparkles, RefreshCw, Zap } from 'lucide-react';
-import { Patient, Doctor, Gender } from '@domain/types';
+import { Patient, Doctor, GENDER, GENDER_LIST } from '@domain';
 
 interface PatientFormProps {
   patient: Patient;
   setPatient?: React.Dispatch<React.SetStateAction<Patient>>;
-  onPatientChange?: (field: keyof Patient, value: any) => void;
+  onPatientChange?: <K extends keyof Patient>(field: K, value: Patient[K]) => void;
   onGenerateNewCode?: () => void;
   doctorsList: Doctor[];
   onOpenDoctorModal?: () => void;
@@ -54,7 +54,7 @@ export default function PatientForm({
     return undefined;
   }, [autoFocusName, nameRef]);
 
-  const handleChange = (field: keyof Patient, value: any) => {
+  const handleChange = <K extends keyof Patient>(field: K, value: Patient[K]) => {
     if (onPatientChange) {
       onPatientChange(field, value);
     } else if (setPatient) {
@@ -253,8 +253,8 @@ export default function PatientForm({
         <div>
           <label className="block text-xs font-bold text-slate-700 mb-1">Giới tính:</label>
           <div className="grid grid-cols-3 gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200">
-            {(['Nam', 'Nữ', 'Khác'] as Gender[]).map((g) => {
-              const isSelected = (patient.gender || 'Nam') === g;
+            {GENDER_LIST.map((g) => {
+              const isSelected = (patient.gender || GENDER.MALE) === g;
               return (
                 <button
                   type="button"

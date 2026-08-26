@@ -1,10 +1,12 @@
 export * from './types';
 export * from './allergen';
+export * from './allergenDetector';
 export * from './testResult';
 export * from './exportTransaction';
 export * from './patient';
 export * from './formatters';
 export * from './pricing';
+export * from './reportFactory';
 
 // Value Objects
 export * from './valueObjects/Money';
@@ -23,3 +25,7 @@ export * from './stateMachine/InvoiceStateMachine';
 // Domain Events & Event Bus
 export * from './events/DomainEvent';
 export * from './events/DomainEventBus';
+
+// Constants & Enums
+export * from './constants';
+

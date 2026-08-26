@@ -1,8 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { TestTube, Plus, Trash2, Search, Layers, Sparkles, X, ClipboardPaste, Clock, Keyboard } from 'lucide-react';
-import { evaluateResult, evaluateTestIndicator } from '@domain/testResult';
-import { calculateAllergenGrade } from '@domain/allergen';
-import { CatalogItem, SelectedTest, TestPackage } from '@domain/types';
+import { evaluateTestIndicator } from '@domain/testResult';
+import { CatalogItem, SelectedTest, TestPackage, TestGroup, ToastType } from '@domain/types';
 import { computePricingWithPackages } from '@domain/pricing';
 
 const QUICK_NOTE_OPTIONS = [
@@ -31,10 +30,10 @@ interface RecentTestItem {
 interface TestTableProps {
   catalog: CatalogItem[];
   testPackages?: TestPackage[];
-  testGroups?: any[];
+  testGroups?: TestGroup[];
   selectedTests: SelectedTest[];
   setSelectedTests: React.Dispatch<React.SetStateAction<SelectedTest[]>>;
-  showToast?: (message: string, type?: any) => void;
+  showToast?: (message: string, type?: ToastType) => void;
   onOpenInvoiceModal?: () => void;
   /** Recent tests for quick-add chips */
   recentTests?: RecentTestItem[];
