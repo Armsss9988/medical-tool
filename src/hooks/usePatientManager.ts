@@ -32,7 +32,7 @@ export function createDefaultPatient(customCode?: string): Patient {
     sampleCode: ticketCode,
     sampleStatus: 'Đạt',
     orderedAt: today,
-    paidAt: today,
+    paidAt: undefined,
     receivedAt: today,
     returnedAt: today
   };

@@ -1,9 +1,13 @@
-import { Invoice, Patient, SelectedTest, InvoiceItem, PaymentMethod } from '../domain/types';
+import { Invoice, Patient, SelectedTest, InvoiceItem, PaymentMethod, InvoiceStatus, TestPackage } from '../domain/types';
 import { Money } from '../domain/valueObjects/Money';
+import { domainEventBus } from '../domain/events/DomainEventBus';
+import { INVOICE_EVENT_TYPES } from '../domain/events/DomainEvent';
+import { buildInvoiceItems } from '../domain/pricing';
 
 export interface CreateInvoiceParams {
   patient: Patient;
   selectedTests?: SelectedTest[];
+  testPackages?: TestPackage[];
   items?: InvoiceItem[];
   doctorName?: string;
   packageName?: string;
@@ -14,6 +18,9 @@ export interface CreateInvoiceParams {
   invoicesCount?: number;
   cashierName?: string;
   notes?: string;
+  reportId?: string;
+  status?: InvoiceStatus;
+  paidAt?: string;
 }
 
 export class CreateInvoiceUseCase {
@@ -21,6 +28,7 @@ export class CreateInvoiceUseCase {
     const {
       patient,
       selectedTests = [],
+      testPackages = [],
       items: customItems,
       doctorName = 'BS. Trần Hoài Long',
       packageName = 'Tùy chọn',
@@ -30,19 +38,13 @@ export class CreateInvoiceUseCase {
       paymentMethod = 'Tiền mặt',
       invoicesCount = 0,
       cashierName = 'Thu ngân viện',
-      notes = ''
+      notes = '',
+      status = 'Chưa thu phí'
     } = params;
 
     const items: InvoiceItem[] = customItems && customItems.length > 0
       ? customItems
-      : selectedTests.map((t) => ({
-          code: t.code,
-          name: t.name,
-          price: t.price || 0,
-          quantity: 1,
-          category: t.category,
-          unit: t.unit || 'Lần'
-        }));
+      : buildInvoiceItems(selectedTests, testPackages);
 
     const rawSubtotal = items.reduce((sum, item) => sum + (item.price * (item.quantity || 1)), 0);
     const totalWithSurcharge = rawSubtotal + surchargeAmount;
@@ -54,7 +56,10 @@ export class CreateInvoiceUseCase {
     const seq = String(invoicesCount + 1).padStart(3, '0');
     const invoiceCode = `HD-${dateStr}-${seq}`;
 
-    return {
+    const isPaid = status === 'Đã thanh toán';
+    const paidAt = isPaid ? (params.paidAt || now.toISOString()) : undefined;
+
+    const invoice: Invoice = {
       id: crypto.randomUUID(),
       code: invoiceCode,
       createdAt: now.toISOString(),
@@ -73,9 +78,26 @@ export class CreateInvoiceUseCase {
       surchargeNote: surchargeAmount > 0 ? surchargeNote : undefined,
       finalAmount: finalMoney.amount,
       paymentMethod,
-      status: 'Đã thanh toán',
+      status,
       cashierName,
-      notes
+      notes,
+      reportId: params.reportId,
+      paidAt
     };
+
+    // Phát Domain Event: Hóa đơn được tạo
+    domainEventBus.emit(INVOICE_EVENT_TYPES.CREATED, { invoice });
+
+    // Nếu tạo ở trạng thái Đã thanh toán, phát thêm event PAID
+    if (isPaid) {
+      domainEventBus.emit(INVOICE_EVENT_TYPES.PAID, {
+        invoice,
+        paymentMethod,
+        paidAt: paidAt!,
+        reportId: params.reportId
+      });
+    }
+
+    return invoice;
   }
 }

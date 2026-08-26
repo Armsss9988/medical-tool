@@ -89,9 +89,13 @@ export default function FullAllergenReportView({
 
   const detailedList = tests.map((t, idx) => {
     const dbItem = dbMap.get((t.code || '').toLowerCase()) || dbMap.get((t.name || '').toLowerCase());
-    const gradeRes = calculateAllergenGrade(t.result || t.note);
+    const itemCode = (t.code || dbItem?.code || '').toLowerCase();
+    const isTIgE = itemCode === 'tige';
+
+    // TIgE không tính độ dương tính, chỉ có KẾT QUẢ (IU/ml)
+    const gradeRes = isTIgE ? { grade: 0 as const, iuValue: '', note: '', statusStr: '' } : calculateAllergenGrade(t.result || t.note);
     const grade = gradeRes.grade;
-    const isPositive = grade >= 1;
+    const isPositive = isTIgE ? false : grade >= 1;
 
     return {
       tt: idx + 1,
@@ -99,10 +103,11 @@ export default function FullAllergenReportView({
       name: t.name || dbItem?.name || 'Dị nguyên',
       allergenName: (t as any).allergenName || dbItem?.allergenName || t.name,
       route: (t as any).route || dbItem?.route || 'Đường tiêu hóa / Hô hấp',
-      normalRef: dbItem?.normalRef || (t.refMin !== null && t.refMax !== null ? `${t.refMin} - ${t.refMax}` : '<0,34'),
-      result: t.result || '<0,15',
+      normalRef: isTIgE ? '<15,0' : (dbItem?.normalRef || (t.refMin !== null && t.refMax !== null ? `${t.refMin} - ${t.refMax}` : '<0,34')),
+      result: t.result || (isTIgE ? '' : '<0,15'),
       grade: grade,
       isPositive: isPositive,
+      isTIgE: isTIgE,
       note: t.note || dbItem?.note || ''
     };
   });
@@ -388,7 +393,9 @@ export default function FullAllergenReportView({
                       <td className="py-2 px-4 border-r border-slate-300 align-middle leading-snug">{pos.name}</td>
                       <td className="py-2 px-4 border-r border-slate-300 italic font-medium text-red-600 align-middle leading-snug">{pos.allergenName}</td>
                       <td className="py-2 px-3 text-center font-mono border-r border-slate-300 align-middle leading-snug">{pos.code}</td>
-                      <td className="py-2 px-4 text-center font-mono text-[14.5px] align-middle leading-snug">{pos.grade}</td>
+                      <td className="py-2 px-4 text-center font-mono text-[14.5px] align-middle leading-snug">
+                        {pos.isTIgE ? <span className="text-[12px]">{pos.result} <span className="text-slate-500 text-[10px]">(IU/ml)</span></span> : pos.grade}
+                      </td>
                     </tr>
                   ))
                 )}
@@ -445,6 +452,29 @@ export default function FullAllergenReportView({
                 </p>
               </div>
             </div>
+
+            {/* Bảng ghi chú riêng cho Tổng nồng độ IgE */}
+            <div className="mt-2 border border-sky-300 rounded bg-sky-50/40">
+              <table className="w-full text-[12px] border-collapse">
+                <thead className="bg-sky-100/70 font-bold border-b border-sky-300">
+                  <tr>
+                    <th colSpan={2} className="py-1.5 px-2 text-center text-sky-900 text-[12.5px] uppercase tracking-wide align-middle leading-snug">
+                      Ghi chú: Tổng nồng độ IgE (TIgE)
+                    </th>
+                  </tr>
+                  <tr className="border-t border-sky-200">
+                    <th className="py-1 px-2 text-center border-r border-sky-300 w-1/2 align-middle leading-snug">GIÁ TRỊ BÌNH THƯỜNG (IU/ml)</th>
+                    <th className="py-1 px-2 text-center w-1/2 align-middle leading-snug">DIỄN GIẢI</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="py-1.5 px-2 text-center font-mono font-bold text-red-600 border-r border-sky-300 text-[13px] align-middle leading-snug">&lt;15,0</td>
+                    <td className="py-1.5 px-2 text-center font-semibold text-slate-700 text-[12.5px] align-middle leading-snug">Mức bình thường — Không tính Độ (+), chỉ có Kết Quả (IU/ml)</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
@@ -488,10 +518,32 @@ export default function FullAllergenReportView({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-300">
-                  {pageItems.map((item) => (
+                  {pageItems.map((item) => {
+                    // Màu gradient khớp bảng "DIỄN GIẢI ĐỘ DƯƠNG TÍNH" trong MỘT SỐ LƯU Ý
+                    const gradeRowBg = item.isTIgE ? 'bg-sky-50/40'
+                      : item.grade >= 6 ? 'bg-red-100'
+                      : item.grade >= 5 ? 'bg-red-100/60'
+                      : item.grade >= 4 ? 'bg-red-50/70'
+                      : item.grade >= 3 ? 'bg-red-50/50'
+                      : item.grade >= 2 ? 'bg-amber-50/70'
+                      : item.grade >= 1 ? 'bg-amber-50/50'
+                      : 'bg-white';
+
+                    const gradeTextColor = item.isTIgE ? 'text-sky-700'
+                      : item.grade >= 6 ? 'text-red-950'
+                      : item.grade >= 5 ? 'text-red-900'
+                      : item.grade >= 4 ? 'text-red-800'
+                      : item.grade >= 3 ? 'text-red-700'
+                      : item.grade >= 2 ? 'text-amber-900'
+                      : item.grade >= 1 ? 'text-amber-800'
+                      : 'text-slate-800';
+
+                    const resultTextColor = item.isPositive ? 'text-red-600' : 'text-slate-800';
+
+                    return (
                     <tr 
                       key={item.code} 
-                      className={`hover:bg-slate-50 ${item.isPositive ? 'bg-red-50/50' : 'bg-white'}`}
+                      className={`hover:bg-slate-50 ${gradeRowBg}`}
                     >
                       <td className="py-1.5 px-1 text-center font-mono text-slate-500 border-r border-slate-300 align-middle leading-snug">{item.tt}</td>
                       <td className="py-1.5 px-1 text-center font-mono font-bold text-sky-800 border-r border-slate-300 text-[12px] align-middle leading-snug">{item.code}</td>
@@ -499,15 +551,18 @@ export default function FullAllergenReportView({
                       <td className="py-1.5 px-2 italic text-slate-600 border-r border-slate-300 text-[12px] align-middle leading-snug">{item.allergenName}</td>
                       <td className="py-1.5 px-2 text-slate-600 border-r border-slate-300 text-[11px] align-middle leading-snug">{item.route}</td>
                       <td className="py-1.5 px-1.5 text-center font-mono text-slate-600 border-r border-slate-300 text-[11.5px] align-middle leading-snug">{item.normalRef}</td>
-                      <td className={`py-1.5 px-1.5 text-center font-mono font-bold border-r border-slate-300 text-[12.5px] align-middle leading-snug ${item.isPositive ? 'text-red-600' : 'text-slate-800'}`}>
+                      <td className={`py-1.5 px-1.5 text-center font-mono font-bold border-r border-slate-300 text-[12.5px] align-middle leading-snug ${resultTextColor}`}>
                         {item.result}
                       </td>
-                      <td className="py-1.5 px-1 text-center font-mono font-bold text-red-600 border-r border-slate-300 text-[13px] align-middle leading-snug">
-                        {item.isPositive ? item.grade : ''}
+                      <td className={`py-1.5 px-1 text-center font-mono font-bold border-r border-slate-300 text-[13px] align-middle leading-snug ${gradeTextColor}`}>
+                        {item.isTIgE ? '' : (item.isPositive ? item.grade : '')}
                       </td>
-                      <td className="py-1.5 px-2 text-slate-600 text-[11px] leading-snug align-middle">{item.note}</td>
+                      <td className="py-1.5 px-2 text-slate-600 text-[11px] leading-snug align-middle">
+                        {item.isTIgE ? <span className="italic text-sky-700 font-semibold">Không tính độ</span> : item.note}
+                      </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

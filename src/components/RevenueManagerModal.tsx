@@ -1,20 +1,26 @@
 import { useState, useMemo } from 'react';
 import {
   X, CreditCard, Trash2, Search, Calendar, FileSpreadsheet, Printer,
-  TrendingUp, Users, DollarSign, Wallet, Filter, Eye, AlertCircle, Sparkles, CheckCircle, Percent
+  TrendingUp, Users, DollarSign, Eye, AlertCircle, CheckCircle, Percent,
+  Clock, Undo2, AlertTriangle
 } from 'lucide-react';
-import { Invoice, Doctor, ClinicInfo, PaymentMethod, InvoiceStatus } from '@domain/types';
+import { Invoice, Doctor, ClinicInfo, MedicalReport, TestPackage } from '@domain/types';
+import { computePricingWithPackages } from '@domain/pricing';
 import { exportRevenueExcel } from '@infra/excelService';
 import PrintReceiptView from './PrintReceiptView';
 
 type DateFilterType = 'ALL' | 'TODAY' | 'YESTERDAY' | 'LAST_7_DAYS' | 'THIS_MONTH' | 'LAST_MONTH' | 'CUSTOM';
-type RevenueTabType = 'INVOICES' | 'DOCTORS' | 'DAILY_REPORT';
+type RevenueTabType = 'INVOICES' | 'PENDING_PAYMENT' | 'DOCTORS' | 'DAILY_REPORT';
 
 interface RevenueManagerModalProps {
   isOpen: boolean;
   onClose: () => void;
   invoices: Invoice[];
+  reports?: MedicalReport[];
+  testPackages?: TestPackage[];
   onDeleteInvoice: (id: string) => void;
+  onCancelInvoice?: (invoiceId: string) => void;
+  onOpenInvoiceForReport?: (report: MedicalReport) => void;
   onClearAllInvoices: () => void;
   doctorsList?: Doctor[];
   clinicInfo?: ClinicInfo;
@@ -25,7 +31,11 @@ export default function RevenueManagerModal({
   isOpen,
   onClose,
   invoices,
+  reports = [],
+  testPackages = [],
   onDeleteInvoice,
+  onCancelInvoice,
+  onOpenInvoiceForReport,
   onClearAllInvoices,
   doctorsList = [],
   clinicInfo,
@@ -38,15 +48,13 @@ export default function RevenueManagerModal({
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [selectedDoctor, setSelectedDoctor] = useState<string>('ALL');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('ALL');
-  const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
+  const [selectedStatus] = useState<string>('ALL');
 
   // Hoa hồng bác sĩ (% mặc định = 10%)
   const [doctorCommissionRates, setDoctorCommissionRates] = useState<Record<string, number>>({});
 
   // Modal Xem lại & In biên lai
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
-
-  if (!isOpen) return null;
 
   // 1. LỌC DANH SÁCH HÓA ĐƠN
   const filteredInvoices = useMemo(() => {
@@ -117,18 +125,87 @@ export default function RevenueManagerModal({
     });
   }, [invoices, searchTerm, selectedDoctor, selectedPaymentMethod, selectedStatus, dateFilter, customStartDate, customEndDate]);
 
+  // 1.5. DANH SÁCH CÁC PHIẾU XÉT NGHIỆM CHƯA THU TIỀN (CÔNG NỢ / CHỜ THU)
+  const pendingReports = useMemo(() => {
+    return reports.filter((rep) => {
+      const isPaid = invoices.some(
+        (inv) =>
+          inv.status === 'Đã thanh toán' &&
+          (inv.id === rep.invoiceId ||
+            inv.reportId === rep.id ||
+            (inv.patientCode && (inv.patientCode === rep.code || inv.patientCode === rep.patient?.code)))
+      );
+      if (isPaid) return false;
+
+      // Lọc theo từ khóa
+      if (searchTerm.trim()) {
+        const term = searchTerm.toLowerCase().trim();
+        const matchName = rep.patient.name?.toLowerCase().includes(term);
+        const matchCode = rep.code?.toLowerCase().includes(term);
+        const matchPhone = rep.patient.phone?.toLowerCase().includes(term);
+        const matchDoc = rep.doctorName?.toLowerCase().includes(term);
+        if (!matchName && !matchCode && !matchPhone && !matchDoc) return false;
+      }
+
+      // Lọc theo Bác sĩ
+      if (selectedDoctor !== 'ALL' && rep.doctorName !== selectedDoctor) {
+        return false;
+      }
+
+      // Lọc theo thời gian
+      const repDate = new Date(rep.createdAt);
+      const now = new Date();
+      const todayStr = now.toDateString();
+      const yesterday = new Date(now);
+      yesterday.setDate(now.getDate() - 1);
+      const yesterdayStr = yesterday.toDateString();
+      const sevenDaysAgo = new Date(now);
+      sevenDaysAgo.setDate(now.getDate() - 7);
+
+      if (dateFilter === 'TODAY' && repDate.toDateString() !== todayStr) return false;
+      if (dateFilter === 'YESTERDAY' && repDate.toDateString() !== yesterdayStr) return false;
+      if (dateFilter === 'LAST_7_DAYS' && repDate < sevenDaysAgo) return false;
+      if (dateFilter === 'THIS_MONTH' && (repDate.getMonth() !== now.getMonth() || repDate.getFullYear() !== now.getFullYear())) return false;
+      if (dateFilter === 'CUSTOM') {
+        if (customStartDate && new Date(customStartDate) > repDate) return false;
+        if (customEndDate) {
+          const end = new Date(customEndDate);
+          end.setHours(23, 59, 59, 999);
+          if (repDate > end) return false;
+        }
+      }
+
+      return true;
+    });
+  }, [reports, invoices, searchTerm, selectedDoctor, dateFilter, customStartDate, customEndDate]);
+
+  // Tính tiền tạm tính cho từng phiếu chưa thu (ưu tiên giá gói)
+  const getEstimatedFee = (rep: MedicalReport) => {
+    if (!rep.selectedTests || rep.selectedTests.length === 0) return 0;
+    return computePricingWithPackages(
+      rep.selectedTests.map((t) => t.code),
+      rep.selectedTests,
+      testPackages
+    ).total;
+  };
+
+  const totalPendingAmount = useMemo(() => {
+    return pendingReports.reduce((sum, rep) => sum + getEstimatedFee(rep), 0);
+  }, [pendingReports]);
+
   // 2. TÍNH TOÁN CÁC THẺ KPI TÀI CHÍNH
   const kpis = useMemo(() => {
-    const totalFinal = filteredInvoices.reduce((sum, inv) => sum + (inv.finalAmount || 0), 0);
-    const totalRaw = filteredInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
-    const totalDiscount = filteredInvoices.reduce((sum, inv) => sum + (inv.discountAmount || 0), 0);
-    const count = filteredInvoices.length;
+    const paidInvoices = filteredInvoices.filter((i) => i.status === 'Đã thanh toán');
+    const totalFinal = paidInvoices.reduce((sum, inv) => sum + (inv.finalAmount || 0), 0);
+    const totalRaw = paidInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
+    const totalDiscount = paidInvoices.reduce((sum, inv) => sum + (inv.discountAmount || 0), 0);
+    const count = paidInvoices.length;
     const aov = count > 0 ? Math.round(totalFinal / count) : 0;
 
     // Cơ cấu thanh toán
-    const cashTotal = filteredInvoices.filter((i) => i.paymentMethod === 'Tiền mặt').reduce((s, i) => s + (i.finalAmount || 0), 0);
-    const vietQrTotal = filteredInvoices.filter((i) => i.paymentMethod === 'Chuyển khoản (VietQR)').reduce((s, i) => s + (i.finalAmount || 0), 0);
-    const posTotal = filteredInvoices.filter((i) => i.paymentMethod === 'Quẹt thẻ').reduce((s, i) => s + (i.finalAmount || 0), 0);
+    const cashTotal = paidInvoices.filter((i) => i.paymentMethod === 'Tiền mặt').reduce((s, i) => s + (i.finalAmount || 0), 0);
+    const vietQrTotal = paidInvoices.filter((i) => i.paymentMethod === 'Chuyển khoản (VietQR)').reduce((s, i) => s + (i.finalAmount || 0), 0);
+    const posTotal = paidInvoices.filter((i) => i.paymentMethod === 'Quẹt thẻ').reduce((s, i) => s + (i.finalAmount || 0), 0);
 
     return {
       totalFinal,
@@ -202,6 +279,8 @@ export default function RevenueManagerModal({
     }));
   };
 
+  if (!isOpen) return null;
+
   return (
     <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-50 p-0 sm:p-4 md:p-6 overflow-hidden">
       <div className="bg-slate-900 border border-slate-700/80 sm:rounded-2xl shadow-2xl w-full h-full sm:h-auto sm:max-w-6xl sm:max-h-[92vh] flex flex-col overflow-hidden text-white animate-in fade-in zoom-in-95 duration-200">
@@ -246,70 +325,105 @@ export default function RevenueManagerModal({
         </div>
 
         {/* TABS NAVIGATION */}
-        <div className="flex border-b border-slate-800 bg-slate-950/60 shrink-0 text-xs font-bold uppercase tracking-wider">
+        <div className="flex border-b border-slate-800 bg-slate-950/60 shrink-0 text-xs font-bold uppercase tracking-wider overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveTab('INVOICES')}
-            className={`flex-1 py-3 flex items-center justify-center gap-2 transition border-b-2 ${
+            className={`flex-1 min-w-[160px] py-3 flex items-center justify-center gap-2 transition border-b-2 ${
               activeTab === 'INVOICES'
                 ? 'text-amber-400 border-amber-500 bg-amber-500/5'
                 : 'text-slate-400 border-transparent hover:text-slate-200'
             }`}
           >
             <CreditCard className="w-4 h-4" />
-            <span>Sổ Sách Hóa Đơn ({filteredInvoices.length})</span>
+            <span>Sổ Hóa Đơn Đã Thu ({filteredInvoices.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('PENDING_PAYMENT')}
+            className={`flex-1 min-w-[160px] py-3 flex items-center justify-center gap-2 transition border-b-2 ${
+              activeTab === 'PENDING_PAYMENT'
+                ? 'text-rose-400 border-rose-500 bg-rose-500/5'
+                : 'text-slate-400 border-transparent hover:text-slate-200'
+            }`}
+          >
+            <Clock className="w-4 h-4" />
+            <span>Chờ Thu & Công Nợ ({pendingReports.length})</span>
           </button>
 
           <button
             onClick={() => setActiveTab('DOCTORS')}
-            className={`flex-1 py-3 flex items-center justify-center gap-2 transition border-b-2 ${
+            className={`flex-1 min-w-[160px] py-3 flex items-center justify-center gap-2 transition border-b-2 ${
               activeTab === 'DOCTORS'
                 ? 'text-sky-400 border-sky-500 bg-sky-500/5'
                 : 'text-slate-400 border-transparent hover:text-slate-200'
             }`}
           >
             <Users className="w-4 h-4" />
-            <span>Báo Cáo Bác Sĩ & Hoa Hồng ({doctorStats.length})</span>
+            <span>Báo Cáo Bác Sĩ ({doctorStats.length})</span>
           </button>
 
           <button
             onClick={() => setActiveTab('DAILY_REPORT')}
-            className={`flex-1 py-3 flex items-center justify-center gap-2 transition border-b-2 ${
+            className={`flex-1 min-w-[160px] py-3 flex items-center justify-center gap-2 transition border-b-2 ${
               activeTab === 'DAILY_REPORT'
                 ? 'text-emerald-400 border-emerald-500 bg-emerald-500/5'
                 : 'text-slate-400 border-transparent hover:text-slate-200'
             }`}
           >
             <Printer className="w-4 h-4" />
-            <span>Báo Cáo Tổng Kết Ca / Cuối Ngày</span>
+            <span>Báo Cáo Tổng Kết Ca</span>
           </button>
         </div>
 
         {/* THẺ DASHBOARD KPIS */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 p-4 bg-slate-950/40 border-b border-slate-800/80 text-xs shrink-0">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-2.5 p-4 bg-slate-950/40 border-b border-slate-800/80 text-xs shrink-0">
           <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 flex items-center justify-between">
             <div>
               <p className="text-slate-400 font-medium text-[11px]">Tổng thực thu</p>
-              <p className="text-base lg:text-lg font-black text-amber-400 font-mono mt-0.5">
+              <p className="text-sm lg:text-base font-black text-amber-400 font-mono mt-0.5">
                 {kpis.totalFinal.toLocaleString('vi-VN')} đ
               </p>
             </div>
             <DollarSign className="w-5 h-5 text-amber-400/80" />
           </div>
 
-          <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 flex items-center justify-between">
+          <div
+            onClick={() => setActiveTab('PENDING_PAYMENT')}
+            className={`border rounded-xl p-3 flex items-center justify-between cursor-pointer transition ${
+              totalPendingAmount > 0
+                ? 'bg-rose-950/20 border-rose-500/40 hover:bg-rose-950/40'
+                : 'bg-slate-800/60 border-slate-700/60'
+            }`}
+            title="Click để xem danh sách phiếu chờ thu tiền"
+          >
             <div>
-              <p className="text-slate-400 font-medium text-[11px]">Tổng giảm giá</p>
-              <p className="text-base lg:text-lg font-black text-rose-400 font-mono mt-0.5">
-                {kpis.totalDiscount.toLocaleString('vi-VN')} đ
+              <p className="text-rose-300 font-medium text-[11px] flex items-center gap-1">
+                <span>Chờ thu (Công nợ)</span>
+                {pendingReports.length > 0 && (
+                  <span className="text-[9px] bg-rose-500 text-white px-1 rounded font-bold">{pendingReports.length}</span>
+                )}
+              </p>
+              <p className="text-sm lg:text-base font-black text-rose-400 font-mono mt-0.5">
+                {totalPendingAmount.toLocaleString('vi-VN')} đ
               </p>
             </div>
-            <Percent className="w-5 h-5 text-rose-400/80" />
+            <Clock className="w-5 h-5 text-rose-400/80" />
           </div>
 
           <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 flex items-center justify-between">
             <div>
-              <p className="text-slate-400 font-medium text-[11px]">Số ca thu viện phí</p>
-              <p className="text-base lg:text-lg font-black text-white font-mono mt-0.5">
+              <p className="text-slate-400 font-medium text-[11px]">Tổng giảm giá</p>
+              <p className="text-sm lg:text-base font-black text-rose-300 font-mono mt-0.5">
+                {kpis.totalDiscount.toLocaleString('vi-VN')} đ
+              </p>
+            </div>
+            <Percent className="w-5 h-5 text-rose-300/80" />
+          </div>
+
+          <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 flex items-center justify-between">
+            <div>
+              <p className="text-slate-400 font-medium text-[11px]">Số ca đã thu</p>
+              <p className="text-sm lg:text-base font-black text-white font-mono mt-0.5">
                 {kpis.count} lượt
               </p>
             </div>
@@ -319,7 +433,7 @@ export default function RevenueManagerModal({
           <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 flex items-center justify-between">
             <div>
               <p className="text-slate-400 font-medium text-[11px]">TB / Lượt (AOV)</p>
-              <p className="text-base lg:text-lg font-black text-emerald-400 font-mono mt-0.5">
+              <p className="text-sm lg:text-base font-black text-emerald-400 font-mono mt-0.5">
                 {kpis.aov.toLocaleString('vi-VN')} đ
               </p>
             </div>
@@ -476,15 +590,26 @@ export default function RevenueManagerModal({
                           </td>
 
                           <td className="p-2.5">
-                            <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                              inv.paymentMethod === 'Chuyển khoản (VietQR)'
-                                ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                                : inv.paymentMethod === 'Tiền mặt'
-                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                            }`}>
-                              {inv.paymentMethod}
-                            </span>
+                            <div className="flex flex-col gap-1">
+                              <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                inv.paymentMethod === 'Chuyển khoản (VietQR)'
+                                  ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                                  : inv.paymentMethod === 'Tiền mặt'
+                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                  : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                              }`}>
+                                {inv.paymentMethod}
+                              </span>
+                              <span className={`inline-block text-[9.5px] font-semibold px-1.5 py-0.2 rounded ${
+                                inv.status === 'Đã thanh toán'
+                                  ? 'text-emerald-400 bg-emerald-950/40 border border-emerald-500/30'
+                                  : inv.status === 'Đã hủy / Hoàn tiền'
+                                  ? 'text-rose-400 bg-rose-950/40 border border-rose-500/30'
+                                  : 'text-amber-400 bg-amber-950/40 border border-amber-500/30'
+                              }`}>
+                                {inv.status || 'Chưa thu phí'}
+                              </span>
+                            </div>
                           </td>
 
                           <td className="p-2.5 text-right font-mono text-rose-400 font-semibold">
@@ -507,11 +632,27 @@ export default function RevenueManagerModal({
                                 <Eye className="w-3.5 h-3.5" />
                               </button>
 
+                              {/* Hủy Hóa Đơn & Hoàn Trạng Thái Chưa Thu */}
+                              {onCancelInvoice && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (window.confirm(`Hủy hóa đơn ${inv.code} của bệnh nhân ${inv.patientName} và hoàn trả trạng thái "Chưa thu tiền" cho phiếu xét nghiệm?`)) {
+                                      onCancelInvoice(inv.id);
+                                    }
+                                  }}
+                                  className="p-1.5 bg-slate-800 hover:bg-amber-600 text-amber-300 hover:text-white rounded-lg transition"
+                                  title="Hủy hóa đơn này & hoàn lại trạng thái Chưa Thu Phí cho Phiếu XN"
+                                >
+                                  <Undo2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+
                               {/* Xóa Hóa đơn */}
                               <button
                                 type="button"
                                 onClick={() => {
-                                  if (window.confirm(`Xóa hóa đơn ${inv.code} của bệnh nhân ${inv.patientName}?`)) {
+                                  if (window.confirm(`Xóa hoàn toàn hóa đơn ${inv.code} khỏi cơ sở dữ liệu?`)) {
                                     onDeleteInvoice(inv.id);
                                   }
                                 }}
@@ -531,7 +672,109 @@ export default function RevenueManagerModal({
             </div>
           )}
 
-          {/* ══════════════ TAB 2: BÁO CÁO BÁC SĨ & HOA HỒNG ══════════════ */}
+          {/* ══════════════ TAB 2: CHỜ THU TIỀN & CÔNG NỢ ══════════════ */}
+          {activeTab === 'PENDING_PAYMENT' && (
+            <div className="space-y-4">
+              <div className="p-3 bg-rose-950/30 border border-rose-800/40 rounded-xl flex items-center justify-between text-xs text-rose-200">
+                <div className="flex items-center space-x-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span>
+                    Danh sách <strong>{pendingReports.length}</strong> phiếu xét nghiệm đã tiếp nhận / trả kết quả nhưng <strong>chưa thu tiền</strong> (Tổng công nợ tạm tính: <strong className="font-mono text-rose-300">{totalPendingAmount.toLocaleString('vi-VN')} đ</strong>).
+                  </span>
+                </div>
+              </div>
+
+              {pendingReports.length === 0 ? (
+                <div className="py-16 text-center text-slate-400 space-y-3">
+                  <CheckCircle className="w-10 h-10 mx-auto text-emerald-500" />
+                  <p className="text-sm font-semibold text-emerald-400">Tuyệt vời! Không có phiếu xét nghiệm nào đang nợ viện phí.</p>
+                  <p className="text-xs text-slate-500">Tất cả các ca khám đều đã được thanh toán đầy đủ.</p>
+                </div>
+              ) : (
+                <div className="border border-slate-800 rounded-xl overflow-hidden shadow-inner">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead className="bg-slate-800 text-slate-200 font-bold border-b border-slate-700 text-[11.5px]">
+                      <tr>
+                        <th className="p-2.5 w-10 text-center">STT</th>
+                        <th className="p-2.5">Mã Phiếu & Thời Gian</th>
+                        <th className="p-2.5">Bệnh Nhân & Năm Sinh</th>
+                        <th className="p-2.5">Số ĐT & Địa Chỉ</th>
+                        <th className="p-2.5">Bác Sĩ & Loại Phiếu</th>
+                        <th className="p-2.5 text-center">Số Chỉ Số</th>
+                        <th className="p-2.5 text-right">Tạm Tính Viện Phí</th>
+                        <th className="p-2.5 text-right">Thao Tác</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+                      {pendingReports.map((rep, idx) => {
+                        const estFee = getEstimatedFee(rep);
+                        const isAllergen = rep.isAllergen;
+
+                        return (
+                          <tr key={rep.id} className="hover:bg-slate-800/40 transition">
+                            <td className="p-2.5 text-center text-slate-500 font-mono">{idx + 1}</td>
+
+                            <td className="p-2.5">
+                              <span className="font-mono font-bold text-sky-400 block">{rep.code}</span>
+                              <span className="text-[10.5px] text-slate-400 flex items-center gap-1 mt-0.5">
+                                <Calendar className="w-3 h-3 text-slate-500" />
+                                {new Date(rep.createdAt).toLocaleString('vi-VN')}
+                              </span>
+                            </td>
+
+                            <td className="p-2.5">
+                              <strong className="text-white uppercase font-bold block">{rep.patient.name}</strong>
+                              <span className="text-[10.5px] text-slate-400">{rep.patient.dob || '---'} • {rep.patient.gender}</span>
+                            </td>
+
+                            <td className="p-2.5 max-w-[180px]">
+                              <span className="font-mono text-slate-300 block">{rep.patient.phone || '---'}</span>
+                              <span className="text-[10.5px] text-slate-400 truncate block mt-0.5" title={rep.patient.address}>
+                                {rep.patient.address || 'Quảng Bình'}
+                              </span>
+                            </td>
+
+                            <td className="p-2.5">
+                              <span className="font-semibold text-slate-200 block">{rep.doctorName || 'BS. Trần Hoài Long'}</span>
+                              <span className={`inline-block text-[10px] font-extrabold px-1.5 py-0.5 rounded mt-0.5 ${
+                                isAllergen ? 'bg-purple-500/20 text-purple-300' : 'bg-sky-500/20 text-sky-300'
+                              }`}>
+                                {isAllergen ? 'Dị Nguyên' : 'Xét Nghiệm'}
+                              </span>
+                            </td>
+
+                            <td className="p-2.5 text-center font-mono font-bold text-slate-300">
+                              {rep.testCount || rep.selectedTests.length}
+                            </td>
+
+                            <td className="p-2.5 text-right font-mono font-bold text-rose-400 text-xs">
+                              {estFee.toLocaleString('vi-VN')} đ
+                            </td>
+
+                            <td className="p-2.5 text-right">
+                              {onOpenInvoiceForReport && (
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenInvoiceForReport(rep)}
+                                  className="px-3 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-lg shadow transition active:scale-95 flex items-center gap-1.5 ml-auto text-xs"
+                                  title="Mở cửa sổ lập hóa đơn và thu tiền ngay"
+                                >
+                                  <CreditCard className="w-3.5 h-3.5" />
+                                  <span>Thu Phí Ngay</span>
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ══════════════ TAB 3: BÁO CÁO BÁC SĨ & HOA HỒNG ══════════════ */}
           {activeTab === 'DOCTORS' && (
             <div className="space-y-4">
               <div className="p-3 bg-sky-950/30 border border-sky-800/40 rounded-xl flex items-center justify-between text-xs text-sky-200">
@@ -755,9 +998,9 @@ export default function RevenueManagerModal({
 
       {/* MODAL POPUP XEM & IN LẠI BIÊN LAI VIỆN PHÍ */}
       {viewingInvoice && (
-        <div className="fixed inset-0 z-60 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between">
+        <div className="fixed inset-0 z-60 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-0 sm:p-4">
+          <div className="bg-white sm:rounded-2xl shadow-2xl max-w-5xl w-full h-full sm:h-[92vh] max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between shrink-0">
               <div className="flex items-center space-x-2">
                 <Printer className="w-5 h-5 text-amber-400" />
                 <h4 className="font-bold text-sm">Xem Lại Biên Lai Thu Tiền: {viewingInvoice.code}</h4>
@@ -770,8 +1013,8 @@ export default function RevenueManagerModal({
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto bg-slate-100 flex flex-col items-center">
-              <div className="bg-white shadow-xl rounded-xl overflow-hidden border border-slate-300">
+            <div className="flex-1 min-h-0 overflow-auto p-4 sm:p-6 bg-slate-200/90 flex justify-center items-start">
+              <div className="bg-white shadow-2xl rounded-xl border border-slate-300 origin-top my-2 scale-[0.85] sm:scale-100">
                 <PrintReceiptView invoice={viewingInvoice} clinicInfo={clinicInfo} />
               </div>
             </div>

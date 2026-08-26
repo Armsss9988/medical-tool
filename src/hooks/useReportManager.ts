@@ -1,6 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { MedicalReport, Patient, SelectedTest, ReportStatus } from '@domain/types';
+import { ReportStateMachine } from '@domain/stateMachine/ReportStateMachine';
 import { loadData, saveData, loadState } from '@infra/storage';
+import { domainEventBus } from '@domain/events/DomainEventBus';
+import {
+  REPORT_EVENT_TYPES,
+  INVOICE_EVENT_TYPES,
+  InvoicePaidPayload,
+  InvoiceCancelledPayload,
+  InvoiceDeletedPayload,
+  ReportPdfExportedPayload,
+  ReportZaloSentPayload
+} from '@domain/events/DomainEvent';
 
 export function useReportManager() {
   // 1. Tải danh sách phiếu đã lưu đồng bộ từ Storage ngay từ render đầu tiên
@@ -30,7 +41,131 @@ export function useReportManager() {
     saveData('medical_reports', reports);
   }, [reports]);
 
-  // 4. Thêm mới hoặc cập nhật phiếu (Tự động tính toán Outdated & Version)
+  // 4. LẮNG NGHE DOMAIN EVENTS ĐỂ TỰ ĐỘNG ĐỒNG BỘ HIỆU ỨNG LIÊN ĐỚI (CASCADE SYNC)
+  useEffect(() => {
+    // 4.1. Khi Hóa đơn được thanh toán -> Cập nhật trạng thái phiếu sang Đã thu
+    const unsubPaid = domainEventBus.subscribe<InvoicePaidPayload>(
+      INVOICE_EVENT_TYPES.PAID,
+      ({ payload }) => {
+        setReports((prev) => {
+          const targetReportId = payload.reportId || payload.invoice.reportId;
+          const targetIndex = prev.findIndex(
+            (r) =>
+              (targetReportId && r.id === targetReportId) ||
+              (payload.invoice.id && r.invoiceId === payload.invoice.id) ||
+              (payload.invoice.patientCode && r.code === payload.invoice.patientCode)
+          );
+          if (targetIndex < 0) return prev;
+
+          const target = prev[targetIndex];
+          const updated = ReportStateMachine.onPaymentCollected(
+            target,
+            payload.invoice.id,
+            payload.paidAt
+          );
+
+          const next = [...prev];
+          next[targetIndex] = updated;
+          saveData('medical_reports', next);
+          return next;
+        });
+      }
+    );
+
+    // 4.2. Khi Hóa đơn bị hủy -> Reset trạng thái thu tiền của phiếu
+    const unsubCancelled = domainEventBus.subscribe<InvoiceCancelledPayload>(
+      INVOICE_EVENT_TYPES.CANCELLED,
+      ({ payload }) => {
+        setReports((prev) => {
+          const targetIndex = prev.findIndex(
+            (r) =>
+              r.invoiceId === payload.invoiceId ||
+              (payload.reportId && r.id === payload.reportId)
+          );
+          if (targetIndex < 0) return prev;
+
+          const target = prev[targetIndex];
+          const updated = ReportStateMachine.onPaymentVoided(target);
+
+          const next = [...prev];
+          next[targetIndex] = updated;
+          saveData('medical_reports', next);
+          return next;
+        });
+      }
+    );
+
+    // 4.3. Khi Hóa đơn bị xóa -> Giải phóng liên kết trên phiếu
+    const unsubDeleted = domainEventBus.subscribe<InvoiceDeletedPayload>(
+      INVOICE_EVENT_TYPES.DELETED,
+      ({ payload }) => {
+        setReports((prev) => {
+          const targetIndex = prev.findIndex(
+            (r) =>
+              r.invoiceId === payload.invoiceId ||
+              (payload.reportId && r.id === payload.reportId)
+          );
+          if (targetIndex < 0) return prev;
+
+          const target = prev[targetIndex];
+          const updated = ReportStateMachine.onPaymentVoided(target);
+
+          const next = [...prev];
+          next[targetIndex] = updated;
+          saveData('medical_reports', next);
+          return next;
+        });
+      }
+    );
+
+    // 4.4. Khi Xuất PDF Cloud -> Cập nhật phiên bản PDF & trạng thái
+    const unsubPdf = domainEventBus.subscribe<ReportPdfExportedPayload>(
+      REPORT_EVENT_TYPES.PDF_EXPORTED,
+      ({ payload }) => {
+        setReports((prev) => {
+          const idx = prev.findIndex((r) => r.id === payload.reportId);
+          if (idx < 0) return prev;
+
+          const updated = ReportStateMachine.onExportCloud(
+            prev[idx],
+            payload.cloudPdfUrl,
+            payload.qrCodeDataUrl
+          );
+          const next = [...prev];
+          next[idx] = updated;
+          saveData('medical_reports', next);
+          return next;
+        });
+      }
+    );
+
+    // 4.5. Khi Gửi Zalo thành công -> Cập nhật trạng thái Đã trả kết quả
+    const unsubZalo = domainEventBus.subscribe<ReportZaloSentPayload>(
+      REPORT_EVENT_TYPES.ZALO_SENT,
+      ({ payload }) => {
+        setReports((prev) => {
+          const idx = prev.findIndex((r) => r.id === payload.reportId);
+          if (idx < 0) return prev;
+
+          const updated = ReportStateMachine.onSendZalo(prev[idx], payload.msgId);
+          const next = [...prev];
+          next[idx] = updated;
+          saveData('medical_reports', next);
+          return next;
+        });
+      }
+    );
+
+    return () => {
+      unsubPaid();
+      unsubCancelled();
+      unsubDeleted();
+      unsubPdf();
+      unsubZalo();
+    };
+  }, []);
+
+  // 5. Thêm mới hoặc cập nhật phiếu thông qua Domain State Machine & Phát Event
   const saveOrUpdateReport = (params: {
     id?: string;
     patient: Patient;
@@ -47,20 +182,8 @@ export function useReportManager() {
     pdfVersion?: number;
     isPdfOutdated?: boolean;
   }): MedicalReport => {
-    const isAllergen = params.selectedTests.some(
-      (t) => (t.category && t.category.includes('Dị Nguyên')) || t.unit === 'IU/mL'
-    );
-
-    const nowIso = new Date().toISOString();
-
-    let defaultStatus: ReportStatus = 'Đã có kết quả';
-    if (params.cloudPdfUrl) {
-      defaultStatus = 'Đã xuất Cloud';
-    } else if (params.selectedTests.length === 0 || params.selectedTests.every((t) => !t.result)) {
-      defaultStatus = 'Chờ xét nghiệm';
-    }
-
     let returnedReport: MedicalReport | null = null;
+    let isNewReport = false;
 
     setReports((prev) => {
       const idx = params.id
@@ -70,58 +193,50 @@ export function useReportManager() {
           );
 
       const existingItem = idx >= 0 ? prev[idx] : null;
+      isNewReport = !existingItem;
 
-      // ─── TÍNH TOÁN TRẠNG THÁI PDF & VERSIONING ──────────────────────────
-      const isNewlyExported = !!params.cloudPdfUrl && params.cloudPdfUrl !== existingItem?.cloudPdfUrl;
-      const hadPreviousPdf = !!(existingItem?.cloudPdfUrl || existingItem?.pdfGeneratedAt);
+      let updatedReport: MedicalReport;
 
-      let calcPdfGeneratedAt: string | undefined = existingItem?.pdfGeneratedAt;
-      let calcPdfVersion: number | undefined = existingItem?.pdfVersion || (hadPreviousPdf ? 1 : undefined);
-      let calcIsOutdated: boolean = false;
-      let finalStatus: ReportStatus = params.status || defaultStatus;
+      if (!existingItem) {
+        // Tạo mới thông qua State Machine
+        const isAllergen = params.selectedTests.some(
+          (t) => (t.category && t.category.includes('Dị Nguyên')) || t.unit === 'IU/mL'
+        );
+        updatedReport = ReportStateMachine.createInitialReport({
+          id: params.id,
+          code: params.patient.code || `BN-${Date.now()}`,
+          sampleCode: params.patient.sampleCode || params.patient.code || `BN-${Date.now()}`,
+          patient: params.patient,
+          doctorName: params.doctorName,
+          selectedTests: params.selectedTests,
+          conclusion: params.conclusion,
+          isAllergen,
+          invoiceId: params.invoiceId
+        });
 
-      if (params.cloudPdfUrl || isNewlyExported) {
-        // Vừa xuất PDF Cloud mới -> Cập nhật version, đánh dấu mới nhất
-        calcPdfGeneratedAt = nowIso;
-        calcPdfVersion = (existingItem?.pdfVersion || 0) + 1;
-        calcIsOutdated = false;
-        finalStatus = 'Đã xuất Cloud';
-      } else if (hadPreviousPdf) {
-        // Đã từng có PDF nhưng giờ chỉ sửa thông tin dữ liệu mà chưa xuất lại PDF
-        calcIsOutdated = params.isPdfOutdated !== undefined ? params.isPdfOutdated : true;
-        if (calcIsOutdated) {
-          finalStatus = 'Cần cập nhật PDF';
+        if (params.cloudPdfUrl) {
+          updatedReport = ReportStateMachine.onExportCloud(updatedReport, params.cloudPdfUrl, params.qrCodeDataUrl);
         }
-      } else if (existingItem) {
-        finalStatus = params.status || existingItem.status || defaultStatus;
-      }
+      } else {
+        // Cập nhật thông qua State Machine
+        updatedReport = ReportStateMachine.onUpdateReport(existingItem, {
+          patient: params.patient,
+          selectedTests: params.selectedTests,
+          conclusion: params.conclusion,
+          doctorName: params.doctorName,
+          cloudPdfUrl: params.cloudPdfUrl ?? existingItem.cloudPdfUrl,
+          qrCodeDataUrl: params.qrCodeDataUrl ?? existingItem.qrCodeDataUrl,
+          invoiceId: params.invoiceId ?? existingItem.invoiceId,
+          zaloSentAt: params.zaloSentAt ?? existingItem.zaloSentAt,
+          zaloMsgId: params.zaloMsgId ?? existingItem.zaloMsgId,
+          isPdfOutdated: params.isPdfOutdated,
+          status: params.status
+        });
 
-      if (params.isPdfOutdated !== undefined) {
-        calcIsOutdated = params.isPdfOutdated;
+        if (params.cloudPdfUrl && params.cloudPdfUrl !== existingItem.cloudPdfUrl) {
+          updatedReport = ReportStateMachine.onExportCloud(updatedReport, params.cloudPdfUrl, params.qrCodeDataUrl);
+        }
       }
-
-      const updatedReport: MedicalReport = {
-        id: params.id || (existingItem ? existingItem.id : crypto.randomUUID()),
-        code: params.patient.code || `BN-${Date.now()}`,
-        sampleCode: params.patient.sampleCode || params.patient.code || `BN-${Date.now()}`,
-        createdAt: existingItem ? existingItem.createdAt : nowIso,
-        updatedAt: nowIso,
-        patient: { ...params.patient },
-        doctorName: params.doctorName || 'BS. Trần Hoài Long',
-        selectedTests: [...params.selectedTests],
-        conclusion: params.conclusion || '',
-        isAllergen,
-        cloudPdfUrl: params.cloudPdfUrl ?? (existingItem ? existingItem.cloudPdfUrl : undefined),
-        qrCodeDataUrl: params.qrCodeDataUrl ?? (existingItem ? existingItem.qrCodeDataUrl : undefined),
-        invoiceId: params.invoiceId ?? (existingItem ? existingItem.invoiceId : undefined),
-        status: finalStatus,
-        testCount: params.selectedTests.length,
-        zaloSentAt: params.zaloSentAt ?? (existingItem ? existingItem.zaloSentAt : undefined),
-        zaloMsgId: params.zaloMsgId ?? (existingItem ? existingItem.zaloMsgId : undefined),
-        pdfGeneratedAt: params.pdfGeneratedAt ?? calcPdfGeneratedAt,
-        pdfVersion: params.pdfVersion ?? calcPdfVersion,
-        isPdfOutdated: calcIsOutdated
-      };
 
       returnedReport = updatedReport;
 
@@ -136,35 +251,27 @@ export function useReportManager() {
       return next;
     });
 
-    if (returnedReport) {
-      return returnedReport;
-    }
-
-    return {
-      id: params.id || crypto.randomUUID(),
+    const finalReport = returnedReport || ReportStateMachine.createInitialReport({
+      id: params.id,
       code: params.patient.code || `BN-${Date.now()}`,
       sampleCode: params.patient.sampleCode || params.patient.code || `BN-${Date.now()}`,
-      createdAt: nowIso,
-      updatedAt: nowIso,
-      patient: { ...params.patient },
-      doctorName: params.doctorName || 'BS. Trần Hoài Long',
-      selectedTests: [...params.selectedTests],
-      conclusion: params.conclusion || '',
-      isAllergen,
-      cloudPdfUrl: params.cloudPdfUrl,
-      qrCodeDataUrl: params.qrCodeDataUrl,
-      invoiceId: params.invoiceId,
-      status: defaultStatus,
-      testCount: params.selectedTests.length,
-      zaloSentAt: params.zaloSentAt,
-      zaloMsgId: params.zaloMsgId,
-      pdfGeneratedAt: params.cloudPdfUrl ? nowIso : undefined,
-      pdfVersion: params.cloudPdfUrl ? 1 : undefined,
-      isPdfOutdated: false
-    };
+      patient: params.patient,
+      doctorName: params.doctorName,
+      selectedTests: params.selectedTests,
+      conclusion: params.conclusion,
+      invoiceId: params.invoiceId
+    });
+
+    // Phát Domain Event: REPORT_SAVED
+    domainEventBus.emit(REPORT_EVENT_TYPES.SAVED, {
+      report: finalReport,
+      isNew: isNewReport
+    });
+
+    return finalReport;
   };
 
-  // 5. Cập nhật hàng loạt phiếu (Dùng sau khi chạy batch re-export)
+  // 6. Cập nhật hàng loạt phiếu (Dùng sau khi chạy batch re-export)
   const bulkUpdateReports = (updatedList: MedicalReport[]) => {
     setReports((prev) => {
       const updatedMap = new Map(updatedList.map((r) => [r.id, r]));
@@ -174,22 +281,32 @@ export function useReportManager() {
     });
   };
 
-  // 6. Xóa 1 phiếu
+  // 7. Xóa 1 phiếu & Phát Event
   const deleteReport = (id: string) => {
+    let deletedReportCode: string | undefined;
+
     setReports((prev) => {
+      const target = prev.find((r) => r.id === id);
+      if (target) deletedReportCode = target.code;
       const next = prev.filter((r) => r.id !== id);
       saveData('medical_reports', next);
       return next;
     });
+
+    // Phát Domain Event: REPORT_DELETED
+    domainEventBus.emit(REPORT_EVENT_TYPES.DELETED, {
+      reportId: id,
+      reportCode: deletedReportCode
+    });
   };
 
-  // 7. Xóa toàn bộ phiếu
+  // 8. Xóa toàn bộ phiếu
   const clearAllReports = () => {
     setReports([]);
     saveData('medical_reports', []);
   };
 
-  // 8. Cập nhật trạng thái phiếu
+  // 9. Cập nhật trạng thái phiếu
   const updateReportStatus = (id: string, newStatus: ReportStatus) => {
     setReports((prev) => {
       const next = prev.map((r) =>

@@ -5,8 +5,11 @@
   "main": "electron/main.cjs",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "lint": "npx -p eslint@9.20.0 -p @typescript-eslint/parser@8.24.0 -p @typescript-eslint/eslint-plugin@8.24.0 -p eslint-plugin-react@7.37.4 -p eslint-plugin-react-hooks@5.1.0 -p eslint-plugin-boundaries@5.0.1 eslint -c eslint.config.cjs src --max-warnings 0",
-    "check": "npm run typecheck && npm run lint",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run typecheck && npm run lint && npm run test",
     "dev:vite": "vite",
     "dev:electron": "cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
     "dev": "vite",
@@ -36,10 +39,13 @@
     "cross-env": "^7.0.3",
     "electron": "^37.4.0",
     "eslint": "^9.20.0",
+    "eslint-plugin-boundaries": "^7.2.0",
     "eslint-plugin-react": "^7.37.4",
     "eslint-plugin-react-hooks": "^5.1.0",
+    "globals": "^17.11.0",
     "tailwindcss": "^4.1.11",
     "typescript": "^5.7.3",
-    "vite": "^6.3.1"
+    "vite": "^6.3.1",
+    "vitest": "^4.1.11"
   }
 }

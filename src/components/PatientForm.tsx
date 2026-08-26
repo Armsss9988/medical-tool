@@ -98,7 +98,7 @@ export default function PatientForm({
     }
 
     // If user typed DD/MM/YYYY
-    const ddmmyyyyMatch = str.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    const ddmmyyyyMatch = str.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
     if (ddmmyyyyMatch) {
       const year = parseInt(ddmmyyyyMatch[3], 10);
       if (year > 1900 && year <= currentYear) {

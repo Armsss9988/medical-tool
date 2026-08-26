@@ -5,7 +5,6 @@ import {
   TestGroup, 
   TestEquipment, 
   Doctor, 
-  Invoice, 
   ClinicInfo, 
   CloudDbConfig, 
   ZaloZnsConfig 
@@ -79,10 +78,6 @@ export function useCatalogData() {
     return loadState('doctorsList', DEFAULT_DOCTORS);
   });
 
-  const [invoices, setInvoices] = useState<Invoice[]>(() => {
-    return loadState('invoices', []);
-  });
-
   const [clinicInfo, setClinicInfo] = useState<ClinicInfo>(() => {
     return loadState('clinicInfo', DEFAULT_CLINIC_INFO);
   });
@@ -115,10 +110,6 @@ export function useCatalogData() {
   useEffect(() => {
     saveState('doctorsList', doctorsList);
   }, [doctorsList]);
-
-  useEffect(() => {
-    saveState('invoices', invoices);
-  }, [invoices]);
 
   useEffect(() => {
     saveState('clinicInfo', clinicInfo);

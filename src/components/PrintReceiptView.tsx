@@ -105,7 +105,7 @@ export default function PrintReceiptView({
   // QR Image: custom uploaded or dynamic VietQR Napas 247
   const qrImageSource =
     clinicInfo.bankQrImageUrl ||
-    `https://img.vietqr.io/image/${bankId}-${bankAccountNo}-compact2.png?amount=${invoice.finalAmount}&addInfo=${encodeURIComponent(invoice.code + ' ' + invoice.patientName)}&accountName=${encodeURIComponent(bankAccountName)}`;
+    `https://img.vietqr.io/image/${bankId}-${bankAccountNo}-compact2.png?amount=${invoice.finalAmount}&addInfo=${encodeURIComponent(transferContent)}&accountName=${encodeURIComponent(bankAccountName)}`;
 
   // Table items: guarantee at least 5 rows like in the template
   const MIN_ROWS = 5;

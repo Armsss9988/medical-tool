@@ -21,6 +21,7 @@ import { openDataFolder } from "@infra/storage";
 import { generateZaloTextMessage, openZaloChat } from "@infra/zaloService";
 import { SelectedTest, Invoice, ToastType, MedicalReport, BatchImportRow } from "@domain/types";
 import { PatientCode } from "@domain/valueObjects/PatientCode";
+import { computePricingWithPackages } from "@domain/pricing";
 
 import { usePatientManager } from "./hooks/usePatientManager";
 import { useCatalogData } from "./hooks/useCatalogData";
@@ -108,8 +109,12 @@ export default function App() {
   const [activeMobileTab, setActiveMobileTab] = useState<'PATIENT' | 'TESTS' | 'CONCLUSION'>('TESTS');
 
   const totalFee = useMemo(() => {
-    return selectedTests.reduce((sum, t) => sum + (t.price || 0), 0);
-  }, [selectedTests]);
+    return computePricingWithPackages(
+      selectedTests.map((t) => t.code),
+      selectedTests,
+      testPackages
+    ).total;
+  }, [selectedTests, testPackages]);
 
   // TOAST THÔNG BÁO NỔI
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
@@ -384,22 +389,23 @@ export default function App() {
   }, [currentLoadedReport, patient, conclusion, doctorName, selectedTests]);
 
   // Lưu thủ công phiếu hiện tại (Tự động Update nếu có ID hoặc Create mới)
-  const handleSaveCurrentReport = () => {
+  const handleSaveCurrentReport = (): string | null => {
     if (!patient.name.trim()) {
       showToast("Vui lòng nhập họ và tên bệnh nhân trước khi lưu!", "error");
-      return;
+      return null;
     }
     const saved = saveOrUpdateReport({
       id: currentReportId || undefined,
       patient,
       selectedTests,
       conclusion,
-      doctorName,
+      doctorName: doctorName || patient.doctor || 'BS. Trần Hoài Long',
       cloudPdfUrl: cloudLink || undefined,
       qrCodeDataUrl: qrCodeDataUrl || undefined
     });
     setCurrentReportId(saved.id);
     showToast(`Đã lưu phiếu của bệnh nhân ${saved.patient.name} (${saved.code}) vào Sổ Lưu!`, "success");
+    return saved.id;
   };
 
   // Xử lý các lựa chọn trong UnsavedChangesModal
@@ -426,6 +432,12 @@ export default function App() {
   };
 
   const handleExportPdfAndUpload = async () => {
+    // 1. BẮT BUỘC: Phiếu phải được lưu vào Sổ Lưu trước khi Xuất PDF & Tải Lên Cloud
+    const reportId = handleSaveCurrentReport();
+    if (!reportId) {
+      return;
+    }
+
     const isAllergen = selectedTests.some(
       (t) => (t.category && t.category.includes("Dị Nguyên")) || t.unit === "IU/mL"
     );
@@ -442,7 +454,7 @@ export default function App() {
 
     if (result && result.success) {
       const saved = saveOrUpdateReport({
-        id: currentReportId || undefined,
+        id: reportId,
         patient,
         selectedTests,
         conclusion,
@@ -452,7 +464,7 @@ export default function App() {
         status: 'Đã xuất Cloud'
       });
       setCurrentReportId(saved.id);
-      showToast(`Đã xuất Cloud & tự động lưu phiếu bệnh nhân ${saved.patient.name} (${saved.code}) vào Sổ Lưu!`, "success");
+      showToast(`Đã xuất Cloud & cập nhật phiếu bệnh nhân ${saved.patient.name} (${saved.code}) trong Sổ Lưu!`, "success");
     }
   };
 
@@ -472,11 +484,15 @@ export default function App() {
       return;
     }
 
+    // Đảm bảo phiếu đã được lưu trong Sổ Lưu trước khi gửi Zalo
+    const reportId = handleSaveCurrentReport();
+    if (!reportId) return;
+
     const isAllergen = selectedTests.some(
       (t) => (t.category && t.category.includes("Dị Nguyên")) || t.unit === "IU/mL"
     );
     const currentReport: MedicalReport = {
-      id: patient.code || `BN-${Date.now()}`,
+      id: reportId,
       code: patient.code || `BN-${Date.now()}`,
       sampleCode: patient.sampleCode || patient.code || `BN-${Date.now()}`,
       createdAt: new Date().toISOString(),
@@ -497,6 +513,7 @@ export default function App() {
 
     if (success) {
       saveOrUpdateReport({
+        id: reportId,
         patient,
         selectedTests,
         conclusion,
@@ -569,8 +586,107 @@ export default function App() {
   };
 
   const handleSaveInvoice = (inv: Invoice) => {
-    const saved = saveOrUpdateInvoice(inv);
-    showToast(`Đã tạo và lưu hóa đơn ${saved.code} (${saved.finalAmount.toLocaleString('vi-VN')} đ) cho bệnh nhân ${saved.patientName}!`, "success");
+    let reportIdToLink = inv.reportId || currentReportId;
+
+    // Hóa đơn KHÔNG THỂ lưu khi chưa lưu Phiếu Kết Quả Xét Nghiệm
+    if (!reportIdToLink) {
+      const savedReportId = handleSaveCurrentReport();
+      if (!savedReportId) {
+        showToast("Hóa đơn không thể được lưu khi chưa lưu Phiếu Kết Quả Xét Nghiệm!", "error");
+        return;
+      }
+      reportIdToLink = savedReportId;
+    }
+
+    const isPaid = inv.status === 'Đã thanh toán';
+    const todayStr = new Date().toLocaleDateString('vi-VN');
+    const updatedPatient = {
+      ...patient,
+      paidAt: isPaid ? (patient.paidAt || todayStr) : undefined
+    };
+    setPatient(updatedPatient);
+
+    // 1. Lưu hóa đơn vào Sổ Doanh Thu
+    const saved = saveOrUpdateInvoice({
+      ...inv,
+      reportId: reportIdToLink,
+      paidAt: isPaid ? (inv.paidAt || new Date().toISOString()) : undefined
+    });
+
+    // 2. Liên kết ngược lại vào Sổ Lưu Phiếu Xét Nghiệm
+    saveOrUpdateReport({
+      id: reportIdToLink,
+      patient: updatedPatient,
+      selectedTests,
+      conclusion,
+      doctorName: doctorName || patient.doctor || 'BS. Trần Hoài Long',
+      cloudPdfUrl: cloudLink || undefined,
+      qrCodeDataUrl: qrCodeDataUrl || undefined,
+      invoiceId: saved.id
+    });
+
+    if (isPaid) {
+      showToast(`Đã xác nhận THU TIỀN và lưu hóa đơn ${saved.code} (${saved.finalAmount.toLocaleString('vi-VN')} đ) cho bệnh nhân ${saved.patientName}!`, "success");
+    } else {
+      showToast(`Đã tạo hóa đơn ${saved.code} (${saved.finalAmount.toLocaleString('vi-VN')} đ) ở trạng thái CHỜ THU cho bệnh nhân ${saved.patientName}!`, "info");
+    }
+  };
+
+  const handleOpenInvoiceModalWithCheck = () => {
+    if (!patient.name.trim()) {
+      showToast("Vui lòng nhập họ và tên bệnh nhân trước khi thu phí!", "error");
+      return;
+    }
+    if (selectedTests.length === 0) {
+      showToast("Vui lòng chọn ít nhất 1 chỉ số hoặc gói xét nghiệm để thu phí!", "warning");
+      return;
+    }
+    if (!currentReportId) {
+      showToast("Vui lòng bấm 'Lưu Sổ Lưu' (Ctrl+S) phiếu xét nghiệm trước khi tạo hóa đơn!", "warning");
+      return;
+    }
+    setIsInvoiceModalOpen(true);
+  };
+
+  const handleOpenInvoiceForReport = (rep: MedicalReport) => {
+    setCurrentReportId(rep.id);
+    setPatient({ ...rep.patient });
+    setSelectedTests([...rep.selectedTests]);
+    setConclusion(rep.conclusion || "");
+    setDoctorName(rep.doctorName || "");
+    setIsReportManagerOpen(false);
+    setIsRevenueModalOpen(false);
+    setIsInvoiceModalOpen(true);
+  };
+
+  // Xác định hóa đơn tương ứng với phiếu xét nghiệm đang mở
+  const currentInvoiceForReport = useMemo(() => {
+    if (!currentReportId) return null;
+    return invoices.find(
+      (inv) =>
+        inv.reportId === currentReportId ||
+        inv.id === currentLoadedReport?.invoiceId ||
+        (currentLoadedReport &&
+          Boolean(inv.patientCode && currentLoadedReport.code && inv.patientCode === currentLoadedReport.code) &&
+          Boolean(inv.patientName && currentLoadedReport.patient.name && inv.patientName.trim().toLowerCase() === currentLoadedReport.patient.name.trim().toLowerCase()))
+    ) || null;
+  }, [invoices, currentReportId, currentLoadedReport]);
+
+  const isCurrentReportPaid = Boolean(currentInvoiceForReport && currentInvoiceForReport.status === 'Đã thanh toán');
+
+  // Hủy hóa đơn và hoàn trả trạng thái chưa thu cho phiếu xét nghiệm
+  const handleCancelInvoice = (invoiceId: string) => {
+    deleteInvoice(invoiceId);
+
+    // Nếu phiếu đang mở trên màn hình chính là phiếu vừa hủy hóa đơn, cập nhật state patient
+    if (currentInvoiceForReport?.id === invoiceId) {
+      setPatient((prev) => ({
+        ...prev,
+        paidAt: undefined
+      }));
+    }
+
+    showToast("Đã hủy hóa đơn và khôi phục trạng thái Chưa Thu Viện Phí cho bệnh nhân.", "info");
   };
 
   const isAllergenPackage = selectedTests.some(
@@ -725,10 +841,15 @@ export default function App() {
                 onOpenSendZaloModal={handleOpenZaloModal}
                 onResetAll={handleClearAll}
                 onDownloadQrCode={() => handleDownloadQrCode(patient.name, patient.code)}
-                onOpenInvoiceModal={() => setIsInvoiceModalOpen(true)}
+                onOpenInvoiceModal={handleOpenInvoiceModalWithCheck}
                 selectedTests={selectedTests}
                 isPdfOutdated={isCurrentPdfOutdated}
                 pdfVersion={currentLoadedReport?.pdfVersion || 1}
+                isPaid={isCurrentReportPaid}
+                isReportSaved={Boolean(currentReportId)}
+                invoiceCode={currentInvoiceForReport?.code}
+                invoiceStatus={currentInvoiceForReport?.status}
+                paidAmount={currentInvoiceForReport?.finalAmount}
               />
             </div>
           </section>
@@ -744,7 +865,7 @@ export default function App() {
               selectedTests={selectedTests}
               setSelectedTests={setSelectedTests}
               showToast={showToast}
-              onOpenInvoiceModal={() => setIsInvoiceModalOpen(true)}
+              onOpenInvoiceModal={handleOpenInvoiceModalWithCheck}
               recentTests={recentTests}
               onAddToRecent={addToRecent}
               onAddMultipleToRecent={addMultipleToRecent}
@@ -769,10 +890,15 @@ export default function App() {
               onOpenSendZaloModal={handleOpenZaloModal}
               onResetAll={handleClearAll}
               onDownloadQrCode={() => handleDownloadQrCode(patient.name, patient.code)}
-              onOpenInvoiceModal={() => setIsInvoiceModalOpen(true)}
+              onOpenInvoiceModal={handleOpenInvoiceModalWithCheck}
               selectedTests={selectedTests}
               isPdfOutdated={isCurrentPdfOutdated}
               pdfVersion={currentLoadedReport?.pdfVersion || 1}
+              isPaid={isCurrentReportPaid}
+              isReportSaved={Boolean(currentReportId)}
+              invoiceCode={currentInvoiceForReport?.code}
+              invoiceStatus={currentInvoiceForReport?.status}
+              paidAmount={currentInvoiceForReport?.finalAmount}
             />
           </section>
 
@@ -784,7 +910,7 @@ export default function App() {
         {/* Thu Phí Button */}
         <button
           type="button"
-          onClick={() => setIsInvoiceModalOpen(true)}
+          onClick={handleOpenInvoiceModalWithCheck}
           disabled={selectedTests.length === 0}
           className="flex-1 py-2 px-2 bg-gradient-to-r from-teal-600 to-emerald-600 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center justify-center space-x-1 shadow disabled:opacity-50 transition"
         >
@@ -881,6 +1007,9 @@ export default function App() {
         doctorsList={doctorsList}
         doctorName={doctorName}
         clinicInfo={clinicInfo}
+        currentReportId={currentReportId}
+        isReportSaved={Boolean(currentReportId && reports.some(r => r.id === currentReportId))}
+        onSaveReportFirst={handleSaveCurrentReport}
         onSaveInvoice={handleSaveInvoice}
       />
 
@@ -888,7 +1017,11 @@ export default function App() {
         isOpen={isRevenueModalOpen}
         onClose={() => setIsRevenueModalOpen(false)}
         invoices={invoices}
+        reports={reports}
+        testPackages={testPackages}
         onDeleteInvoice={deleteInvoice}
+        onCancelInvoice={handleCancelInvoice}
+        onOpenInvoiceForReport={handleOpenInvoiceForReport}
         onClearAllInvoices={clearAllInvoices}
         doctorsList={doctorsList}
         clinicInfo={clinicInfo}
@@ -900,6 +1033,8 @@ export default function App() {
         isOpen={isReportManagerOpen}
         onClose={() => setIsReportManagerOpen(false)}
         reports={reports}
+        invoices={invoices}
+        doctorsList={doctorsList}
         onLoadReport={handleLoadReport}
         onPreviewReport={handlePreviewSavedReport}
         onDuplicateReport={handleDuplicateReport}
@@ -910,6 +1045,7 @@ export default function App() {
         }}
         onUpdateSingleReportPdf={handleUpdateSingleReportPdf}
         onBatchUpdateOutdatedReports={handleBatchUpdateOutdatedReports}
+        onOpenInvoiceForReport={handleOpenInvoiceForReport}
         isUpdatingPdf={isBatchExportRunning}
         onDeleteReport={deleteReport}
         onClearAllReports={clearAllReports}

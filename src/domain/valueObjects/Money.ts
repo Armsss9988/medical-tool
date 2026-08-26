@@ -23,6 +23,16 @@ export class Money {
     return new Money(Math.max(0, this._amount - Math.max(0, discountAmount || 0)));
   }
 
+  public applyDiscountPercent(percent: number): Money {
+    const p = Math.max(0, Math.min(100, percent || 0));
+    const discountAmount = Math.round((this._amount * p) / 100);
+    return new Money(Math.max(0, this._amount - discountAmount));
+  }
+
+  public format(): string {
+    return this.formatVND();
+  }
+
   public formatVND(): string {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(this._amount);
   }

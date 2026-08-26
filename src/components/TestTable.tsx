@@ -1,8 +1,9 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { TestTube, Plus, Trash2, Search, Layers, Sparkles, X, ClipboardPaste, Clock, Keyboard } from 'lucide-react';
 import { evaluateResult } from '@domain/testResult';
 import { calculateAllergenGrade } from '@domain/allergen';
 import { CatalogItem, SelectedTest, TestPackage } from '@domain/types';
+import { computePricingWithPackages } from '@domain/pricing';
 
 const QUICK_NOTE_OPTIONS = [
   'Bình thường',
@@ -305,7 +306,15 @@ export default function TestTable({
     }
   };
 
-  const totalFee = selectedTests.reduce((sum, item) => sum + (item.price || 0), 0);
+  const pricing = useMemo(() => {
+    return computePricingWithPackages(
+      selectedTests.map((t) => t.code),
+      selectedTests,
+      testPackages
+    );
+  }, [selectedTests, testPackages]);
+
+  const totalFee = pricing.total;
 
   // ─── RECENT TESTS: Filter out already-selected ─────────────────────
   const availableRecentTests = recentTests.filter(
@@ -326,7 +335,13 @@ export default function TestTable({
               <span>Chỉ Định & Nhập Kết Quả Xét Nghiệm</span>
             </h2>
             <p className="text-[11px] text-slate-400 font-medium">
-              Đang chọn: <strong className="text-emerald-700 font-bold">{selectedTests.length}</strong> chỉ số • Tổng phí:{' '}
+              Đang chọn: <strong className="text-emerald-700 font-bold">{selectedTests.length}</strong> chỉ số
+              {pricing.activePackages.length > 0 && (
+                <span className="text-indigo-600 font-semibold ml-1">
+                  ({pricing.activePackages.map((p) => p.name).join(', ')})
+                </span>
+              )}
+              {' '}• Tổng phí:{' '}
               <strong className="text-emerald-700 font-bold font-mono">{totalFee.toLocaleString('vi-VN')} đ</strong>
             </p>
           </div>

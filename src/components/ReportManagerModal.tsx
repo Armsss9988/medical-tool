@@ -7,7 +7,6 @@ import {
   Calendar, 
   RotateCcw, 
   Eye, 
-  Cloud, 
   QrCode, 
   Copy, 
   FileSpreadsheet, 
@@ -17,9 +16,11 @@ import {
   MessageSquare,
   AlertTriangle,
   RefreshCw,
-  CheckCircle2
+  CheckCircle2,
+  CreditCard
 } from 'lucide-react';
-import { MedicalReport, Doctor, ToastType } from '@domain/types';
+import { MedicalReport, Doctor, ToastType, Invoice } from '@domain/types';
+import { ReportStateMachine } from '@domain/index';
 import { exportReportsExcel } from '@infra/excelService';
 import { downloadDataUrlAsImage } from '@infra/qrService';
 
@@ -27,6 +28,7 @@ interface ReportManagerModalProps {
   isOpen: boolean;
   onClose: () => void;
   reports: MedicalReport[];
+  invoices?: Invoice[];
   doctorsList?: Doctor[];
   onLoadReport: (report: MedicalReport) => void;
   onPreviewReport: (report: MedicalReport) => void;
@@ -35,6 +37,7 @@ interface ReportManagerModalProps {
   onOpenBatchExportModal?: () => void;
   onUpdateSingleReportPdf?: (report: MedicalReport) => void;
   onBatchUpdateOutdatedReports?: (reports: MedicalReport[]) => void;
+  onOpenInvoiceForReport?: (report: MedicalReport) => void;
   isUpdatingPdf?: boolean;
   onDeleteReport: (id: string) => void;
   onClearAllReports: () => void;
@@ -43,11 +46,13 @@ interface ReportManagerModalProps {
 
 type DateFilterType = 'ALL' | 'TODAY' | 'YESTERDAY' | 'LAST_7_DAYS' | 'THIS_MONTH';
 type PdfStatusFilterType = 'ALL' | 'OUTDATED' | 'LATEST' | 'NOT_EXPORTED';
+type PaymentFilterType = 'ALL' | 'PAID' | 'UNPAID';
 
 export default function ReportManagerModal({
   isOpen,
   onClose,
   reports,
+  invoices = [],
   doctorsList = [],
   onLoadReport,
   onPreviewReport,
@@ -56,6 +61,7 @@ export default function ReportManagerModal({
   onOpenBatchExportModal,
   onUpdateSingleReportPdf,
   onBatchUpdateOutdatedReports,
+  onOpenInvoiceForReport,
   isUpdatingPdf = false,
   onDeleteReport,
   onClearAllReports,
@@ -66,8 +72,20 @@ export default function ReportManagerModal({
   const [selectedDoctor, setSelectedDoctor] = useState<string>('ALL');
   const [selectedType, setSelectedType] = useState<'ALL' | 'STANDARD' | 'ALLERGEN'>('ALL');
   const [pdfFilter, setPdfFilter] = useState<PdfStatusFilterType>('ALL');
+  const [paymentFilter, setPaymentFilter] = useState<PaymentFilterType>('ALL');
 
-  // 1. Thống kê KPI tổng quan (bao gồm số phiếu PDF Outdated)
+  // Helper tìm kiếm hóa đơn tương ứng với 1 phiếu xét nghiệm
+  const getInvoiceForReport = (rep: MedicalReport): Invoice | undefined => {
+    if (rep.invoiceId) {
+      const byId = invoices.find((i) => i.id === rep.invoiceId);
+      if (byId) return byId;
+    }
+    return invoices.find(
+      (i) => i.reportId === rep.id || (i.patientCode && (i.patientCode === rep.code || i.patientCode === rep.patient?.code))
+    );
+  };
+
+  // 1. Thống kê KPI tổng quan (bao gồm số phiếu PDF Outdated & Tình trạng Thu Phí)
   const stats = useMemo(() => {
     const todayStr = new Date().toDateString();
     const todayCount = reports.filter((r) => new Date(r.createdAt).toDateString() === todayStr).length;
@@ -76,6 +94,11 @@ export default function ReportManagerModal({
     const outdatedCount = reports.filter((r) => r.isPdfOutdated || r.status === 'Cần cập nhật PDF').length;
     const latestCount = reports.filter((r) => !!r.cloudPdfUrl && !r.isPdfOutdated && r.status !== 'Cần cập nhật PDF').length;
     const notExportedCount = reports.filter((r) => !r.cloudPdfUrl).length;
+    const paidCount = reports.filter((r) => {
+      const inv = getInvoiceForReport(r);
+      return Boolean(inv ? inv.status === 'Đã thanh toán' : r.patient?.paidAt);
+    }).length;
+    const unpaidCount = reports.length - paidCount;
 
     return {
       total: reports.length,
@@ -84,9 +107,11 @@ export default function ReportManagerModal({
       cloud: cloudCount,
       outdated: outdatedCount,
       latest: latestCount,
-      notExported: notExportedCount
+      notExported: notExportedCount,
+      paidCount,
+      unpaidCount
     };
-  }, [reports]);
+  }, [reports, invoices]);
 
   // 2. Lọc danh sách phiếu theo các tiêu chí
   const filteredReports = useMemo(() => {
@@ -137,6 +162,12 @@ export default function ReportManagerModal({
         return false;
       }
 
+      // Lọc theo Tình trạng Thu Phí
+      const inv = getInvoiceForReport(rep);
+      const isPaid = Boolean(inv ? inv.status === 'Đã thanh toán' : rep.patient?.paidAt);
+      if (paymentFilter === 'PAID' && !isPaid) return false;
+      if (paymentFilter === 'UNPAID' && isPaid) return false;
+
       // Lọc theo Thời gian
       const repDate = new Date(rep.createdAt);
       if (dateFilter === 'TODAY') {
@@ -153,7 +184,7 @@ export default function ReportManagerModal({
 
       return true;
     });
-  }, [reports, searchTerm, selectedDoctor, selectedType, pdfFilter, dateFilter]);
+  }, [reports, invoices, searchTerm, selectedDoctor, selectedType, pdfFilter, paymentFilter, dateFilter]);
 
   // 3. Danh sách tất cả các phiếu đang bị Outdated
   const allOutdatedReports = useMemo(() => {
@@ -252,8 +283,8 @@ export default function ReportManagerModal({
           </div>
         </div>
 
-        {/* THỐNG KÊ KPI CARDS (Bao gồm thẻ PDF Outdated) */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 p-4 bg-slate-950/50 border-b border-slate-800 shrink-0 text-xs">
+        {/* THỐNG KÊ KPI CARDS (Bao gồm thẻ PDF Outdated & Thu Phí) */}
+        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5 p-4 bg-slate-950/50 border-b border-slate-800 shrink-0 text-xs">
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
             <div>
               <span className="text-[11px] text-slate-400 block font-medium">Tổng số phiếu</span>
@@ -268,6 +299,46 @@ export default function ReportManagerModal({
               <strong className="text-base font-extrabold text-emerald-400 font-mono">{stats.today}</strong>
             </div>
             <Clock className="w-5 h-5 text-emerald-400/80" />
+          </div>
+
+          {/* KPI: Đã Thu Phí */}
+          <div 
+            onClick={() => setPaymentFilter(paymentFilter === 'PAID' ? 'ALL' : 'PAID')}
+            className={`bg-slate-900 border rounded-xl p-3 flex items-center justify-between cursor-pointer transition ${
+              paymentFilter === 'PAID' 
+                ? 'border-emerald-500 bg-emerald-950/30' 
+                : 'border-slate-800 hover:border-emerald-500/50'
+            }`}
+            title="Click để lọc các phiếu đã thu phí"
+          >
+            <div>
+              <span className="text-[11px] text-emerald-400 block font-medium flex items-center gap-1">
+                <span>Đã thu phí</span>
+                {paymentFilter === 'PAID' && <span className="text-[9px] bg-emerald-400 text-slate-950 px-1 rounded font-black">Lọc</span>}
+              </span>
+              <strong className="text-base font-extrabold text-emerald-400 font-mono">{stats.paidCount}</strong>
+            </div>
+            <CreditCard className="w-5 h-5 text-emerald-400/80" />
+          </div>
+
+          {/* KPI: Chưa Thu Phí */}
+          <div 
+            onClick={() => setPaymentFilter(paymentFilter === 'UNPAID' ? 'ALL' : 'UNPAID')}
+            className={`bg-slate-900 border rounded-xl p-3 flex items-center justify-between cursor-pointer transition ${
+              paymentFilter === 'UNPAID' 
+                ? 'border-amber-500 bg-amber-950/30' 
+                : 'border-slate-800 hover:border-amber-500/50'
+            }`}
+            title="Click để lọc các phiếu chưa thu tiền"
+          >
+            <div>
+              <span className="text-[11px] text-amber-400 block font-medium flex items-center gap-1">
+                <span>Chưa thu phí</span>
+                {paymentFilter === 'UNPAID' && <span className="text-[9px] bg-amber-400 text-slate-950 px-1 rounded font-black">Lọc</span>}
+              </span>
+              <strong className="text-base font-extrabold text-amber-400 font-mono">{stats.unpaidCount}</strong>
+            </div>
+            <Clock className="w-5 h-5 text-amber-400/80" />
           </div>
 
           {/* KPI: PDF Lỗi Thời (Outdated) */}
@@ -297,27 +368,12 @@ export default function ReportManagerModal({
           >
             <div>
               <span className="text-[11px] text-emerald-400 block font-medium flex items-center gap-1">
-                <span>PDF Cloud mới nhất</span>
+                <span>PDF Mới</span>
                 {pdfFilter === 'LATEST' && <span className="text-[9px] bg-emerald-400 text-slate-950 px-1 rounded font-black">Lọc</span>}
               </span>
               <strong className="text-base font-extrabold text-emerald-400 font-mono">{stats.latest}</strong>
             </div>
             <CheckCircle2 className="w-5 h-5 text-emerald-400/80" />
-          </div>
-
-          <div 
-            onClick={() => setPdfFilter(pdfFilter === 'NOT_EXPORTED' ? 'ALL' : 'NOT_EXPORTED')}
-            className="bg-slate-900 border border-slate-800 hover:border-slate-600 rounded-xl p-3 flex items-center justify-between cursor-pointer transition col-span-2 sm:col-span-1"
-            title="Click để lọc các phiếu chưa xuất PDF"
-          >
-            <div>
-              <span className="text-[11px] text-slate-400 block font-medium flex items-center gap-1">
-                <span>Chưa xuất PDF</span>
-                {pdfFilter === 'NOT_EXPORTED' && <span className="text-[9px] bg-slate-400 text-slate-950 px-1 rounded font-black">Lọc</span>}
-              </span>
-              <strong className="text-base font-extrabold text-slate-300 font-mono">{stats.notExported}</strong>
-            </div>
-            <Cloud className="w-5 h-5 text-slate-400/80" />
           </div>
         </div>
 
@@ -325,7 +381,7 @@ export default function ReportManagerModal({
         <div className="p-4 bg-slate-900 border-b border-slate-800 space-y-3 shrink-0 text-xs">
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
             {/* Ô tìm kiếm từ khóa */}
-            <div className="sm:col-span-4 relative">
+            <div className="sm:col-span-3 relative">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
               <input
                 type="text"
@@ -380,17 +436,30 @@ export default function ReportManagerModal({
               </select>
             </div>
 
+            {/* Lọc Tình trạng Thu Phí */}
+            <div className="sm:col-span-1.5">
+              <select
+                value={paymentFilter}
+                onChange={(e) => setPaymentFilter(e.target.value as PaymentFilterType)}
+                className="w-full px-2.5 py-2 bg-slate-800/80 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-semibold"
+              >
+                <option value="ALL">Thu phí (Tất cả)</option>
+                <option value="PAID">💳 Đã thu tiền ({stats.paidCount})</option>
+                <option value="UNPAID">⏳ Chưa thu ({stats.unpaidCount})</option>
+              </select>
+            </div>
+
             {/* Lọc Tình trạng PDF */}
-            <div className="sm:col-span-2">
+            <div className="sm:col-span-1.5">
               <select
                 value={pdfFilter}
                 onChange={(e) => setPdfFilter(e.target.value as PdfStatusFilterType)}
-                className="w-full px-3 py-2 bg-slate-800/80 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-semibold"
+                className="w-full px-2.5 py-2 bg-slate-800/80 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-semibold"
               >
-                <option value="ALL">Tất cả tình trạng PDF</option>
-                <option value="OUTDATED">⚠️ Cần cập nhật PDF ({stats.outdated})</option>
-                <option value="LATEST">✅ PDF Cloud mới nhất</option>
-                <option value="NOT_EXPORTED">⏳ Chưa xuất PDF</option>
+                <option value="ALL">PDF (Tất cả)</option>
+                <option value="OUTDATED">⚠️ Cần cập nhật ({stats.outdated})</option>
+                <option value="LATEST">✅ PDF Mới</option>
+                <option value="NOT_EXPORTED">⏳ Chưa xuất</option>
               </select>
             </div>
           </div>
@@ -438,6 +507,7 @@ export default function ReportManagerModal({
                     <th className="p-3">Số ĐT & Địa Chỉ</th>
                     <th className="p-3">Bác Sĩ & Loại Phiếu</th>
                     <th className="p-3 text-center">Số Chỉ Số</th>
+                    <th className="p-3">Thu Phí & Doanh Thu</th>
                     <th className="p-3">Tình Trạng PDF</th>
                     <th className="p-3 text-right">Thao Tác</th>
                   </tr>
@@ -445,8 +515,10 @@ export default function ReportManagerModal({
                 <tbody className="divide-y divide-slate-800 bg-slate-900/50">
                   {filteredReports.map((rep, idx) => {
                     const isAllergen = rep.isAllergen;
-                    const isOutdated = rep.isPdfOutdated || rep.status === 'Cần cập nhật PDF';
-                    const hasPdf = !!rep.cloudPdfUrl;
+                    const inv = getInvoiceForReport(rep);
+                    const isPaid = Boolean(inv ? inv.status === 'Đã thanh toán' : rep.patient?.paidAt);
+                    const { clinical, document, billing } = ReportStateMachine.computeSummary(rep, isPaid);
+                    const isOutdated = document.isOutdated();
                     const versionStr = rep.pdfVersion ? `v${rep.pdfVersion}` : 'v1';
 
                     return (
@@ -480,18 +552,23 @@ export default function ReportManagerModal({
                           </span>
                         </td>
 
-                        {/* Bác sĩ & Loại phiếu */}
+                        {/* Bác sĩ, Tiến trình & Loại phiếu */}
                         <td className="p-3">
                           <span className="font-semibold text-slate-200 block">{rep.doctorName || 'BS. Trần Hoài Long'}</span>
-                          <span
-                            className={`inline-block text-[10px] font-extrabold px-2 py-0.5 rounded mt-1 ${
-                              isAllergen
-                                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                                : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
-                            }`}
-                          >
-                            {isAllergen ? 'Panel Dị Nguyên' : 'Xét Nghiệm Thường'}
-                          </span>
+                          <div className="flex items-center gap-1 mt-1 flex-wrap">
+                            <span
+                              className={`inline-block text-[10px] font-extrabold px-1.5 py-0.5 rounded ${
+                                isAllergen
+                                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                  : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                              }`}
+                            >
+                              {isAllergen ? 'Dị Nguyên' : 'Xét Nghiệm'}
+                            </span>
+                            <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded border ${clinical.getBadgeStyle().bg} ${clinical.getBadgeStyle().text} ${clinical.getBadgeStyle().border}`}>
+                              {clinical.label()}
+                            </span>
+                          </div>
                         </td>
 
                         {/* Số lượng chỉ số */}
@@ -499,27 +576,57 @@ export default function ReportManagerModal({
                           {rep.testCount || rep.selectedTests.length}
                         </td>
 
+                        {/* Thu Phí & Hóa Đơn */}
+                        <td className="p-3">
+                          {inv ? (
+                            <div className="space-y-0.5">
+                              <span className={`inline-flex items-center gap-1 text-[10.5px] font-bold px-2 py-0.5 rounded-md border ${billing.getBadgeStyle().bg} ${billing.getBadgeStyle().text} ${billing.getBadgeStyle().border}`}>
+                                <CreditCard className="w-3 h-3 text-emerald-400" />
+                                <span>{billing.label()} ({inv.finalAmount.toLocaleString('vi-VN')} đ)</span>
+                              </span>
+                              <span className="block font-mono text-[9.5px] text-slate-400">{inv.code}</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md border ${billing.getBadgeStyle().bg} ${billing.getBadgeStyle().text} ${billing.getBadgeStyle().border}`}>
+                                <span>{billing.label()}</span>
+                              </span>
+                              {onOpenInvoiceForReport && (
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenInvoiceForReport(rep)}
+                                  className="px-2 py-0.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded text-[10px] font-bold shadow-sm transition active:scale-95 flex items-center gap-0.5"
+                                  title="Tạo hóa đơn & thu phí cho phiếu này"
+                                >
+                                  <CreditCard className="w-2.5 h-2.5" />
+                                  <span>Thu</span>
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </td>
+
                         {/* Tình Trạng PDF & Version */}
                         <td className="p-3">
-                          {isOutdated ? (
+                          {document.isOutdated() ? (
                             <div className="space-y-1">
-                              <span className="inline-flex items-center gap-1 text-[10.5px] font-extrabold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                              <span className={`inline-flex items-center gap-1 text-[10.5px] font-extrabold px-2 py-0.5 rounded-md border ${document.getBadgeStyle().bg} ${document.getBadgeStyle().text} ${document.getBadgeStyle().border}`}>
                                 <AlertTriangle className="w-3 h-3 text-amber-400" />
-                                <span>PDF cũ ({versionStr})</span>
+                                <span>{document.label()} ({versionStr})</span>
                               </span>
                               <span className="block text-[9.5px] text-amber-400/80">Dữ liệu đã sửa đổi</span>
                             </div>
-                          ) : hasPdf ? (
+                          ) : document.isSynced() ? (
                             <div className="space-y-0.5">
-                              <span className="inline-flex items-center gap-1 text-[10.5px] font-extrabold px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                              <span className={`inline-flex items-center gap-1 text-[10.5px] font-extrabold px-2 py-0.5 rounded-md border ${document.getBadgeStyle().bg} ${document.getBadgeStyle().text} ${document.getBadgeStyle().border}`}>
                                 <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                                <span>PDF Mới ({versionStr})</span>
+                                <span>{document.label()} ({versionStr})</span>
                               </span>
                               <span className="block text-[9.5px] text-slate-400">Khớp Cloud 100%</span>
                             </div>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700">
-                              <span>Chưa xuất PDF</span>
+                            <span className={`inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-0.5 rounded-md border ${document.getBadgeStyle().bg} ${document.getBadgeStyle().text} ${document.getBadgeStyle().border}`}>
+                              <span>{document.label()}</span>
                             </span>
                           )}
                         </td>

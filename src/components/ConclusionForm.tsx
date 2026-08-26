@@ -25,6 +25,12 @@ interface ConclusionFormProps {
   isPdfOutdated?: boolean;
   /** Phiên bản PDF hiện tại */
   pdfVersion?: number;
+  /** Trạng thái thu phí của phiếu đang mở */
+  isPaid?: boolean;
+  isReportSaved?: boolean;
+  invoiceCode?: string;
+  invoiceStatus?: string;
+  paidAmount?: number;
 }
 
 const QUICK_CONCLUSION_TEMPLATES = [
@@ -51,7 +57,12 @@ export default function ConclusionForm({
   onOpenInvoiceModal,
   selectedTests = [],
   isPdfOutdated = false,
-  pdfVersion
+  pdfVersion,
+  isPaid = false,
+  isReportSaved = false,
+  invoiceCode,
+  invoiceStatus,
+  paidAmount
 }: ConclusionFormProps) {
   const handleApplyTemplate = (template: string) => {
     if (!conclusion.trim()) {
@@ -315,14 +326,70 @@ export default function ConclusionForm({
             </button>
           </div>
 
-          <button
-            type="button"
-            onClick={onOpenInvoiceModal}
-            className="w-full py-2.5 px-3 bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold rounded-xl border border-teal-200 shadow-2xs transition-all active:scale-95 flex items-center justify-center space-x-1.5"
-          >
-            <CreditCard className="w-3.5 h-3.5 text-teal-600" />
-            <span>Tạo Hóa Đơn Thu Phí</span>
-          </button>
+          {/* Trạng thái Viện Phí & Nút Thu Phí */}
+          <div className="w-full">
+            {invoiceCode && isPaid ? (
+              <div 
+                onClick={onOpenInvoiceModal}
+                className="w-full py-2 px-3 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-300 rounded-xl transition cursor-pointer flex items-center justify-between shadow-2xs group"
+                title="Bấm để xem hoặc in lại biên lai thu tiền"
+              >
+                <div className="flex items-center space-x-2">
+                  <div className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-700">
+                    <CreditCard className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[11.5px] font-bold text-emerald-800 flex items-center gap-1">
+                      <span>Đã Thu Viện Phí</span>
+                      {paidAmount ? <strong className="font-mono text-emerald-700 font-extrabold">({paidAmount.toLocaleString('vi-VN')} đ)</strong> : null}
+                    </span>
+                    <span className="font-mono text-[10px] text-emerald-600 block">{invoiceCode} • {invoiceStatus || 'Đã thanh toán'}</span>
+                  </div>
+                </div>
+                <span className="text-[11px] font-bold text-emerald-700 group-hover:underline flex items-center gap-0.5">
+                  <span>Xem Biên Lai</span>
+                  <span>→</span>
+                </span>
+              </div>
+            ) : invoiceCode ? (
+              <div 
+                onClick={onOpenInvoiceModal}
+                className="w-full py-2 px-3 bg-amber-50 hover:bg-amber-100/80 border border-amber-300 rounded-xl transition cursor-pointer flex items-center justify-between shadow-2xs group"
+                title="Hóa đơn đã lập nhưng chưa thu tiền. Bấm để thu tiền hoặc in biên lai"
+              >
+                <div className="flex items-center space-x-2">
+                  <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-700">
+                    <CreditCard className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[11.5px] font-bold text-amber-900 flex items-center gap-1">
+                      <span>Hóa Đơn Chờ Thu</span>
+                      {paidAmount ? <strong className="font-mono text-amber-800 font-extrabold">({paidAmount.toLocaleString('vi-VN')} đ)</strong> : null}
+                    </span>
+                    <span className="font-mono text-[10px] text-amber-700 block">{invoiceCode} • {invoiceStatus || 'Chưa thu phí'}</span>
+                  </div>
+                </div>
+                <span className="text-[11px] font-bold text-amber-800 group-hover:underline flex items-center gap-0.5">
+                  <span>Thu Tiền / In</span>
+                  <span>→</span>
+                </span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={onOpenInvoiceModal}
+                className={`w-full py-2.5 px-3 font-bold rounded-xl shadow-2xs transition-all active:scale-95 flex items-center justify-center space-x-1.5 ${
+                  isReportSaved
+                    ? 'bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
+                }`}
+                title={!isReportSaved ? "Lưu phiếu xét nghiệm (Ctrl+S) trước khi tạo hóa đơn" : "Tạo hóa đơn viện phí cho bệnh nhân"}
+              >
+                <CreditCard className={`w-4 h-4 ${isReportSaved ? 'text-white' : 'text-slate-500'}`} />
+                <span>{isReportSaved ? 'Tạo Hóa Đơn Thu Phí (Chưa Thu)' : 'Tạo Hóa Đơn (Cần Lưu Phiếu)'}</span>
+              </button>
+            )}
+          </div>
 
           {/* Reset Button */}
           <button

@@ -4,8 +4,13 @@ export type AllergenGrade = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
-
 export type ResultStatus = 'normal' | 'low' | 'high';
+
+// ─── DOMAIN STATUS TYPES ─────────────────────────────────────────────────────
+export type ClinicalStatus = 'Chờ xét nghiệm' | 'Đã có kết quả' | 'Đã trả kết quả';
+export type DocumentStatus = 'Chưa xuất PDF' | 'Đã xuất Cloud' | 'Cần cập nhật PDF';
+export type BillingStatus = 'Chưa thu phí' | 'Đã thanh toán' | 'Đã hủy / Hoàn tiền';
+export type SampleStatus = 'Đạt' | 'Không đạt' | 'Đang lấy mẫu';
 
 export interface Patient {
   code: string;
@@ -18,7 +23,7 @@ export interface Patient {
   diagnosis: string;
   doctor?: string;
   sampleCode?: string;
-  sampleStatus?: string;
+  sampleStatus?: SampleStatus | string;
   orderedAt?: string;
   paidAt?: string;
   receivedAt?: string;
@@ -86,7 +91,7 @@ export interface InvoiceItem {
 }
 
 export type PaymentMethod = 'Tiền mặt' | 'Chuyển khoản (VietQR)' | 'Quẹt thẻ' | 'Khác';
-export type InvoiceStatus = 'Đã thanh toán' | 'Chờ thanh toán' | 'Đã hủy / Hoàn tiền';
+export type InvoiceStatus = BillingStatus;
 
 export interface Invoice {
   id: string;
