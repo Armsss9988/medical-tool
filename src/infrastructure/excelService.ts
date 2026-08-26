@@ -176,7 +176,7 @@ export function exportReportsExcel(reports: import('../domain/types').MedicalRep
 // ─── BATCH IMPORT / EXPORT ──────────────────────────────────────────────────
 
 import { BatchImportRow, SelectedTest, Patient, Gender } from '../domain/types';
-import { evaluateResult } from '../domain/testResult';
+import { evaluateResult, evaluateTestIndicator } from '../domain/testResult';
 import { calculateAllergenGrade } from '../domain/allergen';
 import { generatePatientCode, generateSecretToken } from '../domain/patient';
 
@@ -348,16 +348,15 @@ export function parseExcelBatchPatients(
                 }
 
                 // Auto evaluate result
-                const isAllergen = catalogItem.category?.includes('Dị Nguyên') || catalogItem.unit === 'IU/mL';
-                let autoNote = 'Bình thường';
-
-                if (isAllergen) {
-                  const gradeRes = calculateAllergenGrade(resultStr);
-                  autoNote = gradeRes.note;
-                } else {
-                  const evalRes = evaluateResult(resultStr, catalogItem.refMin, catalogItem.refMax);
-                  autoNote = evalRes.label;
-                }
+                const evalRes = evaluateTestIndicator(
+                  catalogItem.code,
+                  catalogItem.category,
+                  catalogItem.unit,
+                  resultStr,
+                  catalogItem.refMin,
+                  catalogItem.refMax
+                );
+                const autoNote = evalRes.label || 'Bình thường';
 
                 selectedTests.push({
                   ...catalogItem,

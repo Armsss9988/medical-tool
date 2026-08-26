@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { TestTube, Plus, Trash2, Search, Layers, Sparkles, X, ClipboardPaste, Clock, Keyboard } from 'lucide-react';
-import { evaluateResult } from '@domain/testResult';
+import { evaluateResult, evaluateTestIndicator } from '@domain/testResult';
 import { calculateAllergenGrade } from '@domain/allergen';
 import { CatalogItem, SelectedTest, TestPackage } from '@domain/types';
 import { computePricingWithPackages } from '@domain/pricing';
@@ -78,8 +78,9 @@ export default function TestTable({
   const handleAddTest = useCallback((item: CatalogItem) => {
     if (selectedTests.some((t) => t.code === item.code)) return;
 
-    const isAllergenItem = item.category?.includes('Dị Nguyên') || item.unit === 'IU/mL';
-    const defaultNote = isAllergenItem ? 'Âm tính (Độ 0)' : 'Bình thường';
+    const isTIgE = item.code.toLowerCase() === 'tige';
+    const isAllergenItem = !isTIgE && (item.category?.includes('Dị Nguyên') || item.unit === 'IU/mL');
+    const defaultNote = isTIgE ? 'Bình thường' : isAllergenItem ? 'Âm tính (Độ 0)' : 'Bình thường';
 
     setSelectedTests((prev) => [
       ...prev,
@@ -111,6 +112,15 @@ export default function TestTable({
   const handleAutoFillNormalValues = () => {
     setSelectedTests((prev) =>
       prev.map((t) => {
+        const isTIgE = t.code.toLowerCase() === 'tige';
+        if (isTIgE) {
+          return {
+            ...t,
+            result: '<15,0',
+            note: 'Bình thường'
+          };
+        }
+
         const isAllergenItem = t.category?.includes('Dị Nguyên') || t.unit === 'IU/mL';
         if (isAllergenItem) {
           return {
@@ -144,16 +154,8 @@ export default function TestTable({
       prev.map((t) => {
         if (t.code !== code) return t;
 
-        const isAllergen = t.category?.includes('Dị Nguyên') || t.unit === 'IU/mL';
-        let autoNote = t.note;
-
-        if (isAllergen) {
-          const gradeRes = calculateAllergenGrade(rawVal);
-          autoNote = gradeRes.note;
-        } else {
-          const evalRes = evaluateResult(rawVal, t.refMin, t.refMax);
-          autoNote = evalRes.label;
-        }
+        const evalRes = evaluateTestIndicator(t.code, t.category, t.unit, rawVal, t.refMin, t.refMax);
+        const autoNote = evalRes.label || t.note;
 
         return {
           ...t,
@@ -181,11 +183,12 @@ export default function TestTable({
       const newOnes = itemsToAdd
         .filter((item) => !existingCodes.has(item.code))
         .map((item) => {
-          const isAllergenItem = item.category?.includes('Dị Nguyên') || item.unit === 'IU/mL';
+          const isTIgE = item.code.toLowerCase() === 'tige';
+          const isAllergenItem = !isTIgE && (item.category?.includes('Dị Nguyên') || item.unit === 'IU/mL');
           return {
             ...item,
             result: '',
-            note: isAllergenItem ? 'Âm tính (Độ 0)' : 'Bình thường'
+            note: isTIgE ? 'Bình thường' : isAllergenItem ? 'Âm tính (Độ 0)' : 'Bình thường'
           };
         });
       return [...prev, ...newOnes];
@@ -274,15 +277,8 @@ export default function TestTable({
         if (idx >= lines.length) return t;
         const rawVal = lines[idx];
 
-        const isAllergen = t.category?.includes('Dị Nguyên') || t.unit === 'IU/mL';
-        let autoNote = t.note;
-        if (isAllergen) {
-          const gradeRes = calculateAllergenGrade(rawVal);
-          autoNote = gradeRes.note;
-        } else {
-          const evalRes = evaluateResult(rawVal, t.refMin, t.refMax);
-          autoNote = evalRes.label;
-        }
+        const evalRes = evaluateTestIndicator(t.code, t.category, t.unit, rawVal, t.refMin, t.refMax);
+        const autoNote = evalRes.label || t.note;
 
         return { ...t, result: rawVal, note: autoNote };
       })
@@ -600,8 +596,8 @@ export default function TestTable({
                 </tr>
               ) : (
                 selectedTests.map((t, idx) => {
-                  const evalRes = evaluateResult(t.result, t.refMin, t.refMax);
-                  const isAbnormal = evalRes.status !== 'normal';
+                  const evalRes = evaluateTestIndicator(t.code, t.category, t.unit, t.result, t.refMin, t.refMax);
+                  const isAbnormal = evalRes.isAbnormal;
 
                   return (
                     <tr
@@ -654,7 +650,11 @@ export default function TestTable({
                             onChange={(e) => handleNoteChange(t.code, e.target.value)}
                             list={`quick-note-${t.code}`}
                             placeholder="Ghi chú / Đánh giá..."
-                            className="w-full px-2 py-1.5 min-h-[36px] bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-300 rounded-lg text-[11px] focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 shadow-2xs transition-all"
+                            className={`w-full px-2 py-1.5 min-h-[36px] border rounded-lg text-[11px] focus:outline-none transition-all ${
+                              isAbnormal
+                                ? 'bg-red-50/50 border-red-300 text-red-700 font-bold focus:ring-2 focus:ring-red-200'
+                                : 'bg-slate-50/50 hover:bg-white focus:bg-white border-slate-300 text-slate-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 shadow-2xs'
+                            }`}
                           />
                           <datalist id={`quick-note-${t.code}`}>
                             {QUICK_NOTE_OPTIONS.map((opt, oIdx) => (

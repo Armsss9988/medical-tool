@@ -3,8 +3,12 @@ import { NHI_CATALOG } from './nhiCatalog';
 import { CatalogItem, TestPackage, TestGroup, TestEquipment } from '../domain/types';
 
 const ALLERGEN_CATALOG_ITEMS: CatalogItem[] = ALLERGEN_91_DATABASE.map(item => {
+  const isTIgE = item.code.toLowerCase() === 'tige';
   let category = 'Dị Nguyên Thực Phẩm';
-  if (item.route.includes('Hô hấp') || item.code.startsWith('d') || item.code.startsWith('e') || item.code.startsWith('m') || item.code.startsWith('g') || item.code.startsWith('w') || item.code.startsWith('h') || item.code.startsWith('t')) {
+
+  if (isTIgE) {
+    category = 'Dị Nguyên & Miễn Dịch';
+  } else if (item.route.includes('Hô hấp') || item.code.startsWith('d') || item.code.startsWith('e') || item.code.startsWith('m') || item.code.startsWith('g') || item.code.startsWith('w') || item.code.startsWith('h') || item.code.startsWith('t')) {
     category = 'Dị Nguyên Hô Hấp';
   } else if (item.code.startsWith('i') || item.code === 'k82') {
     category = 'Dị Nguyên Côn Trùng & Khác';
@@ -14,11 +18,11 @@ const ALLERGEN_CATALOG_ITEMS: CatalogItem[] = ALLERGEN_91_DATABASE.map(item => {
     category,
     code: item.code,
     name: item.name,
-    scientific: item.allergenName || item.name,
+    scientific: item.allergenName || (isTIgE ? 'Total IgE' : item.name),
     refMin: 0,
-    refMax: 0.34,
+    refMax: isTIgE ? 15.0 : 0.34,
     unit: 'IU/mL',
-    refText: item.normalRef || '< 0.35 (Độ 0)',
+    refText: isTIgE ? '< 15,0' : (item.normalRef || '< 0.35 (Độ 0)'),
     equipment: 'Máy Đọc Dị Nguyên PROTIA Smart Analyzer'
   };
 });
