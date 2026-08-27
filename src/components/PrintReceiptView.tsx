@@ -3,6 +3,7 @@ import golabLogo from '@assets/golabLogoDataUrl';
 import doctorStamp from '@assets/doctorStampDataUrl';
 
 interface PrintReceiptViewProps {
+  elementId?: string;
   invoice: Invoice;
   clinicInfo?: ClinicInfo;
 }
@@ -66,6 +67,7 @@ function numberToVietnameseWords(num: number): string {
 }
 
 export default function PrintReceiptView({
+  elementId = 'receipt-print-element',
   invoice,
   clinicInfo = {
     name: 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH',
@@ -114,6 +116,7 @@ export default function PrintReceiptView({
 
   return (
     <div
+      id={elementId}
       className="receipt-print-page bg-white text-slate-900 mx-auto text-[13px] leading-normal flex flex-col justify-between p-6 sm:p-8 font-sans shadow-lg print:shadow-none print:p-4"
       style={{
         width: '210mm',
@@ -153,20 +156,46 @@ export default function PrintReceiptView({
             </div>
 
             {/* Header Right: Tiêu đề Phiếu Thu */}
-            <div className="text-center flex flex-col items-center shrink-0">
-              <h2 className="text-[26px] font-black uppercase text-[#0f3a85] tracking-wide leading-none">
+            <div className="text-center shrink-0 min-w-[210px] flex flex-col items-center">
+              <div
+                style={{
+                  fontSize: '24px',
+                  fontWeight: 900,
+                  color: '#0f3a85',
+                  letterSpacing: '0.04em',
+                  textTransform: 'uppercase',
+                  lineHeight: '1.25',
+                  marginBottom: '6px'
+                }}
+              >
                 PHIẾU THU
-              </h2>
-              <div className="mt-1 bg-[#0f3a85] text-white font-bold text-[11px] uppercase tracking-wider px-3.5 py-1 rounded-md shadow-xs">
+              </div>
+              <div
+                style={{
+                  backgroundColor: '#0f3a85',
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  fontSize: '11px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  padding: '4px 14px',
+                  borderRadius: '6px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  lineHeight: '1.35',
+                  marginBottom: '8px'
+                }}
+              >
                 XÁC NHẬN THANH TOÁN
               </div>
-              <div className="mt-1.5 text-[12px] text-slate-700 space-y-0.5 text-left w-full pl-1">
-                <p>
+              <div className="text-[12px] text-slate-700 text-left w-full pl-2 space-y-1">
+                <div style={{ lineHeight: '1.35' }}>
                   Số phiếu: <strong className="font-mono font-bold text-[#0f3a85]">{invoice.code}</strong>
-                </p>
-                <p className="text-[11.5px]">
+                </div>
+                <div className="text-[11.5px]" style={{ lineHeight: '1.35' }}>
                   Ngày: <strong className="font-mono">{dayStr}</strong> / <strong className="font-mono">{monthStr}</strong> / <strong className="font-mono">{yearStr}</strong>
-                </p>
+                </div>
               </div>
             </div>
 
@@ -182,14 +211,14 @@ export default function PrintReceiptView({
           <div className="space-y-1 pl-1">
             <div className="flex items-baseline">
               <span className="font-semibold text-slate-800 shrink-0">Họ và tên (Bệnh nhân):</span>
-              <span className="ml-2 font-bold uppercase text-slate-950 text-[14px] truncate flex-1 border-b border-dotted border-slate-400 pb-0.5">
+              <span className="ml-2 font-bold uppercase text-slate-950 text-[14px] flex-1 border-b border-dotted border-slate-400 pb-0.5">
                 {invoice.patientName || '........................................................................................................................................................'}
               </span>
             </div>
 
             <div className="flex items-baseline">
               <span className="font-semibold text-slate-800 shrink-0">Địa chỉ:</span>
-              <span className="ml-2 text-slate-800 truncate flex-1 border-b border-dotted border-slate-400 pb-0.5">
+              <span className="ml-2 text-slate-800 flex-1 border-b border-dotted border-slate-400 pb-0.5">
                 {invoice.patientDob ? `Năm sinh: ${invoice.patientDob} • Giới tính: ${invoice.patientGender}` : '...................................................................................................................................................................'}
               </span>
             </div>
@@ -197,13 +226,13 @@ export default function PrintReceiptView({
             <div className="grid grid-cols-12 gap-4 items-baseline">
               <div className="col-span-6 flex items-baseline">
                 <span className="font-semibold text-slate-800 shrink-0">Số điện thoại:</span>
-                <span className="ml-2 font-mono text-slate-900 truncate flex-1 border-b border-dotted border-slate-400 pb-0.5">
+                <span className="ml-2 font-mono text-slate-900 flex-1 border-b border-dotted border-slate-400 pb-0.5">
                   {invoice.patientPhone || '.......................................................................'}
                 </span>
               </div>
               <div className="col-span-6 flex items-baseline">
                 <span className="font-semibold text-slate-800 shrink-0">Mã bệnh phẩm (MBP):</span>
-                <span className="ml-2 font-mono font-bold text-red-600 text-[14px] truncate flex-1 border-b border-dotted border-slate-400 pb-0.5">
+                <span className="ml-2 font-mono font-bold text-red-600 text-[14px] flex-1 border-b border-dotted border-slate-400 pb-0.5">
                   {sampleCode}
                 </span>
               </div>
@@ -240,7 +269,6 @@ export default function PrintReceiptView({
                       </td>
                       <td className="py-1 px-3 font-semibold text-slate-900 border-r border-[#0f3a85] align-middle">
                         {item.name}
-                        {item.code && <span className="text-[10px] text-slate-500 ml-1 font-mono">[{item.code}]</span>}
                       </td>
                       <td className="py-1 px-2 text-center font-mono text-slate-800 border-r border-[#0f3a85] align-middle">
                         {qty}
@@ -332,7 +360,7 @@ export default function PrintReceiptView({
           <div className="pt-1.5 space-y-1.5 pl-1 text-[12.5px]">
             <p className="flex items-baseline">
               <span className="font-semibold text-slate-800 shrink-0">Bằng chữ:</span>
-              <strong className="ml-2 font-serif italic font-bold text-slate-900 truncate flex-1 border-b border-dotted border-slate-400 pb-0.5">
+              <strong className="ml-2 font-serif italic font-bold text-slate-900 flex-1 border-b border-dotted border-slate-400 pb-0.5">
                 {amountWords}
               </strong>
             </p>
@@ -379,15 +407,13 @@ export default function PrintReceiptView({
         </div>
 
         {/* ═══ 4. KHUNG THANH TOÁN QUA CHUYỂN KHOẢN (QR + THÔNG TIN TK) ═══ */}
-        <div className="border border-[#3b82f6] rounded-xl p-2.5 mb-3 bg-white relative">
-          {/* Tiêu đề chèn giữa viền */}
-          <div className="text-center -mt-5 mb-1">
-            <span className="bg-white px-3 font-bold text-[#0f3a85] uppercase tracking-wider text-[12px] border-b-2 border-transparent">
-              ─────&nbsp;&nbsp;THANH TOÁN QUA CHUYỂN KHOẢN&nbsp;&nbsp;─────
-            </span>
+        <div className="border border-[#3b82f6] rounded-xl p-3 mb-3 bg-white">
+          {/* Tiêu đề khung chuyển khoản */}
+          <div className="text-center font-bold text-[#0f3a85] uppercase tracking-wider text-[12px] pb-1 mb-2 border-b border-blue-100">
+            ─────&nbsp;&nbsp;THANH TOÁN QUA CHUYỂN KHOẢN&nbsp;&nbsp;─────
           </div>
 
-          <div className="grid grid-cols-12 gap-3 items-center pt-1">
+          <div className="grid grid-cols-12 gap-3 items-center">
             {/* Cột 1: Mã QR Code */}
             <div className="col-span-3 flex justify-center items-center">
               <div className="p-1 border border-slate-300 rounded-lg bg-white shadow-2xs">
@@ -404,41 +430,41 @@ export default function PrintReceiptView({
             </div>
 
             {/* Cột 2: Logo & Thông tin Tài khoản Ngân hàng */}
-            <div className="col-span-5 text-center space-y-1 border-r border-slate-200 pr-2">
-              <div className="flex items-center justify-center space-x-2">
+            <div className="col-span-5 text-center border-r border-slate-200 pr-2 space-y-1 py-1">
+              <div className="flex items-center justify-center space-x-1.5 leading-normal">
                 <span className="font-extrabold italic text-[#005ba9] text-[12px] tracking-tight">napas<span className="text-amber-500">247</span></span>
-                <span className="font-black text-red-700 uppercase text-[14px] tracking-tight font-serif">
+                <span className="font-black text-red-700 uppercase text-[13.5px] tracking-tight font-serif">
                   {bankName}
                 </span>
               </div>
 
-              <p className="font-black text-[#0f3a85] text-[14px] uppercase tracking-wide">
+              <div className="font-black text-[#0f3a85] text-[13.5px] uppercase tracking-wide leading-normal">
                 {bankAccountName}
-              </p>
+              </div>
 
-              <p className="font-mono font-black text-red-600 text-[18px] tracking-wider leading-none">
+              <div className="font-mono font-black text-red-600 text-[18px] tracking-wider leading-normal">
                 {bankAccountNo}
-              </p>
+              </div>
 
-              <p className="text-[10px] text-slate-600 italic leading-tight">
+              <div className="text-[10px] text-slate-600 italic leading-normal">
                 {bankBranch}
-              </p>
+              </div>
             </div>
 
             {/* Cột 3: Nội dung chuyển khoản đối soát */}
-            <div className="col-span-4 pl-1 text-center space-y-1">
-              <p className="font-extrabold text-[#0f3a85] uppercase text-[12px] tracking-wide">
+            <div className="col-span-4 pl-2 text-center space-y-1.5 py-1">
+              <div className="font-extrabold text-[#0f3a85] uppercase text-[12px] tracking-wide pb-1 border-b border-slate-100 leading-normal">
                 NỘI DUNG CHUYỂN KHOẢN
-              </p>
-              <p className="font-mono font-bold text-red-600 text-[13.5px]">
-                MBP: <span className="underline">{sampleCode}</span>
-              </p>
-              <p className="font-bold text-slate-900 text-[12.5px] uppercase truncate">
+              </div>
+              <div className="font-mono font-bold text-red-600 text-[13.5px] leading-normal">
+                MBP: {sampleCode}
+              </div>
+              <div className="font-black text-slate-900 text-[13.5px] uppercase leading-normal">
                 {invoice.patientName || 'TÊN BỆNH NHÂN'}
-              </p>
-              <p className="text-[10px] text-slate-500 italic">
+              </div>
+              <div className="text-[10px] text-slate-500 italic leading-normal">
                 (Vui lòng ghi đúng nội dung để đối soát)
-              </p>
+              </div>
             </div>
           </div>
         </div>

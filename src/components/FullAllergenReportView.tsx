@@ -402,7 +402,7 @@ function FullAllergenReportView({
                           {pos.isTIgE ? (
                             <span className="text-[12px]">{pos.result} <span className="text-slate-500 text-[10px]">(IU/ml)</span></span>
                           ) : (
-                            <span className={`inline-block min-w-[28px] px-2.5 py-0.5 rounded-md font-black border ${gradeStyle.badgeBg}`}>
+                            <span className={`inline-flex items-center justify-center min-w-[26px] h-[22px] px-1.5 rounded font-black border leading-none text-center ${gradeStyle.badgeBg}`}>
                               {pos.grade}
                             </span>
                           )}
@@ -440,48 +440,50 @@ function FullAllergenReportView({
                   </thead>
                   <tbody className="divide-y divide-slate-300">
                     <tr>
-                      <td className="py-1 text-center border-r border-slate-300 align-middle leading-snug">0</td>
+                      <td className="py-1 text-center border-r border-slate-300 align-middle leading-snug">
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded font-bold border leading-none text-center bg-white text-slate-700 border-slate-300">0</span>
+                      </td>
                       <td className="py-1 text-center font-mono text-slate-600 border-r border-slate-300 align-middle leading-snug">&lt;0,34</td>
                       <td className="py-1 text-center font-semibold text-slate-700 align-middle leading-snug">Không phản ứng</td>
                     </tr>
                     <tr className="bg-amber-50/50">
                       <td className="py-1 text-center border-r border-slate-300 font-bold align-middle leading-snug">
-                        <span className="inline-block px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200">1</span>
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded font-black border leading-none text-center bg-amber-50 text-amber-800 border-amber-200">1</span>
                       </td>
                       <td className="py-1 text-center font-mono text-amber-800 border-r border-slate-300 align-middle leading-snug">0,35 - 0,69</td>
                       <td className="py-1 text-center font-bold text-amber-800 align-middle leading-snug">Yếu</td>
                     </tr>
                     <tr className="bg-amber-50/70">
                       <td className="py-1 text-center border-r border-slate-300 font-bold align-middle leading-snug">
-                        <span className="inline-block px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300">2</span>
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded font-black border leading-none text-center bg-amber-100 text-amber-900 border-amber-300">2</span>
                       </td>
                       <td className="py-1 text-center font-mono text-amber-900 border-r border-slate-300 align-middle leading-snug">0,70 - 3,49</td>
                       <td className="py-1 text-center font-bold text-amber-900 align-middle leading-snug">Trung bình</td>
                     </tr>
                     <tr className="bg-red-50/50">
                       <td className="py-1 text-center border-r border-slate-300 font-bold align-middle leading-snug">
-                        <span className="inline-block px-1.5 py-0.2 rounded bg-red-50 text-red-700 border border-red-200">3</span>
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded font-black border leading-none text-center bg-red-50 text-red-700 border-red-200">3</span>
                       </td>
                       <td className="py-1 text-center font-mono text-red-700 border-r border-slate-300 align-middle leading-snug">3,50 - 17,49</td>
                       <td className="py-1 text-center font-bold text-red-700 align-middle leading-snug">Khá</td>
                     </tr>
                     <tr className="bg-red-50/70">
                       <td className="py-1 text-center border-r border-slate-300 font-bold align-middle leading-snug">
-                        <span className="inline-block px-1.5 py-0.2 rounded bg-red-100 text-red-800 border border-red-300">4</span>
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded font-black border leading-none text-center bg-red-100 text-red-800 border-red-300">4</span>
                       </td>
                       <td className="py-1 text-center font-mono text-red-800 border-r border-slate-300 align-middle leading-snug">17,50 - 49,99</td>
                       <td className="py-1 text-center font-bold text-red-800 align-middle leading-snug">Mạnh</td>
                     </tr>
                     <tr className="bg-red-100/60">
                       <td className="py-1 text-center border-r border-slate-300 font-bold align-middle leading-snug">
-                        <span className="inline-block px-1.5 py-0.2 rounded bg-red-200 text-red-900 border border-red-400">5</span>
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded font-black border leading-none text-center bg-red-200 text-red-900 border-red-400">5</span>
                       </td>
                       <td className="py-1 text-center font-mono text-red-900 border-r border-slate-300 align-middle leading-snug">50,00 - 99,99</td>
                       <td className="py-1 text-center font-bold text-red-900 align-middle leading-snug">Rất mạnh</td>
                     </tr>
                     <tr className="bg-red-100">
                       <td className="py-1 text-center border-r border-slate-300 font-bold align-middle leading-snug">
-                        <span className="inline-block px-1.5 py-0.2 rounded bg-red-200 text-red-950 border border-red-500">6</span>
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded font-black border leading-none text-center bg-red-200 text-red-950 border-red-500">6</span>
                       </td>
                       <td className="py-1 text-center font-mono text-red-950 border-r border-slate-300 align-middle leading-snug">&gt;100,0</td>
                       <td className="py-1 text-center font-black text-red-950 align-middle leading-snug">Cực mạnh</td>
@@ -590,7 +592,7 @@ function FullAllergenReportView({
                       </td>
                       <td className="py-1.5 px-1 text-center font-mono font-bold border-r border-slate-300 text-[13px] align-middle leading-snug">
                         {item.isTIgE ? '' : (item.isPositive ? (
-                          <span className={`inline-block min-w-[22px] px-1.5 py-0.2 rounded font-black border ${gradeStyle.badgeBg}`}>
+                          <span className={`inline-flex items-center justify-center w-5 h-5 rounded font-black border leading-none text-center ${gradeStyle.badgeBg}`}>
                             {item.grade}
                           </span>
                         ) : '')}

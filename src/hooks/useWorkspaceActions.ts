@@ -4,7 +4,7 @@ import { useModal } from '../contexts/ModalContext';
 import { useToast } from '../contexts/ToastContext';
 import { PatientCode } from '@domain/valueObjects/PatientCode';
 import { computePricingWithPackages } from '@domain/pricing';
-import type { MedicalReport, TestPackage } from '@domain';
+import type { MedicalReport, TestPackage, Patient } from '@domain';
 import { resolveDoctorName } from '@domain/reportFactory';
 
 // ─── WORKSPACE ACTIONS HOOK ─────────────────────────────────────────────────
@@ -141,17 +141,43 @@ export function useWorkspaceActions(
   // 6. ACTION: NẠP PHIẾU ĐÃ LƯU ĐỂ CHỈNH SỬA
   const performLoadReport = useCallback((rep: MedicalReport) => {
     setCurrentReportId(rep.id);
-    setPatient({ ...rep.patient });
-    setSelectedTests([...rep.selectedTests]);
+
+    // Trích xuất an toàn dữ liệu bệnh nhân từ report (hỗ trợ mọi phiên bản dữ liệu lưu trữ)
+    const rawPatient = (rep.patient || {}) as Partial<Patient>;
+    const rawRep = rep as unknown as Record<string, unknown>;
+    const safePatient: Patient = {
+      code: rawPatient.code || rep.code || rep.sampleCode || (rawRep.code as string) || 'BN-GOLAB',
+      secretToken: rawPatient.secretToken || (rawRep.secretToken as string) || 'GOLAB',
+      name: rawPatient.name || (rawRep.patientName as string) || (rawRep.name as string) || '',
+      dob: rawPatient.dob || (rawRep.patientDob as string) || (rawRep.dob as string) || '',
+      gender: rawPatient.gender || (rawRep.patientGender as Patient['gender']) || (rawRep.gender as Patient['gender']) || 'Nam',
+      phone: rawPatient.phone || (rawRep.patientPhone as string) || (rawRep.phone as string) || '',
+      address: rawPatient.address || (rawRep.patientAddress as string) || (rawRep.address as string) || '',
+      diagnosis: rawPatient.diagnosis || (rawRep.patientDiagnosis as string) || (rawRep.diagnosis as string) || '',
+      sampleCode: rawPatient.sampleCode || rep.sampleCode || rep.code || (rawRep.sampleCode as string) || 'BN-GOLAB',
+      sampleStatus: rawPatient.sampleStatus || (rawRep.sampleStatus as string) || 'Đạt',
+      orderedAt: rawPatient.orderedAt || rep.createdAt || '',
+      paidAt: rawPatient.paidAt || (rawRep.paidAt as string) || undefined,
+      receivedAt: rawPatient.receivedAt || rep.createdAt || '',
+      returnedAt: rawPatient.returnedAt || rep.createdAt || '',
+      doctor: rawPatient.doctor || rep.doctorName || (rawRep.doctor as string) || ''
+    };
+
+    setPatient(safePatient);
+    setSelectedTests(Array.isArray(rep.selectedTests) ? [...rep.selectedTests] : []);
     setConclusion(rep.conclusion || '');
-    setDoctorName(rep.doctorName || '');
+    setDoctorName(rep.doctorName || safePatient.doctor || '');
     resetExport();
     closeReportManager();
-    showToast(`Đã nạp thành công phiếu [${rep.code}] của bệnh nhân ${rep.patient.name} để chỉnh sửa!`, 'success');
+    showToast(`Đã nạp thành công phiếu [${safePatient.code}] của bệnh nhân ${safePatient.name || 'chưa đặt tên'} để chỉnh sửa!`, 'success');
   }, [setCurrentReportId, setPatient, setSelectedTests, setConclusion, setDoctorName, resetExport, closeReportManager, showToast]);
 
   const handleLoadReport = useCallback((rep: MedicalReport) => {
-    requestActionWithGuard(`Nạp phiếu [${rep.code}] của bệnh nhân ${rep.patient.name}`, () => performLoadReport(rep));
+    const rawPatient = (rep.patient || {}) as Partial<Patient>;
+    const rawRep = rep as unknown as Record<string, unknown>;
+    const pName = rawPatient.name || (rawRep.patientName as string) || (rawRep.name as string) || 'Bệnh nhân';
+    const pCode = rawPatient.code || rep.code || 'BN';
+    requestActionWithGuard(`Nạp phiếu [${pCode}] của bệnh nhân ${pName}`, () => performLoadReport(rep));
   }, [requestActionWithGuard, performLoadReport]);
 
   // 7. ACTION: NHÂN BẢN PHIẾU SANG MÃ MỚI
@@ -160,9 +186,9 @@ export function useWorkspaceActions(
     const existingCodes = reports.map((r) => r.code || r.patient?.code || '');
     const nextCode = PatientCode.generateNextCode(existingCodes);
     resetPatient(nextCode);
-    setSelectedTests([...rep.selectedTests]);
+    setSelectedTests(Array.isArray(rep.selectedTests) ? [...rep.selectedTests] : []);
     setConclusion(rep.conclusion || '');
-    setDoctorName(rep.doctorName || '');
+    setDoctorName(rep.doctorName || rep.patient?.doctor || '');
     resetExport();
     closeReportManager();
     showToast(`Đã nhân bản danh mục chỉ số sang mã mới [${nextCode}]!`, 'info');

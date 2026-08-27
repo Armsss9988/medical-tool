@@ -122,6 +122,8 @@ export interface Invoice {
   cashierName?: string;
   reportId?: string;
   paidAt?: string;
+  cloudPdfUrl?: string;
+  qrCodeDataUrl?: string;
 }
 
 export interface ClinicInfo {

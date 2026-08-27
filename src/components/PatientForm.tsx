@@ -185,7 +185,7 @@ export default function PatientForm({
               ref={nameRef as React.RefObject<HTMLInputElement>}
               type="text"
               placeholder="VÍ DỤ: HOÀNG BẢO NGỌC"
-              value={patient.name}
+              value={patient?.name || ''}
               onChange={(e) => handleChange('name', e.target.value.toUpperCase())}
               onKeyDown={(e) => handleKeyDownChain(e, dobRef)}
               tabIndex={1}
@@ -216,7 +216,7 @@ export default function PatientForm({
           </div>
           <input
             type="text"
-            value={patient.code}
+            value={patient?.code || ''}
             onChange={(e) => handleChange('code', e.target.value)}
             placeholder="BN-20260816-001"
             tabIndex={100}
@@ -241,7 +241,7 @@ export default function PatientForm({
             ref={dobRef}
             type="text"
             placeholder="1992 hoặc 22/06/1992"
-            value={patient.dob}
+            value={patient?.dob || ''}
             onChange={(e) => handleChange('dob', e.target.value)}
             onKeyDown={(e) => handleKeyDownChain(e, phoneRef)}
             tabIndex={2}
@@ -254,7 +254,7 @@ export default function PatientForm({
           <label className="block text-xs font-bold text-slate-700 mb-1">Giới tính:</label>
           <div className="grid grid-cols-3 gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200">
             {GENDER_LIST.map((g) => {
-              const isSelected = (patient.gender || GENDER.MALE) === g;
+              const isSelected = (patient?.gender || GENDER.MALE) === g;
               return (
                 <button
                   type="button"
@@ -285,7 +285,7 @@ export default function PatientForm({
             ref={phoneRef}
             type="text"
             placeholder="098 3633677"
-            value={patient.phone}
+            value={patient?.phone || ''}
             onChange={(e) => handleChange('phone', e.target.value)}
             onKeyDown={(e) => handleKeyDownChain(e, addressRef)}
             tabIndex={3}

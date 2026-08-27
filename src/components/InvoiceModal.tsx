@@ -1,13 +1,16 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
   X, CreditCard, CheckCircle, Printer, Plus, Trash2, QrCode, Copy, Check,
-  ZoomIn, ZoomOut, RotateCcw, AlertCircle, Save, Clock
+  AlertCircle, Clock, CloudUpload, Download, Loader2, ExternalLink
 } from 'lucide-react';
 import { 
   Patient, SelectedTest, TestPackage, Doctor, Invoice, InvoiceItem, ClinicInfo, 
-  PaymentMethod, BillingStatus, BILLING_STATUS, PAYMENT_METHOD 
+  PaymentMethod, BillingStatus, BILLING_STATUS, PAYMENT_METHOD, PAYMENT_METHOD_LIST 
 } from '@domain';
 import { buildInvoiceItems } from '@domain/pricing';
+import { generateHighQualityPdf, downloadPdfDirectly } from '@infra/pdfService';
+import { uploadPdfToCloudinary } from '@infra/cloudService';
+import { useToast } from '../contexts/ToastContext';
 import PrintReceiptView from './PrintReceiptView';
 
 interface InvoiceModalProps {
@@ -39,6 +42,8 @@ export default function InvoiceModal({
   onSaveReportFirst,
   onSaveInvoice
 }: InvoiceModalProps) {
+  const { showToast } = useToast();
+
   const [items, setItems] = useState<InvoiceItem[]>(() => {
     return buildInvoiceItems(selectedTests, testPackages);
   });
@@ -57,9 +62,9 @@ export default function InvoiceModal({
   const [cashier, setCashier] = useState<string>(clinicInfo?.cashierName || 'Lê Phan Anh');
   const [invoiceNote, setInvoiceNote] = useState<string>('');
 
-  // 4. CHẾ ĐỘ XEM TRƯỚC IN BIÊN LAI & ZOOM
-  const [isPrintPreview, setIsPrintPreview] = useState<boolean>(false);
-  const [zoomScale, setZoomScale] = useState<number>(0.85);
+  // 4. STATE XUẤT PDF & CLOUD
+  const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
+  const [cloudPdfUrl, setCloudPdfUrl] = useState<string>('');
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Cập nhật khi selectedTests hoặc testPackages thay đổi
@@ -147,7 +152,7 @@ export default function InvoiceModal({
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  const currentInvoice: Invoice = {
+  const currentInvoice: Invoice = useMemo(() => ({
     id: `inv-${Date.now()}`,
     code: invoiceCode,
     patientCode: patient.code,
@@ -168,14 +173,62 @@ export default function InvoiceModal({
     status: BILLING_STATUS.PAID,
     notes: invoiceNote,
     reportId: currentReportId || undefined,
+    cloudPdfUrl: cloudPdfUrl || undefined,
     paidAt: new Date().toISOString(),
     createdAt: new Date().toISOString()
+  }), [
+    invoiceCode, patient, selectedDoc, cashier, items, rawSubtotal,
+    showSurcharge, surchargeAmount, surchargeNote, calculatedDiscount,
+    discountPercent, finalAmount, paymentMethod, invoiceNote,
+    currentReportId, cloudPdfUrl
+  ]);
+
+  const pdfFilename = `PhieuThu_${(patient.name || 'BenhNhan').replace(/\s+/g, '_')}_${invoiceCode}.pdf`;
+
+  // 1. ACTION: TẢI FILE PDF LOCAL VỀ MÁY TÍNH
+  const handleDownloadPdfLocal = async () => {
+    try {
+      showToast('Đang tạo và tải file PDF Phiếu Thu về máy...', 'info');
+      await downloadPdfDirectly('invoice-receipt-print-element', pdfFilename);
+      showToast('Đã tải thành công file PDF Phiếu Thu về máy tính!', 'success');
+    } catch (err) {
+      console.error('Lỗi khi tải file PDF Phiếu Thu:', err);
+      showToast('Không thể tạo file PDF Phiếu Thu. Vui lòng thử lại!', 'error');
+    }
   };
 
-  const handlePrint = () => {
+  // 2. ACTION: XUẤT PDF & LƯU LÊN CLOUD STORAGE
+  const handleExportPdfAndUploadCloud = async () => {
+    try {
+      setIsExportingPdf(true);
+      showToast('Đang xuất PDF chất lượng cao và lưu lên Cloud...', 'info');
+
+      const { base64 } = await generateHighQualityPdf('invoice-receipt-print-element', pdfFilename);
+      const uploadRes = await uploadPdfToCloudinary({
+        pdfBase64: base64,
+        filename: pdfFilename
+      });
+
+      if (uploadRes?.url) {
+        setCloudPdfUrl(uploadRes.url);
+        showToast('Đã xuất PDF và lưu Cloud thành công! Đường link đã được kích hoạt.', 'success');
+      } else {
+        showToast('Không thể lưu PDF lên Cloud, vui lòng kiểm tra kết nối mạng!', 'warning');
+      }
+    } catch (err) {
+      console.error('Lỗi khi xuất PDF và tải lên Cloud:', err);
+      showToast('Có lỗi xảy ra khi lưu PDF lên Cloud.', 'error');
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
+  // 3. ACTION: IN TRỰC TIẾP
+  const handlePrintDirect = () => {
     window.print();
   };
 
+  // 4. ACTION: LƯU HÓA ĐƠN VÀO HỆ THỐNG
   const handleSaveWithStatus = (targetStatus: BillingStatus) => {
     let reportIdToLink = currentReportId;
 
@@ -196,6 +249,7 @@ export default function InvoiceModal({
     onSaveInvoice({
       ...currentInvoice,
       status: targetStatus,
+      cloudPdfUrl: cloudPdfUrl || undefined,
       paidAt: isPaid ? new Date().toISOString() : undefined,
       reportId: reportIdToLink
     });
@@ -209,7 +263,7 @@ export default function InvoiceModal({
       <div className="bg-white sm:rounded-2xl shadow-2xl border border-slate-200 w-full h-full sm:h-[92vh] max-h-[92vh] flex flex-col overflow-hidden text-slate-900 animate-in fade-in zoom-in-95 duration-200">
         
         {/* HEADER MODAL */}
-        <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white px-4 sm:px-6 py-3 sm:py-3.5 flex items-center justify-between shrink-0 shadow">
+        <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white px-4 sm:px-6 py-3 sm:py-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between shrink-0 shadow gap-3">
           <div className="flex items-center space-x-3">
             <div className="p-2 rounded-xl bg-indigo-500/20 border border-indigo-400/30 text-indigo-300">
               <CreditCard className="w-5 h-5" />
@@ -227,20 +281,53 @@ export default function InvoiceModal({
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          {/* QUICK ACTIONS TRONG HEADER */}
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+            {/* Nút Tải PDF Local */}
             <button
               type="button"
-              onClick={() => setIsPrintPreview(!isPrintPreview)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition ${
-                isPrintPreview
-                  ? 'bg-amber-500 text-slate-900 shadow-md'
-                  : 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
-              }`}
+              onClick={handleDownloadPdfLocal}
+              disabled={isExportingPdf}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-teal-600 hover:bg-teal-500 text-white shadow-xs flex items-center space-x-1.5 transition active:scale-95 disabled:opacity-50"
+              title="Tải trực tiếp file PDF Phiếu Thu về máy tính"
             >
-              <Printer className="w-4 h-4" />
-              <span>{isPrintPreview ? 'Quay Lại Sửa' : 'Xem Mẫu In Phiếu Thu'}</span>
+              <Download className="w-3.5 h-3.5" />
+              <span>Tải PDF Local</span>
             </button>
-            <button onClick={onClose} className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition">
+
+            {/* Nút Xuất PDF & Lưu Cloud */}
+            <button
+              type="button"
+              onClick={handleExportPdfAndUploadCloud}
+              disabled={isExportingPdf}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs flex items-center space-x-1.5 transition active:scale-95 disabled:opacity-50"
+              title="Xuất file PDF chất lượng cao và lưu trữ an toàn trên Cloud"
+            >
+              {isExportingPdf ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <CloudUpload className="w-3.5 h-3.5" />
+              )}
+              <span>{isExportingPdf ? 'Đang Lưu Cloud...' : 'Xuất PDF & Lưu Cloud'}</span>
+            </button>
+
+            {/* Nút In Trực Tiếp */}
+            <button
+              type="button"
+              onClick={handlePrintDirect}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white shadow-xs flex items-center space-x-1.5 transition active:scale-95"
+              title="In phiếu thu trực tiếp ra máy in"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>In Phiếu Thu</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition"
+              title="Đóng cửa sổ"
+            >
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -259,467 +346,410 @@ export default function InvoiceModal({
               <button
                 type="button"
                 onClick={onSaveReportFirst}
-                className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold rounded-lg text-[11px] shadow-sm transition flex items-center gap-1 shrink-0"
+                className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-[11px] shrink-0"
               >
-                <Save className="w-3.5 h-3.5" />
-                <span>Lưu Phiếu Ngay</span>
+                Lưu Phiếu Khám Ngay
               </button>
             )}
           </div>
         )}
 
-        {/* NỘI DUNG CHÍNH (MODE XEM TRƯỚC IN vs MODE CHỈNH SỬA THU PHÍ) */}
-        {isPrintPreview ? (
-          <div className="flex-1 min-h-0 flex flex-col bg-slate-200/90 overflow-hidden">
-            {/* Thanh công cụ Zoom & Print của Preview */}
-            <div className="bg-slate-800 text-white px-4 py-2 flex items-center justify-between border-b border-slate-700 shrink-0 text-xs">
-              <div className="flex items-center space-x-2">
-                <span className="text-slate-300 font-semibold">Tỉ lệ xem: <strong className="font-mono text-emerald-400">{Math.round(zoomScale * 100)}%</strong></span>
-                <button
-                  type="button"
-                  onClick={() => setZoomScale((prev) => Math.min(prev + 0.1, 1.4))}
-                  className="p-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 transition"
-                  title="Phóng to"
-                >
-                  <ZoomIn className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setZoomScale((prev) => Math.max(prev - 0.1, 0.4))}
-                  className="p-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 transition"
-                  title="Thu nhỏ"
-                >
-                  <ZoomOut className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setZoomScale(0.85)}
-                  className="p-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 transition flex items-center gap-1 text-[11px] px-2"
-                  title="Vừa màn hình"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  <span>Chuẩn 85%</span>
-                </button>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <button
-                  type="button"
-                  onClick={handlePrint}
-                  className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg shadow flex items-center gap-1.5 transition active:scale-95"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>In Phiếu Thu A5</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Vùng Canvas Cuộn Mượt Mà Cả Dọc Lẫn Ngang */}
-            <div className="flex-1 min-h-0 overflow-auto p-4 sm:p-6 flex justify-center items-start">
-              <div
-                className="bg-white shadow-2xl rounded-xl border border-slate-300 transition-transform duration-150 origin-top my-2"
-                style={{ transform: `scale(${zoomScale})` }}
-              >
-                <PrintReceiptView invoice={currentInvoice} clinicInfo={clinicInfo} />
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 text-xs">
+        {/* BODY MODAL: FORM THIẾT LẬP THU PHÍ */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 bg-slate-50/50">
+          
+          {/* CỘT TRÁI (7 CỘT): DANH MỤC DỊCH VỤ, PHỤ PHÍ & CHIẾT KHẤU */}
+          <div className="lg:col-span-7 flex flex-col space-y-4">
             
-            {/* CỘT TRÁI (COL-7): DANH SÁCH DỊCH VỤ & PHỤ PHÍ */}
-            <div className="lg:col-span-7 flex flex-col space-y-4">
-              <div className="flex items-center justify-between pb-1 border-b border-slate-200">
-                <span className="font-extrabold text-slate-800 uppercase tracking-wider text-[11.5px] flex items-center gap-1.5">
-                  <span>Chi Tiết Dịch Vụ & Chỉ Số ({items.length})</span>
-                </span>
+            {/* BẢNG DỊCH VỤ / XÉT NGHIỆM */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+              <div className="px-4 py-3 bg-slate-100/80 border-b border-slate-200 flex items-center justify-between">
+                <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wide">
+                  Chi Tiết Danh Mục Thu Phí ({items.length} mục)
+                </h4>
                 <button
                   type="button"
                   onClick={handleAddCustomItem}
-                  className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg border border-indigo-200 flex items-center gap-1 transition text-[11px]"
+                  className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] border border-indigo-200 flex items-center space-x-1 transition"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Thêm Dịch Vụ / Vật Tư</span>
+                  <Plus className="w-3 h-3" />
+                  <span>Thêm Dịch Vụ</span>
                 </button>
               </div>
 
-              {/* BẢNG DỊCH VỤ */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs max-h-[260px] overflow-y-auto">
+              <div className="overflow-x-auto max-h-[280px] overflow-y-auto">
                 <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-slate-800 text-white font-bold sticky top-0 z-10 text-[11px]">
+                  <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 sticky top-0 z-10">
                     <tr>
-                      <th className="py-2 px-2.5">Tên Dịch Vụ</th>
-                      <th className="py-2 px-2 text-center w-16">Số Lượng</th>
-                      <th className="py-2 px-2 text-right w-24">Đơn Giá</th>
-                      <th className="py-2 px-2 text-right w-24">Thành Tiền</th>
-                      <th className="py-2 px-2 text-center w-8" />
+                      <th className="py-2 px-3 w-10 text-center">STT</th>
+                      <th className="py-2 px-3">Tên Dịch Vụ / Xét Nghiệm</th>
+                      <th className="py-2 px-3 w-28 text-right">Đơn Giá</th>
+                      <th className="py-2 px-2 w-16 text-center">SL</th>
+                      <th className="py-2 px-3 w-28 text-right">Thành Tiền</th>
+                      <th className="py-2 px-2 w-10 text-center"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
+                  <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
                     {items.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="py-8 text-center text-slate-400">
+                        <td colSpan={6} className="py-8 text-center text-slate-400 italic">
                           Chưa có dịch vụ nào trong hóa đơn
                         </td>
                       </tr>
                     ) : (
-                      items.map((it, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50">
-                          <td className="py-2 px-2.5">
-                            <span className="font-bold text-slate-900 block">{it.name}</span>
-                            <span className="font-mono text-[10px] text-slate-400">{it.code}</span>
-                          </td>
-                          <td className="py-2 px-2 text-center">
-                            <input
-                              type="number"
-                              min={1}
-                              value={it.quantity || 1}
-                              onChange={(e) => handleItemChange(idx, 'quantity', Math.max(1, Number(e.target.value)))}
-                              className="w-12 text-center py-1 border border-slate-300 rounded font-bold font-mono text-xs focus:ring-1 focus:ring-indigo-500"
-                            />
-                          </td>
-                          <td className="py-2 px-2 text-right">
-                            <input
-                              type="number"
-                              step={5000}
-                              value={it.price}
-                              onChange={(e) => handleItemChange(idx, 'price', Math.max(0, Number(e.target.value)))}
-                              className="w-20 text-right py-1 px-1.5 border border-slate-300 rounded font-mono text-xs focus:ring-1 focus:ring-indigo-500"
-                            />
-                          </td>
-                          <td className="py-2 px-2 text-right font-mono font-bold text-slate-900">
-                            {((it.price || 0) * (it.quantity || 1)).toLocaleString('vi-VN')} đ
-                          </td>
-                          <td className="py-2 px-2 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveItem(idx)}
-                              className="text-slate-400 hover:text-rose-600 p-1 transition"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))
+                      items.map((it, idx) => {
+                        const lineTotal = (it.price || 0) * (it.quantity || 1);
+                        return (
+                          <tr key={`${it.code}-${idx}`} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="py-2 px-3 text-center text-slate-400 font-mono text-[11px]">{idx + 1}</td>
+                            <td className="py-2 px-3">
+                              <input
+                                type="text"
+                                value={it.name}
+                                onChange={(e) => handleItemChange(idx, 'name', e.target.value)}
+                                className="w-full bg-transparent font-semibold focus:bg-white focus:ring-1 focus:ring-indigo-500 rounded px-1.5 py-0.5 border border-transparent focus:border-slate-300 transition"
+                              />
+                            </td>
+                            <td className="py-2 px-3 text-right">
+                              <input
+                                type="number"
+                                value={it.price}
+                                onChange={(e) => handleItemChange(idx, 'price', Number(e.target.value))}
+                                className="w-24 text-right font-mono bg-transparent focus:bg-white focus:ring-1 focus:ring-indigo-500 rounded px-1.5 py-0.5 border border-transparent focus:border-slate-300 transition font-semibold"
+                              />
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              <input
+                                type="number"
+                                min={1}
+                                value={it.quantity || 1}
+                                onChange={(e) => handleItemChange(idx, 'quantity', Math.max(1, Number(e.target.value)))}
+                                className="w-12 text-center font-mono bg-transparent focus:bg-white focus:ring-1 focus:ring-indigo-500 rounded px-1 py-0.5 border border-transparent focus:border-slate-300 transition"
+                              />
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
+                              {lineTotal.toLocaleString('vi-VN')} đ
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveItem(idx)}
+                                className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-red-50 transition"
+                                title="Xóa dịch vụ"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
               </div>
-
-              {/* KHỐI PHỤ PHÍ & GHI CHÚ */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-800 text-[11.5px]">Phụ Phí / Lấy Mẫu Tận Nơi</span>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSurchargeAmount(50000);
-                        setSurchargeNote('Phí lấy mẫu tại nhà (<5km)');
-                        setShowSurcharge(true);
-                      }}
-                      className="px-2 py-0.5 bg-white hover:bg-slate-100 border border-slate-300 rounded text-[10.5px] font-bold text-slate-700"
-                    >
-                      +50k Gần
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSurchargeAmount(100000);
-                        setSurchargeNote('Phí lấy mẫu tại nhà (>5km)');
-                        setShowSurcharge(true);
-                      }}
-                      className="px-2 py-0.5 bg-white hover:bg-slate-100 border border-slate-300 rounded text-[10.5px] font-bold text-slate-700"
-                    >
-                      +100k Xa
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSurchargeAmount(0);
-                        setSurchargeNote('');
-                        setShowSurcharge(false);
-                      }}
-                      className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 rounded text-[10.5px] font-bold text-slate-600"
-                    >
-                      Xóa
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Nội dung phụ phí:</label>
-                    <input
-                      type="text"
-                      placeholder="Lấy mẫu tại nhà, khẩn..."
-                      value={surchargeNote}
-                      onChange={(e) => {
-                        setSurchargeNote(e.target.value);
-                        if (e.target.value && !showSurcharge) setShowSurcharge(true);
-                      }}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-medium"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Tiền phụ phí (VNĐ):</label>
-                    <input
-                      type="number"
-                      step={10000}
-                      value={surchargeAmount}
-                      onChange={(e) => {
-                        const val = Math.max(0, Number(e.target.value));
-                        setSurchargeAmount(val);
-                        setShowSurcharge(val > 0);
-                      }}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-right"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* GHI CHÚ HÓA ĐƠN */}
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Ghi chú thu ngân:</label>
-                <input
-                  type="text"
-                  placeholder="Ghi chú thêm (khách hẹn, xuất hóa đơn đỏ...)"
-                  value={invoiceNote}
-                  onChange={(e) => setInvoiceNote(e.target.value)}
-                  className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs"
-                />
-              </div>
             </div>
 
-            {/* CỘT PHẢI (COL-5): TỔNG TIỀN, CHIẾT KHẤU & PHƯƠNG THỨC THANH TOÁN (VIETQR) */}
-            <div className="lg:col-span-5 flex flex-col space-y-4 bg-slate-50 border border-slate-200 rounded-2xl p-4">
+            {/* PHỤ PHÍ & CHIẾT KHẤU */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3.5">
               
-              <div className="space-y-2 border-b border-slate-200 pb-3">
-                <div className="flex justify-between items-center text-slate-600 font-semibold">
-                  <span>Tiền dịch vụ:</span>
-                  <span className="font-mono text-slate-900 font-bold">{rawSubtotal.toLocaleString('vi-VN')} đ</span>
-                </div>
-
-                {surchargeAmount > 0 && (
-                  <div className="flex justify-between items-center text-sky-800 font-semibold">
-                    <span>Phụ phí ({surchargeNote || 'Lấy mẫu'}):</span>
-                    <span className="font-mono font-bold">+{surchargeAmount.toLocaleString('vi-VN')} đ</span>
-                  </div>
-                )}
-
-                {/* GIẢM GIÁ / CHIẾT KHẤU */}
-                <div className="pt-1">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-semibold text-slate-700">Giảm giá / Chiết khấu:</span>
-                    <div className="flex items-center space-x-1 bg-slate-200 p-0.5 rounded-lg text-[10.5px]">
-                      <button
-                        type="button"
-                        onClick={() => setDiscountType('amount')}
-                        className={`px-2 py-0.5 rounded font-bold transition ${
-                          discountType === 'amount' ? 'bg-white text-indigo-900 shadow-2xs' : 'text-slate-600'
-                        }`}
-                      >
-                        VNĐ
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDiscountType('percent')}
-                        className={`px-2 py-0.5 rounded font-bold transition ${
-                          discountType === 'percent' ? 'bg-white text-indigo-900 shadow-2xs' : 'text-slate-600'
-                        }`}
-                      >
-                        %
-                      </button>
-                    </div>
-                  </div>
-
+              {/* Phụ phí lấy mẫu tận nơi */}
+              <div className="flex items-center justify-between">
+                <label className="flex items-center space-x-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={showSurcharge}
+                    onChange={(e) => setShowSurcharge(e.target.checked)}
+                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                  />
+                  <span className="font-bold text-xs text-slate-700">Phụ phí phát sinh / Lấy mẫu tại nhà</span>
+                </label>
+                {showSurcharge && (
                   <div className="flex items-center space-x-2">
                     <input
-                      type="number"
-                      min={0}
-                      max={discountType === 'percent' ? 100 : totalWithSurcharge}
-                      value={discountVal}
-                      onChange={(e) => setDiscountVal(Math.max(0, Number(e.target.value)))}
-                      className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-right font-mono font-bold text-slate-900 text-xs"
+                      type="text"
+                      value={surchargeNote}
+                      onChange={(e) => setSurchargeNote(e.target.value)}
+                      placeholder="Lý do phụ phí"
+                      className="text-xs px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg w-44"
                     />
-                    <span className="font-bold text-slate-500">{discountType === 'percent' ? '%' : 'đ'}</span>
+                    <input
+                      type="number"
+                      value={surchargeAmount}
+                      onChange={(e) => setSurchargeAmount(Number(e.target.value))}
+                      className="text-xs font-mono font-bold text-right px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg w-28"
+                    />
+                    <span className="text-xs text-slate-500">đ</span>
                   </div>
+                )}
+              </div>
 
-                  {calculatedDiscount > 0 && (
-                    <p className="text-right text-[11px] text-rose-600 font-bold mt-1">
-                      Giảm: -{calculatedDiscount.toLocaleString('vi-VN')} đ ({discountPercent}%)
-                    </p>
-                  )}
+              {/* Chiết khấu / Giảm giá */}
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                <span className="font-bold text-xs text-slate-700">Giảm giá / Ưu đãi:</span>
+                <div className="flex items-center space-x-2">
+                  <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setDiscountType('percent')}
+                      className={`px-2 py-0.5 text-[11px] font-bold rounded-md transition ${
+                        discountType === 'percent' ? 'bg-white text-indigo-900 shadow-xs' : 'text-slate-500'
+                      }`}
+                    >
+                      %
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDiscountType('amount')}
+                      className={`px-2 py-0.5 text-[11px] font-bold rounded-md transition ${
+                        discountType === 'amount' ? 'bg-white text-indigo-900 shadow-xs' : 'text-slate-500'
+                      }`}
+                    >
+                      VNĐ
+                    </button>
+                  </div>
+                  <input
+                    type="number"
+                    value={discountVal}
+                    onChange={(e) => setDiscountVal(Math.max(0, Number(e.target.value)))}
+                    placeholder="0"
+                    className="text-xs font-mono font-bold text-right px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg w-28"
+                  />
+                  <span className="text-xs font-bold text-red-600 font-mono">
+                    (-{calculatedDiscount.toLocaleString('vi-VN')} đ)
+                  </span>
                 </div>
+              </div>
 
-                {/* THỰC THU */}
-                <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
-                  <span className="font-black text-slate-900 text-sm uppercase">TỔNG THỰC THU:</span>
-                  <span className="font-mono text-xl font-black text-emerald-700">
+              {/* TỔNG KẾT TIỀN */}
+              <div className="pt-3 border-t-2 border-slate-200 flex flex-col space-y-1.5">
+                <div className="flex justify-between text-xs text-slate-600 font-medium">
+                  <span>Tiền dịch vụ:</span>
+                  <span className="font-mono">{rawSubtotal.toLocaleString('vi-VN')} đ</span>
+                </div>
+                {showSurcharge && surchargeAmount > 0 && (
+                  <div className="flex justify-between text-xs text-slate-600 font-medium">
+                    <span>Phụ phí:</span>
+                    <span className="font-mono">+{surchargeAmount.toLocaleString('vi-VN')} đ</span>
+                  </div>
+                )}
+                {calculatedDiscount > 0 && (
+                  <div className="flex justify-between text-xs text-red-600 font-medium">
+                    <span>Chiết khấu ({discountPercent}%):</span>
+                    <span className="font-mono">-{calculatedDiscount.toLocaleString('vi-VN')} đ</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center text-sm font-black pt-1.5 border-t border-dashed border-slate-200">
+                  <span className="text-slate-900 uppercase">TỔNG CỘNG THỰC THU:</span>
+                  <span className="font-mono text-lg text-emerald-600">
                     {finalAmount.toLocaleString('vi-VN')} đ
                   </span>
                 </div>
               </div>
 
-              {/* PHƯƠNG THỨC THANH TOÁN */}
-              <div className="space-y-2">
-                <label className="block font-bold text-slate-800 text-[11.5px]">Hình Thức Thanh Toán</label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {(['Tiền mặt', 'Chuyển khoản (VietQR)', 'Quẹt thẻ'] as PaymentMethod[]).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setPaymentMethod(m)}
-                      className={`py-2 px-1.5 text-center rounded-xl font-bold transition text-xs border ${
-                        paymentMethod === m
-                          ? 'bg-indigo-600 text-white border-indigo-700 shadow-sm'
-                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                      }`}
-                    >
-                      {m === 'Chuyển khoản (VietQR)' ? 'VietQR' : m}
-                    </button>
-                  ))}
+            </div>
+
+          </div>
+
+          {/* CỘT PHẢI (5 CỘT): PHƯƠNG THỨC THANH TOÁN, VIETQR & GHI CHÚ */}
+          <div className="lg:col-span-5 flex flex-col space-y-4">
+            
+            {/* HÌNH THỨC THANH TOÁN */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3">
+              <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wide">
+                Hình Thức Thanh Toán
+              </h4>
+
+              <div className="grid grid-cols-2 gap-2">
+                {PAYMENT_METHOD_LIST.map((m) => (
+                  <button
+                    type="button"
+                    key={m}
+                    onClick={() => setPaymentMethod(m)}
+                    className={`py-2 px-2.5 rounded-xl border text-xs font-bold transition flex items-center justify-center space-x-1.5 ${
+                      paymentMethod === m
+                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>{m}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* KHUNG VIETQR ĐỘNG NẾU CHỌN CHUYỂN KHOẢN */}
+            {paymentMethod === 'Chuyển khoản (VietQR)' && (
+              <div className="bg-white border-2 border-indigo-500/40 rounded-2xl p-3.5 flex flex-col items-center text-center space-y-2.5 animate-in fade-in zoom-in-95 duration-150 shadow-sm">
+                <div className="flex items-center space-x-1.5 text-indigo-900 font-bold text-xs">
+                  <QrCode className="w-4 h-4 text-indigo-600" />
+                  <span>Quét Mã VietQR Napas 247</span>
+                </div>
+
+                <div className="bg-white p-1.5 border border-slate-200 rounded-xl shadow-inner max-w-[160px]">
+                  <img
+                    src={clinicInfo?.bankQrImageUrl || vietQrUrl}
+                    alt="VietQR Chuyển Khoản"
+                    className="w-full h-auto object-contain rounded"
+                    loading="eager"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=GoLab';
+                    }}
+                  />
+                </div>
+
+                <div className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-[11px] space-y-1.5 text-left">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Ngân hàng:</span>
+                    <span className="font-bold text-slate-800">{clinicInfo?.bankName || clinicInfo?.bankId || 'VietinBank'}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Số tài khoản:</span>
+                    <div className="flex items-center space-x-1">
+                      <span className="font-mono font-bold text-indigo-900">{bankAcc}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(bankAcc, 'acc')}
+                        className="text-slate-400 hover:text-indigo-600 p-0.5"
+                        title="Sao chép STK"
+                      >
+                        {copiedField === 'acc' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Chủ tài khoản:</span>
+                    <span className="font-bold text-slate-800 uppercase text-[10.5px]">{bankAccName}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Nội dung CK:</span>
+                    <div className="flex items-center space-x-1">
+                      <span className="font-mono font-bold text-red-600 text-[10.5px]">{transferContent}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(transferContent, 'content')}
+                        className="text-slate-400 hover:text-indigo-600 p-0.5"
+                        title="Sao chép nội dung CK"
+                      >
+                        {copiedField === 'content' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
+            )}
 
-              {/* KHUNG VIETQR ĐỘNG NẾU CHỌN CHUYỂN KHOẢN */}
-              {paymentMethod === 'Chuyển khoản (VietQR)' && (
-                <div className="bg-white border-2 border-indigo-500/40 rounded-2xl p-3 flex flex-col items-center text-center space-y-2 animate-in fade-in zoom-in-95 duration-150 shadow-sm">
-                  <div className="flex items-center space-x-1 text-indigo-900 font-bold text-[11.5px]">
-                    <QrCode className="w-4 h-4 text-indigo-600" />
-                    <span>Quét Mã VietQR Napas 247</span>
-                  </div>
+            {/* THÔNG TIN BÁC SĨ & THU NGÂN & GHI CHÚ */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3 text-xs">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Bác sĩ chỉ định:</label>
+                <input
+                  type="text"
+                  value={selectedDoc}
+                  onChange={(e) => setSelectedDoc(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold"
+                />
+              </div>
 
-                  <div className="bg-white p-1.5 border border-slate-200 rounded-xl shadow-inner max-w-[160px]">
-                    <img
-                      src={clinicInfo?.bankQrImageUrl || vietQrUrl}
-                      alt="VietQR Chuyển Khoản"
-                      className="w-full h-auto object-contain rounded"
-                      loading="eager"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=GoLab';
-                      }}
-                    />
-                  </div>
-
-                  <div className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-[11px] space-y-1 text-left">
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500">Ngân hàng:</span>
-                      <span className="font-bold text-slate-800">{clinicInfo?.bankName || clinicInfo?.bankId || 'VietinBank'}</span>
-                    </div>
-
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500">Số tài khoản:</span>
-                      <div className="flex items-center space-x-1">
-                        <span className="font-mono font-bold text-indigo-900">{bankAcc}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(bankAcc, 'acc')}
-                          className="text-slate-400 hover:text-indigo-600 p-0.5"
-                          title="Sao chép STK"
-                        >
-                          {copiedField === 'acc' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500">Chủ tài khoản:</span>
-                      <span className="font-bold text-slate-800 uppercase text-[10.5px]">{bankAccName}</span>
-                    </div>
-
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500">Nội dung CK:</span>
-                      <div className="flex items-center space-x-1">
-                        <span className="font-mono font-bold text-red-600 text-[10.5px]">{transferContent}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(transferContent, 'content')}
-                          className="text-slate-400 hover:text-indigo-600 p-0.5"
-                          title="Sao chép nội dung CK"
-                        >
-                          {copiedField === 'content' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* NGƯỜI THU TIỀN */}
-              <div className="pt-1">
-                <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Thu ngân / Kế toán:</label>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Thu ngân / Kế toán lập phiếu:</label>
                 <input
                   type="text"
                   value={cashier}
                   onChange={(e) => setCashier(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold"
                 />
               </div>
 
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Ghi chú hóa đơn:</label>
+                <textarea
+                  rows={2}
+                  value={invoiceNote}
+                  onChange={(e) => setInvoiceNote(e.target.value)}
+                  placeholder="Nhập ghi chú thêm cho hóa đơn này (nếu có)..."
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-normal"
+                />
+              </div>
             </div>
+
           </div>
-        )}
+
+        </div>
 
         {/* FOOTER MODAL */}
-        <div className="bg-slate-50 px-6 py-3.5 border-t border-slate-200 flex items-center justify-between shrink-0 text-xs">
-          <div className="text-slate-500">
-            {isPrintPreview ? (
-              <span>Đang ở chế độ xem trước bản in. Nhấp <strong>"In Biên Lai Ngay"</strong> để in hoặc xuất PDF.</span>
-            ) : (
-              <span>Thực thu: <strong className="font-mono text-emerald-700 text-sm font-black">{finalAmount.toLocaleString('vi-VN')} đ</strong></span>
+        <div className="bg-slate-50 px-4 sm:px-6 py-3.5 border-t border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between shrink-0 text-xs gap-3">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 text-slate-600">
+            <span>
+              Thực thu: <strong className="font-mono text-emerald-700 text-sm font-black">{finalAmount.toLocaleString('vi-VN')} đ</strong>
+            </span>
+
+            {/* Cloud Link Badge nếu đã xuất Cloud */}
+            {cloudPdfUrl && (
+              <div className="flex items-center space-x-1.5 bg-emerald-50 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-lg text-[11px] font-bold">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>Đã lưu Cloud</span>
+                <a
+                  href={cloudPdfUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-emerald-700 hover:text-emerald-900 underline flex items-center ml-1"
+                  title="Mở file PDF Cloud"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
             )}
           </div>
 
-          <div className="flex items-center space-x-2">
-            {isPrintPreview ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setIsPrintPreview(false)}
-                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-xl"
-                >
-                  Quay Lại
-                </button>
-                <button
-                  type="button"
-                  onClick={handlePrint}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow flex items-center space-x-1.5"
-                >
-                  <Printer className="w-4 h-4" />
-                  <span>In Biên Lai Ngay</span>
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-3.5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-xl transition"
-                >
-                  Đóng
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSaveWithStatus('Chưa thu phí')}
-                  className="px-4 py-2 bg-amber-50 hover:bg-amber-100/90 text-amber-800 border border-amber-300 font-bold rounded-xl shadow-xs flex items-center space-x-1.5 active:scale-95 transition"
-                  title="Lưu hóa đơn vào sổ nhưng đánh dấu Chưa Thu Tiền (Chờ thanh toán sau)"
-                >
-                  <Clock className="w-4 h-4 text-amber-600" />
-                  <span>Lưu Hóa Đơn (Chờ Thu)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSaveWithStatus('Đã thanh toán')}
-                  className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl shadow-lg flex items-center space-x-1.5 active:scale-95 transition"
-                  title="Xác nhận bệnh nhân đã nộp đủ tiền viện phí"
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  <span>Xác Nhận Đã Thu Tiền</span>
-                </button>
-              </>
-            )}
+          {/* Cụm nút hành động chính */}
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3.5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-xl transition"
+            >
+              Đóng
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSaveWithStatus('Chưa thu phí')}
+              className="px-4 py-2 bg-amber-50 hover:bg-amber-100/90 text-amber-800 border border-amber-300 font-bold rounded-xl shadow-xs flex items-center space-x-1.5 active:scale-95 transition"
+              title="Lưu hóa đơn vào sổ nhưng đánh dấu Chưa Thu Tiền (Chờ thanh toán sau)"
+            >
+              <Clock className="w-4 h-4 text-amber-600" />
+              <span>Lưu Hóa Đơn (Chờ Thu)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSaveWithStatus('Đã thanh toán')}
+              className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl shadow-lg flex items-center space-x-1.5 active:scale-95 transition"
+              title="Xác nhận bệnh nhân đã nộp đủ tiền viện phí"
+            >
+              <CheckCircle className="w-4 h-4" />
+              <span>Xác Nhận Đã Thu Tiền</span>
+            </button>
           </div>
+        </div>
+
+        {/* BẢN IN PHIẾU THU NGẦM CHO HTML2CANVAS XUẤT PDF CHẤT LƯỢNG CAO */}
+        <div
+          style={{
+            position: 'fixed',
+            left: '-9999px',
+            top: '-9999px',
+            width: '210mm',
+            pointerEvents: 'none',
+            zIndex: -1
+          }}
+          aria-hidden="true"
+        >
+          <PrintReceiptView
+            elementId="invoice-receipt-print-element"
+            invoice={currentInvoice}
+            clinicInfo={clinicInfo}
+          />
         </div>
 
       </div>
