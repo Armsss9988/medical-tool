@@ -49,8 +49,17 @@ export interface AllergenGradeStyle {
  * - Độ 5: Rất mạnh (50,00 - 99,99) -> Đỏ đậm
  * - Độ 6: Cực mạnh (>100,0) -> Đỏ rất đậm
  */
-export function getAllergenGradeClasses(grade: number, isTIgE?: boolean): AllergenGradeStyle {
+export function getAllergenGradeClasses(grade: number, isTIgE?: boolean, isTIgEPositive?: boolean): AllergenGradeStyle {
   if (isTIgE) {
+    if (isTIgEPositive) {
+      return {
+        rowBg: 'bg-red-50/70',
+        textColor: 'text-red-800',
+        badgeBg: 'bg-red-100 text-red-800 border-red-300',
+        nameColor: 'text-red-900',
+        borderClass: 'border-red-300'
+      };
+    }
     return {
       rowBg: 'bg-sky-50/50',
       textColor: 'text-sky-800',

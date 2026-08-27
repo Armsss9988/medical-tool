@@ -1,9 +1,10 @@
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, useMemo, memo } from 'react';
 import golabLogo from '@assets/golabLogoDataUrl';
 import doctorStamp from '@assets/doctorStampDataUrl';
-import { Patient, SelectedTest, ClinicInfo } from '@domain/types';
+import { Patient, SelectedTest, ClinicInfo, TestPackage } from '@domain/types';
 import { calculateAllergenGrade } from '@domain/allergen';
 import { getAllergenGradeClasses } from '@domain/allergenDetector';
+import { computePricingWithPackages } from '@domain/pricing';
 import { ALLERGEN_91_DATABASE, AllergenDatabaseItem } from '@data/allergenCatalog';
 import { generateQrCodeDataUrl } from '@infra/qrService';
 
@@ -17,6 +18,8 @@ interface FullAllergenReportViewProps {
   qrCodeDataUrl?: string;
   qrCodeUrl?: string;
   clinicInfo?: ClinicInfo;
+  testPackages?: TestPackage[];
+  packagePrice?: number;
 }
 
 function FullAllergenReportView({
@@ -34,9 +37,11 @@ function FullAllergenReportView({
     phone: '032.855.3773',
     website: 'golab.com.vn',
     defaultDoctor: 'Nguyễn Thị Thành Trung'
-  }
+  },
+  testPackages = [],
+  packagePrice: explicitPackagePrice
 }: FullAllergenReportViewProps) {
-  const tests = allergenTests || selectedTests || [];
+  const tests = useMemo(() => allergenTests || selectedTests || [], [allergenTests, selectedTests]);
   const [autoQrCode, setAutoQrCode] = useState<string>(qrCodeDataUrl || '');
 
   useEffect(() => {
@@ -93,10 +98,19 @@ function FullAllergenReportView({
     const itemCode = (t.code || dbItem?.code || '').toLowerCase();
     const isTIgE = itemCode === 'tige';
 
-    // TIgE không tính độ dương tính, chỉ có KẾT QUẢ (IU/ml)
-    const gradeRes = isTIgE ? { grade: 0 as const, iuValue: '', note: '', statusStr: '' } : calculateAllergenGrade(t.result || t.note);
-    const grade = gradeRes.grade;
-    const isPositive = isTIgE ? false : grade >= 1;
+    // TIgE: Dương tính khi > 15.0 IU/ml
+    let isPositive = false;
+    let grade = 0;
+    if (isTIgE) {
+      const numVal = parseFloat(String(t.result || '').replace(',', '.'));
+      const isHighByNote = t.note ? (t.note.includes('Cao') || t.note.includes('Tăng') || t.note.includes('Dương tính')) : false;
+      isPositive = (!isNaN(numVal) && numVal > 15.0) || isHighByNote;
+      grade = 0;
+    } else {
+      const gradeRes = calculateAllergenGrade(t.result || t.note);
+      grade = gradeRes.grade;
+      isPositive = grade >= 1;
+    }
 
     const ext = t as SelectedTest & { allergenName?: string; route?: string };
 
@@ -104,8 +118,8 @@ function FullAllergenReportView({
       tt: idx + 1,
       code: t.code || dbItem?.code || `DN${idx + 1}`,
       name: t.name || dbItem?.name || 'Dị nguyên',
-      allergenName: ext.allergenName || dbItem?.allergenName || t.name,
-      route: ext.route || dbItem?.route || 'Đường tiêu hóa / Hô hấp',
+      allergenName: ext.allergenName || dbItem?.allergenName || (isTIgE ? 'Total IgE' : t.name),
+      route: ext.route || dbItem?.route || (isTIgE ? 'Kháng thể huyết thanh' : 'Đường tiêu hóa / Hô hấp'),
       normalRef: isTIgE ? '<15,0' : (dbItem?.normalRef || (t.refMin !== null && t.refMax !== null ? `${t.refMin} - ${t.refMax}` : '<0,34')),
       result: t.result || (isTIgE ? '' : '<0,15'),
       grade: grade,
@@ -115,10 +129,33 @@ function FullAllergenReportView({
     };
   });
 
-  // Lọc danh sách dương tính (Độ >= 1)
-  const positiveList = detailedList.filter((item) => item.isPositive);
+  // Lọc danh sách hiển thị trên Trang 2 (Bảng Dị Nguyên Dương Tính):
+  // Chỉ hiển thị các mục dương tính (TIgE khi > 15.0 IU/mL hoặc các dị nguyên đặc hiệu có Độ >= 1).
+  // Ưu tiên đưa TIgE lên hàng đầu nếu TIgE dương tính (> 15.0).
+  const tIgEPositiveItem = detailedList.find((item) => item.isTIgE && item.isPositive);
+  const positiveList = [
+    ...(tIgEPositiveItem ? [tIgEPositiveItem] : []),
+    ...detailedList.filter((item) => !item.isTIgE && item.isPositive)
+  ];
   const totalCount = detailedList.length || 41;
-  const packagePrice = tests.reduce((sum, item) => sum + (item.price || 0), 0) || 1400000;
+
+  // Tính giá gói động: ưu tiên packagePrice truyền vào, tiếp theo là computePricingWithPackages từ testPackages
+  const packagePrice = useMemo(() => {
+    if (explicitPackagePrice !== undefined && explicitPackagePrice > 0) {
+      return explicitPackagePrice;
+    }
+    if (testPackages && testPackages.length > 0) {
+      const pricing = computePricingWithPackages(
+        tests.map((t) => t.code),
+        tests,
+        testPackages
+      );
+      if (pricing.total > 0) return pricing.total;
+    }
+    const sumIndividual = tests.reduce((sum, item) => sum + (item.price || 0), 0);
+    if (sumIndividual > 0) return sumIndividual;
+    return 1900000; // Mặc định gói dị nguyên chuẩn
+  }, [explicitPackagePrice, testPackages, tests]);
 
   // Phân chia danh sách chi tiết: mỗi trang chi tiết chứa 13 dòng
   const ITEMS_PER_PAGE = 13;
@@ -386,12 +423,12 @@ function FullAllergenReportView({
                 {positiveList.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="py-3 text-center text-slate-500 italic text-[13px]">
-                      Chưa phát hiện dị nguyên dương tính (Tất cả &lt; 0.35 IU/ml - Độ 0)
+                      Chưa phát hiện dị nguyên dương tính
                     </td>
                   </tr>
                 ) : (
                   positiveList.map((pos, idx) => {
-                    const gradeStyle = getAllergenGradeClasses(pos.grade, pos.isTIgE);
+                    const gradeStyle = getAllergenGradeClasses(pos.grade, pos.isTIgE, pos.isPositive);
                     return (
                       <tr key={pos.code || idx} className={`${gradeStyle.rowBg} font-bold ${gradeStyle.textColor} text-[13.5px]`}>
                         <td className="py-2 px-3 text-center border-r border-slate-300 align-middle leading-snug">{idx + 1}</td>
@@ -400,7 +437,9 @@ function FullAllergenReportView({
                         <td className="py-2 px-3 text-center font-mono border-r border-slate-300 align-middle leading-snug">{pos.code}</td>
                         <td className="py-2 px-4 text-center font-mono text-[14.5px] align-middle leading-snug">
                           {pos.isTIgE ? (
-                            <span className="text-[12px]">{pos.result} <span className="text-slate-500 text-[10px]">(IU/ml)</span></span>
+                            <span className={`text-[12.5px] font-bold ${pos.isPositive ? 'text-red-700' : 'text-sky-900'}`}>
+                              {pos.result || '---'} <span className="text-slate-500 text-[10px] font-normal">(IU/ml)</span>
+                            </span>
                           ) : (
                             <span className={`inline-flex items-center justify-center min-w-[26px] h-[22px] px-1.5 rounded font-black border leading-none text-center ${gradeStyle.badgeBg}`}>
                               {pos.grade}
@@ -573,7 +612,7 @@ function FullAllergenReportView({
                 </thead>
                 <tbody className="divide-y divide-slate-300">
                   {pageItems.map((item) => {
-                    const gradeStyle = getAllergenGradeClasses(item.grade, item.isTIgE);
+                    const gradeStyle = getAllergenGradeClasses(item.grade, item.isTIgE, item.isPositive);
                     const resultTextColor = item.isPositive ? `${gradeStyle.textColor} font-bold` : 'text-slate-800';
 
                     return (
@@ -598,7 +637,15 @@ function FullAllergenReportView({
                         ) : '')}
                       </td>
                       <td className="py-1.5 px-2 text-slate-600 text-[11px] leading-snug align-middle">
-                        {item.isTIgE ? <span className="italic text-sky-700 font-semibold">Không tính độ</span> : item.note}
+                        {item.isTIgE ? (
+                          item.isPositive ? (
+                            <span className="font-bold text-red-600">Tăng (&gt; 15,0 IU/ml)</span>
+                          ) : (
+                            <span className="italic text-slate-600">{item.note || 'Bình thường'}</span>
+                          )
+                        ) : (
+                          item.note
+                        )}
                       </td>
                     </tr>
                     );

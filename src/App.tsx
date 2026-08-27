@@ -329,6 +329,7 @@ function AppContent() {
         clinicInfo={clinicInfo}
         qrCodeDataUrl={qrCodeDataUrl}
         batchRenderReport={batchRenderReport}
+        testPackages={testPackages}
       />
     </div>
   );

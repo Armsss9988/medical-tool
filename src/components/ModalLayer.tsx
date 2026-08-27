@@ -206,6 +206,7 @@ export function ModalLayer({
           const target = previewTargetReport?.patient || patient;
           onDownloadQrCode(target?.name || '', target?.code || '');
         }}
+        testPackages={testPackages}
       />
 
       {/* 3. CATALOG MANAGER MODAL */}
