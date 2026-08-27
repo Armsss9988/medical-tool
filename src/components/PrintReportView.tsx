@@ -108,12 +108,41 @@ function PrintReportView({
     });
   });
 
-  // 3. Phân chia trang thông minh (Smart Multi-page Pagination)
-  // Ngưỡng trang 1:
-  // - Nếu CÓ KẾT LUẬN: Tối đa 6 dòng để khối Chữ Ký + Dấu + Tên BS luôn có đủ khoảng đệm an toàn > 30mm dưới đáy.
-  // - Nếu KHÔNG CÓ KẾT LUẬN: Tối đa 7 dòng.
-  // Nếu vượt quá -> Tự động chuyển phần còn lại + Khối Chữ Ký sang Trang 2!
-  const MAX_SINGLE_PAGE_ROWS = conclusion ? 6 : 7;
+  // -------------------------------------------------------------
+  // THUẬT TOÁN ĐO CHIỀU CAO ĐỘNG & TỰ ĐỘNG PHÂN TRANG CHUẨN XÁC
+  // -------------------------------------------------------------
+  // Chiều cao nội dung khả dụng trên 1 trang A4 (297mm ≈ 1122px, trừ padding 20mm + footer 30px + buffer an toàn 60px)
+  const PAGE_MAX_USABLE_HEIGHT = 880; // pixels an toàn
+
+  // Chiều cao các khối tĩnh thực tế trên DOM (Pixels):
+  // Trang 1: Full Header (125) + Tiêu đề (45) + Bảng BN 12 trường (200) + Header bảng XN (40) = 410px
+  const P1_STATIC_HEIGHT = 410;
+  // Trang 2: Mini Header (50) + Header bảng XN (40) = 90px
+  const P2_STATIC_HEIGHT = 90;
+  // Khối Chữ Ký: Lưu ý + Ngày tháng + Phụ trách chuyên môn + Stamp 80px + Tên BS + Padding = 210px
+  const SIGNATURE_BLOCK_HEIGHT = 210;
+
+  const getEntryHeight = (entry: FlatEntry): number => {
+    if (entry.type === 'category') return 36;
+    const test = entry.test;
+    if (!test) return 36;
+    // Kiểm tra nếu tên chỉ số dài hoặc có ghi chú dài làm tăng chiều cao dòng
+    const nameLen = (test.name || '').length;
+    const noteLen = (test.note || '').length;
+    if (nameLen > 30 || noteLen > 20) {
+      return 52; // Dòng 2 hàng chữ
+    }
+    return 36; // Dòng chuẩn 1 hàng
+  };
+
+  const getConclusionHeight = (conclusionText?: string): number => {
+    if (!conclusionText || !conclusionText.trim()) return 0;
+    const lines = Math.ceil(conclusionText.length / 60) || 1;
+    return 36 + lines * 20;
+  };
+
+  const conclusionHeight = getConclusionHeight(conclusion);
+  const totalFinalBlockHeight = (conclusion ? conclusionHeight : 0) + SIGNATURE_BLOCK_HEIGHT;
 
   const pages: Array<{
     isFirstPage: boolean;
@@ -123,95 +152,97 @@ function PrintReportView({
     showSignature: boolean;
   }> = [];
 
-  if (flatEntries.length <= MAX_SINGLE_PAGE_ROWS || tests.length === 0) {
-    // TH1: Toàn bộ nội dung nằm gọn an toàn trên 1 trang duy nhất
-    pages.push({
-      isFirstPage: true,
-      isLastPage: true,
-      entries: flatEntries,
-      showConclusion: Boolean(conclusion),
-      showSignature: true
-    });
-  } else {
-    // TH2: Độ dài vượt quá 1 trang -> Chia trang khoa học, đẩy chữ ký sang trang sau nếu quá dài
-    let remaining = [...flatEntries];
-    let pageIdx = 0;
+  let remaining = [...flatEntries];
+  let pageIdx = 0;
 
-    while (remaining.length > 0) {
-      pageIdx++;
+  while (remaining.length > 0 || pageIdx === 0) {
+    pageIdx++;
+    const isFirstPage = pageIdx === 1;
+    const initialPageHeight = isFirstPage ? P1_STATIC_HEIGHT : P2_STATIC_HEIGHT;
 
-      if (pageIdx === 1) {
-        // Trang 1: Chứa Header đầy đủ + Thông tin bệnh nhân 12 trường -> lấy an toàn tối đa 5-6 dòng
-        let takeCount = Math.min(5, remaining.length);
-        for (let i = 4; i <= takeCount; i++) {
-          if (i < remaining.length && remaining[i].type === 'category') {
-            takeCount = i;
-            break;
-          }
-        }
+    // 1. Kiểm tra xem toàn bộ các mục còn lại + Kết Luận + Chữ Ký có thể vừa trọn vẹn trên trang hiện tại không:
+    const remainingEntriesHeight = remaining.reduce((sum, e) => sum + getEntryHeight(e), 0);
 
-        const chunk = remaining.slice(0, takeCount);
-        remaining = remaining.slice(takeCount);
-
-        pages.push({
-          isFirstPage: true,
-          isLastPage: false,
-          entries: chunk,
-          showConclusion: false,
-          showSignature: false
+    if (initialPageHeight + remainingEntriesHeight + totalFinalBlockHeight <= PAGE_MAX_USABLE_HEIGHT) {
+      // Vừa vặn 100% cùng Chữ Ký & Kết Luận trên trang này!
+      const currentChunk = [...remaining];
+      if (!isFirstPage && currentChunk[0] && currentChunk[0].type === 'test') {
+        currentChunk.unshift({
+          type: 'category',
+          category: `${currentChunk[0].category} (tiếp theo)`,
+          isContinued: true
         });
-      } else {
-        // Các trang tiếp theo (Page 2, 3...)
-        const MAX_FINAL_PAGE_ROWS = conclusion ? 7 : 9;
-
-        if (remaining.length <= MAX_FINAL_PAGE_ROWS) {
-          // Trang cuối cùng kèm Khối kết luận & Chữ ký
-          const chunk = [...remaining];
-          if (chunk[0] && chunk[0].type === 'test') {
-            chunk.unshift({
-              type: 'category',
-              category: `${chunk[0].category} (tiếp theo)`,
-              isContinued: true
-            });
-          }
-          remaining = [];
-
-          pages.push({
-            isFirstPage: false,
-            isLastPage: true,
-            entries: chunk,
-            showConclusion: Boolean(conclusion),
-            showSignature: true
-          });
-        } else {
-          // Trang trung gian (không có chữ ký -> sức chứa 11-13 dòng)
-          let takeCount = Math.min(11, remaining.length);
-          for (let i = 8; i <= takeCount; i++) {
-            if (i < remaining.length && remaining[i].type === 'category') {
-              takeCount = i;
-              break;
-            }
-          }
-
-          const chunk = remaining.slice(0, takeCount);
-          if (chunk[0] && chunk[0].type === 'test') {
-            chunk.unshift({
-              type: 'category',
-              category: `${chunk[0].category} (tiếp theo)`,
-              isContinued: true
-            });
-          }
-          remaining = remaining.slice(takeCount);
-
-          pages.push({
-            isFirstPage: false,
-            isLastPage: false,
-            entries: chunk,
-            showConclusion: false,
-            showSignature: false
-          });
-        }
       }
+      pages.push({
+        isFirstPage,
+        isLastPage: true,
+        entries: currentChunk,
+        showConclusion: Boolean(conclusion),
+        showSignature: true
+      });
+      break;
+    }
+
+    // 2. Không vừa cả khối Chữ Ký -> Đóng gói các mục vừa với trang hiện tại (chưa có chữ ký)
+    let currentHeight = initialPageHeight;
+    let takeCount = 0;
+
+    for (let i = 0; i < remaining.length; i++) {
+      const entryH = getEntryHeight(remaining[i]);
+      if (currentHeight + entryH > PAGE_MAX_USABLE_HEIGHT) {
+        break;
+      }
+      currentHeight += entryH;
+      takeCount = i + 1;
+    }
+
+    // Tránh ngắt trang ngay trước mục Category lẻ loi ở đáy trang
+    if (takeCount > 1 && takeCount < remaining.length && remaining[takeCount - 1].type === 'category') {
+      takeCount -= 1;
+    }
+
+    // Đảm bảo mỗi trang lấy ít nhất 1 mục nếu còn
+    takeCount = Math.max(1, Math.min(takeCount, remaining.length));
+
+    const chunk = remaining.slice(0, takeCount);
+    if (!isFirstPage && chunk[0] && chunk[0].type === 'test') {
+      chunk.unshift({
+        type: 'category',
+        category: `${chunk[0].category} (tiếp theo)`,
+        isContinued: true
+      });
+    }
+
+    remaining = remaining.slice(takeCount);
+
+    // Nếu sau khi lấy mà hết sạch mục, nhưng chữ ký không vừa trên trang này -> Chữ ký sẽ được chuyển sang trang tiếp theo
+    const isLastItemTaken = remaining.length === 0;
+    if (isLastItemTaken) {
+      pages.push({
+        isFirstPage,
+        isLastPage: false,
+        entries: chunk,
+        showConclusion: false,
+        showSignature: false
+      });
+
+      // Tạo trang cuối dành riêng cho Kết Luận + Chữ Ký
+      pages.push({
+        isFirstPage: false,
+        isLastPage: true,
+        entries: [],
+        showConclusion: Boolean(conclusion),
+        showSignature: true
+      });
+      break;
+    } else {
+      pages.push({
+        isFirstPage,
+        isLastPage: false,
+        entries: chunk,
+        showConclusion: false,
+        showSignature: false
+      });
     }
   }
 
@@ -231,7 +262,7 @@ function PrintReportView({
             height: '297mm',
             minHeight: '297mm',
             maxHeight: '297mm',
-            padding: '10mm 14mm 8mm 14mm',
+            padding: '10mm 14mm 10mm 14mm',
             boxSizing: 'border-box',
             pageBreakAfter: pIdx < totalPages - 1 ? 'always' : 'auto',
             breakAfter: pIdx < totalPages - 1 ? 'page' : 'auto'
