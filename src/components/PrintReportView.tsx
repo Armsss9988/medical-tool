@@ -109,8 +109,11 @@ function PrintReportView({
   });
 
   // 3. Phân chia trang thông minh (Smart Multi-page Pagination)
-  // Ngưỡng trang đơn tối ưu (lên tới 9 dòng nếu có kết luận, 11 dòng nếu không có kết luận)
-  const MAX_SINGLE_PAGE_ROWS = conclusion ? 9 : 11;
+  // Ngưỡng trang 1:
+  // - Nếu CÓ KẾT LUẬN: Tối đa 6 dòng để khối Chữ Ký + Dấu + Tên BS luôn có đủ khoảng đệm an toàn > 30mm dưới đáy.
+  // - Nếu KHÔNG CÓ KẾT LUẬN: Tối đa 7 dòng.
+  // Nếu vượt quá -> Tự động chuyển phần còn lại + Khối Chữ Ký sang Trang 2!
+  const MAX_SINGLE_PAGE_ROWS = conclusion ? 6 : 7;
 
   const pages: Array<{
     isFirstPage: boolean;
@@ -121,7 +124,7 @@ function PrintReportView({
   }> = [];
 
   if (flatEntries.length <= MAX_SINGLE_PAGE_ROWS || tests.length === 0) {
-    // TH1: Toàn bộ nội dung nằm gọn trên 1 trang duy nhất
+    // TH1: Toàn bộ nội dung nằm gọn an toàn trên 1 trang duy nhất
     pages.push({
       isFirstPage: true,
       isLastPage: true,
@@ -130,7 +133,7 @@ function PrintReportView({
       showSignature: true
     });
   } else {
-    // TH2: Độ dài vượt quá 1 trang -> Chia thành nhiều trang rõ ràng, không bị đè chữ ký
+    // TH2: Độ dài vượt quá 1 trang -> Chia trang khoa học, đẩy chữ ký sang trang sau nếu quá dài
     let remaining = [...flatEntries];
     let pageIdx = 0;
 
@@ -138,8 +141,8 @@ function PrintReportView({
       pageIdx++;
 
       if (pageIdx === 1) {
-        // Trang 1: Chứa Header đầy đủ + Thông tin bệnh nhân 12 trường
-        let takeCount = Math.min(7, remaining.length);
+        // Trang 1: Chứa Header đầy đủ + Thông tin bệnh nhân 12 trường -> lấy an toàn tối đa 5-6 dòng
+        let takeCount = Math.min(5, remaining.length);
         for (let i = 4; i <= takeCount; i++) {
           if (i < remaining.length && remaining[i].type === 'category') {
             takeCount = i;
@@ -158,8 +161,8 @@ function PrintReportView({
           showSignature: false
         });
       } else {
-        // Các trang tiếp theo
-        const MAX_FINAL_PAGE_ROWS = conclusion ? 9 : 11;
+        // Các trang tiếp theo (Page 2, 3...)
+        const MAX_FINAL_PAGE_ROWS = conclusion ? 7 : 9;
 
         if (remaining.length <= MAX_FINAL_PAGE_ROWS) {
           // Trang cuối cùng kèm Khối kết luận & Chữ ký
@@ -181,9 +184,9 @@ function PrintReportView({
             showSignature: true
           });
         } else {
-          // Trang trung gian (sức chứa tối đa 14 dòng)
-          let takeCount = Math.min(14, remaining.length);
-          for (let i = 10; i <= takeCount; i++) {
+          // Trang trung gian (không có chữ ký -> sức chứa 11-13 dòng)
+          let takeCount = Math.min(11, remaining.length);
+          for (let i = 8; i <= takeCount; i++) {
             if (i < remaining.length && remaining[i].type === 'category') {
               takeCount = i;
               break;
@@ -479,25 +482,29 @@ function PrintReportView({
 
             {/* 6. CHỮ KÝ VÀ DẤU BÁC SĨ (CHỈ XUẤT HIỆN Ở TRANG CUỐI - THIẾT LẬP NGAY DƯỚI CUỐI NỘI DUNG) */}
             {page.showSignature && (
-              <div data-avoid-break="true" className="signature-section mt-2 pt-2 border-t border-slate-300">
+              <div 
+                data-avoid-break="true" 
+                className="signature-section mt-2 pt-2 border-t border-slate-300"
+                style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}
+              >
                 <div className="flex items-start justify-between text-center">
                   
                   {/* Bên trái: Chú thích & Lưu ý */}
-                  <div className="text-left text-[12px] text-slate-600 space-y-0.5 max-w-[50%] leading-snug">
-                    <p className="font-bold text-slate-800 uppercase text-[12.5px]">Lưu ý đối với bệnh nhân:</p>
+                  <div className="text-left text-[11.5px] text-slate-600 space-y-0.5 max-w-[50%] leading-snug">
+                    <p className="font-bold text-slate-800 uppercase text-[12px]">Lưu ý đối với bệnh nhân:</p>
                     <p>- Phiếu kết quả này chỉ có giá trị tại thời điểm xét nghiệm.</p>
                     <p>- Vui lòng mang phiếu này khi đến tái khám hoặc tư vấn bác sĩ chuyên khoa.</p>
                   </div>
 
                   {/* Bên phải: Chữ ký & Đóng dấu Phụ trách chuyên môn */}
                   <div className="text-center min-w-[220px]">
-                    <p className="text-[13px] text-slate-700 italic leading-snug">Ngày {currentDateStr}</p>
-                    <p className="text-[14px] font-bold uppercase text-slate-900 mt-0.5 mb-0.5 tracking-wide leading-snug">PHỤ TRÁCH CHUYÊN MÔN</p>
-                    <div className="h-24 flex items-center justify-center my-2">
+                    <p className="text-[12.5px] text-slate-700 italic leading-snug">Ngày {currentDateStr}</p>
+                    <p className="text-[13.5px] font-bold uppercase text-slate-900 mt-0.5 mb-0.5 tracking-wide leading-snug">PHỤ TRÁCH CHUYÊN MÔN</p>
+                    <div className="h-20 flex items-center justify-center my-1.5">
                       <img
                         src={currentStamp}
                         alt="Đã ký & Đóng dấu"
-                        className="h-24 w-auto object-contain max-w-[130px]"
+                        className="h-20 w-auto object-contain max-w-[120px]"
                         loading="eager"
                         decoding="sync"
                         onError={(e) => {
@@ -507,7 +514,7 @@ function PrintReportView({
                         }}
                       />
                     </div>
-                    <p className="text-[14.5px] font-bold text-slate-900 uppercase tracking-tight leading-snug">
+                    <p className="text-[14px] font-bold text-slate-900 uppercase tracking-tight leading-snug">
                       {clinicInfo.defaultDoctor || 'Nguyễn Thị Thành Trung'}
                     </p>
                   </div>
