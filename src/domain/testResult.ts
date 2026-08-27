@@ -1,4 +1,4 @@
-import { TestResultEvaluation } from './types';
+import { TestResultEvaluation, AllergenGradingScale, ReferenceRangeItem } from './types';
 import { calculateAllergenGrade } from './allergen';
 
 export function evaluateResult(
@@ -51,14 +51,17 @@ export function evaluateTestIndicator(
   unit: string | undefined,
   val: string | number | null | undefined,
   min?: number | null,
-  max?: number | null
+  max?: number | null,
+  scale?: AllergenGradingScale,
+  refRange?: ReferenceRangeItem
 ): IndicatorEvaluationResult {
   const isTIgE = (code || '').toLowerCase() === 'tige';
   const isAllergen = !isTIgE && ((category && category.includes('Dị Nguyên')) || unit === 'IU/mL');
 
   if (isTIgE) {
     // TIgE mức bình thường < 15,0 IU/ml, không tính độ
-    const evalRes = evaluateResult(val, 0, 15.0);
+    const effectiveMax = refRange?.refMax !== undefined && refRange?.refMax !== null ? refRange.refMax : 15.0;
+    const evalRes = evaluateResult(val, 0, effectiveMax);
     return {
       status: evalRes.status,
       label: evalRes.status === 'normal' ? (val ? 'Bình thường' : '') : evalRes.label,
@@ -67,7 +70,7 @@ export function evaluateTestIndicator(
   }
 
   if (isAllergen) {
-    const gradeRes = calculateAllergenGrade(val);
+    const gradeRes = calculateAllergenGrade(val, scale);
     return {
       status: gradeRes.grade >= 1 ? 'high' : 'normal',
       label: gradeRes.note,
@@ -75,10 +78,14 @@ export function evaluateTestIndicator(
     };
   }
 
-  const evalRes = evaluateResult(val, min, max);
+  const effectiveMin = refRange?.refMin !== undefined ? refRange.refMin : min;
+  const effectiveMax = refRange?.refMax !== undefined ? refRange.refMax : max;
+
+  const evalRes = evaluateResult(val, effectiveMin, effectiveMax);
   return {
     status: evalRes.status,
     label: evalRes.label,
     isAbnormal: evalRes.status !== 'normal'
   };
 }
+

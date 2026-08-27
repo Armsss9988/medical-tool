@@ -1,6 +1,10 @@
-import { AllergenGradeResult, AllergenGrade } from './types';
+import { AllergenGradeResult, AllergenGrade, AllergenGradingScale } from './types';
+import { DEFAULT_PROTIA_91_SCALE } from './constants/allergenScales';
 
-export function calculateAllergenGrade(valStr: string | number | null | undefined): AllergenGradeResult {
+export function calculateAllergenGrade(
+  valStr: string | number | null | undefined,
+  scale: AllergenGradingScale = DEFAULT_PROTIA_91_SCALE
+): AllergenGradeResult {
   if (valStr === undefined || valStr === null || String(valStr).trim() === '') {
     return { grade: 0, iuValue: '<0,15', note: 'Âm tính (Độ 0)', statusStr: 'Âm tính' };
   }
@@ -9,49 +13,50 @@ export function calculateAllergenGrade(valStr: string | number | null | undefine
   const num = parseFloat(cleanStr);
 
   if (isNaN(num)) {
-    const matchGrade = cleanStr.match(/^([0-6])$/);
+    const matchGrade = cleanStr.match(/(?:Độ|do|grade)?\s*([0-6])/i);
     if (matchGrade) {
       const g = parseInt(matchGrade[1], 10) as AllergenGrade;
-      const iu = g === 0 ? '<0,15' : g === 1 ? '0,55' : g === 2 ? '1,15' : g === 3 ? '4,50' : g === 4 ? '25,0' : g === 5 ? '75,0' : '120,0';
-      const notes = [
-        'Âm tính (Độ 0)',
-        'Dương tính yếu (Độ 1)',
-        'Dương tính trung bình (Độ 2)',
-        'Dương tính khá (Độ 3)',
-        'Dương tính mạnh (Độ 4)',
-        'Dương tính rất mạnh (Độ 5)',
-        'Dương tính cực mạnh (Độ 6)'
-      ];
-      return { grade: g, iuValue: iu, note: notes[g], statusStr: g > 0 ? 'Dương tính' : 'Âm tính' };
+      const matchedLevel = scale.levels.find((l) => l.grade === g);
+      const iu = matchedLevel
+        ? g === 0
+          ? (scale.levels[0]?.rangeText || '<0,34')
+          : String(matchedLevel.minVal).replace('.', ',')
+        : g === 0
+          ? '<0,34'
+          : '1,15';
+      const note = matchedLevel
+        ? matchedLevel.grade === 0
+          ? 'Âm tính (Độ 0)'
+          : `Dương tính ${matchedLevel.label.toLowerCase()} (Độ ${matchedLevel.grade})`
+        : g > 0
+          ? `Dương tính (Độ ${g})`
+          : 'Âm tính (Độ 0)';
+
+      return { grade: g, iuValue: iu, note, statusStr: g > 0 ? 'Dương tính' : 'Âm tính' };
     }
     return { grade: 0, iuValue: String(valStr), note: 'Âm tính (Độ 0)', statusStr: 'Âm tính' };
   }
 
-  let grade: AllergenGrade = 0;
-  let note = 'Âm tính (Độ 0)';
+  // Sắp xếp các mức theo minVal giảm dần để so sánh
+  const sortedLevels = [...scale.levels].sort((a, b) => b.minVal - a.minVal);
+  let matchedLevel = sortedLevels.find((l) => num >= l.minVal);
 
-  if (num >= 100.0) {
-    grade = 6;
-    note = 'Dương tính cực mạnh (Độ 6)';
-  } else if (num >= 50.0) {
-    grade = 5;
-    note = 'Dương tính rất mạnh (Độ 5)';
-  } else if (num >= 17.5) {
-    grade = 4;
-    note = 'Dương tính mạnh (Độ 4)';
-  } else if (num >= 3.5) {
-    grade = 3;
-    note = 'Dương tính khá (Độ 3)';
-  } else if (num >= 0.7) {
-    grade = 2;
-    note = 'Dương tính trung bình (Độ 2)';
-  } else if (num >= 0.35) {
-    grade = 1;
-    note = 'Dương tính yếu (Độ 1)';
-  } else {
-    grade = 0;
-    note = 'Âm tính (Độ 0)';
+  if (!matchedLevel) {
+    matchedLevel = scale.levels[0] || {
+      grade: 0,
+      minVal: 0,
+      maxVal: 0.34,
+      rangeText: '<0,34',
+      label: 'Không phản ứng',
+      isPositive: false
+    };
   }
+
+  const grade = (matchedLevel.grade || 0) as AllergenGrade;
+  const note =
+    grade === 0
+      ? 'Âm tính (Độ 0)'
+      : `Dương tính ${matchedLevel.label.toLowerCase()} (Độ ${grade})`;
 
   return {
     grade,

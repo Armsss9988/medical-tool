@@ -38,6 +38,19 @@ export interface Patient {
   returnedAt?: string;
 }
 
+export type EvaluationType = 'range' | 'scale' | 'text';
+
+export interface ReferenceRangeItem {
+  id: string;
+  name: string;
+  refMin: number | null;
+  refMax: number | null;
+  unit: string;
+  refText: string;
+  gender?: 'Nam' | 'Nữ' | 'Tất cả';
+  ageGroup?: string;
+}
+
 export interface CatalogItem {
   category: string;
   code: string;
@@ -49,6 +62,9 @@ export interface CatalogItem {
   price?: number;
   scientific?: string;
   equipment?: string;
+  evaluationType?: EvaluationType;
+  referenceRangeId?: string;
+  scaleId?: string;
 }
 
 export interface SelectedTest extends CatalogItem {
@@ -223,5 +239,34 @@ export interface BatchExportProgress {
   status: 'idle' | 'running' | 'done' | 'cancelled' | 'error';
   errors: Array<{ code: string; patientName: string; error: string }>;
   results: Array<{ code: string; patientName: string; cloudUrl: string; qrDataUrl: string; blob: Blob }>;
+}
+
+export interface AllergenDatabaseItem {
+  tt: number;
+  code: string;
+  name: string;
+  allergenName: string;
+  route: string;
+  normalRef: string;
+  note: string;
+  scaleId?: string;
+}
+
+export interface AllergenGradeLevel {
+  grade: number;
+  minVal: number;
+  maxVal: number | null;
+  rangeText: string;
+  label: string;
+  isPositive: boolean;
+  colorKey?: string;
+}
+
+export interface AllergenGradingScale {
+  id: string;
+  name: string;
+  equipment?: string;
+  unit: string;
+  levels: AllergenGradeLevel[];
 }
 

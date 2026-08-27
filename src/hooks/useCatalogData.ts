@@ -17,6 +17,7 @@ import {
   DEFAULT_EQUIPMENTS, 
   DEFAULT_DOCTORS 
 } from '@data/defaultCatalog';
+import { autoResolveItemLinks } from '@data/referenceRangesCatalog';
 import { loadState, saveState } from '@infra/storage';
 import { 
   fetchCatalogFromSupabase, 
@@ -60,11 +61,22 @@ const DEFAULT_ZALO_CONFIG: ZaloZnsConfig = {
 
 export function useCatalogData() {
   const [catalog, setCatalog] = useState<CatalogItem[]>(() => {
-    return loadState(STORAGE_KEYS.CATALOG, DEFAULT_CATALOG);
+    const loaded = loadState(STORAGE_KEYS.CATALOG, DEFAULT_CATALOG);
+    return Array.isArray(loaded) ? loaded.map(autoResolveItemLinks) : DEFAULT_CATALOG.map(autoResolveItemLinks);
   });
 
   const [testPackages, setTestPackages] = useState<TestPackage[]>(() => {
-    return loadState(STORAGE_KEYS.TEST_PACKAGES, DEFAULT_TEST_PACKAGES);
+    const loaded = loadState(STORAGE_KEYS.TEST_PACKAGES, DEFAULT_TEST_PACKAGES);
+    // Auto-merge missing default packages (e.g. di_nguyen_44) from DEFAULT_TEST_PACKAGES
+    if (Array.isArray(loaded)) {
+      const existingIds = new Set(loaded.map((p: TestPackage) => p.id));
+      const missing = DEFAULT_TEST_PACKAGES.filter((p) => !existingIds.has(p.id));
+      if (missing.length > 0) {
+        return [...loaded, ...missing];
+      }
+      return loaded;
+    }
+    return DEFAULT_TEST_PACKAGES;
   });
 
   const [testGroups, setTestGroups] = useState<TestGroup[]>(() => {
@@ -141,8 +153,12 @@ export function useCatalogData() {
           fetchClinicInfoFromSupabase(cloudDbConfig)
         ]);
 
-        if (cloudCatalog && cloudCatalog.length > 0) setCatalog(cloudCatalog);
-        if (cloudPackages && cloudPackages.length > 0) setTestPackages(cloudPackages);
+        if (cloudCatalog && cloudCatalog.length > 0) setCatalog(cloudCatalog.map(autoResolveItemLinks));
+        if (cloudPackages && cloudPackages.length > 0) {
+          const existingIds = new Set(cloudPackages.map((p: TestPackage) => p.id));
+          const missing = DEFAULT_TEST_PACKAGES.filter((p) => !existingIds.has(p.id));
+          setTestPackages(missing.length > 0 ? [...cloudPackages, ...missing] : cloudPackages);
+        }
         if (cloudGroups && cloudGroups.length > 0) setTestGroups(cloudGroups);
         if (cloudEquip && cloudEquip.length > 0) setEquipments(cloudEquip);
         if (cloudDocs && cloudDocs.length > 0) setDoctorsList(cloudDocs);

@@ -1,25 +1,11 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { TestTube, Plus, Trash2, Search, Layers, Sparkles, X, ClipboardPaste, Clock, Keyboard } from 'lucide-react';
 import { evaluateTestIndicator } from '@domain/testResult';
+import { getAllergenScaleById } from '@domain/constants/allergenScales';
+import { getReferenceRangeById, autoResolveItemLinks } from '@data/referenceRangesCatalog';
 import { CatalogItem, SelectedTest, TestPackage, TestGroup, ToastType } from '@domain/types';
 import { computePricingWithPackages } from '@domain/pricing';
-
-const QUICK_NOTE_OPTIONS = [
-  'Bình thường',
-  'CAO ↑',
-  'THẤP ↓',
-  'Âm tính',
-  'Dương tính',
-  'H (Tăng)',
-  'L (Giảm)',
-  'Độ 0 (Âm tính)',
-  'Độ 1 (Yếu)',
-  'Độ 2 (Trung bình)',
-  'Độ 3 (Khá)',
-  'Độ 4 (Mạnh)',
-  'Độ 5 (Rất mạnh)',
-  'Độ 6 (Cực mạnh)'
-];
+import NoteCombobox from './NoteCombobox';
 
 interface RecentTestItem {
   code: string;
@@ -77,14 +63,15 @@ export default function TestTable({
   const handleAddTest = useCallback((item: CatalogItem) => {
     if (selectedTests.some((t) => t.code === item.code)) return;
 
-    const isTIgE = item.code.toLowerCase() === 'tige';
-    const isAllergenItem = !isTIgE && (item.category?.includes('Dị Nguyên') || item.unit === 'IU/mL');
+    const resolved = autoResolveItemLinks(item);
+    const isTIgE = resolved.code.toLowerCase() === 'tige';
+    const isAllergenItem = !isTIgE && (resolved.category?.includes('Dị Nguyên') || resolved.unit === 'IU/mL' || !!resolved.scaleId);
     const defaultNote = isTIgE ? 'Bình thường' : isAllergenItem ? 'Âm tính (Độ 0)' : 'Bình thường';
 
     setSelectedTests((prev) => [
       ...prev,
       {
-        ...item,
+        ...resolved,
         result: '',
         note: defaultNote
       }
@@ -92,7 +79,7 @@ export default function TestTable({
 
     // Track in recent tests
     if (onAddToRecent) {
-      onAddToRecent({ code: item.code, name: item.name, category: item.category || '' });
+      onAddToRecent({ code: resolved.code, name: resolved.name, category: resolved.category || '' });
     }
   }, [selectedTests, setSelectedTests, onAddToRecent]);
 
@@ -111,7 +98,8 @@ export default function TestTable({
   const handleAutoFillNormalValues = () => {
     setSelectedTests((prev) =>
       prev.map((t) => {
-        const isTIgE = t.code.toLowerCase() === 'tige';
+        const resolved = autoResolveItemLinks(t);
+        const isTIgE = resolved.code.toLowerCase() === 'tige';
         if (isTIgE) {
           return {
             ...t,
@@ -120,12 +108,13 @@ export default function TestTable({
           };
         }
 
-        const isAllergenItem = t.category?.includes('Dị Nguyên') || t.unit === 'IU/mL';
+        const isAllergenItem = (resolved.category?.includes('Dị Nguyên') || resolved.unit === 'IU/mL' || !!resolved.scaleId);
         if (isAllergenItem) {
+          const isScale44 = resolved.scaleId === 'scale_allergen_44';
           return {
             ...t,
-            result: '<0.35',
-            note: 'Độ 0 (Âm tính)'
+            result: isScale44 ? '<0.35' : '<0.34',
+            note: 'Âm tính (Độ 0)'
           };
         }
 
@@ -153,7 +142,10 @@ export default function TestTable({
       prev.map((t) => {
         if (t.code !== code) return t;
 
-        const evalRes = evaluateTestIndicator(t.code, t.category, t.unit, rawVal, t.refMin, t.refMax);
+        const resolved = autoResolveItemLinks(t);
+        const scale = resolved.scaleId ? getAllergenScaleById(resolved.scaleId) : undefined;
+        const refRange = resolved.referenceRangeId ? getReferenceRangeById(resolved.referenceRangeId) : undefined;
+        const evalRes = evaluateTestIndicator(t.code, t.category, t.unit, rawVal, t.refMin, t.refMax, scale, refRange);
         const autoNote = evalRes.label || t.note;
 
         return {
@@ -182,10 +174,11 @@ export default function TestTable({
       const newOnes = itemsToAdd
         .filter((item) => !existingCodes.has(item.code))
         .map((item) => {
-          const isTIgE = item.code.toLowerCase() === 'tige';
-          const isAllergenItem = !isTIgE && (item.category?.includes('Dị Nguyên') || item.unit === 'IU/mL');
+          const resolved = autoResolveItemLinks(item);
+          const isTIgE = resolved.code.toLowerCase() === 'tige';
+          const isAllergenItem = !isTIgE && (resolved.category?.includes('Dị Nguyên') || resolved.unit === 'IU/mL' || !!resolved.scaleId);
           return {
-            ...item,
+            ...resolved,
             result: '',
             note: isTIgE ? 'Bình thường' : isAllergenItem ? 'Âm tính (Độ 0)' : 'Bình thường'
           };
@@ -201,7 +194,7 @@ export default function TestTable({
     }
 
     if (showToast) {
-      showToast(`Đã thêm ${itemsToAdd.length} chỉ số từ gói "${pkg.name}"!`, 'success');
+      showToast(`Đã thêm ${itemsToAdd.length} chỉ số từ [${pkg.name}]`, 'success');
     }
   };
 
@@ -578,7 +571,7 @@ export default function TestTable({
                 </th>
                 <th className="py-2.5 px-2 w-16 text-center">ĐƠN VỊ</th>
                 <th className="py-2.5 px-2.5 w-28 text-center">THAM CHIẾU</th>
-                <th className="py-2.5 px-2.5 w-32">ĐÁNH GIÁ / GHI CHÚ</th>
+                <th className="py-2.5 px-2.5 min-w-[170px]">ĐÁNH GIÁ / GHI CHÚ</th>
                 <th className="py-2.5 px-2 w-10 text-center">XÓA</th>
               </tr>
             </thead>
@@ -595,8 +588,14 @@ export default function TestTable({
                 </tr>
               ) : (
                 selectedTests.map((t, idx) => {
-                  const evalRes = evaluateTestIndicator(t.code, t.category, t.unit, t.result, t.refMin, t.refMax);
+                  const resolved = autoResolveItemLinks(t);
+                  const scale = resolved.scaleId ? getAllergenScaleById(resolved.scaleId) : undefined;
+                  const refRange = resolved.referenceRangeId ? getReferenceRangeById(resolved.referenceRangeId) : undefined;
+                  const evalRes = evaluateTestIndicator(t.code, t.category, t.unit, t.result, t.refMin, t.refMax, scale, refRange);
                   const isAbnormal = evalRes.isAbnormal;
+
+                  const displayUnit = resolved.unit || refRange?.unit || scale?.unit || t.unit || '---';
+                  const displayRef = resolved.refText || refRange?.refText || (scale ? `${scale.levels[0]?.rangeText || '<0,34'} (Độ 0)` : undefined) || (t.refMin !== null && t.refMax !== null ? `${t.refMin} - ${t.refMax}` : '---');
 
                   return (
                     <tr
@@ -635,32 +634,18 @@ export default function TestTable({
                         />
                       </td>
 
-                      <td className="py-2 px-2 text-center font-mono text-slate-600">{t.unit || '---'}</td>
-                      <td className="py-2 px-2.5 text-center font-mono text-slate-600">
-                        {t.refText || (t.refMin !== null && t.refMax !== null ? `${t.refMin} - ${t.refMax}` : '---')}
-                      </td>
+                      <td className="py-2 px-2 text-center font-mono text-slate-600">{displayUnit}</td>
+                      <td className="py-2 px-2.5 text-center font-mono text-slate-600">{displayRef}</td>
 
-                      {/* Ghi chú & Đánh giá */}
+                      {/* Ghi chú & Đánh giá (Custom Dropdown + Search + Edit) */}
                       <td className="py-2 px-2.5">
-                        <div className="flex items-center space-x-1">
-                          <input
-                            type="text"
-                            value={t.note || ''}
-                            onChange={(e) => handleNoteChange(t.code, e.target.value)}
-                            list={`quick-note-${t.code}`}
-                            placeholder="Ghi chú / Đánh giá..."
-                            className={`w-full px-2 py-1.5 min-h-[36px] border rounded-lg text-[11px] focus:outline-none transition-all ${
-                              isAbnormal
-                                ? 'bg-red-50/50 border-red-300 text-red-700 font-bold focus:ring-2 focus:ring-red-200'
-                                : 'bg-slate-50/50 hover:bg-white focus:bg-white border-slate-300 text-slate-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 shadow-2xs'
-                            }`}
-                          />
-                          <datalist id={`quick-note-${t.code}`}>
-                            {QUICK_NOTE_OPTIONS.map((opt, oIdx) => (
-                              <option key={oIdx} value={opt} />
-                            ))}
-                          </datalist>
-                        </div>
+                        <NoteCombobox
+                          value={t.note || ''}
+                          onChange={(val) => handleNoteChange(t.code, val)}
+                          isAllergen={!!scale || (t.category?.includes('Dị Nguyên') ?? false)}
+                          isAbnormal={isAbnormal}
+                          placeholder="Đánh giá..."
+                        />
                       </td>
 
                       <td className="py-2 px-2 text-center">

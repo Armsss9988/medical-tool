@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { evaluateResult, evaluateTestIndicator } from '../testResult';
+import { ReferenceRangeItem, AllergenGradingScale } from '../types';
 
 describe('TestResult Domain - evaluateResult & evaluateTestIndicator', () => {
   describe('evaluateResult', () => {
@@ -64,6 +65,45 @@ describe('TestResult Domain - evaluateResult & evaluateTestIndicator', () => {
       const resPos = evaluateTestIndicator('d1', 'Dị Nguyên Hô Hấp', 'IU/mL', '12.5', 0, 0.34);
       expect(resPos.isAbnormal).toBe(true);
       expect(resPos.label).toContain('Độ 3');
+    });
+  });
+
+  describe('evaluateTestIndicator - ReferenceRangeItem & AllergenGradingScale linked evaluation', () => {
+    it('should evaluate using linked ReferenceRangeItem', () => {
+      const glucoseRef: ReferenceRangeItem = {
+        id: 'ref_glucose',
+        name: 'Glucose máu',
+        refMin: 3.9,
+        refMax: 6.4,
+        unit: 'mmol/L',
+        refText: '3.9 - 6.4'
+      };
+
+      const normalRes = evaluateTestIndicator('GLU', 'Sinh Hóa Máu', 'mmol/L', '5.2', null, null, undefined, glucoseRef);
+      expect(normalRes.status).toBe('normal');
+      expect(normalRes.isAbnormal).toBe(false);
+
+      const highRes = evaluateTestIndicator('GLU', 'Sinh Hóa Máu', 'mmol/L', '8.9', null, null, undefined, glucoseRef);
+      expect(highRes.status).toBe('high');
+      expect(highRes.label).toBe('CAO ↑');
+      expect(highRes.isAbnormal).toBe(true);
+    });
+
+    it('should evaluate using linked custom AllergenGradingScale', () => {
+      const customScale: AllergenGradingScale = {
+        id: 'scale_custom',
+        name: 'Custom Scale',
+        unit: 'IU/ml',
+        levels: [
+          { grade: 0, minVal: 0, maxVal: 0.5, rangeText: '<0.5', label: 'Âm tính', isPositive: false },
+          { grade: 1, minVal: 0.5, maxVal: 5.0, rangeText: '0.5 - 5.0', label: 'Dương tính nhẹ', isPositive: true },
+          { grade: 2, minVal: 5.0, maxVal: null, rangeText: '>5.0', label: 'Dương tính mạnh', isPositive: true }
+        ]
+      };
+
+      const res = evaluateTestIndicator('d1', 'Dị Nguyên', 'IU/mL', '6.0', 0, 0.5, customScale);
+      expect(res.isAbnormal).toBe(true);
+      expect(res.label).toBe('Dương tính dương tính mạnh (Độ 2)');
     });
   });
 });

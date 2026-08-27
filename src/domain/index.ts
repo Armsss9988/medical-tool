@@ -7,6 +7,7 @@ export * from './patient';
 export * from './formatters';
 export * from './pricing';
 export * from './reportFactory';
+export * from './services/AllergenReportDomainService';
 
 // Value Objects
 export * from './valueObjects/Money';
@@ -28,4 +29,5 @@ export * from './events/DomainEventBus';
 
 // Constants & Enums
 export * from './constants';
+export * from './constants/allergenScales';
 

@@ -91,8 +91,9 @@ export default function ConclusionForm({
         continue;
       }
       const evalRes = evaluateTestIndicator(t.code, t.category, t.unit, t.result, t.refMin, t.refMax);
-      if (evalRes.isAbnormal) {
-        abnormalTests.push(`${t.name} (${evalRes.label})`);
+      const noteLabel = t.note || evalRes.label;
+      if (evalRes.isAbnormal || (t.note && (t.note.includes('CAO') || t.note.includes('THẤP') || t.note.includes('Dương')))) {
+        abnormalTests.push(`${t.name} (${noteLabel})`);
       }
     }
 

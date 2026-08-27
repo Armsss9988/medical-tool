@@ -414,7 +414,16 @@ function PrintReportView({
 
                       const t = entry.test!;
                       const evalRes = evaluateResult(t.result, t.refMin, t.refMax);
-                      const isAbnormal = evalRes.status !== 'normal';
+                      const displayNote = t.note !== undefined && t.note !== null && t.note.trim() !== '' ? t.note : evalRes.label;
+                      const isAbnormalByNote = displayNote
+                        ? displayNote.includes('CAO') ||
+                          displayNote.includes('THẤP') ||
+                          displayNote.includes('Dương') ||
+                          displayNote.includes('H ') ||
+                          displayNote.includes('L ') ||
+                          /Độ\s*[1-6]/i.test(displayNote)
+                        : false;
+                      const isAbnormal = isAbnormalByNote || evalRes.status !== 'normal';
 
                       return (
                         <tr
@@ -450,7 +459,7 @@ function PrintReportView({
                               isAbnormal ? 'text-red-600' : 'text-slate-600'
                             }`}
                           >
-                            {evalRes.label}
+                            {displayNote}
                           </td>
                         </tr>
                       );
