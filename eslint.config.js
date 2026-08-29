@@ -22,7 +22,8 @@ export default [
       '*.config.ts',
       '*.config.cjs',
       '**/electron/**',
-      '**/coverage/**'
+      '**/coverage/**',
+      'apps/api/api/**'
     ]
   },
   {

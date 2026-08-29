@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@golab/shared": "*",
+    "@vercel/node": "^3.2.0",
     "drizzle-orm": "^0.44.0",
     "hono": "^4.6.0",
     "postgres": "^3.4.0",
