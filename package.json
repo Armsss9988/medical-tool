@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "npm run dev -w @golab/web",
     "build": "npm run typecheck && npm run build -w @golab/web",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && npm run typecheck -w @golab/api",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "vitest run",
