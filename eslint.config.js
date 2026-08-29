@@ -26,7 +26,7 @@ export default [
     ]
   },
   {
-    files: ['src/**/*.{ts,tsx}'],
+    files: ['**/src/**/*.{ts,tsx}'],
     plugins: {
       '@typescript-eslint': tsPlugin,
       'react': reactPlugin,
@@ -55,35 +55,35 @@ export default [
       'boundaries/elements': [
         {
           type: 'domain',
-          pattern: 'src/domain/**'
+          pattern: '**/src/domain/**'
         },
         {
           type: 'usecases',
-          pattern: 'src/usecases/**'
+          pattern: '**/src/usecases/**'
         },
         {
           type: 'infrastructure',
-          pattern: 'src/infrastructure/**'
+          pattern: '**/src/infrastructure/**'
         },
         {
           type: 'hooks',
-          pattern: 'src/hooks/**'
+          pattern: '**/src/hooks/**'
         },
         {
           type: 'contexts',
-          pattern: 'src/contexts/**'
+          pattern: '**/src/contexts/**'
         },
         {
           type: 'components',
-          pattern: 'src/components/**'
+          pattern: '**/src/components/**'
         },
         {
           type: 'data',
-          pattern: 'src/data/**'
+          pattern: '**/src/data/**'
         },
         {
           type: 'entry',
-          pattern: 'src/{App,main}.{ts,tsx}'
+          pattern: '**/src/{App,main}.{ts,tsx}'
         }
       ]
     },
