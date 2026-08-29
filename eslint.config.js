@@ -23,7 +23,7 @@ export default [
       '*.config.cjs',
       '**/electron/**',
       '**/coverage/**',
-      'apps/api/api/**'
+      'api/**'
     ]
   },
   {

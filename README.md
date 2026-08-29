@@ -23,32 +23,30 @@ npm run build
 
 ## Deployment (Vercel)
 
-Cách deploy khuyên dùng: **hai Vercel project** (web + api) để web gọi api cùng
-origin tại `/api`.
+Cách deploy khuyên dùng: **một Vercel project** cho toàn bộ repo. Web (tĩnh) và
+API (Hono serverless function) cùng một project, cùng domain, `/api/*` same-origin
+— không cần rewrite hay placeholder.
 
-1. **API project** — tạo project mới, Root Directory = `apps/api`, framework Node.js.
-   Vercel dùng `apps/api/vercel.json` (build `npm run build -w @golab/api`, entry
-   `src/index.ts` default export). Set env vars: `DATABASE_URL` (Supavisor port
-   **6543**), `APP_ACCESS_PASSWORD`.
-2. **Web project** — tạo project mới, Root Directory = `apps/web`, framework Vite.
-   Vercel dùng `apps/web/vercel.json` để **rewrite** `/api/*` → API project URL.
-   Thay `<api-project>` trong `apps/web/vercel.json` bằng domain thật của API
-   project (ví dụ `golab-api.vercel.app`).
-3. **Migrations** — chạy 1 lần sau deploy để tạo bảng:
+1. Tạo **một** Vercel project, Root Directory = repo root (`.`). Vercel đọc
+   `vercel.json` ở root: build web (`npm run build` → `apps/web/dist`), và dùng
+   `api/index.ts` làm serverless function Node (runtime `nodejs20.x`) phục vụ
+   `/api/*`.
+2. Set env vars trên project: `DATABASE_URL` (Supavisor port **6543**),
+   `APP_ACCESS_PASSWORD`.
+3. **Migrations** — chạy 1 lần (local, trỏ vào Supabase) để tạo bảng:
    ```bash
    npm run -w @golab/api drizzle:migrate
    ```
-4. **API base url** — mặc định web gọi `/api` (same-origin nhờ rewrite). Nếu KHÔNG
-   dùng rewrite, set `VITE_API_BASE_URL` = URL API project (xem `.env.example`).
-5. **Password gate** — app hiển thị modal nhập `APP_ACCESS_PASSWORD` lần đầu mở
-   (header `x-app-password`).
+4. **Password gate** — app hiển thị modal nhập `APP_ACCESS_PASSWORD` lần đầu mở
+   (header `x-app-password`). Nếu `APP_ACCESS_PASSWORD` chưa set trên Vercel, mọi
+   route `/api/*` trả **503**.
+5. **API base url** — mặc định web gọi `/api` (same-origin). Để test local với API
+   chạy riêng, set `VITE_API_BASE_URL` = URL API (xem `.env.example`).
 
-> CẢNH BÁO: deploy chưa được test trên Vercel ở đây. Cấu hình runtime của API
-> (Node vs Edge) có thể cần xác nhận trong dashboard Vercel — xem
-> `apps/api/README.md`.
+> Lưu ý: file function là `api/index.ts` (root), import Hono app từ
+> `apps/api/src/index.ts`. Đừng xoá `api/` — đó là entry serverless.
 
-### Alternative (single project)
-Có sẵn `vercel.json` ở root repo (framework `vite`, output `apps/web/dist`) để
-deploy nguyên repo làm một project. Cách này bỏ qua API serverless; chỉ dùng nếu
-bạn tự host API riêng và set `VITE_API_BASE_URL`.
+### Alternative (two projects)
+Có thể tách riêng API thành project thứ hai và để web rewrite `/api/*` sang domain
+kia, nhưng cách một project ở trên đơn giản hơn và là mặc định.
 
