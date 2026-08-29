@@ -1,10 +1,5 @@
 import { StorageResult } from '@domain/types';
 
-export const isElectron = (): boolean =>
-  typeof window !== 'undefined' &&
-  window.electronAPI !== undefined &&
-  typeof window.electronAPI.readLocalData === 'function';
-
 function getLocalStorageItemWithFallback(key: string): string | null {
   if (typeof localStorage === 'undefined') return null;
 
@@ -28,14 +23,6 @@ function getLocalStorageItemWithFallback(key: string): string | null {
 }
 
 export async function loadData<T>(key: string, defaultValue: T): Promise<T> {
-  if (isElectron() && window.electronAPI) {
-    try {
-      const data = await window.electronAPI.readLocalData(key);
-      return data !== null && data !== undefined ? (data as T) : defaultValue;
-    } catch (err) {
-      console.warn(`[GoLabStorage] Lỗi đọc file ${key}.json, dùng localStorage:`, err);
-    }
-  }
   try {
     const raw = getLocalStorageItemWithFallback(key);
     return raw ? (JSON.parse(raw) as T) : defaultValue;
@@ -45,17 +32,6 @@ export async function loadData<T>(key: string, defaultValue: T): Promise<T> {
 }
 
 export async function saveData<T>(key: string, data: T): Promise<StorageResult> {
-  if (isElectron() && window.electronAPI) {
-    try {
-      const result = await window.electronAPI.writeLocalData(key, data);
-      if (!result.success) throw new Error(result.message || 'Lỗi ghi file');
-      return { success: true, path: result.path };
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : 'Lỗi ghi file';
-      console.error(`[GoLabStorage] Lỗi ghi file ${key}.json:`, err);
-      return { success: false, error: errMsg };
-    }
-  }
   try {
     const serialized = JSON.stringify(data);
     const lsKey = `medical_${key}`;
@@ -100,16 +76,10 @@ export function loadDataSync<T>(key: string, defaultValue: T): T {
 }
 
 export async function openDataFolder(): Promise<string | null> {
-  if (isElectron() && window.electronAPI) {
-    return await window.electronAPI.openDataFolder();
-  }
   return null;
 }
 
 export async function getDataDirPath(): Promise<string> {
-  if (isElectron() && window.electronAPI) {
-    return await window.electronAPI.getDataDirPath();
-  }
   return 'localStorage (đang chạy trên trình duyệt)';
 }
 
