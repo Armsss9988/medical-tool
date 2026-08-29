@@ -10,19 +10,19 @@ export default [
   js.configs.recommended,
   {
     ignores: [
-      'dist/**',
-      'dist-app/**',
-      'dist-electron/**',
-      'dist-release/**',
-      'build-app/**',
-      'release/**',
+      '**/dist/**',
+      '**/dist-app/**',
+      '**/dist-electron/**',
+      '**/dist-release/**',
+      '**/build-app/**',
+      '**/release/**',
       'node_modules/**',
-      'scripts/**',
+      '**/scripts/**',
       '*.config.js',
       '*.config.ts',
       '*.config.cjs',
-      'electron/**',
-      'coverage/**'
+      '**/electron/**',
+      '**/coverage/**'
     ]
   },
   {
