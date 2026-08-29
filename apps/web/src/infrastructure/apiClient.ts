@@ -12,7 +12,10 @@ export const TABLE_API_NAMES: Record<string, string> = {
   [STORAGE_KEYS.INVOICES]: 'invoices'
 };
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) || '/api';
+let apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) || '/api';
+
+const savedApiBase = typeof localStorage !== 'undefined' ? localStorage.getItem('golab_api_base') : null;
+if (savedApiBase) apiBase = savedApiBase;
 
 const SESSION_PASSWORD_KEY = 'golab_app_password';
 
@@ -28,6 +31,19 @@ export function setPassword(p: string): void {
     sessionStorage.setItem(SESSION_PASSWORD_KEY, p);
   } else {
     sessionStorage.removeItem(SESSION_PASSWORD_KEY);
+  }
+}
+
+export function getApiBase(): string {
+  return apiBase;
+}
+
+export function setApiBase(url: string): void {
+  apiBase = url || '/api';
+  if (url) {
+    localStorage.setItem('golab_api_base', url);
+  } else {
+    localStorage.removeItem('golab_api_base');
   }
 }
 
@@ -54,14 +70,14 @@ async function handleResponse<T>(res: Response): Promise<T> {
 }
 
 export async function getTable(name: string): Promise<TableData> {
-  const res = await fetch(`${API_BASE}/tables/${name}`, {
+  const res = await fetch(`${apiBase}/tables/${name}`, {
     headers: { 'x-app-password': getPassword() }
   });
   return handleResponse<TableData>(res);
 }
 
 export async function putTable(name: string, rows: unknown[]): Promise<PutTableResult> {
-  const res = await fetch(`${API_BASE}/tables/${name}`, {
+  const res = await fetch(`${apiBase}/tables/${name}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',

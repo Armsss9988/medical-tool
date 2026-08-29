@@ -6,7 +6,9 @@ import {
   getPassword,
   setPassword,
   ApiAuthError,
-  TABLE_API_NAMES
+  TABLE_API_NAMES,
+  getApiBase,
+  setApiBase
 } from '../apiClient';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -93,5 +95,28 @@ describe('apiClient', () => {
     setPassword('');
     expect(getPassword()).toBe('');
     expect(sessionStorage.getItem('golab_app_password')).toBeNull();
+  });
+});
+
+describe('apiClient api base url override', () => {
+  afterEach(() => {
+    setApiBase('');
+  });
+
+  it('defaults to /api', () => {
+    expect(getApiBase()).toBe('/api');
+  });
+
+  it('setApiBase updates getApiBase and persists to localStorage', () => {
+    setApiBase('https://example.com/api');
+    expect(getApiBase()).toBe('https://example.com/api');
+    expect(localStorage.getItem('golab_api_base')).toBe('https://example.com/api');
+  });
+
+  it('setApiBase empty resets to /api and clears localStorage', () => {
+    setApiBase('https://example.com/api');
+    setApiBase('');
+    expect(getApiBase()).toBe('/api');
+    expect(localStorage.getItem('golab_api_base')).toBeNull();
   });
 });

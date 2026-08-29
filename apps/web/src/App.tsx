@@ -3,6 +3,7 @@ import Header from './components/Header';
 import { MainWorkspace } from './components/MainWorkspace';
 import { ModalLayer } from './components/ModalLayer';
 import { PrintLayer } from './components/PrintLayer';
+import PasswordGateModal from './components/PasswordGateModal';
 
 import { ToastProvider, useToast } from './contexts/ToastContext';
 import { ModalProvider, useModal } from './contexts/ModalContext';
@@ -331,6 +332,9 @@ function AppContent() {
         batchRenderReport={batchRenderReport}
         testPackages={testPackages}
       />
+
+      {/* PASSWORD GATE OVERLAY */}
+      <PasswordGateModal />
     </div>
   );
 }
