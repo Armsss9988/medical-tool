@@ -106,7 +106,8 @@ export async function syncTableToCloud<T>(
 
   let rows: unknown[];
   if (DOC_TABLES.has(tableName)) {
-    rows = (data as unknown[]).map((r) => ({ id: (r as { id: string }).id, data: r }));
+    // Send domain objects as-is; the Hono API repo wraps each into { id, data } (jsonb).
+    rows = data as unknown[];
   } else if (Array.isArray(data)) {
     rows = data as unknown[];
   } else {

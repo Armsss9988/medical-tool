@@ -48,10 +48,10 @@ describe('cloudDbService wired to apiClient', () => {
     expect(mockPutTable).toHaveBeenCalledWith('catalog', catalog);
   });
 
-  it('(b) syncReportsToSupabase wraps each doc row as { id, data }', async () => {
+  it('(b) syncReportsToSupabase sends doc domain objects as-is (API repo wraps { id, data })', async () => {
     const report = { id: 'r1', code: 'BN001' } as never;
     await syncReportsToSupabase([report], cfg);
-    expect(mockPutTable).toHaveBeenCalledWith('medical-reports', [{ id: 'r1', data: report }]);
+    expect(mockPutTable).toHaveBeenCalledWith('medical-reports', [report]);
   });
 
   it('(b2) syncClinicInfoToSupabase sends a single object as a 1-row array', async () => {
@@ -155,7 +155,7 @@ describe('cloudDbService wired to apiClient', () => {
     );
     expect(res.success).toBe(true);
     expect(mockPutTable).toHaveBeenCalledWith('catalog', expect.anything());
-    expect(mockPutTable).toHaveBeenCalledWith('medical-reports', [{ id: 'r1', data: { id: 'r1', code: 'BN1' } }]);
+    expect(mockPutTable).toHaveBeenCalledWith('medical-reports', [{ id: 'r1', code: 'BN1' }]);
     expect(mockPutTable).toHaveBeenCalledWith('clinic-info', [
       { name: 'GoLab', address: '', phone: '', defaultDoctor: '' }
     ]);
