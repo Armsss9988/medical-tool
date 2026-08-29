@@ -146,7 +146,7 @@ export async function fetchTableFromCloud<T>(
 }
 
 export async function seedAllDefaultDataToSupabase(config: CloudDbConfig): Promise<{ success: boolean; message: string }> {
-  if (!config.enabled || !config.supabaseUrl) {
+  if (config && config.enabled === false) {
     return { success: false, message: 'Chưa bật cấu hình Supabase Cloud DB!' };
   }
 
@@ -265,7 +265,7 @@ export async function upsertCatalogItemsToSupabase(
   newItems: CatalogItem[],
   config: CloudDbConfig
 ): Promise<{ success: boolean; message: string; added: number; updated: number }> {
-  if (!config.enabled || !config.supabaseUrl) {
+  if (config && config.enabled === false) {
     return { success: false, message: 'Chưa bật cấu hình Supabase Cloud DB!', added: 0, updated: 0 };
   }
 
@@ -322,7 +322,7 @@ export async function upsertEquipmentsToSupabase(
   newEquipments: TestEquipment[],
   config: CloudDbConfig
 ): Promise<{ success: boolean; message: string }> {
-  if (!config.enabled || !config.supabaseUrl) {
+  if (config && config.enabled === false) {
     return { success: false, message: 'Chưa bật cấu hình Supabase Cloud DB!' };
   }
 
@@ -355,7 +355,7 @@ export async function syncAllLocalDataToSupabase(
   payload: AllLocalDataPayload,
   config: CloudDbConfig
 ): Promise<{ success: boolean; message: string; stats: Record<string, number> }> {
-  if (!config.enabled || !config.supabaseUrl) {
+  if (config && config.enabled === false) {
     return {
       success: false,
       message: 'Chưa bật hoặc chưa cấu hình Supabase Cloud DB!',
@@ -455,7 +455,7 @@ export async function fetchAllCloudDataToLocal(
 export async function backupAllDataFromSupabase(
   config: CloudDbConfig
 ): Promise<{ success: boolean; message: string }> {
-  if (!config.enabled || !config.supabaseUrl) {
+  if (config && config.enabled === false) {
     return { success: false, message: 'Chưa bật cấu hình Supabase Cloud DB!' };
   }
 
@@ -531,7 +531,7 @@ export async function restoreAllDataToSupabase(
   backupJson: string,
   config: CloudDbConfig
 ): Promise<{ success: boolean; message: string }> {
-  if (!config.enabled || !config.supabaseUrl) {
+  if (config && config.enabled === false) {
     return { success: false, message: 'Chưa bật cấu hình Supabase Cloud DB!' };
   }
 
