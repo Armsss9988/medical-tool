@@ -6,8 +6,10 @@ describe('app smoke', () => {
     expect(app).toBeDefined();
   });
 
-  it('responds (fail-closed: 401/503 without password)', async () => {
-    const res = await app.request('/api/health');
-    expect([401, 503]).toContain(res.status);
+  it('health is public, protected routes are gated without password', async () => {
+    const health = await app.request('/api/health');
+    expect(health.status).toBe(200);
+    const protectedRoute = await app.request('/api/tables/catalog');
+    expect([401, 503]).toContain(protectedRoute.status);
   });
 });

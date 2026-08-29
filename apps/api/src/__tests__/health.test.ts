@@ -21,8 +21,10 @@ describe('GET /api/health', () => {
     expect(body.service).toBe('golab-api');
   });
 
-  it('denies access without password (fail-closed)', async () => {
+  it('is public (200 without password)', async () => {
     const res = await app.request('/api/health');
-    expect([401, 503]).toContain(res.status);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok: boolean };
+    expect(body.ok).toBe(true);
   });
 });

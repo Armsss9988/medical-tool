@@ -11,7 +11,13 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(bufA, bufB);
 }
 
+const PUBLIC_PATHS = new Set(['/api/health', '/api/openapi.json']);
+
 export const passwordGate = createMiddleware<AppEnv>(async (c, next) => {
+  if (PUBLIC_PATHS.has(new URL(c.req.url).pathname)) {
+    await next();
+    return;
+  }
   const expected = c.env?.APP_ACCESS_PASSWORD ?? process.env.APP_ACCESS_PASSWORD;
   if (!expected) {
     return c.json({ error: 'server not configured' }, 503);
