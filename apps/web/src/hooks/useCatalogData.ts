@@ -44,8 +44,8 @@ const DEFAULT_CLINIC_INFO: ClinicInfo = {
 };
 
 const DEFAULT_CLOUD_DB_CONFIG: CloudDbConfig = {
-  supabaseUrl: import.meta.env.VITE_SUPABASE_URL || 'https://omydjydyavugxmqzffka.supabase.co',
-  supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9teWRqeWR5YXZ1Z3htcXpmZmthIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIwNDQ5ODgsImV4cCI6MjA1NzYyMDk4OH0.Tqg-H9V2lU6J7B3e2z5s3r9w8v7x6y5z4a3b2c1d0e',
+  supabaseUrl: import.meta.env.VITE_SUPABASE_URL || '',
+  supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
   enabled: true
 };
 
