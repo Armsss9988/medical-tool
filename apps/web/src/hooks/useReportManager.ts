@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { MedicalReport, Patient, SelectedTest, ReportStatus, STORAGE_KEYS } from '@domain';
+import { MedicalReport, Patient, SelectedTest, ReportStatus, STORAGE_KEYS, CloudDbConfig } from '@domain';
 import { hasAllergenTests } from '@domain/allergenDetector';
 import { ReportStateMachine } from '@domain/stateMachine/ReportStateMachine';
 import { loadData, saveData, loadState } from '@infra/storage';
+import { syncReportsToSupabase, DEFAULT_CLOUD_DB_CONFIG } from '@infra/cloudDbService';
 import { domainEventBus } from '@domain/events/DomainEventBus';
 import {
   REPORT_EVENT_TYPES,
@@ -51,6 +52,14 @@ export function useReportManager() {
   useEffect(() => {
     if (!isLoadedRef.current) return;
     saveData(STORAGE_KEYS.REPORTS, reports);
+
+    // Tự động đồng bộ ngầm lên Supabase Cloud DB
+    const cloudConfig = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
+    if (cloudConfig?.enabled && cloudConfig?.autoSync && cloudConfig?.supabaseUrl) {
+      syncReportsToSupabase(reports, cloudConfig).catch((e) =>
+        console.warn('[AutoSync] Lỗi đồng bộ reports lên Cloud:', e)
+      );
+    }
   }, [reports]);
 
   // 4. LẮNG NGHE DOMAIN EVENTS ĐỂ TỰ ĐỘNG ĐỒNG BỘ HIỆU ỨNG LIÊN ĐỚI (CASCADE SYNC)
@@ -312,6 +321,7 @@ export function useReportManager() {
 
   return {
     reports,
+    setReports,
     saveOrUpdateReport,
     bulkUpdateReports,
     deleteReport,

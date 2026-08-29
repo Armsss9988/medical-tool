@@ -32,12 +32,14 @@ interface WorkspaceContextValue {
 
   // Reports (Sổ Lưu)
   reports: MedicalReport[];
+  setReports: Dispatch<SetStateAction<MedicalReport[]>>;
   saveOrUpdateReport: ReturnType<typeof useReportManager>['saveOrUpdateReport'];
   deleteReport: (id: string) => void;
   clearAllReports: () => void;
 
   // Invoices (Sổ Doanh Thu)
   invoices: ReturnType<typeof useInvoiceManager>['invoices'];
+  setInvoices: Dispatch<SetStateAction<ReturnType<typeof useInvoiceManager>['invoices']>>;
   saveOrUpdateInvoice: ReturnType<typeof useInvoiceManager>['saveOrUpdateInvoice'];
   deleteInvoice: (id: string) => void;
   clearAllInvoices: () => void;
@@ -81,10 +83,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { recentTests, addToRecent, addMultipleToRecent, clearRecent: _clearRecent } = useRecentTests();
 
   // Reports
-  const { reports, saveOrUpdateReport, deleteReport, clearAllReports } = useReportManager();
+  const { reports, setReports, saveOrUpdateReport, deleteReport, clearAllReports } = useReportManager();
 
   // Invoices
-  const { invoices, saveOrUpdateInvoice, deleteInvoice, clearAllInvoices } = useInvoiceManager();
+  const { invoices, setInvoices, saveOrUpdateInvoice, deleteInvoice, clearAllInvoices } = useInvoiceManager();
 
   // Tự động đồng bộ mã BN ban đầu khi tải xong danh sách phiếu từ Storage
   const initialSyncRef = useRef(false);
@@ -142,8 +144,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     doctorName, setDoctorName,
     currentReportId, setCurrentReportId,
     currentLoadedReport,
-    reports, saveOrUpdateReport, deleteReport, clearAllReports,
-    invoices, saveOrUpdateInvoice, deleteInvoice, clearAllInvoices,
+    reports, setReports, saveOrUpdateReport, deleteReport, clearAllReports,
+    invoices, setInvoices, saveOrUpdateInvoice, deleteInvoice, clearAllInvoices,
     recentTests, addToRecent, addMultipleToRecent,
     nameInputRef, autoFocusName, setAutoFocusName,
   };

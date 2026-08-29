@@ -1,9 +1,45 @@
-import { useState } from 'react';
-import { X, Sliders, Database, Save, Upload, RotateCcw, Image as ImageIcon, MessageCircle, CreditCard } from 'lucide-react';
+import { useState, useRef } from 'react';
+import {
+  X,
+  Sliders,
+  Database,
+  Save,
+  Upload,
+  RotateCcw,
+  Image as ImageIcon,
+  MessageCircle,
+  CreditCard,
+  CloudUpload,
+  CloudDownload,
+  Download,
+  FileJson,
+  Loader2,
+  RefreshCw
+} from 'lucide-react';
 import golabLogo from '@assets/golabLogoDataUrl';
 import doctorStamp from '@assets/doctorStampDataUrl';
-import { ClinicInfo, CloudDbConfig, ZaloZnsConfig, ToastType } from '@domain/types';
-import { testSupabaseConnection, seedAllDefaultDataToSupabase } from '@infra/cloudDbService';
+import {
+  ClinicInfo,
+  CloudDbConfig,
+  ZaloZnsConfig,
+  ToastType,
+  CatalogItem,
+  TestPackage,
+  TestGroup,
+  TestEquipment,
+  Doctor,
+  Invoice,
+  MedicalReport
+} from '@domain/types';
+import {
+  testSupabaseConnection,
+  seedAllDefaultDataToSupabase,
+  syncAllLocalDataToSupabase,
+  fetchAllCloudDataToLocal,
+  backupAllDataFromSupabase,
+  restoreAllDataToSupabase,
+  AllLocalDataPayload
+} from '@infra/cloudDbService';
 import { testZaloConnection } from '@infra/zaloService';
 
 export const VIETNAM_BANKS = [
@@ -36,6 +72,20 @@ interface SettingsModalProps {
   zaloConfig: ZaloZnsConfig;
   setZaloConfig: React.Dispatch<React.SetStateAction<ZaloZnsConfig>>;
   showToast: (message: string, type?: ToastType) => void;
+  catalog?: CatalogItem[];
+  setCatalog?: (items: CatalogItem[]) => void;
+  testPackages?: TestPackage[];
+  setTestPackages?: (packages: TestPackage[]) => void;
+  testGroups?: TestGroup[];
+  setTestGroups?: (groups: TestGroup[]) => void;
+  equipments?: TestEquipment[];
+  setEquipments?: (equipments: TestEquipment[]) => void;
+  doctorsList?: Doctor[];
+  setDoctorsList?: (doctors: Doctor[]) => void;
+  reports?: MedicalReport[];
+  setReports?: React.Dispatch<React.SetStateAction<MedicalReport[]>>;
+  invoices?: Invoice[];
+  setInvoices?: React.Dispatch<React.SetStateAction<Invoice[]>>;
 }
 
 export default function SettingsModal({
@@ -47,13 +97,32 @@ export default function SettingsModal({
   setCloudDbConfig,
   zaloConfig,
   setZaloConfig,
-  showToast
+  showToast,
+  catalog = [],
+  setCatalog,
+  testPackages = [],
+  setTestPackages,
+  testGroups = [],
+  setTestGroups,
+  equipments = [],
+  setEquipments,
+  doctorsList = [],
+  setDoctorsList,
+  reports = [],
+  setReports,
+  invoices = [],
+  setInvoices
 }: SettingsModalProps) {
   const [localCloudConfig, setLocalCloudConfig] = useState<CloudDbConfig>({ ...cloudDbConfig });
   const [localZaloConfig, setLocalZaloConfig] = useState<ZaloZnsConfig>({ ...zaloConfig });
   const [isTestingCloud, setIsTestingCloud] = useState(false);
   const [isSeedingData, setIsSeedingData] = useState(false);
   const [isTestingZalo, setIsTestingZalo] = useState(false);
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
+  const [isFetchingAll, setIsFetchingAll] = useState(false);
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const fileRestoreInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
@@ -481,35 +550,184 @@ export default function SettingsModal({
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <button
-                type="button"
-                disabled={isTestingCloud || isSeedingData}
-                onClick={async () => {
-                  setIsTestingCloud(true);
-                  const res = await testSupabaseConnection(localCloudConfig);
-                  setIsTestingCloud(false);
-                  showToast(res.message, res.success ? 'success' : 'error');
-                }}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold transition disabled:opacity-50"
-              >
-                {isTestingCloud ? 'Đang Kiểm Tra...' : 'Kiểm Tra Kết Nối'}
-              </button>
+            {/* KHUNG THAO TÁC ĐỒNG BỘ 1-CLICK */}
+            <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-slate-50 border-2 border-emerald-200/80 rounded-xl p-3.5 space-y-3 shadow-xs">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h5 className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5 text-emerald-950">
+                    <CloudUpload className="w-4 h-4 text-emerald-700 shrink-0" />
+                    <span>Đồng Bộ Toàn Diện 100% Dữ Liệu (Local ⇄ Cloud)</span>
+                  </h5>
+                  <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
+                    Đưa toàn bộ 9 kho dữ liệu (Chỉ số, Gói XN, Nhóm, Thiết bị, Bác sĩ, Phòng khám, Sổ phiếu XN, Hóa đơn, Cấu hình Zalo) lên Supabase.
+                  </p>
+                </div>
+                <span className="text-[10px] font-extrabold px-2 py-0.5 bg-emerald-600 text-white rounded-md shrink-0 shadow-xs">
+                  9 Bảng Dữ Liệu
+                </span>
+              </div>
 
-              <button
-                type="button"
-                disabled={isTestingCloud || isSeedingData}
-                onClick={async () => {
-                  setIsSeedingData(true);
-                  showToast('Đang đẩy danh mục gốc (130+ chỉ số, gói XN, nhóm) lên Supabase...', 'info');
-                  const res = await seedAllDefaultDataToSupabase(localCloudConfig);
-                  setIsSeedingData(false);
-                  showToast(res.message, res.success ? 'success' : 'error');
-                }}
-                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold transition disabled:opacity-50"
-              >
-                {isSeedingData ? 'Đang Đẩy Dữ Liệu...' : 'Đẩy Dữ Liệu Gốc Lên Cloud'}
-              </button>
+              {/* Action Buttons Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                {/* 1. ĐẨY TOÀN BỘ LOCAL LÊN CLOUD */}
+                <button
+                  type="button"
+                  disabled={isSyncingAll || isFetchingAll || isBackingUp || isRestoring}
+                  onClick={async () => {
+                    const payload: AllLocalDataPayload = {
+                      catalog,
+                      testPackages,
+                      testGroups,
+                      equipments,
+                      doctorsList,
+                      clinicInfo,
+                      reports,
+                      invoices,
+                      zaloConfig: localZaloConfig
+                    };
+                    setIsSyncingAll(true);
+                    showToast('Đang đẩy toàn bộ 100% dữ liệu Local lên Supabase Cloud DB...', 'info');
+                    const res = await syncAllLocalDataToSupabase(payload, localCloudConfig);
+                    setIsSyncingAll(false);
+                    showToast(res.message, res.success ? 'success' : 'error');
+                  }}
+                  className="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 shadow transition active:scale-95 disabled:opacity-50 cursor-pointer"
+                >
+                  {isSyncingAll ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Đang Đồng Bộ...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CloudUpload className="w-3.5 h-3.5" />
+                      <span>Đẩy Toàn Bộ Local ➔ Cloud DB</span>
+                    </>
+                  )}
+                </button>
+
+                {/* 2. KÉO DỮ LIỆU TỪ CLOUD VỀ LOCAL */}
+                <button
+                  type="button"
+                  disabled={isSyncingAll || isFetchingAll || isBackingUp || isRestoring}
+                  onClick={async () => {
+                    if (!window.confirm('Bạn có chắc muốn kéo toàn bộ dữ liệu từ Cloud DB về máy? Dữ liệu trên máy sẽ được cập nhật đồng bộ với Cloud.')) {
+                      return;
+                    }
+                    setIsFetchingAll(true);
+                    showToast('Đang kéo toàn bộ dữ liệu từ Supabase Cloud DB về...', 'info');
+                    const data = await fetchAllCloudDataToLocal(localCloudConfig);
+                    setIsFetchingAll(false);
+
+                    if (!data) {
+                      showToast('Không thể tải dữ liệu từ Cloud DB. Vui lòng kiểm tra kết nối!', 'error');
+                      return;
+                    }
+
+                    let count = 0;
+                    if (data.catalog && setCatalog) { setCatalog(data.catalog); count += data.catalog.length; }
+                    if (data.testPackages && setTestPackages) setTestPackages(data.testPackages);
+                    if (data.testGroups && setTestGroups) setTestGroups(data.testGroups);
+                    if (data.equipments && setEquipments) setEquipments(data.equipments);
+                    if (data.doctorsList && setDoctorsList) setDoctorsList(data.doctorsList);
+                    if (data.clinicInfo) setClinicInfo(data.clinicInfo);
+                    if (data.reports && setReports) setReports(data.reports);
+                    if (data.invoices && setInvoices) setInvoices(data.invoices);
+                    if (data.zaloConfig) { setZaloConfig(data.zaloConfig); setLocalZaloConfig(data.zaloConfig); }
+
+                    showToast(`Đã đồng bộ thành công toàn bộ dữ liệu từ Cloud về máy (${count} chỉ số + sổ phiếu + hóa đơn)!`, 'success');
+                  }}
+                  className="w-full px-3 py-2 bg-sky-700 hover:bg-sky-600 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 shadow transition active:scale-95 disabled:opacity-50 cursor-pointer"
+                >
+                  {isFetchingAll ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Đang Kéo Dữ Liệu...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CloudDownload className="w-3.5 h-3.5" />
+                      <span>Kéo Dữ Liệu Cloud ➔ Local</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Secondary Backup / Restore / Seed Tools */}
+              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-emerald-200/60">
+                <button
+                  type="button"
+                  disabled={isTestingCloud || isBackingUp}
+                  onClick={async () => {
+                    setIsTestingCloud(true);
+                    const res = await testSupabaseConnection(localCloudConfig);
+                    setIsTestingCloud(false);
+                    showToast(res.message, res.success ? 'success' : 'error');
+                  }}
+                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-semibold text-[11px] flex items-center gap-1 transition disabled:opacity-50"
+                >
+                  <Database className="w-3 h-3 text-emerald-400" />
+                  <span>{isTestingCloud ? 'Đang Kiểm Tra...' : 'Kiểm Tra Kết Nối'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isBackingUp || isSyncingAll}
+                  onClick={async () => {
+                    setIsBackingUp(true);
+                    showToast('Đang tạo file sao lưu JSON toàn diện...', 'info');
+                    const res = await backupAllDataFromSupabase(localCloudConfig);
+                    setIsBackingUp(false);
+                    showToast(res.message, res.success ? 'success' : 'error');
+                  }}
+                  className="px-2.5 py-1.5 bg-amber-700 hover:bg-amber-600 text-white rounded-lg font-semibold text-[11px] flex items-center gap-1 transition disabled:opacity-50 cursor-pointer"
+                >
+                  <Download className="w-3 h-3" />
+                  <span>{isBackingUp ? 'Đang Xuất File...' : 'Tải File Backup JSON'}</span>
+                </button>
+
+                <label className="cursor-pointer px-2.5 py-1.5 bg-purple-700 hover:bg-purple-600 text-white rounded-lg font-semibold text-[11px] flex items-center gap-1 transition shadow-xs">
+                  <FileJson className="w-3 h-3" />
+                  <span>{isRestoring ? 'Đang Khôi Phục...' : 'Khôi Phục Từ File Backup'}</span>
+                  <input
+                    ref={fileRestoreInputRef}
+                    type="file"
+                    accept=".json,application/json"
+                    disabled={isRestoring}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const text = await file.text();
+                      setIsRestoring(true);
+                      showToast('Đang khôi phục dữ liệu lên Supabase...', 'info');
+                      const res = await restoreAllDataToSupabase(text, localCloudConfig);
+                      setIsRestoring(false);
+                      showToast(res.message, res.success ? 'success' : 'error');
+                      if (fileRestoreInputRef.current) fileRestoreInputRef.current.value = '';
+                    }}
+                    className="hidden"
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  disabled={isSeedingData || isSyncingAll}
+                  onClick={async () => {
+                    if (!window.confirm('Thao tác này sẽ nạp lại bộ dữ liệu mẫu mặc định gốc (167+ chỉ số, gói XN, nhóm, thiết bị) lên Cloud. Tiếp tục?')) {
+                      return;
+                    }
+                    setIsSeedingData(true);
+                    showToast('Đang đẩy danh mục gốc (167+ chỉ số, gói XN, nhóm) lên Supabase...', 'info');
+                    const res = await seedAllDefaultDataToSupabase(localCloudConfig);
+                    setIsSeedingData(false);
+                    showToast(res.message, res.success ? 'success' : 'error');
+                  }}
+                  className="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg font-semibold text-[11px] flex items-center gap-1 transition disabled:opacity-50 cursor-pointer ml-auto"
+                >
+                  <RefreshCw className="w-3 h-3 text-slate-600" />
+                  <span>Nạp Dữ Liệu Gốc</span>
+                </button>
+              </div>
             </div>
           </div>
 

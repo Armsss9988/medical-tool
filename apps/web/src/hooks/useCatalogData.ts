@@ -25,7 +25,14 @@ import {
   fetchGroupsFromSupabase, 
   fetchEquipmentsFromSupabase, 
   fetchDoctorsFromSupabase,
-  fetchClinicInfoFromSupabase
+  fetchClinicInfoFromSupabase,
+  syncCatalogToSupabase,
+  syncPackagesToSupabase,
+  syncGroupsToSupabase,
+  syncEquipmentsToSupabase,
+  syncDoctorsToSupabase,
+  syncClinicInfoToSupabase,
+  syncZaloConfigToSupabase
 } from '@infra/cloudDbService';
 
 const DEFAULT_CLINIC_INFO: ClinicInfo = {
@@ -103,30 +110,48 @@ export function useCatalogData() {
     return loadState(STORAGE_KEYS.ZALO_CONFIG, DEFAULT_ZALO_CONFIG);
   });
 
-  // Tự động lưu Local Storage khi state thay đổi
+  // Tự động lưu Local Storage và đồng bộ Supabase khi state thay đổi
   useEffect(() => {
     saveState(STORAGE_KEYS.CATALOG, catalog);
-  }, [catalog]);
+    if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync && cloudDbConfig?.supabaseUrl) {
+      syncCatalogToSupabase(catalog, cloudDbConfig).catch(() => {});
+    }
+  }, [catalog, cloudDbConfig]);
 
   useEffect(() => {
     saveState(STORAGE_KEYS.TEST_PACKAGES, testPackages);
-  }, [testPackages]);
+    if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync && cloudDbConfig?.supabaseUrl) {
+      syncPackagesToSupabase(testPackages, cloudDbConfig).catch(() => {});
+    }
+  }, [testPackages, cloudDbConfig]);
 
   useEffect(() => {
     saveState(STORAGE_KEYS.TEST_GROUPS, testGroups);
-  }, [testGroups]);
+    if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync && cloudDbConfig?.supabaseUrl) {
+      syncGroupsToSupabase(testGroups, cloudDbConfig).catch(() => {});
+    }
+  }, [testGroups, cloudDbConfig]);
 
   useEffect(() => {
     saveState(STORAGE_KEYS.EQUIPMENTS, equipments);
-  }, [equipments]);
+    if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync && cloudDbConfig?.supabaseUrl) {
+      syncEquipmentsToSupabase(equipments, cloudDbConfig).catch(() => {});
+    }
+  }, [equipments, cloudDbConfig]);
 
   useEffect(() => {
     saveState(STORAGE_KEYS.DOCTORS, doctorsList);
-  }, [doctorsList]);
+    if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync && cloudDbConfig?.supabaseUrl) {
+      syncDoctorsToSupabase(doctorsList, cloudDbConfig).catch(() => {});
+    }
+  }, [doctorsList, cloudDbConfig]);
 
   useEffect(() => {
     saveState(STORAGE_KEYS.CLINIC_INFO, clinicInfo);
-  }, [clinicInfo]);
+    if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync && cloudDbConfig?.supabaseUrl) {
+      syncClinicInfoToSupabase(clinicInfo, cloudDbConfig).catch(() => {});
+    }
+  }, [clinicInfo, cloudDbConfig]);
 
   useEffect(() => {
     saveState(STORAGE_KEYS.CLOUD_DB, cloudDbConfig);
@@ -134,7 +159,10 @@ export function useCatalogData() {
 
   useEffect(() => {
     saveState(STORAGE_KEYS.ZALO_CONFIG, zaloConfig);
-  }, [zaloConfig]);
+    if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync && cloudDbConfig?.supabaseUrl) {
+      syncZaloConfigToSupabase(zaloConfig, cloudDbConfig).catch(() => {});
+    }
+  }, [zaloConfig, cloudDbConfig]);
 
   // Tự động đồng bộ từ Supabase nếu bật cấu hình
   useEffect(() => {

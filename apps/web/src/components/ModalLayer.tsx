@@ -51,6 +51,10 @@ interface ModalLayerProps {
   setEquipments: (equipments: TestEquipment[]) => void;
   doctorsList: Doctor[];
   setDoctorsList: (doctors: Doctor[]) => void;
+  reports?: MedicalReport[];
+  setReports?: Dispatch<SetStateAction<MedicalReport[]>>;
+  invoices?: Invoice[];
+  setInvoices?: Dispatch<SetStateAction<Invoice[]>>;
   cloudLink?: string;
   qrCodeDataUrl?: string;
   isExporting: boolean;
@@ -132,9 +136,11 @@ export function ModalLayer({
     doctorName,
     currentReportId,
     reports,
+    setReports,
     deleteReport,
     clearAllReports,
     invoices,
+    setInvoices,
     deleteInvoice,
     clearAllInvoices
   } = useWorkspace();
@@ -181,6 +187,20 @@ export function ModalLayer({
         zaloConfig={zaloConfig}
         setZaloConfig={setZaloConfig}
         showToast={showToast}
+        catalog={catalog}
+        setCatalog={setCatalog}
+        testPackages={testPackages}
+        setTestPackages={setTestPackages}
+        testGroups={testGroups}
+        setTestGroups={setTestGroups}
+        equipments={equipments}
+        setEquipments={setEquipments}
+        doctorsList={doctorsList}
+        setDoctorsList={setDoctorsList}
+        reports={reports}
+        setReports={setReports}
+        invoices={invoices}
+        setInvoices={setInvoices}
       />
 
       {/* 2. PDF PREVIEW MODAL */}

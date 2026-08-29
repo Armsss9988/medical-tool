@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Invoice, InvoiceStatus, STORAGE_KEYS, BILLING_STATUS } from '@domain';
+import { Invoice, InvoiceStatus, STORAGE_KEYS, BILLING_STATUS, CloudDbConfig } from '@domain';
 import { loadData, saveData, loadState } from '@infra/storage';
+import { syncInvoicesToSupabase, DEFAULT_CLOUD_DB_CONFIG } from '@infra/cloudDbService';
 import { domainEventBus } from '@domain/events/DomainEventBus';
 import {
   INVOICE_EVENT_TYPES,
@@ -43,6 +44,14 @@ export function useInvoiceManager() {
   useEffect(() => {
     if (!isLoadedRef.current) return;
     saveData(STORAGE_KEYS.INVOICES, invoices);
+
+    // Tự động đồng bộ ngầm lên Supabase Cloud DB
+    const cloudConfig = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
+    if (cloudConfig?.enabled && cloudConfig?.autoSync && cloudConfig?.supabaseUrl) {
+      syncInvoicesToSupabase(invoices, cloudConfig).catch((e) =>
+        console.warn('[AutoSync] Lỗi đồng bộ invoices lên Cloud:', e)
+      );
+    }
   }, [invoices]);
 
   // 4. LẮNG NGHE DOMAIN EVENTS TỪ CÁC THỰC THỂ KHÁC
