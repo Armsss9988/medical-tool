@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { CollectPaymentUseCase } from '../CollectPaymentUseCase';
 import { CancelInvoiceUseCase } from '../CancelInvoiceUseCase';
-import { domainEventBus } from '../../domain/events/DomainEventBus';
-import { Invoice } from '../../domain/types';
+import { domainEventBus } from '@domain/events/DomainEventBus';
+import { Invoice } from '@domain/types';
 
 describe('Invoice UseCases (Collect & Cancel)', () => {
   const collectUseCase = new CollectPaymentUseCase();

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { CreateInvoiceUseCase } from '../CreateInvoiceUseCase';
-import { Patient, SelectedTest } from '../../domain/types';
+import { Patient, SelectedTest } from '@domain/types';
 
 describe('CreateInvoiceUseCase', () => {
   const useCase = new CreateInvoiceUseCase();

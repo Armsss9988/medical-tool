@@ -1,5 +1,5 @@
-import { SelectedTest, CatalogItem } from '../domain/types';
-import { evaluateResult } from '../domain/testResult';
+import { SelectedTest, CatalogItem } from '@domain/types';
+import { evaluateResult } from '@domain/testResult';
 
 export class EvaluateTestResultUseCase {
   public execute(

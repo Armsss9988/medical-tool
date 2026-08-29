@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
-import { DEFAULT_CATALOG } from '../data/defaultCatalog';
-import { CatalogItem, Invoice, Doctor } from '../domain/types';
+import { DEFAULT_CATALOG } from '@data/defaultCatalog';
+import { CatalogItem, Invoice, Doctor } from '@domain/types';
 
 export function parseExcelCatalog(fileOrBuffer: Blob | ArrayBuffer): Promise<CatalogItem[]> {
   return new Promise((resolve, reject) => {
@@ -127,7 +127,7 @@ export function exportRevenueExcel(invoices: Invoice[], doctorStats: { doctor: D
   XLSX.writeFile(wb, `BaoCaoDoanhThu_GoLab_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
-export function exportReportsExcel(reports: import('../domain/types').MedicalReport[]): void {
+export function exportReportsExcel(reports: import('@domain/types').MedicalReport[]): void {
   const reportRows = reports.map((rep, idx) => ({
     'STT': idx + 1,
     'Mã Bệnh Nhân': rep.code,
@@ -175,9 +175,9 @@ export function exportReportsExcel(reports: import('../domain/types').MedicalRep
 
 // ─── BATCH IMPORT / EXPORT ──────────────────────────────────────────────────
 
-import { BatchImportRow, SelectedTest, Patient, Gender } from '../domain/types';
-import { evaluateTestIndicator } from '../domain/testResult';
-import { generatePatientCode, generateSecretToken } from '../domain/patient';
+import { BatchImportRow, SelectedTest, Patient, Gender } from '@domain/types';
+import { evaluateTestIndicator } from '@domain/testResult';
+import { generatePatientCode, generateSecretToken } from '@domain/patient';
 
 /**
  * Xuất file Excel template mẫu 2 sheet để người dùng điền dữ liệu batch.

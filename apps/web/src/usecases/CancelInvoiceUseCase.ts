@@ -1,5 +1,5 @@
-import { Invoice } from '../domain/types';
-import { InvoiceStateMachine } from '../domain/stateMachine/InvoiceStateMachine';
+import { Invoice } from '@domain/types';
+import { InvoiceStateMachine } from '@domain/stateMachine/InvoiceStateMachine';
 
 export interface CancelInvoiceParams {
   invoice: Invoice;

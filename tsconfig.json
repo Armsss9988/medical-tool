@@ -25,17 +25,17 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@domain": ["apps/web/src/domain"],
-      "@domain/*": ["apps/web/src/domain/*"],
+      "@domain": ["packages/shared/src/domain"],
+      "@domain/*": ["packages/shared/src/domain/*"],
       "@infra": ["apps/web/src/infrastructure"],
       "@infra/*": ["apps/web/src/infrastructure/*"],
-      "@data": ["apps/web/src/data"],
-      "@data/*": ["apps/web/src/data/*"],
+      "@data": ["packages/shared/src/data"],
+      "@data/*": ["packages/shared/src/data/*"],
       "@components": ["apps/web/src/components"],
       "@components/*": ["apps/web/src/components/*"],
       "@assets": ["apps/web/src/assets"],
       "@assets/*": ["apps/web/src/assets/*"]
     }
   },
-  "include": ["apps/web/src", "apps/web/vite.config.ts"]
+  "include": ["apps/web/src", "apps/web/vite.config.ts", "packages/shared/src"]
 }

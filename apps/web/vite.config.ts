@@ -9,9 +9,9 @@ export default defineConfig({
   base: './',
   resolve: {
     alias: {
-      '@domain': path.resolve(import.meta.dirname, './src/domain'),
+      '@domain': path.resolve(import.meta.dirname, '../../packages/shared/src/domain'),
       '@infra': path.resolve(import.meta.dirname, './src/infrastructure'),
-      '@data': path.resolve(import.meta.dirname, './src/data'),
+      '@data': path.resolve(import.meta.dirname, '../../packages/shared/src/data'),
       '@components': path.resolve(import.meta.dirname, './src/components'),
       '@assets': path.resolve(import.meta.dirname, './src/assets')
     }

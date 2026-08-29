@@ -7,8 +7,8 @@ import {
   Doctor,
   ClinicInfo,
   Invoice
-} from '../domain/types';
-import { DEFAULT_CATALOG, TEST_PACKAGES, DEFAULT_TEST_GROUPS, DEFAULT_EQUIPMENTS } from '../data/defaultCatalog';
+} from '@domain/types';
+import { DEFAULT_CATALOG, TEST_PACKAGES, DEFAULT_TEST_GROUPS, DEFAULT_EQUIPMENTS } from '@data/defaultCatalog';
 
 export interface DatabaseBackupFile {
   _meta: {

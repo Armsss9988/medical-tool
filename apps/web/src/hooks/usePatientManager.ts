@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Patient } from '../domain/types';
-import { PatientCode } from '../domain/valueObjects/PatientCode';
-import { SecretToken } from '../domain/valueObjects/SecretToken';
+import { Patient } from '@domain/types';
+import { PatientCode } from '@domain/valueObjects/PatientCode';
+import { SecretToken } from '@domain/valueObjects/SecretToken';
 
 export function getTodayFormattedStr(): string {
   return new Date().toLocaleDateString('vi-VN', {

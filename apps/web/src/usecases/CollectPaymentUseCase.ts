@@ -1,5 +1,5 @@
-import { Invoice, PaymentMethod } from '../domain/types';
-import { InvoiceStateMachine } from '../domain/stateMachine/InvoiceStateMachine';
+import { Invoice, PaymentMethod } from '@domain/types';
+import { InvoiceStateMachine } from '@domain/stateMachine/InvoiceStateMachine';
 
 export interface CollectPaymentParams {
   invoice: Invoice;

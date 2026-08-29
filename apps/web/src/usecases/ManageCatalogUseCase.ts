@@ -1,4 +1,4 @@
-import { CatalogItem, TestGroup, TestEquipment, Doctor } from '../domain/types';
+import { CatalogItem, TestGroup, TestEquipment, Doctor } from '@domain/types';
 
 export class ManageCatalogUseCase {
   public canDeleteGroup(groupId: string, groups: TestGroup[], catalog: CatalogItem[]): { canDelete: boolean; message?: string } {

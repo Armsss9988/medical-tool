@@ -1,7 +1,7 @@
-import { Invoice, Patient, SelectedTest, InvoiceItem, PaymentMethod, InvoiceStatus, TestPackage } from '../domain/types';
-import { Money } from '../domain/valueObjects/Money';
-import { buildInvoiceItems } from '../domain/pricing';
-import { DEFAULTS } from '../domain/constants/defaults';
+import { Invoice, Patient, SelectedTest, InvoiceItem, PaymentMethod, InvoiceStatus, TestPackage } from '@domain/types';
+import { Money } from '@domain/valueObjects/Money';
+import { buildInvoiceItems } from '@domain/pricing';
+import { DEFAULTS } from '@domain/constants/defaults';
 
 export interface CreateInvoiceParams {
   patient: Patient;

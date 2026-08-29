@@ -1,4 +1,4 @@
-import { StorageResult } from '../domain/types';
+import { StorageResult } from '@domain/types';
 
 export const isElectron = (): boolean =>
   typeof window !== 'undefined' &&

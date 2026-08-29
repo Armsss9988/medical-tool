@@ -1,0 +1,15 @@
+{
+  "name": "@golab/shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./domain": "./src/domain/index.ts",
+    "./domain/*": "./src/domain/*",
+    "./data/*": "./src/data/*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}
