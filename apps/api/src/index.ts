@@ -2,12 +2,14 @@ import { Hono } from 'hono';
 import { logger } from 'hono/logger';
 import { healthRoutes } from './routes/health';
 import { tableRoutes } from './routes/tables';
+import { openApiRoutes } from './routes/openapi';
 import { passwordGate } from './middleware/passwordGate';
 import { withDb } from './middleware/withDb';
 
 const app = new Hono();
 
 app.use('/api/*', logger());
+app.route('/api', openApiRoutes);
 app.use('/api/*', passwordGate);
 app.use('/api/*', withDb);
 
