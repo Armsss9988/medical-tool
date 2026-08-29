@@ -118,8 +118,8 @@ export class PdfExportTransaction {
 
       // Đăng ký hành động Rollback nếu các bước sau thất bại
       if (uploadRes.provider === 'supabase' && uploadRes.url) {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://omydjydyavugxmqzffka.supabase.co';
-        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
         
         this.rollbackActions.push(async () => {
           await deleteSupabaseFile(supabaseUrl, anonKey, 'reports', uploadedFilename!);
@@ -158,8 +158,8 @@ export class PdfExportTransaction {
       await addLedgerRecord(record);
 
       // Dọn dẹp phiên bản cũ (giữ tối đa 3 phiên bản gần nhất)
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://omydjydyavugxmqzffka.supabase.co';
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
       await cleanupOldVersions(this.patientCode, 3, { url: supabaseUrl, anonKey });
 
       this.executedSteps.push({
