@@ -6,12 +6,13 @@
   "main": "src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "dev": "tsx src/index.ts",
+    "dev": "tsx src/dev.ts",
     "drizzle:generate": "drizzle-kit generate",
     "drizzle:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
     "@golab/shared": "*",
+    "@hono/node-server": "^2.1.1",
     "drizzle-orm": "^0.44.0",
     "hono": "^4.6.0",
     "postgres": "^3.4.0",
