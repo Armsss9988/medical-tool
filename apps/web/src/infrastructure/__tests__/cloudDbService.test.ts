@@ -1,153 +1,163 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+vi.mock('../apiClient', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../apiClient')>();
+  return {
+    ...actual,
+    getTable: vi.fn(),
+    putTable: vi.fn()
+  };
+});
+
 import {
-  syncAllLocalDataToSupabase,
-  restoreAllDataToSupabase,
-  AllLocalDataPayload
+  syncTableToCloud,
+  syncCatalogToSupabase,
+  syncReportsToSupabase,
+  syncClinicInfoToSupabase,
+  fetchTableFromCloud,
+  fetchClinicInfoFromSupabase,
+  fetchReportsFromSupabase,
+  fetchAllCloudDataToLocal,
+  testSupabaseConnection,
+  syncAllLocalDataToSupabase
 } from '../cloudDbService';
+import { getTable, putTable, ApiAuthError } from '../apiClient';
 import { CloudDbConfig } from '@domain/types';
 
-describe('Cloud DB Service - Sync & Migration Suite', () => {
-  const mockConfig: CloudDbConfig = {
-    enabled: true,
-    supabaseUrl: 'https://test-project.supabase.co',
-    supabaseAnonKey: 'mock-anon-key',
-    autoSync: true
-  };
+const mockGetTable = vi.mocked(getTable);
+const mockPutTable = vi.mocked(putTable);
 
-  beforeEach(() => {
-    vi.restoreAllMocks();
+const cfg: CloudDbConfig = {
+  enabled: true,
+  supabaseUrl: 'https://test-project.supabase.co',
+  supabaseAnonKey: 'mock-anon-key',
+  autoSync: true
+};
+
+beforeEach(() => {
+  mockGetTable.mockReset();
+  mockPutTable.mockReset();
+});
+
+describe('cloudDbService wired to apiClient', () => {
+  it('(a) syncCatalogToSupabase calls putTable with mapped table name and the array rows', async () => {
+    const catalog = [{ code: 'GLU', name: 'Glucose' }] as never;
+    const ok = await syncCatalogToSupabase(catalog, cfg);
+    expect(ok).toBe(true);
+    expect(mockPutTable).toHaveBeenCalledWith('catalog', catalog);
   });
 
-  it('should return error when Cloud DB is disabled or url is missing', async () => {
-    const disabledConfig: CloudDbConfig = {
-      enabled: false,
-      supabaseUrl: '',
-      supabaseAnonKey: '',
-      autoSync: false
-    };
-
-    const res = await syncAllLocalDataToSupabase({
-      catalog: [],
-      testPackages: [],
-      testGroups: [],
-      equipments: [],
-      doctorsList: [],
-      clinicInfo: null,
-      reports: [],
-      invoices: []
-    }, disabledConfig);
-
-    expect(res.success).toBe(false);
-    expect(res.message).toContain('Chưa bật');
+  it('(b) syncReportsToSupabase wraps each doc row as { id, data }', async () => {
+    const report = { id: 'r1', code: 'BN001' } as never;
+    await syncReportsToSupabase([report], cfg);
+    expect(mockPutTable).toHaveBeenCalledWith('medical-reports', [{ id: 'r1', data: report }]);
   });
 
-  it('should sync all 9 tables to Supabase and return accurate statistics', async () => {
-    const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async () => {
-      return {
-        ok: true,
-        status: 200,
-        json: async () => [{ key: 'mock' }]
-      } as Response;
-    });
+  it('(b2) syncClinicInfoToSupabase sends a single object as a 1-row array', async () => {
+    const clinic = { name: 'GoLab', address: '', phone: '', defaultDoctor: '' } as never;
+    await syncClinicInfoToSupabase(clinic, cfg);
+    expect(mockPutTable).toHaveBeenCalledWith('clinic-info', [clinic]);
+  });
 
-    const payload: AllLocalDataPayload = {
-      catalog: [{ code: 'GLU', name: 'Glucose', price: 50000, category: 'Sinh hóa', refMin: 3.9, refMax: 6.4, unit: 'mmol/L', refText: '3.9 - 6.4' }],
-      testPackages: [{ id: 'pkg1', name: 'Gói Cơ Bản', price: 200000, codes: ['GLU'] }],
-      testGroups: [{ id: 'grp1', name: 'Sinh hóa máu' }],
-      equipments: [{ id: 'eq1', code: 'BS200', name: 'Mindray BS-200' }],
-      doctorsList: [{ id: 'doc1', name: 'BS. Lê Phan Anh' }],
-      clinicInfo: { name: 'GoLab', address: 'Quảng Trị', phone: '032.855.3773', defaultDoctor: 'BS. Lê Phan Anh' },
-      reports: [{
-        id: 'rep1',
-        code: 'BN001',
-        sampleCode: 'BN001',
-        createdAt: '2026-08-29T10:00:00.000Z',
-        updatedAt: '2026-08-29T10:00:00.000Z',
-        patient: {
-          code: 'BN001',
-          name: 'Nguyễn Văn A',
-          dob: '1990-01-01',
-          gender: 'Nam',
-          phone: '0901234567',
-          address: 'Hà Nội',
-          diagnosis: 'Khám sức khỏe',
-          secretToken: 'abc'
-        },
-        doctorName: 'BS. Lê Phan Anh',
-        selectedTests: [],
-        conclusion: 'Bình thường',
-        isAllergen: false,
-        status: 'Chờ xét nghiệm',
-        testCount: 0
-      }],
-      invoices: [{
-        id: 'inv1',
-        code: 'HD001',
-        createdAt: '2026-08-29T10:00:00.000Z',
-        patientName: 'Nguyễn Văn A',
-        patientDob: '1990-01-01',
-        patientPhone: '0901234567',
-        patientGender: 'Nam',
-        doctorName: 'BS. Lê Phan Anh',
-        items: [],
-        totalAmount: 50000,
-        discountPercent: 0,
-        finalAmount: 50000,
-        paymentMethod: 'Tiền mặt',
-        status: 'Chưa thu phí'
-      }],
-      zaloConfig: {
-        enabled: true,
-        oaId: '123',
-        appId: 'app1',
-        secretKey: 'sec1',
-        accessToken: 'token1',
-        templateId: 'tpl1',
-        autoSendOnExport: false
-      }
-    };
+  it('(c) fetchTableFromCloud returns the rows array for a normal table', async () => {
+    mockGetTable.mockResolvedValue({ rows: ['a', 'b'], count: 2, updatedAt: '' });
+    const res = await fetchTableFromCloud('catalog_data', cfg);
+    expect(mockGetTable).toHaveBeenCalledWith('catalog');
+    expect(res).toEqual(['a', 'b'] as never);
+  });
 
-    const res = await syncAllLocalDataToSupabase(payload, mockConfig);
+  it('(c2) fetchReportsFromSupabase unwraps doc rows back to domain objects', async () => {
+    const report = { id: 'r1', code: 'BN001' } as never;
+    mockGetTable.mockResolvedValue({ rows: [{ id: 'r1', data: report }], count: 1, updatedAt: '' });
+    const res = await fetchReportsFromSupabase(cfg);
+    expect(mockGetTable).toHaveBeenCalledWith('medical-reports');
+    expect(res).toEqual([report]);
+  });
 
+  it('(d) fetchClinicInfoFromSupabase returns rows[0] of the single-object table', async () => {
+    const clinic = { name: 'GoLab', address: '', phone: '', defaultDoctor: '' } as never;
+    mockGetTable.mockResolvedValue({ rows: [clinic], count: 1, updatedAt: '' });
+    const res = await fetchClinicInfoFromSupabase(cfg);
+    expect(mockGetTable).toHaveBeenCalledWith('clinic-info');
+    expect(res).toEqual(clinic);
+  });
+
+  it('(d2) fetchAllCloudDataToLocal unwraps clinicInfo and zaloConfig as single objects', async () => {
+    const clinic = { name: 'GoLab', address: '', phone: '', defaultDoctor: '' } as never;
+    const zalo = { enabled: false } as never;
+    mockGetTable
+      .mockResolvedValueOnce({ rows: [{ code: 'GLU' }], count: 1, updatedAt: '' }) // catalog
+      .mockResolvedValueOnce({ rows: [], count: 0, updatedAt: '' }) // packages
+      .mockResolvedValueOnce({ rows: [], count: 0, updatedAt: '' }) // groups
+      .mockResolvedValueOnce({ rows: [], count: 0, updatedAt: '' }) // equipments
+      .mockResolvedValueOnce({ rows: [], count: 0, updatedAt: '' }) // doctors
+      .mockResolvedValueOnce({ rows: [clinic], count: 1, updatedAt: '' }) // clinic
+      .mockResolvedValueOnce({ rows: [], count: 0, updatedAt: '' }) // reports
+      .mockResolvedValueOnce({ rows: [], count: 0, updatedAt: '' }) // invoices
+      .mockResolvedValueOnce({ rows: [zalo], count: 1, updatedAt: '' }); // zalo
+    const res = await fetchAllCloudDataToLocal(cfg);
+    expect(res?.clinicInfo).toEqual(clinic);
+    expect(res?.zaloConfig).toEqual(zalo);
+  });
+
+  it('(e) config.enabled === false returns false without calling putTable', async () => {
+    const disabled = { ...cfg, enabled: false };
+    const ok = await syncTableToCloud('catalog_data', [], disabled);
+    expect(ok).toBe(false);
+    expect(mockPutTable).not.toHaveBeenCalled();
+  });
+
+  it('(e2) fetchTableFromCloud returns null when config.enabled === false', async () => {
+    const disabled = { ...cfg, enabled: false };
+    const res = await fetchTableFromCloud('catalog_data', disabled);
+    expect(res).toBeNull();
+    expect(mockGetTable).not.toHaveBeenCalled();
+  });
+
+  it('testSupabaseConnection succeeds when the API is reachable', async () => {
+    mockGetTable.mockResolvedValue({ rows: [], count: 0, updatedAt: '' });
+    const res = await testSupabaseConnection(cfg);
+    expect(mockGetTable).toHaveBeenCalledWith('catalog');
     expect(res.success).toBe(true);
-    expect(res.stats.catalog).toBe(1);
-    expect(res.stats.testPackages).toBe(1);
-    expect(res.stats.reports).toBe(1);
-    expect(res.stats.invoices).toBe(1);
-    expect(res.stats.doctorsList).toBe(1);
-    expect(fetchSpy).toHaveBeenCalled();
+    expect(res.message).toContain('Kết nối thành công');
   });
 
-  it('should restore all data from valid backup JSON', async () => {
-    vi.spyOn(global, 'fetch').mockImplementation(async () => {
-      return {
-        ok: true,
-        status: 200,
-        json: async () => [{ key: 'catalog_data' }]
-      } as Response;
-    });
+  it('testSupabaseConnection reports wrong password on ApiAuthError', async () => {
+    mockGetTable.mockRejectedValue(new ApiAuthError('Unauthorized'));
+    const res = await testSupabaseConnection(cfg);
+    expect(res.success).toBe(false);
+    expect(res.message).toBe('Sai mật khẩu API!');
+  });
 
-    const backupJson = JSON.stringify({
-      _meta: {
-        backup_at: new Date().toISOString(),
-        supabase_url: 'https://test-project.supabase.co',
-        version: '2.0',
-        tables: ['catalog_data']
+  it('testSupabaseConnection reports connection failure on other errors', async () => {
+    mockGetTable.mockRejectedValue(new Error('network down'));
+    const res = await testSupabaseConnection(cfg);
+    expect(res.success).toBe(false);
+    expect(res.message).toContain('Không thể kết nối API: network down');
+  });
+
+  it('syncAllLocalDataToSupabase routes every table through the API', async () => {
+    mockPutTable.mockResolvedValue({ replaced: 1 });
+    const res = await syncAllLocalDataToSupabase(
+      {
+        catalog: [{ code: 'GLU', name: 'Glucose' }] as never,
+        testPackages: [{ id: 'p1', name: 'P', price: 1, codes: [] }] as never,
+        testGroups: [{ id: 'g1', name: 'G' }] as never,
+        equipments: [{ id: 'e1', code: 'EC', name: 'EQ' }] as never,
+        doctorsList: [{ id: 'd1', name: 'Dr' }] as never,
+        clinicInfo: { name: 'GoLab', address: '', phone: '', defaultDoctor: '' } as never,
+        reports: [{ id: 'r1', code: 'BN1' }] as never,
+        invoices: [{ id: 'i1', code: 'HD1' }] as never,
+        zaloConfig: { enabled: false } as never
       },
-      catalog_data: [{ id: '1', code: 'GLU', name: 'Glucose' }],
-      medical_reports: [{ id: 'rep1', code: 'BN001' }],
-      invoices_data: [{ id: 'inv1' }]
-    });
-
-    const res = await restoreAllDataToSupabase(backupJson, mockConfig);
+      cfg
+    );
     expect(res.success).toBe(true);
-    expect(res.message).toContain('Restore thành công');
-  });
-
-  it('should reject invalid backup JSON gracefully', async () => {
-    const invalidJson = '{"invalid": true}';
-    const res = await restoreAllDataToSupabase(invalidJson, mockConfig);
-    expect(res.success).toBe(false);
-    expect(res.message).toContain('không hợp lệ');
+    expect(mockPutTable).toHaveBeenCalledWith('catalog', expect.anything());
+    expect(mockPutTable).toHaveBeenCalledWith('medical-reports', [{ id: 'r1', data: { id: 'r1', code: 'BN1' } }]);
+    expect(mockPutTable).toHaveBeenCalledWith('clinic-info', [
+      { name: 'GoLab', address: '', phone: '', defaultDoctor: '' }
+    ]);
   });
 });

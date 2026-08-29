@@ -11,6 +11,23 @@ import {
   ZaloZnsConfig
 } from '@domain/types';
 import { DEFAULT_CATALOG, TEST_PACKAGES, DEFAULT_TEST_GROUPS, DEFAULT_EQUIPMENTS } from '@data/defaultCatalog';
+import { getTable, putTable, ApiAuthError } from './apiClient';
+
+const LEGACY_KEY_TO_API: Record<string, string> = {
+  'catalog_data': 'catalog',
+  'test_packages': 'test-packages',
+  'test_groups': 'test-groups',
+  'equipments_catalog': 'equipments',
+  'doctors_list': 'doctors',
+  'clinic_info': 'clinic-info',
+  'medical_reports': 'medical-reports',
+  'invoices_data': 'invoices',
+  'zalo_config': 'zalo-config',
+  'recent_tests': 'recent_tests'
+};
+const DOC_TABLES = new Set(['medical-reports', 'invoices']);
+const SINGLE_OBJECT_TABLES = new Set(['clinic-info', 'zalo-config']);
+function apiNameFor(key: string): string { return LEGACY_KEY_TO_API[key] ?? key; }
 
 export interface DatabaseBackupFile {
   _meta: {
@@ -62,33 +79,19 @@ export const DEFAULT_CLOUD_DB_CONFIG: CloudDbConfig = {
 };
 
 export async function testSupabaseConnection(config: CloudDbConfig): Promise<{ success: boolean; message: string }> {
-  if (!config.supabaseUrl) {
-    return { success: false, message: 'Chưa cấu hình Supabase Project URL!' };
+  if (config.enabled === false) {
+    return { success: false, message: 'Chưa bật cấu hình Cloud DB!' };
   }
 
   try {
-    const cleanUrl = config.supabaseUrl.replace(/\/+$/, '');
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json'
-    };
-    if (config.supabaseAnonKey) {
-      headers['apikey'] = config.supabaseAnonKey.trim();
-      headers['Authorization'] = 'Bearer ' + config.supabaseAnonKey.trim();
+    await getTable('catalog');
+    return { success: true, message: 'Kết nối thành công tới GoLab API!' };
+  } catch (e) {
+    if (e instanceof ApiAuthError) {
+      return { success: false, message: 'Sai mật khẩu API!' };
     }
-
-    const res = await fetch(cleanUrl + '/rest/v1/', {
-      method: 'GET',
-      headers
-    });
-
-    if (res.ok || res.status === 401 || res.status === 404) {
-      return { success: true, message: 'Kết nối thành công tới Supabase Cloud DB Server!' };
-    }
-
-    return { success: false, message: 'Máy chủ phản hồi mã lỗi HTTP ' + res.status };
-  } catch (err) {
-    const errMsg = err instanceof Error ? err.message : 'Lỗi kết nối mạng';
-    return { success: false, message: 'Không thể kết nối Supabase: ' + errMsg };
+    const errMsg = e instanceof Error ? e.message : 'lỗi';
+    return { success: false, message: 'Không thể kết nối API: ' + errMsg };
   }
 }
 
@@ -97,33 +100,22 @@ export async function syncTableToCloud<T>(
   data: T,
   config: CloudDbConfig
 ): Promise<boolean> {
-  if (!config.enabled || !config.supabaseUrl) return false;
+  if (config && config.enabled === false) return false;
+
+  const tableName = apiNameFor(key);
+
+  let rows: unknown[];
+  if (DOC_TABLES.has(tableName)) {
+    rows = (data as unknown[]).map((r) => ({ id: (r as { id: string }).id, data: r }));
+  } else if (Array.isArray(data)) {
+    rows = data as unknown[];
+  } else {
+    rows = [data];
+  }
 
   try {
-    const cleanUrl = config.supabaseUrl.replace(/\/+$/, '');
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'Prefer': 'resolution=merge-duplicates'
-    };
-
-    if (config.supabaseAnonKey) {
-      headers['apikey'] = config.supabaseAnonKey.trim();
-      headers['Authorization'] = 'Bearer ' + config.supabaseAnonKey.trim();
-    }
-
-    const payload = {
-      key,
-      data,
-      updated_at: new Date().toISOString()
-    };
-
-    const res = await fetch(cleanUrl + '/rest/v1/app_storage', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload)
-    });
-
-    return res.ok;
+    await putTable(tableName, rows);
+    return true;
   } catch (err) {
     console.warn('[CloudDB] Không thể đồng bộ bảng ' + key + ':', err);
     return false;
@@ -134,30 +126,19 @@ export async function fetchTableFromCloud<T>(
   key: string,
   config: CloudDbConfig
 ): Promise<T | null> {
-  if (!config.enabled || !config.supabaseUrl) return null;
+  if (config.enabled === false) return null;
+
+  const tableName = apiNameFor(key);
 
   try {
-    const cleanUrl = config.supabaseUrl.replace(/\/+$/, '');
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json'
-    };
-    if (config.supabaseAnonKey) {
-      headers['apikey'] = config.supabaseAnonKey.trim();
-      headers['Authorization'] = 'Bearer ' + config.supabaseAnonKey.trim();
+    const res = await getTable(tableName);
+    if (DOC_TABLES.has(tableName)) {
+      return res.rows.map((r) => (r as { data: T }).data) as T;
     }
-
-    const res = await fetch(cleanUrl + '/rest/v1/app_storage?key=eq.' + encodeURIComponent(key) + '&select=data', {
-      method: 'GET',
-      headers
-    });
-
-    if (!res.ok) return null;
-
-    const rows = (await res.json()) as Array<{ data: T }>;
-    if (Array.isArray(rows) && rows.length > 0 && rows[0].data) {
-      return rows[0].data;
+    if (SINGLE_OBJECT_TABLES.has(tableName)) {
+      return (res.rows[0] ?? null) as T;
     }
-    return null;
+    return res.rows as T;
   } catch (err) {
     console.warn('[CloudDB] Không thể nạp bảng ' + key + ' từ Cloud:', err);
     return null;
@@ -217,7 +198,9 @@ export async function fetchDoctorsFromSupabase(config: CloudDbConfig): Promise<D
 }
 
 export async function fetchClinicInfoFromSupabase(config: CloudDbConfig): Promise<ClinicInfo | null> {
-  return fetchTableFromCloud<ClinicInfo>('clinic_info', config);
+  if (config.enabled === false) return null;
+  const rows = await getTable('clinic-info').catch(() => null);
+  return (rows?.rows?.[0] as ClinicInfo) ?? null;
 }
 
 export async function fetchInvoicesFromSupabase(config: CloudDbConfig): Promise<Invoice[] | null> {
@@ -229,7 +212,9 @@ export async function fetchReportsFromSupabase(config: CloudDbConfig): Promise<M
 }
 
 export async function fetchZaloConfigFromSupabase(config: CloudDbConfig): Promise<ZaloZnsConfig | null> {
-  return fetchTableFromCloud<ZaloZnsConfig>('zalo_config', config);
+  if (config.enabled === false) return null;
+  const rows = await getTable('zalo-config').catch(() => null);
+  return (rows?.rows?.[0] as ZaloZnsConfig) ?? null;
 }
 
 export async function fetchRecentTestsFromSupabase(config: CloudDbConfig): Promise<string[] | null> {
