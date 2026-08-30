@@ -6,8 +6,6 @@ import * as schema from './schema';
 
 export type Db = PostgresJsDatabase<typeof schema>;
 
-let cached: Db | undefined;
-
 function loadEnvIfMissing() {
   if (process.env.DATABASE_URL) return;
   const possiblePaths = [
@@ -36,17 +34,30 @@ function loadEnvIfMissing() {
   }
 }
 
+declare global {
+  // eslint-disable-next-line no-var
+  var _drizzleDb: Db | undefined;
+  // eslint-disable-next-line no-var
+  var _postgresClient: ReturnType<typeof postgres> | undefined;
+}
+
 export function getDb(): Db {
   loadEnvIfMissing();
   const url = process.env.DATABASE_URL;
   if (!url) {
     throw new Error('DATABASE_URL is not set');
   }
-  if (!cached) {
-    const queryClient = postgres(url, { max: 1, prepare: false });
-    cached = drizzle(queryClient, { schema });
+  if (!globalThis._drizzleDb) {
+    const queryClient = postgres(url, {
+      max: 5,
+      idle_timeout: 20,
+      connect_timeout: 10,
+      prepare: false
+    });
+    globalThis._postgresClient = queryClient;
+    globalThis._drizzleDb = drizzle(queryClient, { schema });
   }
-  return cached;
+  return globalThis._drizzleDb;
 }
 
 export function getDbSafe(): Db | null {
