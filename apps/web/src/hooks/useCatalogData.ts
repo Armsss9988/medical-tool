@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   CatalogItem, 
   TestPackage, 
@@ -165,55 +165,62 @@ export function useCatalogData() {
   }, [zaloConfig, cloudDbConfig]);
 
   // Tự động tải dữ liệu từ Cloud Database khi khởi động
-  useEffect(() => {
+  const syncCloudData = useCallback(async () => {
     if (cloudDbConfig?.enabled === false) {
       setIsLoading(false);
       return;
     }
 
-    const syncCloudData = async () => {
-      try {
-        setIsLoading(true);
-        const [cloudCatalog, cloudPackages, cloudGroups, cloudEquip, cloudDocs, cloudClinic, cloudRefRanges] = await Promise.all([
-          fetchCatalogFromSupabase(cloudDbConfig),
-          fetchPackagesFromSupabase(cloudDbConfig),
-          fetchGroupsFromSupabase(cloudDbConfig),
-          fetchEquipmentsFromSupabase(cloudDbConfig),
-          fetchDoctorsFromSupabase(cloudDbConfig),
-          fetchClinicInfoFromSupabase(cloudDbConfig),
-          fetchReferenceRangesFromSupabase(cloudDbConfig)
-        ]);
+    try {
+      setIsLoading(true);
+      const [cloudCatalog, cloudPackages, cloudGroups, cloudEquip, cloudDocs, cloudClinic, cloudRefRanges] = await Promise.all([
+        fetchCatalogFromSupabase(cloudDbConfig),
+        fetchPackagesFromSupabase(cloudDbConfig),
+        fetchGroupsFromSupabase(cloudDbConfig),
+        fetchEquipmentsFromSupabase(cloudDbConfig),
+        fetchDoctorsFromSupabase(cloudDbConfig),
+        fetchClinicInfoFromSupabase(cloudDbConfig),
+        fetchReferenceRangesFromSupabase(cloudDbConfig)
+      ]);
 
-        if (cloudCatalog && cloudCatalog.length > 0) {
-          setCatalog(cloudCatalog.map(autoResolveItemLinks));
-        }
-        if (cloudPackages && cloudPackages.length > 0) {
-          setTestPackages(cloudPackages);
-        }
-        if (cloudGroups && cloudGroups.length > 0) {
-          setTestGroups(cloudGroups);
-        }
-        if (cloudEquip && cloudEquip.length > 0) {
-          setEquipments(cloudEquip);
-        }
-        if (cloudDocs && cloudDocs.length > 0) {
-          setDoctorsList(cloudDocs);
-        }
-        if (cloudClinic && cloudClinic.name) {
-          setClinicInfo(cloudClinic);
-        }
-        if (cloudRefRanges && cloudRefRanges.length > 0) {
-          setReferenceRanges(cloudRefRanges);
-        }
-      } catch (err) {
-        console.warn('[CloudDB] Không thể tải dữ liệu từ Cloud:', err);
-      } finally {
-        setIsLoading(false);
+      if (cloudCatalog && cloudCatalog.length > 0) {
+        setCatalog(cloudCatalog.map(autoResolveItemLinks));
       }
-    };
-
-    syncCloudData();
+      if (cloudPackages && cloudPackages.length > 0) {
+        setTestPackages(cloudPackages);
+      }
+      if (cloudGroups && cloudGroups.length > 0) {
+        setTestGroups(cloudGroups);
+      }
+      if (cloudEquip && cloudEquip.length > 0) {
+        setEquipments(cloudEquip);
+      }
+      if (cloudDocs && cloudDocs.length > 0) {
+        setDoctorsList(cloudDocs);
+      }
+      if (cloudClinic && cloudClinic.name) {
+        setClinicInfo(cloudClinic);
+      }
+      if (cloudRefRanges && cloudRefRanges.length > 0) {
+        setReferenceRanges(cloudRefRanges);
+      }
+    } catch (err) {
+      console.warn('[CloudDB] Không thể tải dữ liệu từ Cloud:', err);
+    } finally {
+      setIsLoading(false);
+    }
   }, [cloudDbConfig]);
+
+  useEffect(() => {
+    syncCloudData();
+  }, [syncCloudData]);
+
+  // Khi user nhập pass thành công, trigger fetch lại toàn bộ dữ liệu
+  useEffect(() => {
+    const handler = () => syncCloudData();
+    window.addEventListener('password-unlocked', handler);
+    return () => window.removeEventListener('password-unlocked', handler);
+  }, [syncCloudData]);
 
   return {
     catalog,

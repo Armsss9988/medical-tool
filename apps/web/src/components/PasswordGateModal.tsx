@@ -47,6 +47,7 @@ export default function PasswordGateModal() {
       const res = await testSupabaseConnection(DEFAULT_CLOUD_DB_CONFIG);
       if (res.success) {
         closePasswordGate();
+        window.dispatchEvent(new CustomEvent('password-unlocked'));
       } else {
         setError(res.message || 'Passkey không đúng hoặc không thể kết nối!');
       }
