@@ -12,7 +12,8 @@
   ],
   "scripts": {
     "dev": "npm run dev -w @golab/web",
-    "build": "npm run typecheck && npm run build -w @golab/web",
+    "build": "npm run build:api && npm run build -w @golab/web",
+    "build:api": "esbuild apps/api/src/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/api/index.js",
     "typecheck": "tsc --noEmit && npm run typecheck -w @golab/api",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -24,6 +25,7 @@
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.24.0",
     "@typescript-eslint/parser": "^8.24.0",
+    "esbuild": "^0.24.0",
     "eslint": "^9.20.0",
     "eslint-plugin-boundaries": "^7.2.0",
     "eslint-plugin-react": "^7.37.4",

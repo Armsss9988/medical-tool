@@ -6,8 +6,10 @@
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "functions": {
-    "api/*": {
-      "maxDuration": 30
+    "api/**": {
+      "runtime": "nodejs20.x",
+      "maxDuration": 30,
+      "includeFiles": "dist/api/**"
     }
   }
 }

@@ -1,4 +1,5 @@
-import app from '../apps/api/src/index';
+// Import from pre-bundled output (built by `npm run build:api` before Vercel deploys)
+import app from '../dist/api/index.js';
 
 function isWebRequest(value: unknown): value is Request {
   return typeof Request !== 'undefined' && value instanceof Request;
