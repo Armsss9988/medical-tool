@@ -343,4 +343,3 @@ export interface AllergenGradingScale {
   unit: string;
   levels: AllergenGradeLevel[];
 }
-
