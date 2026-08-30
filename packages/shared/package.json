@@ -6,9 +6,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./domain": "./src/domain/index.ts",
-    "./domain/*": "./src/domain/*",
-    "./data/*": "./src/data/*",
-    "./schemas/*": "./src/schemas/*"
+    "./domain/*": "./src/domain/*.ts",
+    "./data/*": "./src/data/*.ts",
+    "./schemas/*": "./src/schemas/*.ts"
   },
   "dependencies": {
     "zod": "^3.24.0"
