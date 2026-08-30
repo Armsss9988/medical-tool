@@ -186,8 +186,11 @@ export default function TestTable({
           const resolved = autoResolveItemLinks(item);
           const isTIgE = resolved.code.toLowerCase() === 'tige';
           const isAllergenItem = !isTIgE && (resolved.category?.includes('Dị Nguyên') || resolved.unit === 'IU/mL' || !!resolved.scaleId);
+          const pkgItem = (pkg.items || []).find((pi) => pi.code?.trim().toLowerCase() === item.code.trim().toLowerCase());
+
           return {
             ...resolved,
+            equipment: pkgItem?.equipmentId || resolved.equipment,
             result: '',
             note: isTIgE ? 'Bình thường' : isAllergenItem ? 'Âm tính (Độ 0)' : 'Bình thường'
           };

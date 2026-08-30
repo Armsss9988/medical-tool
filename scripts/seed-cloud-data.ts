@@ -120,14 +120,20 @@ async function main() {
   await syncToSupabaseStorage('reference_ranges', DEFAULT_REFERENCE_RANGES);
   await syncToSupabaseStorage('doctors_list', defaultDoctors);
   await syncToSupabaseStorage('clinic_info', defaultClinic);
-  await syncToSupabaseStorage('catalog_item_equipments', DEFAULT_CATALOG.filter(c => c.equipment || c.referenceRangeId || c.scaleId).map(c => ({
-    id: `cie_${c.code.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${c.equipment ? 'eq_' + c.equipment.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'eq_default'}`,
-    catalogCode: c.code,
-    equipmentId: c.equipment ? 'eq_' + c.equipment.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'eq_default',
-    referenceRangeId: c.referenceRangeId || null,
-    scaleId: c.scaleId || null,
-    isDefault: true
-  })));
+  await syncToSupabaseStorage('catalog_item_equipments', DEFAULT_CATALOG.filter(c => c.equipment || c.referenceRangeId || c.scaleId).map(c => {
+    const matchedRef = DEFAULT_REFERENCE_RANGES.find(r => r.id === c.referenceRangeId);
+    return {
+      id: `cie_${c.code.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${c.equipment ? 'eq_' + c.equipment.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'eq_default'}`,
+      catalogCode: c.code,
+      equipmentId: c.equipment ? 'eq_' + c.equipment.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'eq_default',
+      refMin: c.refMin ?? matchedRef?.refMin ?? null,
+      refMax: c.refMax ?? matchedRef?.refMax ?? null,
+      unit: c.unit || matchedRef?.unit || '',
+      refText: c.refText || matchedRef?.refText || '',
+      scaleId: c.scaleId || null,
+      isDefault: true
+    };
+  }));
 
   // 2. Sync to PostgreSQL Direct Tables (Drizzle / Postgres.js) if DATABASE_URL is configured
   if (databaseUrl) {
@@ -187,12 +193,22 @@ async function main() {
           "id" text PRIMARY KEY,
           "catalog_code" text NOT NULL,
           "equipment_id" text NOT NULL,
-          "reference_range_id" text,
+          "ref_min" real,
+          "ref_max" real,
+          "unit" text,
+          "ref_text" text,
           "scale_id" text,
           "is_default" boolean NOT NULL DEFAULT false,
           "updated_at" timestamp NOT NULL DEFAULT now()
         );
       `;
+      await sql`ALTER TABLE "catalog_item_equipments" ADD COLUMN IF NOT EXISTS "ref_min" real;`;
+      await sql`ALTER TABLE "catalog_item_equipments" ADD COLUMN IF NOT EXISTS "ref_max" real;`;
+      await sql`ALTER TABLE "catalog_item_equipments" ADD COLUMN IF NOT EXISTS "unit" text;`;
+      await sql`ALTER TABLE "catalog_item_equipments" ADD COLUMN IF NOT EXISTS "ref_text" text;`;
+      await sql`ALTER TABLE "catalog_item_equipments" ADD COLUMN IF NOT EXISTS "scale_id" text;`;
+      await sql`ALTER TABLE "catalog_item_equipments" ADD COLUMN IF NOT EXISTS "is_default" boolean NOT NULL DEFAULT false;`;
+      await sql`ALTER TABLE "catalog_item_equipments" DROP COLUMN IF EXISTS "reference_range_id";`;
 
       await sql`
         CREATE TABLE IF NOT EXISTS "test_packages" (
@@ -330,7 +346,10 @@ async function main() {
         id: string;
         catalog_code: string;
         equipment_id: string;
-        reference_range_id: string | null;
+        ref_min: number | null;
+        ref_max: number | null;
+        unit: string | null;
+        ref_text: string | null;
         scale_id: string | null;
         is_default: boolean;
       }> = [];
@@ -338,11 +357,16 @@ async function main() {
         if (c.equipment || c.referenceRangeId || c.scaleId) {
           const matchedEq = eqRows.find((e) => e.name === c.equipment || e.code === c.equipment);
           const eqId = matchedEq ? matchedEq.id : (c.equipment ? 'eq_' + c.equipment.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'eq_default');
+          const matchedRef = DEFAULT_REFERENCE_RANGES.find((r) => r.id === c.referenceRangeId);
+
           cieRows.push({
             id: `cie_${c.code.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${eqId}`,
             catalog_code: c.code,
             equipment_id: eqId,
-            reference_range_id: c.referenceRangeId || null,
+            ref_min: c.refMin ?? matchedRef?.refMin ?? null,
+            ref_max: c.refMax ?? matchedRef?.refMax ?? null,
+            unit: c.unit || matchedRef?.unit || null,
+            ref_text: c.refText || matchedRef?.refText || null,
             scale_id: c.scaleId || null,
             is_default: true
           });

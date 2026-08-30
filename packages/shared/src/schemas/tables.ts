@@ -111,7 +111,10 @@ export const catalogItemEquipmentRowSchema = z.object({
   id: z.string().min(1),
   catalogCode: z.string().min(1),
   equipmentId: z.string().min(1),
-  referenceRangeId: z.string().nullable().optional(),
+  refMin: z.number().nullable().optional(),
+  refMax: z.number().nullable().optional(),
+  unit: z.string().nullable().optional(),
+  refText: z.string().nullable().optional(),
   scaleId: z.string().nullable().optional(),
   isDefault: z.boolean().optional().default(false)
 });

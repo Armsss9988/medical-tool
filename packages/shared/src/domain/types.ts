@@ -40,13 +40,16 @@ export interface Patient {
 
 export type EvaluationType = 'range' | 'scale' | 'text';
 
-/** Liên kết giữa một chỉ số xét nghiệm và một loại máy đo cụ thể */
+/** Liên kết giữa một chỉ số xét nghiệm và một loại máy đo cụ thể (kèm ngưỡng tham chiếu riêng cho máy) */
 export interface CatalogItemEquipmentLink {
   id: string;
   catalogCode: string;
   equipmentId: string;
-  referenceRangeId?: string;
-  scaleId?: string;
+  refMin?: number | null;
+  refMax?: number | null;
+  unit?: string | null;
+  refText?: string | null;
+  scaleId?: string | null;
   isDefault?: boolean;
 }
 
