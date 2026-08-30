@@ -1,10 +1,58 @@
+# Dependencies
 node_modules
+.pnp
+.pnp.js
+
+# Build outputs
 dist
 dist-release
 dist-app
 dist-electron
 release
+out
+build
+
+# Next.js
+.next/
+next-env.d.ts
+
+# Turbo / Nx
+.turbo
+.nx
+
+# Coverage & test artifacts
+coverage
+*.lcov
+
+# Env files
 .env
 .env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# OS
 .DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editors
+.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Misc
+*.tsbuildinfo
+.vercel
