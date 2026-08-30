@@ -2,6 +2,9 @@ import { defineConfig } from 'vitest/config';
 import path from 'path';
 
 export default defineConfig({
+  esbuild: {
+    jsx: 'automatic'
+  },
   resolve: {
     alias: {
       '@domain': path.resolve(import.meta.dirname, 'packages/shared/src/domain'),
@@ -12,6 +15,7 @@ export default defineConfig({
     }
   },
   test: {
+    environment: 'jsdom',
     include: ['apps/web/src/**/*.test.{ts,tsx}', 'packages/shared/src/**/*.test.{ts,tsx}', 'apps/api/src/**/*.test.ts']
   }
 });

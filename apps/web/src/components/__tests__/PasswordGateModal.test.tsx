@@ -21,20 +21,20 @@ describe('PasswordGateModal', () => {
 
   it('shows the password input when no password is set', () => {
     render(<PasswordGateModal />);
-    expect(screen.getByPlaceholderText(/nhập mật khẩu api/i)).toBeTruthy();
-    expect(screen.getByRole('button', { name: /lưu mật khẩu/i })).toBeTruthy();
+    expect(screen.getByPlaceholderText(/nhập passkey/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /xác nhận/i })).toBeTruthy();
   });
 
   it('calls setPassword and hides the modal on a successful save', async () => {
     render(<PasswordGateModal />);
 
-    const input = screen.getByPlaceholderText(/nhập mật khẩu api/i) as HTMLInputElement;
+    const input = screen.getByPlaceholderText(/nhập passkey/i) as HTMLInputElement;
     fireEvent.change(input, { target: { value: 'my-secret' } });
-    fireEvent.click(screen.getByRole('button', { name: /lưu mật khẩu/i }));
+    fireEvent.click(screen.getByRole('button', { name: /xác nhận/i }));
 
     await waitFor(() => expect(getPassword()).toBe('my-secret'));
     await waitFor(() =>
-      expect(screen.queryByPlaceholderText(/nhập mật khẩu api/i)).toBeNull()
+      expect(screen.queryByPlaceholderText(/nhập passkey/i)).toBeNull()
     );
     expect(cloudDb.testSupabaseConnection).toHaveBeenCalledTimes(1);
   });
@@ -42,30 +42,29 @@ describe('PasswordGateModal', () => {
   it('shows an error and keeps the modal open when the password is wrong', async () => {
     vi.spyOn(cloudDb, 'testSupabaseConnection').mockResolvedValue({
       success: false,
-      message: 'Sai mật khẩu API!'
+      message: 'Passkey không đúng!'
     });
 
     render(<PasswordGateModal />);
 
-    const input = screen.getByPlaceholderText(/nhập mật khẩu api/i) as HTMLInputElement;
+    const input = screen.getByPlaceholderText(/nhập passkey/i) as HTMLInputElement;
     fireEvent.change(input, { target: { value: 'wrong' } });
-    fireEvent.click(screen.getByRole('button', { name: /lưu mật khẩu/i }));
+    fireEvent.click(screen.getByRole('button', { name: /xác nhận/i }));
 
-    await waitFor(() => expect(screen.getByText(/sai mật khẩu/i)).toBeTruthy());
-    expect(screen.queryByPlaceholderText(/nhập mật khẩu api/i)).toBeTruthy();
+    await waitFor(() => expect(screen.getByText(/passkey không đúng/i)).toBeTruthy());
+    expect(screen.queryByPlaceholderText(/nhập passkey/i)).toBeTruthy();
     expect(getPassword()).toBe('wrong');
   });
 
-  it('persists the API base URL override on save', async () => {
+  it('allows continuing in local offline mode', async () => {
     render(<PasswordGateModal />);
 
-    const baseInput = screen.getByPlaceholderText(/api base url/i) as HTMLInputElement;
-    fireEvent.change(baseInput, { target: { value: 'https://example.com/api' } });
-    fireEvent.change(screen.getByPlaceholderText(/nhập mật khẩu api/i), { target: { value: 'pw' } });
-    fireEvent.click(screen.getByRole('button', { name: /lưu mật khẩu/i }));
+    const offlineBtn = screen.getByRole('button', { name: /tiếp tục chế độ local/i });
+    fireEvent.click(offlineBtn);
 
     await waitFor(() =>
-      expect(localStorage.getItem('golab_api_base')).toBe('https://example.com/api')
+      expect(screen.queryByPlaceholderText(/nhập passkey/i)).toBeNull()
     );
   });
 });
+

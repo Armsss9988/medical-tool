@@ -16,7 +16,14 @@ function parseName(raw: string): TableName | null {
 tableRoutes.get('/tables/:name', async (c) => {
   const name = parseName(c.req.param('name'));
   if (!name) return c.json({ error: 'unknown table' }, 404);
-  const rows = await repo.getTableRows(c.get('db'), name);
+  const db = c.get('db');
+  if (!db) {
+    if (process.env.NODE_ENV === 'development' || !process.env.DATABASE_URL) {
+      return c.json({ rows: [], count: 0, updatedAt: new Date().toISOString() });
+    }
+    return c.json({ error: 'DATABASE_URL is not configured' }, 503);
+  }
+  const rows = await repo.getTableRows(db, name);
   return c.json({ rows, count: rows.length, updatedAt: new Date().toISOString() });
 });
 
@@ -40,6 +47,14 @@ tableRoutes.put('/tables/:name', async (c) => {
     return c.json({ error: 'invalid rows', issues: rowsParse.error.issues }, 400);
   }
 
-  const replaced = await repo.replaceTable(c.get('db'), name, rowsParse.data);
+  const db = c.get('db');
+  if (!db) {
+    if (process.env.NODE_ENV === 'development' || !process.env.DATABASE_URL) {
+      return c.json({ replaced: wrap.data.rows.length });
+    }
+    return c.json({ error: 'DATABASE_URL is not configured' }, 503);
+  }
+
+  const replaced = await repo.replaceTable(db, name, rowsParse.data);
   return c.json({ replaced });
 });
