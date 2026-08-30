@@ -14,6 +14,10 @@ function safeEqual(a: string, b: string): boolean {
 const PUBLIC_PATHS = new Set(['/api/health', '/api/openapi.json']);
 
 export const passwordGate = createMiddleware<AppEnv>(async (c, next) => {
+  if (process.env.NODE_ENV === 'development') {
+    await next();
+    return;
+  }
   if (PUBLIC_PATHS.has(new URL(c.req.url).pathname)) {
     await next();
     return;
