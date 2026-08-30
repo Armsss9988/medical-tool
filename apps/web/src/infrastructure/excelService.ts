@@ -1,5 +1,4 @@
 import * as XLSX from 'xlsx';
-import { DEFAULT_CATALOG } from '@data/defaultCatalog';
 import { CatalogItem, Invoice, Doctor } from '@domain/types';
 
 export function parseExcelCatalog(fileOrBuffer: Blob | ArrayBuffer): Promise<CatalogItem[]> {
@@ -8,7 +7,7 @@ export function parseExcelCatalog(fileOrBuffer: Blob | ArrayBuffer): Promise<Cat
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
-          if (!e.target?.result) return resolve(DEFAULT_CATALOG);
+          if (!e.target?.result) return resolve([]);
           const data = new Uint8Array(e.target.result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: 'array' });
           const firstSheetName = workbook.SheetNames[0];
@@ -16,7 +15,7 @@ export function parseExcelCatalog(fileOrBuffer: Blob | ArrayBuffer): Promise<Cat
           const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
 
           if (!rawRows || rawRows.length === 0) {
-            return resolve(DEFAULT_CATALOG);
+            return resolve([]);
           }
 
           const catalog: CatalogItem[] = rawRows.map((row) => {
@@ -43,22 +42,27 @@ export function parseExcelCatalog(fileOrBuffer: Blob | ArrayBuffer): Promise<Cat
               refText: String(refText).trim(),
               price
             };
-          });
+          }).filter((item) => item.code.length > 0 && item.name.length > 0);
 
-          resolve(catalog.length > 0 ? catalog : DEFAULT_CATALOG);
+          resolve(catalog);
         } catch (err) {
           reject(err);
         }
       };
       reader.onerror = (error) => reject(error);
-      reader.readAsArrayBuffer(fileOrBuffer as Blob);
+      if (fileOrBuffer instanceof Blob) {
+        reader.readAsArrayBuffer(fileOrBuffer);
+      } else {
+        const blob = new Blob([fileOrBuffer]);
+        reader.readAsArrayBuffer(blob);
+      }
     } catch (err) {
       reject(err);
     }
   });
 }
 
-export function exportSampleExcelCatalog(catalog: CatalogItem[] = DEFAULT_CATALOG): void {
+export function exportSampleExcelCatalog(catalog: CatalogItem[] = []): void {
   const excelData = catalog.map((item, index) => ({
     'STT': index + 1,
     'Nhóm xét nghiệm': item.category,

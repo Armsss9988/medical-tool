@@ -10,7 +10,6 @@ import {
   MedicalReport,
   ZaloZnsConfig
 } from '@domain/types';
-import { DEFAULT_CATALOG, TEST_PACKAGES, DEFAULT_TEST_GROUPS, DEFAULT_EQUIPMENTS } from '@data/defaultCatalog';
 import { getTable, putTable, ApiAuthError } from './apiClient';
 
 const LEGACY_KEY_TO_API: Record<string, string> = {
@@ -152,29 +151,17 @@ export async function seedAllDefaultDataToSupabase(config: CloudDbConfig): Promi
   }
 
   try {
-    const results = await Promise.all([
-      syncTableToCloud('catalog_data', DEFAULT_CATALOG, config),
-      syncTableToCloud('test_packages', TEST_PACKAGES, config),
-      syncTableToCloud('test_groups', DEFAULT_TEST_GROUPS, config),
-      syncTableToCloud('equipments_catalog', DEFAULT_EQUIPMENTS, config),
-      syncTableToCloud('clinic_info', {
-        name: 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH',
-        address: 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị',
-        phone: '032.855.3773',
-        website: 'golab.com.vn',
-        defaultDoctor: 'Nguyễn Thị Thành Trung'
-      }, config)
-    ]);
-
-    const allSuccess = results.every(Boolean);
-    if (allSuccess) {
-      return { success: true, message: 'Đã đẩy thành công toàn bộ dữ liệu Nhi (76 chỉ số Nhi + 91 Dị Nguyên PROTIA + nhóm + thiết bị) lên Supabase Cloud DB!' };
-    } else {
-      return { success: true, message: 'Đã sẵn sàng đẩy toàn bộ 167 chỉ số (76 Nhi + 91 Dị Nguyên) & danh mục lên Supabase Cloud DB!' };
+    const conn = await testSupabaseConnection(config);
+    if (!conn.success) {
+      return { success: false, message: conn.message || 'Không thể kết nối Cloud DB!' };
     }
+    return {
+      success: true,
+      message: 'Kết nối Cloud DB thành công! Để nạp dữ liệu gốc từ thư mục backup, vui lòng chạy lệnh `npm run db:seed` từ terminal.'
+    };
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : 'Lỗi không xác định';
-    return { success: false, message: `Lỗi đồng bộ dữ liệu gốc: ${errMsg}` };
+    return { success: false, message: `Lỗi kết nối: ${errMsg}` };
   }
 }
 

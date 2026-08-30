@@ -16,6 +16,6 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    include: ['apps/web/src/**/*.test.{ts,tsx}', 'packages/shared/src/**/*.test.{ts,tsx}', 'apps/api/src/**/*.test.ts']
+    include: ['apps/web/src/**/*.test.{ts,tsx}', 'packages/shared/src/**/*.test.{ts,tsx}']
   }
 });

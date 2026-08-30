@@ -1,4 +1,4 @@
-import { CatalogItem } from '../domain/types';
+import { CatalogItem } from '../../domain/types';
 
 // Auto-generated from CAU HINH GOLAB_UPLOAD_PHAN_MEM_NHI_THAM_CHIEU_SO_DAY_DU.xlsx
 // 76 chi so xet nghiem Nhi khoa - GoLab Quang Binh

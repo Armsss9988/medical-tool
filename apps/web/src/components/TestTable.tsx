@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { TestTube, Plus, Trash2, Search, Layers, Sparkles, X, ClipboardPaste, Clock, Keyboard } from 'lucide-react';
 import { evaluateTestIndicator } from '@domain/testResult';
 import { getAllergenScaleById } from '@domain/constants/allergenScales';
-import { getReferenceRangeById, autoResolveItemLinks } from '@data/referenceRangesCatalog';
+import { getReferenceRangeById, autoResolveItemLinks } from '@data';
 import { CatalogItem, SelectedTest, TestPackage, TestGroup, ToastType } from '@domain/types';
 import { computePricingWithPackages } from '@domain/pricing';
 import NoteCombobox from './NoteCombobox';

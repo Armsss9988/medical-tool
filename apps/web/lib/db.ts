@@ -17,3 +17,12 @@ export function getDb(): Db {
   }
   return cached;
 }
+
+export function getDbSafe(): Db | null {
+  try {
+    if (!process.env.DATABASE_URL) return null;
+    return getDb();
+  } catch {
+    return null;
+  }
+}

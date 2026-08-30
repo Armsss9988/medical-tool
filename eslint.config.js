@@ -26,8 +26,7 @@ export default [
       '*.config.mjs',
       '**/*.config.mjs',
       '**/electron/**',
-      '**/coverage/**',
-      'api/**'
+      '**/coverage/**'
     ]
   },
   {
@@ -89,10 +88,6 @@ export default [
         {
           type: 'entry',
           pattern: '**/src/{App,main}.{ts,tsx}'
-        },
-        {
-          type: 'api',
-          pattern: 'apps/api/src/**'
         },
         {
           type: 'shared-schemas',
@@ -216,15 +211,6 @@ export default [
                 { to: { element: { type: 'data' } } },
                 { to: { element: { type: 'components' } } },
                 { to: { element: { type: 'entry' } } }
-              ]
-            },
-            // API layer (Hono backend)
-            {
-              from: { element: { type: 'api' } },
-              allow: [
-                { to: { element: { type: 'api' } } },
-                { to: { element: { type: 'domain' } } },
-                { to: { element: { type: 'shared-schemas' } } }
               ]
             },
             // Shared zod schemas

@@ -46,7 +46,6 @@ const nextConfig: NextConfig = {
       '@data': path.resolve(root, 'packages/shared/src/data'),
       '@components': path.resolve(__dirname, 'src/components'),
       '@assets': path.resolve(__dirname, 'src/assets'),
-      '@api': path.resolve(root, 'apps/api/src'),
     };
 
     return config;

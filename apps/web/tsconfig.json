@@ -26,6 +26,9 @@
     ],
     "baseUrl": ".",
     "paths": {
+      "@/*": [
+        "./*"
+      ],
       "@domain": [
         "../../packages/shared/src/domain"
       ],
@@ -55,12 +58,6 @@
       ],
       "@assets/*": [
         "./src/assets/*"
-      ],
-      "@api": [
-        "../../apps/api/src/index"
-      ],
-      "@api/*": [
-        "../../apps/api/src/*"
       ]
     },
     "allowJs": true,
@@ -71,15 +68,12 @@
     "**/*.ts",
     "**/*.tsx",
     "../../packages/shared/src/**/*.ts",
-    "../../apps/api/src/**/*.ts",
     "next-env.d.ts",
     ".next/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
     ".next",
-    "../../apps/api/src/dev.ts",
-    "../../apps/api/src/__tests__/**",
     "../../packages/shared/src/**/__tests__/**"
   ]
 }

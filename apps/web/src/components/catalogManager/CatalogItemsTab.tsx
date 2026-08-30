@@ -1,15 +1,16 @@
 import { useState, useMemo } from 'react';
-import { Plus, Trash2, Search, Download, Upload, RotateCcw, Dna, FlaskConical, Layers } from 'lucide-react';
+import { Plus, Trash2, Search, Download, Upload, Dna, FlaskConical, Layers } from 'lucide-react';
 import { CatalogItem, TestGroup, TestEquipment, ReferenceRangeItem } from '@domain/types';
-import { DEFAULT_CATALOG } from '@data/defaultCatalog';
-import { ALLERGEN_91_DATABASE } from '@data/allergenCatalog';
-import { CODE_TO_REFERENCE_RANGE_MAP } from '@data/referenceRangesCatalog';
+import { CODE_TO_REFERENCE_RANGE_MAP } from '@data';
 import { getAllergenScaleById } from '@domain/constants/allergenScales';
 import { exportSampleExcelCatalog, parseExcelCatalog } from '@infra/excelService';
 import GroupSearchCombobox from './GroupSearchCombobox';
 import EquipmentSearchCombobox from './EquipmentSearchCombobox';
 
-const ALLERGEN_ORDER_MAP = new Map(ALLERGEN_91_DATABASE.map((item) => [item.code.toLowerCase(), item.tt]));
+function parseAllergenOrder(code: string): number {
+  const m = code.match(/\d+/);
+  return m ? parseInt(m[0], 10) : 999;
+}
 
 interface CatalogItemsTabProps {
   items: CatalogItem[];
@@ -76,8 +77,8 @@ export default function CatalogItemsTab({
 
     if (viewFilter === 'allergen') {
       return [...list].sort((a, b) => {
-        const orderA = ALLERGEN_ORDER_MAP.get(a.code.toLowerCase()) ?? 999;
-        const orderB = ALLERGEN_ORDER_MAP.get(b.code.toLowerCase()) ?? 999;
+        const orderA = parseAllergenOrder(a.code);
+        const orderB = parseAllergenOrder(b.code);
         return orderA - orderB;
       });
     }
@@ -246,19 +247,6 @@ export default function CatalogItemsTab({
             <Upload className="w-3.5 h-3.5" />
             <input type="file" accept=".xlsx,.xls" onChange={handleImportExcel} className="hidden" />
           </label>
-
-          <button
-            type="button"
-            onClick={() => {
-              if (window.confirm('Khôi phục danh mục chỉ số về mặc định?')) {
-                setItems(DEFAULT_CATALOG);
-              }
-            }}
-            className="flex items-center gap-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-2.5 py-1.5 rounded-lg transition cursor-pointer"
-            title="Khôi phục mặc định"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
         </div>
       </div>
 

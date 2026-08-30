@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react';
-import { Plus, Trash2, Copy, CheckSquare, Square, Layers, FlaskConical, Dna, Search, RotateCcw } from 'lucide-react';
+import { Plus, Trash2, Copy, CheckSquare, Square, Layers, FlaskConical, Dna, Search } from 'lucide-react';
 import { CatalogItem, TestPackage } from '@domain/types';
-import { DEFAULT_TEST_PACKAGES } from '@data/defaultCatalog';
-import { ALLERGEN_91_DATABASE } from '@data/allergenCatalog';
 
-const ALLERGEN_ORDER_MAP = new Map(ALLERGEN_91_DATABASE.map((item) => [item.code.toLowerCase(), item.tt]));
+function parseAllergenOrder(code: string): number {
+  const m = code.match(/\d+/);
+  return m ? parseInt(m[0], 10) : 999;
+}
 
 interface TestPackagesTabProps {
   items: CatalogItem[];
@@ -183,20 +184,6 @@ export default function TestPackagesTab({
             <Plus className="w-3.5 h-3.5" />
             <span>Tạo Gói Mới</span>
           </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              if (window.confirm('Khôi phục danh sách gói xét nghiệm về mặc định (bao gồm Gói 91, Gói 44, Gói Thường)?')) {
-                setPackages(DEFAULT_TEST_PACKAGES);
-                setSelectedPackageId(DEFAULT_TEST_PACKAGES[0]?.id || '');
-              }
-            }}
-            className="flex items-center gap-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-2.5 py-1.5 rounded-lg transition cursor-pointer"
-            title="Khôi phục gói mặc định"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
         </div>
       </div>
 
@@ -350,8 +337,8 @@ export default function TestPackagesTab({
                   .sort((a, b) => {
                     const isCurAllergen = isAllergenPkg(currentSelectedPkg);
                     if (isCurAllergen) {
-                      const orderA = ALLERGEN_ORDER_MAP.get(a.code.toLowerCase()) ?? 999;
-                      const orderB = ALLERGEN_ORDER_MAP.get(b.code.toLowerCase()) ?? 999;
+                      const orderA = parseAllergenOrder(a.code);
+                      const orderB = parseAllergenOrder(b.code);
                       return orderA - orderB;
                     }
                     return 0;

@@ -3,7 +3,6 @@ import golabLogo from '@assets/golabLogoDataUrl';
 import doctorStamp from '@assets/doctorStampDataUrl';
 import { Patient, SelectedTest, ClinicInfo, TestPackage } from '@domain/types';
 import { AllergenReportDomainService } from '@domain/services/AllergenReportDomainService';
-import { ALLERGEN_91_DATABASE } from '@data/allergenCatalog';
 import { generateQrCodeDataUrl } from '@infra/qrService';
 import AllergenCoverPage from './allergenReport/AllergenCoverPage';
 import AllergenSummaryPage from './allergenReport/AllergenSummaryPage';
@@ -93,8 +92,7 @@ function FullAllergenReportView({
     return AllergenReportDomainService.buildReportDTO({
       tests,
       testPackages,
-      packagePrice: explicitPackagePrice,
-      databaseItems: ALLERGEN_91_DATABASE
+      packagePrice: explicitPackagePrice
     });
   }, [tests, testPackages, explicitPackagePrice]);
 

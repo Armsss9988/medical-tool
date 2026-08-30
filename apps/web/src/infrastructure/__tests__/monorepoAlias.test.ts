@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { STORAGE_KEYS } from '@domain';
-import { DEFAULT_CATALOG } from '@data/defaultCatalog';
+import { autoResolveItemLinks } from '@data';
 
 describe('monorepo aliases', () => {
   it('@domain resolves into @golab/shared', () => {
@@ -9,6 +9,6 @@ describe('monorepo aliases', () => {
   });
 
   it('@data resolves into @golab/shared', () => {
-    expect(Array.isArray(DEFAULT_CATALOG)).toBe(true);
+    expect(typeof autoResolveItemLinks).toBe('function');
   });
 });

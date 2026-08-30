@@ -12,14 +12,14 @@
   ],
   "scripts": {
     "dev": "npm run dev -w @golab/web",
-    "build": "npm run build:api && npm run build -w @golab/web",
-    "build:api": "esbuild apps/api/src/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/api/index.js",
-    "typecheck": "tsc --noEmit && npm run typecheck -w @golab/api",
+    "build": "npm run build -w @golab/web",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run typecheck && npm run lint && npm run test",
+    "db:seed": "node scripts/seed-cloud-data.js",
     "preview": "npm run preview -w @golab/web"
   },
   "devDependencies": {

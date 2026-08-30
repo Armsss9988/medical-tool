@@ -1,4 +1,4 @@
-import { ReferenceRangeItem } from '../domain/types';
+import { ReferenceRangeItem } from '../../domain/types';
 
 export const DEFAULT_REFERENCE_RANGES: ReferenceRangeItem[] = [
   // Sinh Hóa Máu

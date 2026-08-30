@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Save, Layers, Stethoscope, Sliders, FlaskConical } from 'lucide-react';
-import { DEFAULT_TEST_GROUPS, DEFAULT_EQUIPMENTS, DEFAULT_TEST_PACKAGES } from '@data/defaultCatalog';
-import { DEFAULT_REFERENCE_RANGES, autoResolveItemLinks } from '@data/referenceRangesCatalog';
+import { autoResolveItemLinks } from '@data';
 import { CatalogItem, TestPackage, TestGroup, TestEquipment, Doctor, ReferenceRangeItem, CATALOG_TAB, CatalogTabType } from '@domain';
 import CatalogItemsTab from './catalogManager/CatalogItemsTab';
 import TestPackagesTab from './catalogManager/TestPackagesTab';
@@ -34,13 +33,13 @@ export default function CatalogManagerModal({
   onSaveCatalog,
   testPackages,
   onSavePackages,
-  testGroups = DEFAULT_TEST_GROUPS,
+  testGroups = [],
   onSaveTestGroups,
-  equipments = DEFAULT_EQUIPMENTS,
+  equipments = [],
   onSaveEquipments,
   doctorsList = [],
   onSaveDoctors,
-  referenceRanges = DEFAULT_REFERENCE_RANGES,
+  referenceRanges = [],
   onSaveReferenceRanges
 }: CatalogManagerModalProps) {
   const [activeTab, setActiveTab] = useState<CatalogTabType>(CATALOG_TAB.INDICATORS);
@@ -54,9 +53,7 @@ export default function CatalogManagerModal({
   useEffect(() => {
     if (isOpen) {
       setItems(catalog.map(autoResolveItemLinks));
-      const existingPkgIds = new Set(testPackages.map((p) => p.id));
-      const missingPkgs = DEFAULT_TEST_PACKAGES.filter((p) => !existingPkgIds.has(p.id));
-      setPackages(missingPkgs.length > 0 ? [...testPackages, ...missingPkgs] : testPackages);
+      setPackages(testPackages);
       setGroups(testGroups);
       setEqList(equipments);
       setDocsList(doctorsList);

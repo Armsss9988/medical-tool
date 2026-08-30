@@ -1,6 +1,6 @@
 import { ALLERGEN_91_DATABASE } from './allergenCatalog';
 import { NHI_CATALOG } from './nhiCatalog';
-import { CatalogItem, TestPackage, TestGroup, TestEquipment } from '../domain/types';
+import { CatalogItem, TestPackage, TestGroup, TestEquipment } from '../../domain/types';
 
 const ALLERGEN_CATALOG_ITEMS: CatalogItem[] = ALLERGEN_91_DATABASE.map(item => {
   const isTIgE = item.code.toLowerCase() === 'tige';

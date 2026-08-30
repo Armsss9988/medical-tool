@@ -1,7 +1,7 @@
 import { AnyPgTable } from 'drizzle-orm/pg-core';
 import type { TableName } from '@golab/shared/schemas/tables';
 import * as tables from './schema';
-import type { Db } from './client';
+import type { Db } from './db';
 
 export const TABLES: Record<TableName, AnyPgTable> = {
   catalog: tables.catalogItems,
