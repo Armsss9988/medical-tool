@@ -121,103 +121,238 @@ async function main() {
   await syncToSupabaseStorage('doctors_list', defaultDoctors);
   await syncToSupabaseStorage('clinic_info', defaultClinic);
 
-  // 2. Sync to PostgreSQL Direct Tables (Drizzle) if DATABASE_URL is configured
+  // 2. Sync to PostgreSQL Direct Tables (Drizzle / Postgres.js) if DATABASE_URL is configured
   if (databaseUrl) {
-    console.log('\n[2/2] Đồng bộ qua PostgreSQL Direct Connection (Drizzle)...');
+    console.log('\n[2/2] Đồng bộ qua PostgreSQL Direct Connection...');
     try {
-      const queryClient = postgres(databaseUrl, { max: 1, prepare: false });
-      const db = drizzle(queryClient, { schema });
+      const sql = postgres(databaseUrl, { max: 1, prepare: false });
 
-      await db.transaction(async (tx) => {
-        // Catalog Items in batches of 25
-        await tx.delete(schema.catalogItems);
-        const batchSize = 25;
-        for (let i = 0; i < DEFAULT_CATALOG.length; i += batchSize) {
-          const batch = DEFAULT_CATALOG.slice(i, i + batchSize);
-          await tx.insert(schema.catalogItems).values(batch.map((c) => ({
-            code: c.code,
-            category: c.category || '',
-            name: c.name,
-            refMin: c.refMin ?? null,
-            refMax: c.refMax ?? null,
-            unit: c.unit || '',
-            refText: c.refText || '',
-            price: c.price ?? 0,
-            scientific: c.scientific || null,
-            equipment: c.equipment || null,
-            evaluationType: c.evaluationType || null,
-            referenceRangeId: c.referenceRangeId || null,
-            scaleId: c.scaleId || null
-          }))).onConflictDoNothing();
+      // Create / verify tables
+      await sql`
+        CREATE TABLE IF NOT EXISTS "reference_ranges" (
+          "id" text PRIMARY KEY,
+          "name" text NOT NULL,
+          "ref_min" real,
+          "ref_max" real,
+          "unit" text NOT NULL DEFAULT '',
+          "ref_text" text NOT NULL DEFAULT '',
+          "gender" text,
+          "age_group" text,
+          "note" text,
+          "updated_at" timestamp NOT NULL DEFAULT now()
+        );
+      `;
+      await sql`ALTER TABLE "reference_ranges" ADD COLUMN IF NOT EXISTS "gender" text;`;
+      await sql`ALTER TABLE "reference_ranges" ADD COLUMN IF NOT EXISTS "age_group" text;`;
+      await sql`ALTER TABLE "reference_ranges" ADD COLUMN IF NOT EXISTS "note" text;`;
+      await sql`ALTER TABLE "reference_ranges" ADD COLUMN IF NOT EXISTS "ref_min" real;`;
+      await sql`ALTER TABLE "reference_ranges" ADD COLUMN IF NOT EXISTS "ref_max" real;`;
+      await sql`ALTER TABLE "reference_ranges" ADD COLUMN IF NOT EXISTS "unit" text NOT NULL DEFAULT '';`;
+      await sql`ALTER TABLE "reference_ranges" ADD COLUMN IF NOT EXISTS "ref_text" text NOT NULL DEFAULT '';`;
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS "catalog_items" (
+          "code" text PRIMARY KEY,
+          "category" text NOT NULL,
+          "name" text NOT NULL,
+          "ref_min" real,
+          "ref_max" real,
+          "unit" text NOT NULL DEFAULT '',
+          "ref_text" text NOT NULL DEFAULT '',
+          "price" real NOT NULL DEFAULT 0,
+          "scientific" text,
+          "equipment" text,
+          "evaluation_type" text,
+          "reference_range_id" text,
+          "scale_id" text,
+          "updated_at" timestamp NOT NULL DEFAULT now()
+        );
+      `;
+      await sql`ALTER TABLE "catalog_items" ADD COLUMN IF NOT EXISTS "scientific" text;`;
+      await sql`ALTER TABLE "catalog_items" ADD COLUMN IF NOT EXISTS "equipment" text;`;
+      await sql`ALTER TABLE "catalog_items" ADD COLUMN IF NOT EXISTS "evaluation_type" text;`;
+      await sql`ALTER TABLE "catalog_items" ADD COLUMN IF NOT EXISTS "reference_range_id" text;`;
+      await sql`ALTER TABLE "catalog_items" ADD COLUMN IF NOT EXISTS "scale_id" text;`;
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS "test_packages" (
+          "id" text PRIMARY KEY,
+          "name" text NOT NULL,
+          "codes" text[] NOT NULL DEFAULT '{}'::text[],
+          "price" real NOT NULL DEFAULT 0,
+          "updated_at" timestamp NOT NULL DEFAULT now()
+        );
+      `;
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS "test_groups" (
+          "id" text PRIMARY KEY,
+          "name" text NOT NULL,
+          "updated_at" timestamp NOT NULL DEFAULT now()
+        );
+      `;
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS "equipments" (
+          "id" text PRIMARY KEY,
+          "name" text NOT NULL,
+          "code" text,
+          "updated_at" timestamp NOT NULL DEFAULT now()
+        );
+      `;
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS "doctors" (
+          "id" text PRIMARY KEY,
+          "name" text NOT NULL,
+          "specialty" text,
+          "phone" text,
+          "updated_at" timestamp NOT NULL DEFAULT now()
+        );
+      `;
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS "clinic_info" (
+          "id" text PRIMARY KEY DEFAULT 'default',
+          "name" text NOT NULL DEFAULT '',
+          "address" text NOT NULL DEFAULT '',
+          "phone" text NOT NULL DEFAULT '',
+          "website" text,
+          "default_doctor" text NOT NULL DEFAULT '',
+          "logo_url" text,
+          "stamp_url" text,
+          "bank_id" text,
+          "bank_name" text,
+          "bank_account_no" text,
+          "bank_account_name" text,
+          "bank_branch" text,
+          "bank_qr_image_url" text,
+          "cashier_name" text,
+          "accountant_name" text,
+          "updated_at" timestamp NOT NULL DEFAULT now()
+        );
+      `;
+
+      // Clear dependent catalog_items first
+      await sql`DELETE FROM "catalog_items"`;
+
+      // 1. Reference Ranges
+      await sql`DELETE FROM "reference_ranges"`;
+      const refRows = DEFAULT_REFERENCE_RANGES.map((r) => ({
+        id: r.id,
+        name: r.name,
+        ref_min: r.refMin ?? null,
+        ref_max: r.refMax ?? null,
+        unit: r.unit || '',
+        ref_text: r.refText || '',
+        gender: r.gender || null,
+        age_group: r.ageGroup || null,
+        note: r.note || null
+      }));
+      if (refRows.length > 0) {
+        await sql`INSERT INTO "reference_ranges" ${sql(refRows)}`;
+      }
+
+      // 2. Test Groups
+      await sql`DELETE FROM "test_groups"`;
+      const grpMap = new Map<string, { id: string; name: string }>();
+      for (const g of DEFAULT_TEST_GROUPS) grpMap.set(g.name, g);
+      for (const c of DEFAULT_CATALOG) {
+        if (c.category && !grpMap.has(c.category)) {
+          grpMap.set(c.category, { id: 'grp_' + Math.random().toString(36).slice(2, 9), name: c.category });
         }
+      }
+      const grpRows = Array.from(grpMap.values());
+      if (grpRows.length > 0) {
+        await sql`INSERT INTO "test_groups" ${sql(grpRows)}`;
+      }
 
-        // Test Packages
-        await tx.delete(schema.testPackages);
-        if (TEST_PACKAGES.length > 0) {
-          await tx.insert(schema.testPackages).values(TEST_PACKAGES.map((p) => ({
-            id: p.id,
-            name: p.name,
-            codes: p.codes || [],
-            price: p.price ?? 0
-          }))).onConflictDoNothing();
+      // 3. Equipments
+      await sql`DELETE FROM "equipments"`;
+      const eqMap = new Map<string, { id: string; name: string; code?: string }>();
+      for (const e of DEFAULT_EQUIPMENTS) eqMap.set(e.name, e);
+      for (const c of DEFAULT_CATALOG) {
+        if (c.equipment && !eqMap.has(c.equipment)) {
+          eqMap.set(c.equipment, {
+            id: 'eq_' + Math.random().toString(36).slice(2, 9),
+            name: c.equipment,
+            code: c.equipment.toUpperCase().replace(/\s+/g, '_').slice(0, 15)
+          });
         }
+      }
+      const eqRows = Array.from(eqMap.values()).map((e) => ({ id: e.id, name: e.name, code: e.code || null }));
+      if (eqRows.length > 0) {
+        await sql`INSERT INTO "equipments" ${sql(eqRows)}`;
+      }
 
-        // Test Groups
-        await tx.delete(schema.testGroups);
-        if (DEFAULT_TEST_GROUPS.length > 0) {
-          await tx.insert(schema.testGroups).values(DEFAULT_TEST_GROUPS.map((g) => ({
-            id: g.id,
-            name: g.name
-          }))).onConflictDoNothing();
-        }
+      // 4. Catalog Items
+      const catRows = DEFAULT_CATALOG.map((c) => ({
+        code: c.code,
+        category: c.category || '',
+        name: c.name,
+        ref_min: c.refMin ?? null,
+        ref_max: c.refMax ?? null,
+        unit: c.unit || '',
+        ref_text: c.refText || '',
+        price: c.price ?? 0,
+        scientific: c.scientific || null,
+        equipment: c.equipment || null,
+        evaluation_type: c.evaluationType || null,
+        reference_range_id: c.referenceRangeId || null,
+        scale_id: c.scaleId || null
+      }));
+      if (catRows.length > 0) {
+        await sql`INSERT INTO "catalog_items" ${sql(catRows)}`;
+      }
 
-        // Equipments
-        await tx.delete(schema.equipments);
-        if (DEFAULT_EQUIPMENTS.length > 0) {
-          await tx.insert(schema.equipments).values(DEFAULT_EQUIPMENTS.map((e) => ({
-            id: e.id,
-            name: e.name,
-            code: e.code || null
-          }))).onConflictDoNothing();
-        }
+      // 5. Test Packages
+      await sql`DELETE FROM "test_packages"`;
+      const pkgRows = TEST_PACKAGES.map((p) => ({
+        id: p.id,
+        name: p.name,
+        codes: p.codes || [],
+        price: p.price ?? 0
+      }));
+      if (pkgRows.length > 0) {
+        await sql`INSERT INTO "test_packages" ${sql(pkgRows)}`;
+      }
 
-        // Reference Ranges
-        await tx.delete(schema.referenceRanges);
-        if (DEFAULT_REFERENCE_RANGES.length > 0) {
-          await tx.insert(schema.referenceRanges).values(DEFAULT_REFERENCE_RANGES.map((r) => ({
-            id: r.id,
-            name: r.name,
-            refMin: r.refMin ?? null,
-            refMax: r.refMax ?? null,
-            unit: r.unit || '',
-            refText: r.refText || '',
-            gender: r.gender || null,
-            ageGroup: r.ageGroup || null,
-            note: r.note || null
-          }))).onConflictDoNothing();
-        }
+      // 6. Doctors
+      await sql`DELETE FROM "doctors"`;
+      const docRows = defaultDoctors.map((d) => ({
+        id: d.id,
+        name: d.name,
+        specialty: d.specialty || null,
+        phone: d.phone || null
+      }));
+      if (docRows.length > 0) {
+        await sql`INSERT INTO "doctors" ${sql(docRows)}`;
+      }
 
-        // Doctors
-        await tx.delete(schema.doctors);
-        if (defaultDoctors.length > 0) {
-          await tx.insert(schema.doctors).values(defaultDoctors.map((d) => ({
-            id: d.id,
-            name: d.name,
-            specialty: d.specialty || null,
-            phone: d.phone || null
-          }))).onConflictDoNothing();
-        }
+      // 7. Clinic Info
+      await sql`DELETE FROM "clinic_info"`;
+      await sql`
+        INSERT INTO "clinic_info" ("id", "name", "address", "phone", "website", "default_doctor", "bank_id", "bank_name", "bank_account_no", "bank_account_name", "bank_branch", "cashier_name", "accountant_name")
+        VALUES (
+          'default',
+          ${defaultClinic.name},
+          ${defaultClinic.address},
+          ${defaultClinic.phone},
+          ${defaultClinic.website},
+          ${defaultClinic.defaultDoctor},
+          ${defaultClinic.bankId},
+          ${defaultClinic.bankName},
+          ${defaultClinic.bankAccountNo},
+          ${defaultClinic.bankAccountName},
+          ${defaultClinic.bankBranch},
+          ${defaultClinic.cashierName},
+          ${defaultClinic.accountantName}
+        )
+        ON CONFLICT ("id") DO NOTHING;
+      `;
 
-        // Clinic Info
-        await tx.delete(schema.clinicInfo);
-        await tx.insert(schema.clinicInfo).values({
-          id: 'default',
-          ...defaultClinic
-        }).onConflictDoNothing();
-      });
-
-      console.log('✓ [PostgreSQL] Đã ghi toàn bộ bảng PostgreSQL thành công rực rỡ!');
-      await queryClient.end();
+      console.log('✓ [PostgreSQL] Đã ghi toàn bộ bảng PostgreSQL thành công 100%!');
+      await sql.end();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       console.warn('! [PostgreSQL Direct] Lỗi nạp bảng trực tiếp:', msg);
