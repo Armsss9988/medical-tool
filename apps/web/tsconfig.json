@@ -1,0 +1,82 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": false,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "preserve",
+    "strict": true,
+    "strictNullChecks": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": true,
+    "skipLibCheck": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@domain": [
+        "../../packages/shared/src/domain"
+      ],
+      "@domain/*": [
+        "../../packages/shared/src/domain/*"
+      ],
+      "@infra": [
+        "./src/infrastructure"
+      ],
+      "@infra/*": [
+        "./src/infrastructure/*"
+      ],
+      "@data": [
+        "../../packages/shared/src/data"
+      ],
+      "@data/*": [
+        "../../packages/shared/src/data/*"
+      ],
+      "@components": [
+        "./src/components"
+      ],
+      "@components/*": [
+        "./src/components/*"
+      ],
+      "@assets": [
+        "./src/assets"
+      ],
+      "@assets/*": [
+        "./src/assets/*"
+      ],
+      "@api": [
+        "../../apps/api/src/index"
+      ],
+      "@api/*": [
+        "../../apps/api/src/*"
+      ]
+    },
+    "allowJs": true,
+    "incremental": true,
+    "esModuleInterop": true
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "../../packages/shared/src/**/*.ts",
+    "../../apps/api/src/**/*.ts",
+    "next-env.d.ts",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next"
+  ]
+}
