@@ -1,4 +1,4 @@
-import { TestPackage } from './types';
+import { TestPackage, getPkgCodes } from './types';
 
 /**
  * Tính tổng phí dịch vụ ưu tiên giá gói.
@@ -44,23 +44,23 @@ export function computePricingWithPackages(
 ): PricingResult {
   // Bỏ gói placeholder (codes rỗng hoặc price = 0)
   const validPackages = testPackages.filter(
-    (pkg) => pkg.codes.length > 0 && pkg.price > 0
+    (pkg) => getPkgCodes(pkg).length > 0 && pkg.price > 0
   );
 
   // Tìm các gói "active": tất cả codes của gói đều nằm trong itemCodes
   const codeSet = new Set(itemCodes.map((c) => c.toLowerCase()));
 
   const candidatePackages = validPackages
-    .filter((pkg) => pkg.codes.every((c) => codeSet.has(c.toLowerCase())))
+    .filter((pkg) => getPkgCodes(pkg).every((c) => codeSet.has(c.toLowerCase())))
     // Ưu tiên gói lớn nhất trước (greedy)
-    .sort((a, b) => b.codes.length - a.codes.length);
+    .sort((a, b) => getPkgCodes(b).length - getPkgCodes(a).length);
 
   const coveredCodes = new Set<string>();
   const activePackages: ActivePackageInfo[] = [];
 
   for (const pkg of candidatePackages) {
     // Kiểm tra xem gói này có bị trùng hoàn toàn với gói đã chọn không
-    const pkgCodesLower = pkg.codes.map((c) => c.toLowerCase());
+    const pkgCodesLower = getPkgCodes(pkg).map((c) => c.toLowerCase());
     const hasNewCodes = pkgCodesLower.some((c) => !coveredCodes.has(c));
 
     if (hasNewCodes) {
@@ -68,7 +68,7 @@ export function computePricingWithPackages(
         id: pkg.id,
         name: pkg.name,
         price: pkg.price,
-        codes: pkg.codes
+        codes: getPkgCodes(pkg)
       });
       pkgCodesLower.forEach((c) => coveredCodes.add(c));
     }

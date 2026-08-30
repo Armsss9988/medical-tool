@@ -10,17 +10,26 @@ export const catalogItems = pgTable('catalog_items', {
   refText: text('ref_text').notNull().default(''),
   price: real('price'),
   scientific: text('scientific'),
-  equipment: text('equipment'),
   evaluationType: text('evaluation_type'),
+  updatedAt: timestamp('updated_at').notNull().defaultNow()
+});
+
+/** Bảng trung gian: 1 chỉ số xét nghiệm × nhiều loại máy đo → mỗi máy có reference_range/scale riêng */
+export const catalogItemEquipments = pgTable('catalog_item_equipments', {
+  id: text('id').primaryKey(),
+  catalogCode: text('catalog_code').notNull(),
+  equipmentId: text('equipment_id').notNull(),
   referenceRangeId: text('reference_range_id'),
   scaleId: text('scale_id'),
+  isDefault: boolean('is_default').notNull().default(false),
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 
 export const testPackages = pgTable('test_packages', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
-  codes: text('codes').array().notNull(),
+  /** Mảng JSON [{code, equipmentId}] — thay thế cột codes cũ */
+  items: jsonb('items').notNull().$type<{ code: string; equipmentId?: string | null }[]>(),
   price: real('price').notNull().default(0),
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });

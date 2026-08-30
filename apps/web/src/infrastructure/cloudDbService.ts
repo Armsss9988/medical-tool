@@ -1,6 +1,7 @@
 import {
   CloudDbConfig,
   CatalogItem,
+  CatalogItemEquipmentLink,
   TestPackage,
   TestGroup,
   TestEquipment,
@@ -24,7 +25,8 @@ const LEGACY_KEY_TO_API: Record<string, string> = {
   'invoices_data': 'invoices',
   'zalo_config': 'zalo-config',
   'recent_tests': 'recent_tests',
-  'reference_ranges': 'reference-ranges'
+  'reference_ranges': 'reference-ranges',
+  'catalog_item_equipments': 'catalog-item-equipments'
 };
 const DOC_TABLES = new Set(['medical-reports', 'invoices']);
 const SINGLE_OBJECT_TABLES = new Set(['clinic-info', 'zalo-config']);
@@ -256,6 +258,14 @@ export async function fetchReferenceRangesFromSupabase(config: CloudDbConfig): P
 
 export async function syncReferenceRangesToSupabase(ranges: ReferenceRangeItem[], config: CloudDbConfig): Promise<boolean> {
   return syncTableToCloud('reference_ranges', ranges, config);
+}
+
+export async function fetchCatalogItemEquipmentsFromSupabase(config: CloudDbConfig): Promise<CatalogItemEquipmentLink[] | null> {
+  return fetchTableFromCloud<CatalogItemEquipmentLink[]>('catalog_item_equipments', config);
+}
+
+export async function syncCatalogItemEquipmentsToSupabase(links: CatalogItemEquipmentLink[], config: CloudDbConfig): Promise<boolean> {
+  return syncTableToCloud('catalog_item_equipments', links, config);
 }
 
 /**

@@ -3,7 +3,7 @@ import { TestTube, Plus, Trash2, Search, Layers, Sparkles, X, ClipboardPaste, Cl
 import { evaluateTestIndicator } from '@domain/testResult';
 import { getAllergenScaleById } from '@domain/constants/allergenScales';
 import { getReferenceRangeById, autoResolveItemLinks } from '@data';
-import { CatalogItem, SelectedTest, TestPackage, TestGroup, ToastType } from '@domain/types';
+import { CatalogItem, SelectedTest, TestPackage, TestGroup, ToastType, getPkgCodes } from '@domain/types';
 import { computePricingWithPackages } from '@domain/pricing';
 import NoteCombobox from './NoteCombobox';
 
@@ -167,7 +167,7 @@ export default function TestTable({
     const pkg = testPackages.find((p) => p.id === pkgId);
     if (!pkg) return;
 
-    const itemsToAdd = catalog.filter((item) => pkg.codes.includes(item.code));
+    const itemsToAdd = catalog.filter((item) => getPkgCodes(pkg).includes(item.code));
 
     setSelectedTests((prev) => {
       const existingCodes = new Set(prev.map((t) => t.code));
@@ -475,7 +475,7 @@ export default function TestTable({
               onClick={() => handleSelectPackage(pkg.id)}
               className="text-[11px] font-bold bg-white hover:bg-emerald-600 text-slate-700 hover:text-white px-2.5 py-1 rounded-lg border border-slate-200 hover:border-emerald-600 transition-all shadow-2xs active:scale-95 shrink-0"
             >
-              + {pkg.name} ({pkg.codes.length})
+              + {pkg.name} ({getPkgCodes(pkg).length})
             </button>
           ))}
         </div>

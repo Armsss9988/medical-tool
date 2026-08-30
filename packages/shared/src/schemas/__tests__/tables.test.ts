@@ -54,6 +54,33 @@ describe('documentRowSchema', () => {
   });
 });
 
+describe('testPackageRowSchema', () => {
+  it('accepts valid package with items', () => {
+    const row = {
+      id: 'pkg_1',
+      name: 'Gói Sinh Hóa',
+      items: [{ code: 'GLU', equipmentId: 'cobas_c311' }, { code: 'URE', equipmentId: null }],
+      price: 200000
+    };
+    const result = ROW_SCHEMAS['test-packages'].safeParse(row);
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('catalogItemEquipmentRowSchema', () => {
+  it('accepts valid link', () => {
+    const row = {
+      id: 'cie_glu_cobas',
+      catalogCode: 'GLU',
+      equipmentId: 'cobas_c311',
+      referenceRangeId: 'ref_glucose',
+      isDefault: true
+    };
+    const result = ROW_SCHEMAS['catalog-item-equipments'].safeParse(row);
+    expect(result.success).toBe(true);
+  });
+});
+
 describe('ROW_SCHEMAS', () => {
   it('covers every table name', () => {
     for (const name of TABLE_NAMES) {

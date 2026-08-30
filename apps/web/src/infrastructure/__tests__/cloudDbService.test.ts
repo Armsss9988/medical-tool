@@ -145,7 +145,7 @@ describe('cloudDbService wired to apiClient', () => {
     const res = await syncAllLocalDataToSupabase(
       {
         catalog: [{ code: 'GLU', name: 'Glucose' }] as never,
-        testPackages: [{ id: 'p1', name: 'P', price: 1, codes: [] }] as never,
+        testPackages: [{ id: 'p1', name: 'P', price: 1, items: [], codes: [] }] as never,
         testGroups: [{ id: 'g1', name: 'G' }] as never,
         equipments: [{ id: 'e1', code: 'EC', name: 'EQ' }] as never,
         doctorsList: [{ id: 'd1', name: 'Dr' }] as never,

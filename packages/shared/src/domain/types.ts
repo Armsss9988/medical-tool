@@ -40,6 +40,16 @@ export interface Patient {
 
 export type EvaluationType = 'range' | 'scale' | 'text';
 
+/** Liên kết giữa một chỉ số xét nghiệm và một loại máy đo cụ thể */
+export interface CatalogItemEquipmentLink {
+  id: string;
+  catalogCode: string;
+  equipmentId: string;
+  referenceRangeId?: string;
+  scaleId?: string;
+  isDefault?: boolean;
+}
+
 export interface ReferenceRangeItem {
   id: string;
   name: string;
@@ -61,9 +71,14 @@ export interface CatalogItem {
   refText: string;
   price?: number;
   scientific?: string;
-  equipment?: string;
   evaluationType?: EvaluationType;
+  /** Danh sách liên kết máy đo → reference_range/scale riêng (tùy máy) */
+  equipmentLinks?: CatalogItemEquipmentLink[];
+  /** @deprecated Dùng equipmentLinks thay thế — giữ để backward compat với dữ liệu cũ */
+  equipment?: string;
+  /** @deprecated Dùng equipmentLinks thay thế */
   referenceRangeId?: string;
+  /** @deprecated Dùng equipmentLinks thay thế */
   scaleId?: string;
 }
 
@@ -72,11 +87,31 @@ export interface SelectedTest extends CatalogItem {
   note: string;
 }
 
+/** Một mục chỉ số trong gói xét nghiệm, kèm thông tin máy đo được chọn */
+export interface PackageItem {
+  code: string;
+  /** ID máy đo được chọn cho chỉ số này trong gói. null = dùng máy mặc định của chỉ số */
+  equipmentId?: string | null;
+}
+
 export interface TestPackage {
   id: string;
   name: string;
-  codes: string[];
+  /** Danh sách chỉ số trong gói, mỗi item có thể gắn máy đo cụ thể */
+  items: PackageItem[];
   price: number;
+  /**
+   * @deprecated Dùng items thay thế.
+   * Giữ lại để backward compat trong quá trình migration.
+   */
+  codes?: string[];
+}
+
+/** Helper: lấy danh sách mã xét nghiệm từ một TestPackage (hỗ trợ cả format cũ lẫn mới) */
+export function getPkgCodes(pkg: TestPackage): string[] {
+  if (pkg.items && pkg.items.length > 0) return pkg.items.map((i) => i.code);
+  if (pkg.codes && pkg.codes.length > 0) return pkg.codes;
+  return [];
 }
 
 export interface TestGroup {

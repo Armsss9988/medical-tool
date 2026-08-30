@@ -7,12 +7,14 @@ describe('Pricing Domain - computePricingWithPackages & buildInvoiceItems', () =
     {
       id: 'pkg_blood',
       name: 'Gói Công Thức Máu',
+      items: ['RBC', 'HGB', 'WBC', 'PLT'].map((c) => ({ code: c, equipmentId: null })),
       codes: ['RBC', 'HGB', 'WBC', 'PLT'],
       price: 80000
     },
     {
       id: 'pkg_allergen_91',
       name: 'Gói Trọn Bộ Dị Nguyên 91 Chỉ Số',
+      items: ['d1', 'd2', 'e1', 'f1', 'f2'].map((c) => ({ code: c, equipmentId: null })),
       codes: ['d1', 'd2', 'e1', 'f1', 'f2'],
       price: 1900000
     }

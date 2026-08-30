@@ -91,60 +91,70 @@ export const TEST_PACKAGES: TestPackage[] = [
   {
     id: 'all',
     name: '--- Chọn Gói Xét Nghiệm ---',
+    items: [],
     codes: [],
     price: 0
   },
   {
     id: 'huyet_hoc',
     name: 'Gói Công Thức Máu (6 chỉ số)',
+    items: ['RBC', 'HGB', 'HCT', 'MCV', 'WBC', 'PLT'].map((c) => ({ code: c, equipmentId: null })),
     codes: ['RBC', 'HGB', 'HCT', 'MCV', 'WBC', 'PLT'],
     price: 80000
   },
   {
     id: 'sinh_hoa',
     name: 'Gói Sinh Hóa Cơ Bản (Gan, Thận, Đường, Mỡ)',
+    items: ['GLU', 'URE', 'CREAT', 'AST', 'ALT', 'CHO', 'TRI', 'URIC'].map((c) => ({ code: c, equipmentId: null })),
     codes: ['GLU', 'URE', 'CREAT', 'AST', 'ALT', 'CHO', 'TRI', 'URIC'],
     price: 280000
   },
   {
     id: 'nuoc_tieu',
     name: 'Gói Phân Tích Nước Tiểu (3 thông số)',
+    items: ['LEU_U', 'PRO_U', 'GLU_U'].map((c) => ({ code: c, equipmentId: null })),
     codes: ['LEU_U', 'PRO_U', 'GLU_U'],
     price: 40000
   },
   {
     id: 'tong_quat',
     name: 'Gói Xét Nghiệm Tổng Quát',
+    items: ['RBC', 'HGB', 'WBC', 'PLT', 'GLU', 'URE', 'CREAT', 'AST', 'ALT', 'CHO', 'TRI', 'URIC', 'LEU_U', 'PRO_U', 'GLU_U'].map((c) => ({ code: c, equipmentId: null })),
     codes: ['RBC', 'HGB', 'WBC', 'PLT', 'GLU', 'URE', 'CREAT', 'AST', 'ALT', 'CHO', 'TRI', 'URIC', 'LEU_U', 'PRO_U', 'GLU_U'],
     price: 450000
   },
   {
     id: 'di_nguyen_90',
     name: '🩸 Gói Trọn Bộ Dị Nguyên IgE (91 Panel PROTIA)',
+    items: ALLERGEN_91_DATABASE.map(item => ({ code: item.code, equipmentId: 'eq_protia' })),
     codes: ALLERGEN_91_DATABASE.map(item => item.code),
     price: 1900000
   },
   {
     id: 'di_nguyen_61',
     name: '🧬 Gói 61 Dị Nguyên IgE (PROTIA Smart Q-Processor)',
+    items: ALLERGEN_91_DATABASE.slice(0, 61).map(item => ({ code: item.code, equipmentId: 'eq_protia' })),
     codes: ALLERGEN_91_DATABASE.slice(0, 61).map(item => item.code),
     price: 1600000
   },
   {
     id: 'di_nguyen_44',
     name: '🔬 Gói 44 Dị Nguyên IgE (MEDIWISS / Hô Hấp & Thực Phẩm)',
+    items: ALLERGEN_91_DATABASE.slice(0, 44).map(item => ({ code: item.code, equipmentId: 'eq_mediwiss' })),
     codes: ALLERGEN_91_DATABASE.slice(0, 44).map(item => item.code),
     price: 1400000
   },
   {
     id: 'di_nguyen_ho_hap',
     name: '🌸 Gói Dị Nguyên Hô Hấp (Bụi, Lông thú, Nấm mốc)',
+    items: ['d1', 'd2', 'e1', 'e5', 'm1', 'm2', 'm3', 'g2', 'w6', 'k82', 'h1', 't2', 't3', 't7', 'w1', 'w22'].map((c) => ({ code: c, equipmentId: null })),
     codes: ['d1', 'd2', 'e1', 'e5', 'm1', 'm2', 'm3', 'g2', 'w6', 'k82', 'h1', 't2', 't3', 't7', 'w1', 'w22'],
     price: 950000
   },
   {
     id: 'di_nguyen_thuc_pham',
     name: '🦀 Gói Dị Nguyên Thực Phẩm (Trứng, Sữa, Hải sản, Hạt)',
+    items: ['f1', 'f2', 'f3', 'f4', 'f13', 'f14', 'f23', 'f24', 'f26', 'f27', 'f33', 'f83', 'f88', 'f81', 'f6', 'f9', 'f11', 'f45', 'f8'].map((c) => ({ code: c, equipmentId: null })),
     codes: ['f1', 'f2', 'f3', 'f4', 'f13', 'f14', 'f23', 'f24', 'f26', 'f27', 'f33', 'f83', 'f88', 'f81', 'f6', 'f9', 'f11', 'f45', 'f8'],
     price: 950000
   }

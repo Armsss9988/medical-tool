@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Plus, Trash2, Copy, CheckSquare, Square, Layers, FlaskConical, Dna, Search } from 'lucide-react';
-import { CatalogItem, TestPackage } from '@domain/types';
+import { CatalogItem, TestPackage, getPkgCodes } from '@domain/types';
 
 function parseAllergenOrder(code: string): number {
   const m = code.match(/\d+/);
@@ -51,9 +51,12 @@ export default function TestPackagesTab({
     setPackages((prev) =>
       prev.map((pkg) => {
         if (pkg.id === pkgId) {
-          const has = pkg.codes.includes(testCode);
-          const nextCodes = has ? pkg.codes.filter((c) => c !== testCode) : [...pkg.codes, testCode];
-          return { ...pkg, codes: nextCodes };
+          const currentCodes = getPkgCodes(pkg);
+          const has = currentCodes.includes(testCode);
+          const nextItems = has
+            ? pkg.items.filter((i) => i.code !== testCode)
+            : [...pkg.items, { code: testCode, equipmentId: null }];
+          return { ...pkg, items: nextItems };
         }
         return pkg;
       })
@@ -69,7 +72,7 @@ export default function TestPackagesTab({
     const newPkg: TestPackage = {
       id: `${isAllergenType ? 'di_nguyen_' : 'pkg_'}${Date.now()}`,
       name: name.trim(),
-      codes: [],
+      items: [],
       price: isAllergenType ? 1400000 : 350000
     };
 
@@ -104,9 +107,9 @@ export default function TestPackagesTab({
       )
       .map((i) => i.code);
 
-    const merged = Array.from(new Set([...currentSelectedPkg.codes, ...filteredCodes]));
+    const merged = Array.from(new Set([...getPkgCodes(currentSelectedPkg), ...filteredCodes]));
     setPackages((prev) =>
-      prev.map((p) => (p.id === currentSelectedPkg.id ? { ...p, codes: merged } : p))
+      prev.map((p) => (p.id === currentSelectedPkg.id ? { ...p, items: merged.map((c) => ({ code: c, equipmentId: p.items.find((i) => i.code === c)?.equipmentId ?? null })) } : p))
     );
   };
 
@@ -123,9 +126,9 @@ export default function TestPackagesTab({
         .map((i) => i.code)
     );
 
-    const remaining = currentSelectedPkg.codes.filter((c) => !filteredCodesSet.has(c));
+    const remaining = getPkgCodes(currentSelectedPkg).filter((c) => !filteredCodesSet.has(c));
     setPackages((prev) =>
-      prev.map((p) => (p.id === currentSelectedPkg.id ? { ...p, codes: remaining } : p))
+      prev.map((p) => (p.id === currentSelectedPkg.id ? { ...p, items: remaining.map((c) => ({ code: c, equipmentId: p.items.find((i) => i.code === c)?.equipmentId ?? null })) } : p))
     );
   };
 
@@ -230,7 +233,7 @@ export default function TestPackagesTab({
                     <span className={`px-1.5 py-0.5 rounded font-bold text-[10px] ${
                       isAllergen ? 'bg-red-100 text-red-800' : 'bg-sky-100 text-sky-800'
                     }`}>
-                      {isAllergen ? 'Dị Nguyên' : 'Gói Thường'} • {pkg.codes.length} chỉ số
+                      {isAllergen ? 'Dị Nguyên' : 'Gói Thường'} • {getPkgCodes(pkg).length} chỉ số
                     </span>
 
                     <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
@@ -297,7 +300,7 @@ export default function TestPackagesTab({
             <div className="space-y-2 flex-grow flex flex-col">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-bold text-xs text-slate-700">
-                  Chọn chỉ số thuộc gói ({currentSelectedPkg.codes.length} đã chọn):
+                  Chọn chỉ số thuộc gói ({getPkgCodes(currentSelectedPkg).length} đã chọn):
                 </span>
 
                 <div className="flex items-center gap-2">
@@ -344,7 +347,7 @@ export default function TestPackagesTab({
                     return 0;
                   })
                   .map((item) => {
-                    const isIncluded = currentSelectedPkg.codes.includes(item.code);
+                    const isIncluded = getPkgCodes(currentSelectedPkg).includes(item.code);
                     return (
                       <div
                         key={item.code}

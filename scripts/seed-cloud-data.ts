@@ -120,6 +120,14 @@ async function main() {
   await syncToSupabaseStorage('reference_ranges', DEFAULT_REFERENCE_RANGES);
   await syncToSupabaseStorage('doctors_list', defaultDoctors);
   await syncToSupabaseStorage('clinic_info', defaultClinic);
+  await syncToSupabaseStorage('catalog_item_equipments', DEFAULT_CATALOG.filter(c => c.equipment || c.referenceRangeId || c.scaleId).map(c => ({
+    id: `cie_${c.code.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${c.equipment ? 'eq_' + c.equipment.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'eq_default'}`,
+    catalogCode: c.code,
+    equipmentId: c.equipment ? 'eq_' + c.equipment.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'eq_default',
+    referenceRangeId: c.referenceRangeId || null,
+    scaleId: c.scaleId || null,
+    isDefault: true
+  })));
 
   // 2. Sync to PostgreSQL Direct Tables (Drizzle / Postgres.js) if DATABASE_URL is configured
   if (databaseUrl) {
@@ -175,14 +183,28 @@ async function main() {
       await sql`ALTER TABLE "catalog_items" ADD COLUMN IF NOT EXISTS "scale_id" text;`;
 
       await sql`
+        CREATE TABLE IF NOT EXISTS "catalog_item_equipments" (
+          "id" text PRIMARY KEY,
+          "catalog_code" text NOT NULL,
+          "equipment_id" text NOT NULL,
+          "reference_range_id" text,
+          "scale_id" text,
+          "is_default" boolean NOT NULL DEFAULT false,
+          "updated_at" timestamp NOT NULL DEFAULT now()
+        );
+      `;
+
+      await sql`
         CREATE TABLE IF NOT EXISTS "test_packages" (
           "id" text PRIMARY KEY,
           "name" text NOT NULL,
-          "codes" text[] NOT NULL DEFAULT '{}'::text[],
+          "items" jsonb NOT NULL DEFAULT '[]'::jsonb,
           "price" real NOT NULL DEFAULT 0,
           "updated_at" timestamp NOT NULL DEFAULT now()
         );
       `;
+      await sql`ALTER TABLE "test_packages" ADD COLUMN IF NOT EXISTS "items" jsonb NOT NULL DEFAULT '[]'::jsonb;`;
+      await sql`ALTER TABLE "test_packages" DROP COLUMN IF EXISTS "codes";`;
 
       await sql`
         CREATE TABLE IF NOT EXISTS "test_groups" (
@@ -235,6 +257,7 @@ async function main() {
 
       // Clear dependent catalog_items first
       await sql`DELETE FROM "catalog_items"`;
+      await sql`DELETE FROM "catalog_item_equipments"`;
 
       // 1. Reference Ranges
       await sql`DELETE FROM "reference_ranges"`;
@@ -296,13 +319,37 @@ async function main() {
         ref_text: c.refText || '',
         price: c.price ?? 0,
         scientific: c.scientific || null,
-        equipment: c.equipment || null,
-        evaluation_type: c.evaluationType || null,
-        reference_range_id: c.referenceRangeId || null,
-        scale_id: c.scaleId || null
+        evaluation_type: c.evaluationType || null
       }));
       if (catRows.length > 0) {
         await sql`INSERT INTO "catalog_items" ${sql(catRows)}`;
+      }
+
+      // 4b. Catalog Item Equipments Links
+      const cieRows: Array<{
+        id: string;
+        catalog_code: string;
+        equipment_id: string;
+        reference_range_id: string | null;
+        scale_id: string | null;
+        is_default: boolean;
+      }> = [];
+      for (const c of DEFAULT_CATALOG) {
+        if (c.equipment || c.referenceRangeId || c.scaleId) {
+          const matchedEq = eqRows.find((e) => e.name === c.equipment || e.code === c.equipment);
+          const eqId = matchedEq ? matchedEq.id : (c.equipment ? 'eq_' + c.equipment.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'eq_default');
+          cieRows.push({
+            id: `cie_${c.code.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${eqId}`,
+            catalog_code: c.code,
+            equipment_id: eqId,
+            reference_range_id: c.referenceRangeId || null,
+            scale_id: c.scaleId || null,
+            is_default: true
+          });
+        }
+      }
+      if (cieRows.length > 0) {
+        await sql`INSERT INTO "catalog_item_equipments" ${sql(cieRows)}`;
       }
 
       // 5. Test Packages
@@ -310,7 +357,7 @@ async function main() {
       const pkgRows = TEST_PACKAGES.map((p) => ({
         id: p.id,
         name: p.name,
-        codes: p.codes || [],
+        items: sql.json(p.items || (p.codes || []).map((c) => ({ code: c, equipmentId: null }))),
         price: p.price ?? 0
       }));
       if (pkgRows.length > 0) {

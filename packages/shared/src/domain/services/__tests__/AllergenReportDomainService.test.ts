@@ -13,6 +13,7 @@ describe('AllergenReportDomainService', () => {
     {
       id: 'pkg_allergen_custom',
       name: 'Gói Dị Nguyên Test',
+      items: ['TIgE', 'd1', 'f1'].map((c) => ({ code: c, equipmentId: null })),
       codes: ['TIgE', 'd1', 'f1'],
       price: 1500000
     }

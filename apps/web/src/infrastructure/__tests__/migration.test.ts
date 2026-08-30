@@ -23,7 +23,7 @@ const mockSync = vi.mocked(syncAllLocalDataToSupabase);
 
 const SAMPLE = {
   catalog: [{ code: 'GLU', name: 'Glucose' }],
-  testPackages: [{ id: 'p1', name: 'P', price: 1, codes: [] }],
+  testPackages: [{ id: 'p1', name: 'P', price: 1, items: [], codes: [] }],
   testGroups: [{ id: 'g1', name: 'G' }],
   equipments: [{ id: 'e1', code: 'EC', name: 'EQ' }],
   doctorsList: [{ id: 'd1', name: 'Dr' }],

@@ -12,6 +12,7 @@ export const TABLES: Record<TableName, AnyPgTable> = {
   'clinic-info': tables.clinicInfo,
   'zalo-config': tables.zaloConfig,
   'reference-ranges': tables.referenceRanges,
+  'catalog-item-equipments': tables.catalogItemEquipments,
   'medical-reports': tables.medicalReports,
   invoices: tables.invoices
 };

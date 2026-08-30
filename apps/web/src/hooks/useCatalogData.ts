@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { 
   CatalogItem, 
+  CatalogItemEquipmentLink,
   TestPackage, 
   TestGroup, 
   TestEquipment, 
@@ -21,6 +22,7 @@ import {
   fetchDoctorsFromSupabase,
   fetchClinicInfoFromSupabase,
   fetchReferenceRangesFromSupabase,
+  fetchCatalogItemEquipmentsFromSupabase,
   syncCatalogToSupabase,
   syncPackagesToSupabase,
   syncGroupsToSupabase,
@@ -28,6 +30,7 @@ import {
   syncDoctorsToSupabase,
   syncClinicInfoToSupabase,
   syncReferenceRangesToSupabase,
+  syncCatalogItemEquipmentsToSupabase,
   syncZaloConfigToSupabase
 } from '@infra/cloudDbService';
 
@@ -89,6 +92,10 @@ export function useCatalogData() {
     return loadState<ReferenceRangeItem[]>(STORAGE_KEYS.REFERENCE_RANGES, []);
   });
 
+  const [catalogItemEquipments, setCatalogItemEquipments] = useState<CatalogItemEquipmentLink[]>(() => {
+    return loadState<CatalogItemEquipmentLink[]>(STORAGE_KEYS.CATALOG_ITEM_EQUIPMENTS, []);
+  });
+
   const [clinicInfo, setClinicInfo] = useState<ClinicInfo>(() => {
     return loadState<ClinicInfo>(STORAGE_KEYS.CLINIC_INFO, DEFAULT_CLINIC_INFO);
   });
@@ -147,6 +154,13 @@ export function useCatalogData() {
   }, [referenceRanges, cloudDbConfig]);
 
   useEffect(() => {
+    saveState(STORAGE_KEYS.CATALOG_ITEM_EQUIPMENTS, catalogItemEquipments);
+    if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
+      syncCatalogItemEquipmentsToSupabase(catalogItemEquipments, cloudDbConfig).catch(() => {});
+    }
+  }, [catalogItemEquipments, cloudDbConfig]);
+
+  useEffect(() => {
     saveState(STORAGE_KEYS.CLINIC_INFO, clinicInfo);
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncClinicInfoToSupabase(clinicInfo, cloudDbConfig).catch(() => {});
@@ -173,14 +187,24 @@ export function useCatalogData() {
 
     try {
       setIsLoading(true);
-      const [cloudCatalog, cloudPackages, cloudGroups, cloudEquip, cloudDocs, cloudClinic, cloudRefRanges] = await Promise.all([
+      const [
+        cloudCatalog, 
+        cloudPackages, 
+        cloudGroups, 
+        cloudEquip, 
+        cloudDocs, 
+        cloudClinic, 
+        cloudRefRanges,
+        cloudItemEquipLinks
+      ] = await Promise.all([
         fetchCatalogFromSupabase(cloudDbConfig),
         fetchPackagesFromSupabase(cloudDbConfig),
         fetchGroupsFromSupabase(cloudDbConfig),
         fetchEquipmentsFromSupabase(cloudDbConfig),
         fetchDoctorsFromSupabase(cloudDbConfig),
         fetchClinicInfoFromSupabase(cloudDbConfig),
-        fetchReferenceRangesFromSupabase(cloudDbConfig)
+        fetchReferenceRangesFromSupabase(cloudDbConfig),
+        fetchCatalogItemEquipmentsFromSupabase(cloudDbConfig)
       ]);
 
       if (cloudCatalog && cloudCatalog.length > 0) {
@@ -203,6 +227,9 @@ export function useCatalogData() {
       }
       if (cloudRefRanges && cloudRefRanges.length > 0) {
         setReferenceRanges(cloudRefRanges);
+      }
+      if (cloudItemEquipLinks && cloudItemEquipLinks.length > 0) {
+        setCatalogItemEquipments(cloudItemEquipLinks);
       }
     } catch (err) {
       console.warn('[CloudDB] Không thể tải dữ liệu từ Cloud:', err);
@@ -235,6 +262,8 @@ export function useCatalogData() {
     setDoctorsList,
     referenceRanges,
     setReferenceRanges,
+    catalogItemEquipments,
+    setCatalogItemEquipments,
     clinicInfo,
     setClinicInfo,
     cloudDbConfig,

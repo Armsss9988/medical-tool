@@ -9,6 +9,7 @@ export const TABLE_NAMES = [
   'clinic-info',
   'zalo-config',
   'reference-ranges',
+  'catalog-item-equipments',
   'medical-reports',
   'invoices'
 ] as const;
@@ -27,16 +28,21 @@ export const catalogRowSchema = z.object({
   refText: z.string().optional().default(''),
   price: z.number().optional(),
   scientific: z.string().optional(),
-  equipment: z.string().optional(),
-  evaluationType: z.string().optional(),
-  referenceRangeId: z.string().optional(),
-  scaleId: z.string().optional()
+  evaluationType: z.string().optional()
+});
+
+/** Zod schema cho một PackageItem (chỉ số trong gói kèm máy đo) */
+export const packageItemSchema = z.object({
+  code: z.string().min(1),
+  equipmentId: z.string().nullable().optional()
 });
 
 export const testPackageRowSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
-  codes: z.array(z.string()).default([]),
+  items: z.array(packageItemSchema).default([]),
+  /** @deprecated backward compat — sẽ bị bỏ sau migration hoàn tất */
+  codes: z.array(z.string()).optional(),
   price: z.number().default(0)
 });
 
@@ -100,6 +106,16 @@ export const referenceRangeRowSchema = z.object({
   note: z.string().optional()
 });
 
+/** Zod schema cho bảng catalog_item_equipments */
+export const catalogItemEquipmentRowSchema = z.object({
+  id: z.string().min(1),
+  catalogCode: z.string().min(1),
+  equipmentId: z.string().min(1),
+  referenceRangeId: z.string().nullable().optional(),
+  scaleId: z.string().nullable().optional(),
+  isDefault: z.boolean().optional().default(false)
+});
+
 export const documentRowSchema = z.object({ id: z.string().min(1) }).passthrough();
 
 export const ROW_SCHEMAS: Record<TableName, z.ZodTypeAny> = {
@@ -111,6 +127,7 @@ export const ROW_SCHEMAS: Record<TableName, z.ZodTypeAny> = {
   'clinic-info': clinicInfoRowSchema,
   'zalo-config': zaloConfigRowSchema,
   'reference-ranges': referenceRangeRowSchema,
+  'catalog-item-equipments': catalogItemEquipmentRowSchema,
   'medical-reports': documentRowSchema,
   invoices: documentRowSchema
 };
