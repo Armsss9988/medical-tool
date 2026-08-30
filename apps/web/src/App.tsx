@@ -25,7 +25,26 @@ import type { MedicalReport, BatchImportRow, CatalogTabType } from '@domain';
 // ─── MAIN APPLICATION CONTENT ───────────────────────────────────────────────
 function AppContent() {
   // 1. SYSTEM CONFIG & CATALOG STATE
-  const {\n    clinicInfo,\n    setClinicInfo,\n    catalog,\n    setCatalog,\n    testPackages,\n    setTestPackages,\n    testGroups,\n    setTestGroups,\n    equipments,\n    setEquipments,\n    doctorsList,\n    setDoctorsList,\n    catalogItemEquipments,\n    setCatalogItemEquipments,\n    cloudDbConfig,\n    setCloudDbConfig,\n    zaloConfig,\n    setZaloConfig\n  } = useCatalogData();
+  const {
+    clinicInfo,
+    setClinicInfo,
+    catalog,
+    setCatalog,
+    testPackages,
+    setTestPackages,
+    testGroups,
+    setTestGroups,
+    equipments,
+    setEquipments,
+    doctorsList,
+    setDoctorsList,
+    catalogItemEquipments,
+    setCatalogItemEquipments,
+    cloudDbConfig,
+    setCloudDbConfig,
+    zaloConfig,
+    setZaloConfig
+  } = useCatalogData();
 
   // 2. CONTEXT CONSUMPTION
   const { showToast } = useToast();

@@ -1,30 +1,44 @@
 import { useState, useMemo } from 'react';
-import { Plus, Trash2, Search, Download, Upload, Dna, FlaskConical, Layers } from 'lucide-react';
-import { CatalogItem, TestGroup, TestEquipment, ReferenceRangeItem } from '@domain/types';
-import { CODE_TO_REFERENCE_RANGE_MAP } from '@data';
-import { getAllergenScaleById } from '@domain/constants/allergenScales';
-import { exportSampleExcelCatalog, parseExcelCatalog } from '@infra/excelService';
-import GroupSearchCombobox from './GroupSearchCombobox';
-import EquipmentSearchCombobox from './EquipmentSearchCombobox';
-
-function parseAllergenOrder(code: string): number {
-  const m = code.match(/\d+/);
-  return m ? parseInt(m[0], 10) : 999;
-}
+import {
+  Plus,
+  Trash2,
+  Edit2,
+  Check,
+  X,
+  Search,
+  Settings2,
+  AlertCircle,
+  FlaskConical,
+  Scale,
+  Hash,
+  Sliders,
+  Filter,
+  CheckCircle2,
+  Circle,
+  ListOrdered
+} from 'lucide-react';
+import {
+  CatalogItem,
+  CatalogItemEquipmentLink,
+  TestEquipment,
+  TestGroup,
+  ALLERGEN_SCALES,
+  REFERENCE_RANGES,
+  computeItemEquipmentLinkKey
+} from '@domain';
 
 interface CatalogItemsTabProps {
   items: CatalogItem[];
-  setItems: React.Dispatch<React.SetStateAction<CatalogItem[]>>;
+  setItems: (items: CatalogItem[]) => void;
   groups: TestGroup[];
-  onCreateGroup: (name: string) => void;
+  onCreateGroup?: (name: string) => void;
   onDeleteGroup?: (id: string) => void;
-  equipments: TestEquipment[];
-  onCreateEquipment: (name: string) => void;
+  equipments?: TestEquipment[];
+  onCreateEquipment?: (name: string) => void;
   onDeleteEquipment?: (id: string) => void;
-  referenceRanges?: ReferenceRangeItem[];
+  catalogItemEquipments?: CatalogItemEquipmentLink[];
+  setCatalogItemEquipments?: (links: CatalogItemEquipmentLink[]) => void;
 }
-
-type ViewFilterType = 'all' | 'general' | 'allergen';
 
 export default function CatalogItemsTab({
   items,
@@ -32,525 +46,857 @@ export default function CatalogItemsTab({
   groups,
   onCreateGroup,
   onDeleteGroup,
-  equipments,
+  equipments = [],
   onCreateEquipment,
   onDeleteEquipment,
-  referenceRanges = []
+  catalogItemEquipments = [],
+  setCatalogItemEquipments
 }: CatalogItemsTabProps) {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedGroup, setSelectedGroup] = useState<string>('all');
-  const [viewFilter, setViewFilter] = useState<ViewFilterType>('all');
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [search, setSearch] = useState('');
+  const [selectedGroup, setSelectedGroup] = useState<string>('ALL');
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newEquipmentName, setNewEquipmentName] = useState('');
+  const [editingCode, setEditingCode] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Partial<CatalogItem>>({});
+  
+  // Selected item for configuring multiple equipment links
+  const [configItemCode, setConfigItemCode] = useState<string | null>(null);
 
-  const [newItem, setNewItem] = useState<CatalogItem>({
-    category: 'Sinh Hóa Máu',
+  // New item draft state
+  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [newItemForm, setNewItemForm] = useState<Partial<CatalogItem>>({
     code: '',
     name: '',
-    refMin: null,
-    refMax: null,
+    category: groups[0]?.name || 'Sinh hóa',
+    refMin: undefined,
+    refMax: undefined,
     unit: '',
     refText: '',
     price: 0,
-    equipment: 'Máy Sinh Hóa Tự Động Mindray BS-240'
+    scientific: '',
+    evaluationType: 'RANGE'
   });
 
-  const isAllergenItem = (item: CatalogItem) =>
-    (item.category && item.category.includes('Dị Nguyên')) || item.unit === 'IU/mL' || !!item.scaleId;
-
-  const allergenCount = useMemo(() => items.filter(isAllergenItem).length, [items]);
-  const generalCount = useMemo(() => items.filter((i) => !isAllergenItem(i)).length, [items]);
-
+  // Filtered list
   const filteredItems = useMemo(() => {
-    const list = items.filter((i) => {
-      const isAllergen = isAllergenItem(i);
-      if (viewFilter === 'general' && isAllergen) return false;
-      if (viewFilter === 'allergen' && !isAllergen) return false;
-
+    return items.filter((item) => {
       const matchSearch =
-        i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        i.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (i.scientific && i.scientific.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchGroup = selectedGroup === 'all' || i.category === selectedGroup;
-
+        item.code.toLowerCase().includes(search.toLowerCase()) ||
+        item.name.toLowerCase().includes(search.toLowerCase()) ||
+        (item.category && item.category.toLowerCase().includes(search.toLowerCase()));
+      const matchGroup = selectedGroup === 'ALL' || item.category === selectedGroup;
       return matchSearch && matchGroup;
     });
+  }, [items, search, selectedGroup]);
 
-    if (viewFilter === 'allergen') {
-      return [...list].sort((a, b) => {
-        const orderA = parseAllergenOrder(a.code);
-        const orderB = parseAllergenOrder(b.code);
-        return orderA - orderB;
-      });
+  // Selected item being configured with equipments
+  const activeConfigItem = useMemo(() => {
+    return items.find((i) => i.code === configItemCode) || null;
+  }, [items, configItemCode]);
+
+  // Links for active config item
+  const activeItemEquipments = useMemo(() => {
+    if (!configItemCode) return [];
+    return catalogItemEquipments.filter((l) => l.catalogCode === configItemCode);
+  }, [catalogItemEquipments, configItemCode]);
+
+  // Handle Edit Item
+  const handleStartEdit = (item: CatalogItem) => {
+    setEditingCode(item.code);
+    setEditForm({ ...item });
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingCode || !editForm.name) return;
+    const updated = items.map((item) =>
+      item.code === editingCode ? ({ ...item, ...editForm } as CatalogItem) : item
+    );
+    setItems(updated);
+    setEditingCode(null);
+    setEditForm({});
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCode(null);
+    setEditForm({});
+  };
+
+  // Handle Delete Item
+  const handleDeleteItem = (code: string) => {
+    if (window.confirm(`Bạn có chắc muốn xóa chỉ số [${code}] không?`)) {
+      setItems(items.filter((i) => i.code !== code));
+      if (setCatalogItemEquipments) {
+        setCatalogItemEquipments(catalogItemEquipments.filter((l) => l.catalogCode !== code));
+      }
+      if (configItemCode === code) setConfigItemCode(null);
     }
+  };
 
-    return list;
-  }, [items, viewFilter, searchTerm, selectedGroup]);
+  // Handle Add Item
+  const handleSaveNewItem = () => {
+    if (!newItemForm.code || !newItemForm.name) {
+      alert('Vui lòng nhập mã và tên chỉ số!');
+      return;
+    }
+    if (items.some((i) => i.code.toLowerCase() === newItemForm.code!.toLowerCase())) {
+      alert('Mã chỉ số này đã tồn tại!');
+      return;
+    }
+    const itemToAdd: CatalogItem = {
+      code: newItemForm.code.trim().toUpperCase(),
+      name: newItemForm.name.trim(),
+      category: newItemForm.category || 'Sinh hóa',
+      refMin: newItemForm.refMin ?? null,
+      refMax: newItemForm.refMax ?? null,
+      unit: newItemForm.unit || '',
+      refText: newItemForm.refText || '',
+      price: newItemForm.price || 0,
+      scientific: newItemForm.scientific || '',
+      evaluationType: newItemForm.evaluationType || 'RANGE',
+      scaleId: newItemForm.scaleId,
+      referenceRangeId: newItemForm.referenceRangeId
+    };
+    setItems([...items, itemToAdd]);
+    setIsAddingNew(false);
+    setNewItemForm({
+      code: '',
+      name: '',
+      category: groups[0]?.name || 'Sinh hóa',
+      refMin: undefined,
+      refMax: undefined,
+      unit: '',
+      refText: '',
+      price: 0,
+      scientific: '',
+      evaluationType: 'RANGE'
+    });
+  };
 
-  const handleItemChange = <K extends keyof CatalogItem>(code: string, field: K, value: CatalogItem[K]) => {
-    setItems((prev) =>
-      prev.map((item) => {
-        if (item.code === code) {
-          return { ...item, [field]: value };
+  // ── EQUIPMENT CONFIG HELPERS ──
+  const handleToggleEquipmentForActiveItem = (eqId: string) => {
+    if (!configItemCode || !setCatalogItemEquipments) return;
+    const existing = catalogItemEquipments.find(
+      (l) => l.catalogCode === configItemCode && l.equipmentId === eqId
+    );
+
+    if (existing) {
+      // Remove
+      setCatalogItemEquipments(
+        catalogItemEquipments.filter(
+          (l) => !(l.catalogCode === configItemCode && l.equipmentId === eqId)
+        )
+      );
+    } else {
+      // Add with item default values
+      const isFirst = activeItemEquipments.length === 0;
+      const newLink: CatalogItemEquipmentLink = {
+        id: computeItemEquipmentLinkKey(configItemCode, eqId),
+        catalogCode: configItemCode,
+        equipmentId: eqId,
+        refMin: activeConfigItem?.refMin ?? null,
+        refMax: activeConfigItem?.refMax ?? null,
+        unit: activeConfigItem?.unit || '',
+        refText: activeConfigItem?.refText || '',
+        scaleId: activeConfigItem?.scaleId,
+        isDefault: isFirst
+      };
+      setCatalogItemEquipments([...catalogItemEquipments, newLink]);
+    }
+  };
+
+  const handleUpdateEquipmentLink = (
+    eqId: string,
+    updates: Partial<CatalogItemEquipmentLink>
+  ) => {
+    if (!configItemCode || !setCatalogItemEquipments) return;
+    setCatalogItemEquipments(
+      catalogItemEquipments.map((l) => {
+        if (l.catalogCode === configItemCode && l.equipmentId === eqId) {
+          return { ...l, ...updates };
         }
-        return item;
+        return l;
       })
     );
   };
 
-  const handleDeleteItem = (code: string) => {
-    if (window.confirm(`Bạn có chắc muốn xóa chỉ số [${code}] khỏi danh mục?`)) {
-      setItems((prev) => prev.filter((i) => i.code !== code));
-    }
-  };
-
-  const handleAddItem = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newItem.code.trim() || !newItem.name.trim()) {
-      alert('Vui lòng nhập Mã và Tên chỉ số xét nghiệm!');
-      return;
-    }
-    if (items.some((i) => i.code.toLowerCase() === newItem.code.trim().toLowerCase())) {
-      alert(`Mã chỉ số "${newItem.code}" đã tồn tại! Vui lòng chọn mã khác.`);
-      return;
-    }
-    const created: CatalogItem = {
-      ...newItem,
-      code: newItem.code.trim().toUpperCase(),
-      name: newItem.name.trim()
-    };
-    setItems((prev) => [created, ...prev]);
-    setNewItem({
-      category: 'Sinh Hóa Máu',
-      code: '',
-      name: '',
-      refMin: null,
-      refMax: null,
-      unit: '',
-      refText: '',
-      price: 0,
-      equipment: 'Máy Sinh Hóa Tự Động Mindray BS-240'
-    });
-    setShowAddForm(false);
-  };
-
-  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      parseExcelCatalog(file).then((parsed) => {
-        if (parsed.length > 0) {
-          setItems(parsed);
-          alert(`Đã nhập thành công ${parsed.length} chỉ số từ Excel!`);
-        } else {
-          alert('Không tìm thấy dữ liệu hợp lệ trong file Excel.');
+  const handleSetDefaultEquipment = (eqId: string) => {
+    if (!configItemCode || !setCatalogItemEquipments) return;
+    setCatalogItemEquipments(
+      catalogItemEquipments.map((l) => {
+        if (l.catalogCode === configItemCode) {
+          return { ...l, isDefault: l.equipmentId === eqId };
         }
-      });
-    }
+        return l;
+      })
+    );
   };
 
   return (
-    <div className="p-4 flex-grow overflow-y-auto flex flex-col space-y-3">
-      {/* Thanh Bộ Lọc Phân Loại & Thao Tác Nhanh */}
-      <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs">
-        {/* Pills Filter */}
-        <div className="flex items-center gap-1.5 bg-slate-200/80 p-1 rounded-lg">
-          <button
-            type="button"
-            onClick={() => setViewFilter('all')}
-            className={`px-3 py-1 rounded-md font-bold transition flex items-center gap-1.5 cursor-pointer ${
-              viewFilter === 'all'
-                ? 'bg-white text-sky-800 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Tất Cả ({items.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setViewFilter('general')}
-            className={`px-3 py-1 rounded-md font-bold transition flex items-center gap-1.5 cursor-pointer ${
-              viewFilter === 'general'
-                ? 'bg-white text-sky-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <FlaskConical className="w-3.5 h-3.5 text-sky-600" />
-            <span>Chỉ Số Thường ({generalCount})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setViewFilter('allergen')}
-            className={`px-3 py-1 rounded-md font-bold transition flex items-center gap-1.5 cursor-pointer ${
-              viewFilter === 'allergen'
-                ? 'bg-white text-red-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Dna className="w-3.5 h-3.5 text-red-600" />
-            <span>Panel Dị Nguyên ({allergenCount})</span>
-          </button>
-        </div>
-
-        {/* Search & Group Filter */}
-        <div className="flex items-center gap-2 flex-grow max-w-md">
-          <div className="relative flex-grow">
-            <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-2" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Tìm kiếm mã, tên chỉ số..."
-              className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 font-semibold focus:outline-none focus:border-sky-500"
-            />
+    <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-slate-50">
+      {/* LEFT COLUMN: GROUPS & EQUIPMENT LISTS (Sidebar) */}
+      <div className="w-full md:w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 overflow-y-auto">
+        {/* Groups Management */}
+        <div className="p-3 border-b border-slate-100">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-sky-600" />
+              Nhóm Xét Nghiệm
+            </span>
+            <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">
+              {groups.length}
+            </span>
           </div>
 
-          <select
-            value={selectedGroup}
-            onChange={(e) => setSelectedGroup(e.target.value)}
-            className="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 font-bold text-slate-700 focus:outline-none focus:border-sky-500 max-w-[150px]"
-          >
-            <option value="all">Tất cả nhóm ({items.length})</option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.name}>
-                {g.name}
-              </option>
-            ))}
-          </select>
+          <div className="space-y-1">
+            <button
+              type="button"
+              onClick={() => setSelectedGroup('ALL')}
+              className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center justify-between cursor-pointer ${
+                selectedGroup === 'ALL'
+                  ? 'bg-sky-50 text-sky-700 font-bold border border-sky-200'
+                  : 'text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <span>Tất Cả Chỉ Số</span>
+              <span className="text-[10px] text-slate-400">{items.length}</span>
+            </button>
+
+            {groups.map((grp) => {
+              const count = items.filter((i) => i.category === grp.name).length;
+              return (
+                <div key={grp.id} className="group/grp flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedGroup(grp.name)}
+                    className={`flex-1 text-left px-2.5 py-1.5 rounded-lg text-xs font-medium transition truncate cursor-pointer ${
+                      selectedGroup === grp.name
+                        ? 'bg-sky-50 text-sky-700 font-bold border border-sky-200'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {grp.name}
+                  </button>
+                  <span className="text-[10px] text-slate-400 px-1.5">{count}</span>
+                  {onDeleteGroup && (
+                    <button
+                      type="button"
+                      onClick={() => onDeleteGroup(grp.id)}
+                      className="opacity-0 group-hover/grp:opacity-100 p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
+                      title="Xóa nhóm này"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Add Group */}
+          {onCreateGroup && (
+            <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex gap-1">
+              <input
+                type="text"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                placeholder="Tên nhóm mới..."
+                className="flex-1 px-2 py-1 text-xs border border-slate-200 rounded-lg focus:ring-1 focus:ring-sky-500 focus:outline-hidden"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (newGroupName.trim()) {
+                    onCreateGroup(newGroupName.trim());
+                    setNewGroupName('');
+                  }
+                }}
+                className="px-2 py-1 bg-sky-600 text-white rounded-lg text-xs font-bold hover:bg-sky-500 transition cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Buttons: Add New & Excel */}
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="flex items-center gap-1 bg-sky-600 hover:bg-sky-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-xs transition active:scale-95 cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>{showAddForm ? 'Đóng Form' : 'Thêm Chỉ Số'}</span>
-          </button>
+        {/* Equipments Management */}
+        <div className="p-3 border-b border-slate-100">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <Sliders className="w-3.5 h-3.5 text-sky-600" />
+              Danh Sách Máy Đo
+            </span>
+            <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">
+              {equipments.length}
+            </span>
+          </div>
 
-          <button
-            type="button"
-            onClick={() => exportSampleExcelCatalog()}
-            className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1.5 rounded-lg shadow-xs transition active:scale-95 cursor-pointer"
-            title="Xuất Excel danh mục"
-          >
-            <Download className="w-3.5 h-3.5" />
-          </button>
+          <div className="space-y-1">
+            {equipments.map((eq) => (
+              <div key={eq.id} className="group/eq flex items-center justify-between px-2 py-1 rounded-lg bg-slate-50 text-xs">
+                <span className="font-medium text-slate-700 truncate">{eq.name}</span>
+                {onDeleteEquipment && (
+                  <button
+                    type="button"
+                    onClick={() => onDeleteEquipment(eq.id)}
+                    className="opacity-0 group-hover/eq:opacity-100 p-0.5 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
+                    title="Xóa máy này"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
 
-          <label
-            className="flex items-center gap-1 bg-slate-700 hover:bg-slate-800 text-white font-bold px-2.5 py-1.5 rounded-lg shadow-xs transition active:scale-95 cursor-pointer"
-            title="Nhập Excel danh mục"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            <input type="file" accept=".xlsx,.xls" onChange={handleImportExcel} className="hidden" />
-          </label>
+          {/* Add Equipment */}
+          {onCreateEquipment && (
+            <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex gap-1">
+              <input
+                type="text"
+                value={newEquipmentName}
+                onChange={(e) => setNewEquipmentName(e.target.value)}
+                placeholder="Tên máy đo mới..."
+                className="flex-1 px-2 py-1 text-xs border border-slate-200 rounded-lg focus:ring-1 focus:ring-sky-500 focus:outline-hidden"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (newEquipmentName.trim()) {
+                    onCreateEquipment(newEquipmentName.trim());
+                    setNewEquipmentName('');
+                  }
+                }}
+                className="px-2 py-1 bg-sky-600 text-white rounded-lg text-xs font-bold hover:bg-sky-500 transition cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Form Thêm Chỉ Số Nhanh (Collapsible) */}
-      {showAddForm && (
-        <form onSubmit={handleAddItem} className="bg-sky-50/70 p-3 rounded-xl border border-sky-200 text-xs space-y-2 animate-in fade-in duration-100">
-          <div className="font-extrabold text-sky-900 flex items-center justify-between">
-            <span>Thêm Chỉ Số Xét Nghiệm Mới</span>
-            <span className="text-[11px] font-normal text-sky-700">Điền thông tin và bấm Lưu</span>
-          </div>
-
-          <div className="grid grid-cols-12 gap-2">
-            <div className="col-span-2">
-              <label className="block font-bold text-slate-700 mb-0.5">MÃ CODE *</label>
+      {/* MIDDLE & RIGHT AREA: MAIN ITEMS TABLE & EQUIPMENT POPUP/DRAWER */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Table Toolbar */}
+        <div className="p-3 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-2 flex-1 min-w-[200px] max-w-md">
+            <div className="relative w-full">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                value={newItem.code}
-                onChange={(e) => setNewItem({ ...newItem, code: e.target.value.toUpperCase() })}
-                placeholder="VD: GLU"
-                className="w-full bg-white border border-slate-300 rounded px-2 py-1 font-mono font-bold uppercase"
-                required
-              />
-            </div>
-            <div className="col-span-3">
-              <label className="block font-bold text-slate-700 mb-0.5">TÊN CHỈ SỐ *</label>
-              <input
-                type="text"
-                value={newItem.name}
-                onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
-                placeholder="VD: Glucose máu"
-                className="w-full bg-white border border-slate-300 rounded px-2 py-1 font-semibold"
-                required
-              />
-            </div>
-            <div className="col-span-3">
-              <label className="block font-bold text-slate-700 mb-0.5">NHÓM XÉT NGHIỆM</label>
-              <GroupSearchCombobox
-                value={newItem.category}
-                onChange={(name) => setNewItem({ ...newItem, category: name })}
-                groups={groups}
-                onCreateGroup={onCreateGroup}
-                onDeleteGroup={onDeleteGroup}
-                compact
-              />
-            </div>
-            <div className="col-span-2">
-              <label className="block font-bold text-slate-700 mb-0.5">ĐƠN VỊ</label>
-              <input
-                type="text"
-                value={newItem.unit || ''}
-                onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
-                placeholder="VD: mmol/L"
-                className="w-full bg-white border border-slate-300 rounded px-2 py-1 font-mono"
-              />
-            </div>
-            <div className="col-span-2">
-              <label className="block font-bold text-slate-700 mb-0.5">GIÁ THU (Đ)</label>
-              <input
-                type="number"
-                value={newItem.price || ''}
-                onChange={(e) => setNewItem({ ...newItem, price: parseFloat(e.target.value) || 0 })}
-                placeholder="VD: 35000"
-                className="w-full bg-white border border-slate-300 rounded px-2 py-1 font-mono font-bold text-emerald-700"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Tìm mã hoặc tên chỉ số..."
+                className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-hidden"
               />
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-1 border-t border-sky-200/60">
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setShowAddForm(false)}
-              className="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded font-bold cursor-pointer"
+              onClick={() => setIsAddingNew(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold shadow-xs transition active:scale-95 cursor-pointer"
             >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded font-bold shadow-xs cursor-pointer"
-            >
-              Lưu Chỉ Số
+              <Plus className="w-4 h-4" />
+              <span>Thêm Chỉ Số Mới</span>
             </button>
           </div>
-        </form>
-      )}
+        </div>
 
-      {/* Bảng Danh Sách Chỉ Số Thống Nhất */}
-      <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs flex-grow">
-        <div className="max-h-[500px] overflow-y-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-slate-800 text-white font-bold sticky top-0 z-10">
+        {/* Table View */}
+        <div className="flex-1 overflow-x-auto overflow-y-auto p-4">
+          <table className="w-full text-left text-xs border-collapse bg-white rounded-xl shadow-xs border border-slate-200">
+            <thead className="bg-slate-100 text-slate-700 uppercase font-bold text-[11px] sticky top-0 z-10">
               <tr>
-                <th className="p-2.5 w-10 text-center">STT</th>
-                <th className="p-2.5 w-20">MÃ CODE</th>
-                <th className="p-2.5 min-w-[160px]">TÊN CHỈ SỐ</th>
-                <th className="p-2.5 min-w-[130px]">TÊN KHOA HỌC / ALLERGEN</th>
-                <th className="p-2.5 w-36">NHÓM XÉT NGHIỆM</th>
-                <th className="p-2.5 w-36 text-center">LIÊN KẾT (THAM CHIẾU / THANG ĐO)</th>
-                <th className="p-2.5 w-20 text-center">ĐƠN VỊ</th>
-                <th className="p-2.5 w-28 text-center">HIỂN THỊ (TEXT)</th>
-                <th className="p-2.5 w-24 text-right">GIÁ THU (Đ)</th>
-                <th className="p-2.5 w-36">MÁY XỬ LÝ</th>
-                <th className="p-2.5 w-10 text-center">XÓA</th>
+                <th className="py-2.5 px-3 w-12 text-center">STT</th>
+                <th className="py-2.5 px-3 w-28">Mã</th>
+                <th className="py-2.5 px-3 min-w-[180px]">Tên Chỉ Số</th>
+                <th className="py-2.5 px-3 w-32">Nhóm</th>
+                <th className="py-2.5 px-3 w-20 text-center">Đơn Vị</th>
+                <th className="py-2.5 px-3 w-36 text-center">Tham Chiếu</th>
+                <th className="py-2.5 px-3 w-24 text-right">Giá Tiền</th>
+                <th className="py-2.5 px-3 w-28 text-center">Máy Đo</th>
+                <th className="py-2.5 px-3 w-24 text-center">Thao Tác</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 bg-white">
-              {filteredItems.length === 0 ? (
-                <tr>
-                  <td colSpan={11} className="py-8 text-center text-slate-400 italic">
-                    Không tìm thấy chỉ số xét nghiệm phù hợp
-                  </td>
-                </tr>
-              ) : (
-                filteredItems.map((item, idx) => {
-                  const isAllergen = isAllergenItem(item);
-                  const effectiveScaleId = item.scaleId || (isAllergen ? 'scale_protia_91' : undefined);
-                  const effectiveRangeId = item.referenceRangeId || CODE_TO_REFERENCE_RANGE_MAP[item.code.toUpperCase()] || '';
+            <tbody className="divide-y divide-slate-100">
+              {filteredItems.map((item, idx) => {
+                const isEditing = editingCode === item.code;
+                const eqCount = catalogItemEquipments.filter((l) => l.catalogCode === item.code).length;
+                const isConfiguring = configItemCode === item.code;
 
-                  const linkedRange = referenceRanges?.find((r) => r.id === effectiveRangeId);
-                  const linkedScale = effectiveScaleId ? getAllergenScaleById(effectiveScaleId) : undefined;
-                  const normalGrade0 = linkedScale?.levels.find((l) => l.grade === 0);
-
-                  const displayUnit = isAllergen
-                    ? (linkedScale?.unit || item.unit || 'IU/mL')
-                    : (linkedRange?.unit || item.unit || '---');
-
-                  const displayRefText = isAllergen
-                    ? (normalGrade0 ? `${normalGrade0.rangeText} (Độ 0)` : item.refText || '< 0,35 (Độ 0)')
-                    : (linkedRange?.refText || item.refText || '---');
-
+                if (isEditing) {
                   return (
-                    <tr key={item.code} className="hover:bg-slate-50">
-                      <td className="p-2 text-center font-mono text-slate-400">{idx + 1}</td>
-                      <td className={`p-2 font-mono font-bold ${isAllergen ? 'text-red-900' : 'text-sky-900'}`}>
-                        {item.code}
-                      </td>
-                      <td className="p-2 font-bold text-slate-800">
+                    <tr key={item.code} className="bg-sky-50/50">
+                      <td className="py-2 px-3 text-center font-mono">{idx + 1}</td>
+                      <td className="py-2 px-3 font-bold font-mono text-slate-800">{item.code}</td>
+                      <td className="py-2 px-3">
                         <input
                           type="text"
-                          value={item.name}
-                          onChange={(e) => handleItemChange(item.code, 'name', e.target.value)}
-                          className="w-full bg-transparent border-0 font-bold text-slate-800 focus:bg-white focus:ring-1 focus:ring-sky-500 rounded px-1"
+                          value={editForm.name || ''}
+                          onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                          className="w-full px-2 py-1 border border-slate-300 rounded text-xs"
                         />
                       </td>
-                      <td className="p-2 italic text-slate-600">
+                      <td className="py-2 px-3">
+                        <select
+                          value={editForm.category || ''}
+                          onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                          className="w-full px-2 py-1 border border-slate-300 rounded text-xs"
+                        >
+                          {groups.map((g) => (
+                            <option key={g.id} value={g.name}>
+                              {g.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="py-2 px-3">
                         <input
                           type="text"
-                          value={item.scientific || ''}
-                          onChange={(e) => handleItemChange(item.code, 'scientific', e.target.value)}
-                          placeholder="---"
-                          className="w-full bg-transparent border-0 italic text-slate-600 focus:bg-white focus:ring-1 focus:ring-sky-500 rounded px-1"
+                          value={editForm.unit || ''}
+                          onChange={(e) => setEditForm({ ...editForm, unit: e.target.value })}
+                          className="w-full px-2 py-1 border border-slate-300 rounded text-xs text-center"
                         />
                       </td>
-                      <td className="p-2">
-                        <GroupSearchCombobox
-                          value={item.category}
-                          onChange={(name) => handleItemChange(item.code, 'category', name)}
-                          groups={groups}
-                          onCreateGroup={onCreateGroup}
-                          onDeleteGroup={onDeleteGroup}
-                          compact
+                      <td className="py-2 px-3 text-center">
+                        <div className="flex gap-1">
+                          <input
+                            type="number"
+                            step="any"
+                            placeholder="Min"
+                            value={editForm.refMin ?? ''}
+                            onChange={(e) =>
+                              setEditForm({
+                                ...editForm,
+                                refMin: e.target.value === '' ? null : parseFloat(e.target.value)
+                              })
+                            }
+                            className="w-1/2 px-1 py-1 border border-slate-300 rounded text-xs text-center"
+                          />
+                          <input
+                            type="number"
+                            step="any"
+                            placeholder="Max"
+                            value={editForm.refMax ?? ''}
+                            onChange={(e) =>
+                              setEditForm({
+                                ...editForm,
+                                refMax: e.target.value === '' ? null : parseFloat(e.target.value)
+                              })
+                            }
+                            className="w-1/2 px-1 py-1 border border-slate-300 rounded text-xs text-center"
+                          />
+                        </div>
+                      </td>
+                      <td className="py-2 px-3">
+                        <input
+                          type="number"
+                          value={editForm.price ?? 0}
+                          onChange={(e) =>
+                            setEditForm({
+                              ...editForm,
+                              price: e.target.value === '' ? 0 : parseFloat(e.target.value)
+                            })
+                          }
+                          className="w-full px-2 py-1 border border-slate-300 rounded text-xs text-right"
                         />
                       </td>
-                      
-                      {/* LIÊN KẾT 1 TRONG 2: DỊ NGUYÊN -> THANG ĐO | THƯỜNG -> THAM CHIẾU */}
-                      <td className="p-2 text-center">
-                        {isAllergen ? (
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-1 rounded">
-                              Thang
-                            </span>
-                            <select
-                              value={effectiveScaleId || 'scale_protia_91'}
-                              onChange={(e) => {
-                                const scaleId = e.target.value;
-                                setItems((prev) =>
-                                  prev.map((it) =>
-                                    it.code === item.code
-                                      ? {
-                                          ...it,
-                                          scaleId,
-                                          referenceRangeId: undefined,
-                                          evaluationType: 'scale'
-                                        }
-                                      : it
-                                  )
-                                );
-                              }}
-                              className="bg-red-50/50 border border-red-200 rounded px-1 py-0.5 text-red-900 font-semibold text-[11px] focus:outline-none focus:border-red-500 flex-grow"
-                            >
-                              <option value="scale_protia_91">Protia 91 (Độ 0-6)</option>
-                              <option value="scale_allergen_44">Gói 44 (Độ 0-6)</option>
-                            </select>
+                      <td className="py-2 px-3 text-center font-bold text-slate-400">--</td>
+                      <td className="py-2 px-3 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={handleSaveEdit}
+                            className="p-1 text-emerald-600 hover:bg-emerald-100 rounded cursor-pointer"
+                            title="Lưu"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCancelEdit}
+                            className="p-1 text-slate-400 hover:bg-slate-200 rounded cursor-pointer"
+                            title="Hủy"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+
+                return (
+                  <tr
+                    key={item.code}
+                    className={`hover:bg-slate-50 transition ${
+                      isConfiguring ? 'bg-sky-50/80 border-l-4 border-l-sky-600' : ''
+                    }`}
+                  >
+                    <td className="py-2.5 px-3 text-center text-slate-400 font-mono">{idx + 1}</td>
+                    <td className="py-2.5 px-3 font-mono font-bold text-slate-900">{item.code}</td>
+                    <td className="py-2.5 px-3 font-semibold text-slate-800">{item.name}</td>
+                    <td className="py-2.5 px-3 text-slate-600">{item.category}</td>
+                    <td className="py-2.5 px-3 text-center text-slate-600 font-medium">{item.unit || '-'}</td>
+                    <td className="py-2.5 px-3 text-center text-slate-600">
+                      {item.refMin !== null && item.refMax !== null
+                        ? `${item.refMin} - ${item.refMax}`
+                        : item.refText || '-'}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-bold text-slate-800">
+                      {item.price ? item.price.toLocaleString('vi-VN') + ' đ' : '-'}
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setConfigItemCode(isConfiguring ? null : item.code)}
+                        className={`px-2 py-1 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 mx-auto cursor-pointer ${
+                          eqCount > 0
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        <Sliders className="w-3 h-3" />
+                        <span>{eqCount} máy</span>
+                      </button>
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleStartEdit(item)}
+                          className="p-1 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded transition cursor-pointer"
+                          title="Sửa thông tin"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteItem(item.code)}
+                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+                          title="Xóa chỉ số"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* EQUIPMENT CONFIG DRAWER (When an item is selected for machine config) */}
+        {activeConfigItem && (
+          <div className="border-t-2 border-sky-500 bg-white p-4 shadow-lg shrink-0 max-h-72 overflow-y-auto">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-sky-600" />
+                <span className="font-bold text-sm text-slate-800">
+                  Cấu Hình Máy Đo Cho Chỉ Số: <span className="font-mono text-sky-700">{activeConfigItem.code}</span> - {activeConfigItem.name}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConfigItemCode(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {equipments.map((eq) => {
+                const link = activeItemEquipments.find((l) => l.equipmentId === eq.id);
+                const isLinked = !!link;
+                const isDefault = link?.isDefault || false;
+
+                // Mode: SCALE if scaleId is present, else RANGE
+                const currentMode = link?.scaleId ? 'SCALE' : 'RANGE';
+
+                return (
+                  <div
+                    key={eq.id}
+                    className={`p-3 rounded-xl border transition flex flex-col md:flex-row md:items-center justify-between gap-3 ${
+                      isLinked ? 'bg-sky-50/40 border-sky-200' : 'bg-slate-50 border-slate-200 opacity-70'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-[200px]">
+                      <input
+                        type="checkbox"
+                        checked={isLinked}
+                        onChange={() => handleToggleEquipmentForActiveItem(eq.id)}
+                        className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 cursor-pointer"
+                      />
+                      <div>
+                        <span className="font-bold text-xs text-slate-800">{eq.name}</span>
+                        {isDefault && (
+                          <span className="ml-2 px-1.5 py-0.2 text-[10px] font-bold bg-emerald-100 text-emerald-700 rounded">
+                            Mặc định
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {isLinked && link && (
+                      <div className="flex-1 flex flex-wrap items-center gap-3">
+                        {/* Switcher Mode: Khoảng Số (Min-Max) vs Thang Đo Dương Tính (Scale) */}
+                        <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-2xs">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateEquipmentLink(eq.id, { scaleId: undefined })}
+                            className={`px-2 py-1 rounded text-[11px] font-bold transition cursor-pointer flex items-center gap-1 ${
+                              currentMode === 'RANGE'
+                                ? 'bg-sky-600 text-white shadow-xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            <Hash className="w-3 h-3" />
+                            <span>Min-Max</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleUpdateEquipmentLink(eq.id, {
+                                scaleId: ALLERGEN_SCALES[0]?.id || 'scale_allergen_default'
+                              })
+                            }
+                            className={`px-2 py-1 rounded text-[11px] font-bold transition cursor-pointer flex items-center gap-1 ${
+                              currentMode === 'SCALE'
+                                ? 'bg-sky-600 text-white shadow-xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            <Scale className="w-3 h-3" />
+                            <span>Thang Độ</span>
+                          </button>
+                        </div>
+
+                        {currentMode === 'RANGE' ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              step="any"
+                              placeholder="Min"
+                              value={link.refMin ?? ''}
+                              onChange={(e) =>
+                                handleUpdateEquipmentLink(eq.id, {
+                                  refMin: e.target.value === '' ? null : parseFloat(e.target.value)
+                                })
+                              }
+                              className="w-16 px-2 py-1 bg-white border border-slate-200 rounded text-xs text-center"
+                            />
+                            <span className="text-slate-400">-</span>
+                            <input
+                              type="number"
+                              step="any"
+                              placeholder="Max"
+                              value={link.refMax ?? ''}
+                              onChange={(e) =>
+                                handleUpdateEquipmentLink(eq.id, {
+                                  refMax: e.target.value === '' ? null : parseFloat(e.target.value)
+                                })
+                              }
+                              className="w-16 px-2 py-1 bg-white border border-slate-200 rounded text-xs text-center"
+                            />
+                            <input
+                              type="text"
+                              placeholder="Đơn vị"
+                              value={link.unit || ''}
+                              onChange={(e) => handleUpdateEquipmentLink(eq.id, { unit: e.target.value })}
+                              className="w-20 px-2 py-1 bg-white border border-slate-200 rounded text-xs text-center"
+                            />
                           </div>
                         ) : (
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-1 rounded">
-                              Ref
-                            </span>
+                          <div className="flex items-center gap-2">
                             <select
-                              value={effectiveRangeId}
-                              onChange={(e) => {
-                                const rangeId = e.target.value;
-                                if (!rangeId) {
-                                  handleItemChange(item.code, 'referenceRangeId', undefined);
-                                } else {
-                                  const range = referenceRanges?.find((r) => r.id === rangeId);
-                                  if (range) {
-                                    setItems((prev) =>
-                                      prev.map((it) =>
-                                        it.code === item.code
-                                          ? {
-                                              ...it,
-                                              referenceRangeId: range.id,
-                                              scaleId: undefined,
-                                              evaluationType: 'range',
-                                              refMin: range.refMin,
-                                              refMax: range.refMax,
-                                              unit: range.unit || it.unit,
-                                              refText: range.refText || it.refText
-                                            }
-                                          : it
-                                      )
-                                    );
-                                  }
-                                }
-                              }}
-                              className="bg-sky-50/50 border border-sky-200 rounded px-1 py-0.5 text-slate-800 font-semibold text-[11px] focus:outline-none focus:border-sky-500 flex-grow"
+                              value={link.scaleId || ''}
+                              onChange={(e) => handleUpdateEquipmentLink(eq.id, { scaleId: e.target.value })}
+                              className="px-2 py-1 bg-white border border-slate-200 rounded text-xs"
                             >
-                              <option value="">-- Tùy chỉnh --</option>
-                              {referenceRanges?.map((r) => (
-                                <option key={r.id} value={r.id}>
-                                  {r.name} ({r.refText})
+                              {ALLERGEN_SCALES.map((sc) => (
+                                <option key={sc.id} value={sc.id}>
+                                  {sc.name}
                                 </option>
                               ))}
                             </select>
                           </div>
                         )}
-                      </td>
 
-                      <td className="p-2 text-center font-mono">
-                        {isAllergen || linkedRange ? (
-                          <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded">
-                            {displayUnit}
-                          </span>
-                        ) : (
-                          <input
-                            type="text"
-                            value={item.unit || ''}
-                            onChange={(e) => handleItemChange(item.code, 'unit', e.target.value)}
-                            placeholder="Đơn vị..."
-                            className="w-full bg-transparent border-0 text-center font-mono text-slate-700 focus:bg-white focus:ring-1 focus:ring-sky-500 rounded px-1"
-                          />
-                        )}
-                      </td>
-                      <td className="p-2 text-center font-mono">
-                        {isAllergen || linkedRange ? (
-                          <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded">
-                            {displayRefText}
-                          </span>
-                        ) : (
-                          <input
-                            type="text"
-                            value={item.refText || ''}
-                            onChange={(e) => handleItemChange(item.code, 'refText', e.target.value)}
-                            placeholder="Tham chiếu..."
-                            className="w-full bg-transparent border-0 text-center font-mono text-slate-700 focus:bg-white focus:ring-1 focus:ring-sky-500 rounded px-1"
-                          />
-                        )}
-                      </td>
-                      <td className="p-2 text-right">
-                        <input
-                          type="number"
-                          value={item.price || ''}
-                          onChange={(e) => handleItemChange(item.code, 'price', parseFloat(e.target.value) || 0)}
-                          className="w-full bg-transparent border-0 text-right font-mono font-bold text-emerald-700 focus:bg-white focus:ring-1 focus:ring-sky-500 rounded px-1"
-                        />
-                      </td>
-                      <td className="p-2">
-                        <EquipmentSearchCombobox
-                          value={item.equipment || (isAllergen ? 'Máy Đọc Dị Nguyên PROTIA Smart Analyzer' : 'Máy Sinh Hóa Tự Động Mindray BS-240')}
-                          onChange={(name) => handleItemChange(item.code, 'equipment', name)}
-                          equipments={equipments}
-                          onCreateEquipment={onCreateEquipment}
-                          onDeleteEquipment={onDeleteEquipment}
-                          compact
-                        />
-                      </td>
-                      <td className="p-2 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteItem(item.code)}
-                          className="p-1 text-slate-400 hover:text-red-600 rounded transition cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                        <div className="flex items-center gap-2 ml-auto">
+                          {!isDefault && (
+                            <button
+                              type="button"
+                              onClick={() => handleSetDefaultEquipment(eq.id)}
+                              className="px-2 py-1 text-[11px] font-semibold text-slate-600 hover:text-emerald-700 bg-white border border-slate-200 rounded hover:bg-slate-50 cursor-pointer"
+                            >
+                              Đặt làm mặc định
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* MODAL: ADD NEW ITEM */}
+      {isAddingNew && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
+              <span className="font-bold text-sm flex items-center gap-2">
+                <Plus className="w-4 h-4 text-sky-400" />
+                Thêm Chỉ Số Xét Nghiệm Mới
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsAddingNew(false)}
+                className="text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Mã Chỉ Số *</label>
+                  <input
+                    type="text"
+                    value={newItemForm.code || ''}
+                    onChange={(e) => setNewItemForm({ ...newItemForm, code: e.target.value.toUpperCase() })}
+                    placeholder="VD: GLU, UREA, TIGE..."
+                    className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Nhóm Xét Nghiệm</label>
+                  <select
+                    value={newItemForm.category || ''}
+                    onChange={(e) => setNewItemForm({ ...newItemForm, category: e.target.value })}
+                    className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500"
+                  >
+                    {groups.map((g) => (
+                      <option key={g.id} value={g.name}>
+                        {g.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Tên Chỉ Số *</label>
+                <input
+                  type="text"
+                  value={newItemForm.name || ''}
+                  onChange={(e) => setNewItemForm({ ...newItemForm, name: e.target.value })}
+                  placeholder="VD: Glucose, Định lượng Ure máu..."
+                  className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Ngưỡng Min</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={newItemForm.refMin ?? ''}
+                    onChange={(e) =>
+                      setNewItemForm({
+                        ...newItemForm,
+                        refMin: e.target.value === '' ? undefined : parseFloat(e.target.value)
+                      })
+                    }
+                    placeholder="VD: 3.9"
+                    className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-xl text-center"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Ngưỡng Max</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={newItemForm.refMax ?? ''}
+                    onChange={(e) =>
+                      setNewItemForm({
+                        ...newItemForm,
+                        refMax: e.target.value === '' ? undefined : parseFloat(e.target.value)
+                      })
+                    }
+                    placeholder="VD: 6.4"
+                    className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-xl text-center"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Đơn Vị</label>
+                  <input
+                    type="text"
+                    value={newItemForm.unit || ''}
+                    onChange={(e) => setNewItemForm({ ...newItemForm, unit: e.target.value })}
+                    placeholder="mmol/L..."
+                    className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-xl text-center"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Giá Tiền (VNĐ)</label>
+                  <input
+                    type="number"
+                    value={newItemForm.price ?? ''}
+                    onChange={(e) =>
+                      setNewItemForm({
+                        ...newItemForm,
+                        price: e.target.value === '' ? 0 : parseFloat(e.target.value)
+                      })
+                    }
+                    placeholder="VD: 40000"
+                    className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Tên Khoa Học (nếu có)</label>
+                  <input
+                    type="text"
+                    value={newItemForm.scientific || ''}
+                    onChange={(e) => setNewItemForm({ ...newItemForm, scientific: e.target.value })}
+                    placeholder="VD: Dermatophagoides pteronyssinus"
+                    className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-xl"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsAddingNew(false)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveNewItem}
+                className="px-4 py-2 text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white rounded-xl shadow-xs transition cursor-pointer"
+              >
+                Lưu Chỉ Số
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
