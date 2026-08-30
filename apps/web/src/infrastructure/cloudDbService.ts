@@ -10,7 +10,8 @@ import {
   Invoice,
   MedicalReport,
   ZaloZnsConfig,
-  ReferenceRangeItem
+  ReferenceRangeItem,
+  AllergenGradingScale
 } from '@domain/types';
 import { getTable, putTable, ApiAuthError } from './apiClient';
 
@@ -26,7 +27,8 @@ const LEGACY_KEY_TO_API: Record<string, string> = {
   'zalo_config': 'zalo-config',
   'recent_tests': 'recent_tests',
   'reference_ranges': 'reference-ranges',
-  'catalog_item_equipments': 'catalog-item-equipments'
+  'catalog_item_equipments': 'catalog-item-equipments',
+  'allergen_scales': 'allergen-scales'
 };
 const DOC_TABLES = new Set(['medical-reports', 'invoices']);
 const SINGLE_OBJECT_TABLES = new Set(['clinic-info', 'zalo-config']);
@@ -266,6 +268,14 @@ export async function fetchCatalogItemEquipmentsFromSupabase(config: CloudDbConf
 
 export async function syncCatalogItemEquipmentsToSupabase(links: CatalogItemEquipmentLink[], config: CloudDbConfig): Promise<boolean> {
   return syncTableToCloud('catalog_item_equipments', links, config);
+}
+
+export async function fetchScalesFromSupabase(config: CloudDbConfig): Promise<AllergenGradingScale[] | null> {
+  return fetchTableFromCloud<AllergenGradingScale[]>('allergen_scales', config);
+}
+
+export async function syncScalesToSupabase(scales: AllergenGradingScale[], config: CloudDbConfig): Promise<boolean> {
+  return syncTableToCloud('allergen_scales', scales, config);
 }
 
 /**

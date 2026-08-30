@@ -14,12 +14,15 @@ export const catalogItems = pgTable('catalog_items', {
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 
-/** Bảng trung gian: 1 chỉ số xét nghiệm × nhiều loại máy đo → mỗi máy có reference_range/scale riêng */
+/** Bảng cấu hình thiết bị: 1 chỉ số xét nghiệm × nhiều loại máy đo → mỗi máy có ngưỡng đo (ref_min, ref_max, ref_text, unit, scale_id) riêng */
 export const catalogItemEquipments = pgTable('catalog_item_equipments', {
   id: text('id').primaryKey(),
   catalogCode: text('catalog_code').notNull(),
   equipmentId: text('equipment_id').notNull(),
-  referenceRangeId: text('reference_range_id'),
+  refMin: real('ref_min'),
+  refMax: real('ref_max'),
+  unit: text('unit'),
+  refText: text('ref_text'),
   scaleId: text('scale_id'),
   isDefault: boolean('is_default').notNull().default(false),
   updatedAt: timestamp('updated_at').notNull().defaultNow()
@@ -28,6 +31,7 @@ export const catalogItemEquipments = pgTable('catalog_item_equipments', {
 export const testPackages = pgTable('test_packages', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
+  defaultEquipmentId: text('default_equipment_id'),
   /** Mảng JSON [{code, equipmentId}] — thay thế cột codes cũ */
   items: jsonb('items').notNull().$type<{ code: string; equipmentId?: string | null }[]>(),
   price: real('price').notNull().default(0),
@@ -99,6 +103,15 @@ export const referenceRanges = pgTable('reference_ranges', {
   gender: text('gender'),
   ageGroup: text('age_group'),
   note: text('note'),
+  updatedAt: timestamp('updated_at').notNull().defaultNow()
+});
+
+export const allergenScales = pgTable('allergen_scales', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  equipment: text('equipment'),
+  unit: text('unit').notNull().default('IU/ml'),
+  levels: jsonb('levels').notNull().$type<unknown[]>(),
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 

@@ -10,6 +10,7 @@ export const TABLE_NAMES = [
   'zalo-config',
   'reference-ranges',
   'catalog-item-equipments',
+  'allergen-scales',
   'medical-reports',
   'invoices'
 ] as const;
@@ -40,6 +41,7 @@ export const packageItemSchema = z.object({
 export const testPackageRowSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
+  defaultEquipmentId: z.string().nullable().optional(),
   items: z.array(packageItemSchema).default([]),
   /** @deprecated backward compat — sẽ bị bỏ sau migration hoàn tất */
   codes: z.array(z.string()).optional(),
@@ -111,9 +113,31 @@ export const catalogItemEquipmentRowSchema = z.object({
   id: z.string().min(1),
   catalogCode: z.string().min(1),
   equipmentId: z.string().min(1),
-  referenceRangeId: z.string().nullable().optional(),
+  refMin: z.number().nullable().optional(),
+  refMax: z.number().nullable().optional(),
+  unit: z.string().nullable().optional(),
+  refText: z.string().nullable().optional(),
   scaleId: z.string().nullable().optional(),
   isDefault: z.boolean().optional().default(false)
+});
+
+/** Zod schema cho bảng allergen_scales */
+export const allergenScaleLevelSchema = z.object({
+  grade: z.number(),
+  minVal: z.number(),
+  maxVal: z.number().nullable(),
+  rangeText: z.string(),
+  label: z.string(),
+  isPositive: z.boolean(),
+  colorKey: z.string().optional()
+});
+
+export const allergenScaleRowSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  equipment: z.string().optional(),
+  unit: z.string().default('IU/ml'),
+  levels: z.array(allergenScaleLevelSchema).default([])
 });
 
 export const documentRowSchema = z.object({ id: z.string().min(1) }).passthrough();
@@ -128,6 +152,7 @@ export const ROW_SCHEMAS: Record<TableName, z.ZodTypeAny> = {
   'zalo-config': zaloConfigRowSchema,
   'reference-ranges': referenceRangeRowSchema,
   'catalog-item-equipments': catalogItemEquipmentRowSchema,
+  'allergen-scales': allergenScaleRowSchema,
   'medical-reports': documentRowSchema,
   invoices: documentRowSchema
 };

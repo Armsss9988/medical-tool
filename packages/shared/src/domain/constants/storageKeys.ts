@@ -13,7 +13,8 @@ export const STORAGE_KEYS = {
   ZALO_CONFIG: 'zaloConfig',
   RECENT_TESTS: 'recent_tests',
   REFERENCE_RANGES: 'referenceRanges',
-  CATALOG_ITEM_EQUIPMENTS: 'catalogItemEquipments'
+  CATALOG_ITEM_EQUIPMENTS: 'catalogItemEquipments',
+  ALLERGEN_SCALES: 'allergenScales'
 } as const;
 
 export type StorageKey = typeof STORAGE_KEYS[keyof typeof STORAGE_KEYS];

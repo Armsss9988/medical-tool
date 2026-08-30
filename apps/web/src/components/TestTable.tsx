@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { TestTube, Plus, Trash2, Search, Layers, Sparkles, X, ClipboardPaste, Clock, Keyboard } from 'lucide-react';
+import { TestTube, Plus, Trash2, Search, Layers, Sparkles, X, ClipboardPaste, Clock, Keyboard, ChevronUp, ChevronDown } from 'lucide-react';
 import { evaluateTestIndicator } from '@domain/testResult';
 import { getAllergenScaleById } from '@domain/constants/allergenScales';
 import { getReferenceRangeById, autoResolveItemLinks } from '@data';
@@ -46,6 +46,28 @@ export default function TestTable({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const resultInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
   const bulkTextAreaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleMoveTestUp = (index: number) => {
+    if (index <= 0) return;
+    setSelectedTests((prev) => {
+      const next = [...prev];
+      const temp = next[index];
+      next[index] = next[index - 1];
+      next[index - 1] = temp;
+      return next;
+    });
+  };
+
+  const handleMoveTestDown = (index: number) => {
+    if (index >= selectedTests.length - 1) return;
+    setSelectedTests((prev) => {
+      const next = [...prev];
+      const temp = next[index];
+      next[index] = next[index + 1];
+      next[index + 1] = temp;
+      return next;
+    });
+  };
 
   // Reset highlighted index when search term changes
   useEffect(() => {
@@ -186,8 +208,11 @@ export default function TestTable({
           const resolved = autoResolveItemLinks(item);
           const isTIgE = resolved.code.toLowerCase() === 'tige';
           const isAllergenItem = !isTIgE && (resolved.category?.includes('Dị Nguyên') || resolved.unit === 'IU/mL' || !!resolved.scaleId);
+          const pkgItem = (pkg.items || []).find((pi) => pi.code?.trim().toLowerCase() === item.code.trim().toLowerCase());
+
           return {
             ...resolved,
+            equipment: pkgItem?.equipmentId || resolved.equipment,
             result: '',
             note: isTIgE ? 'Bình thường' : isAllergenItem ? 'Âm tính (Độ 0)' : 'Bình thường'
           };
@@ -572,7 +597,7 @@ export default function TestTable({
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-slate-800 text-white font-bold sticky top-0 z-10">
               <tr>
-                <th className="py-2.5 px-3 w-8 text-center">STT</th>
+                <th className="py-2.5 px-2 w-14 text-center">STT</th>
                 <th className="py-2.5 px-3 min-w-[140px]">TÊN CHỈ SỐ</th>
                 <th className="py-2.5 px-2.5 w-28 text-center">
                   KẾT QUẢ
@@ -613,7 +638,31 @@ export default function TestTable({
                         isAbnormal ? 'bg-amber-50/40' : ''
                       }`}
                     >
-                      <td className="py-2 px-3 text-center font-mono text-slate-400">{idx + 1}</td>
+                      <td className="py-2 px-1 text-center font-mono text-slate-400">
+                        <div className="flex items-center justify-center gap-0.5">
+                          <span className="text-[11px] font-bold text-slate-600 w-4">{idx + 1}</span>
+                          <div className="flex flex-col -space-y-1">
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => handleMoveTestUp(idx)}
+                              className="text-slate-400 hover:text-sky-600 disabled:opacity-20 disabled:hover:text-slate-400 p-0.5 transition cursor-pointer"
+                              title="Đẩy chỉ số lên trên"
+                            >
+                              <ChevronUp className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === selectedTests.length - 1}
+                              onClick={() => handleMoveTestDown(idx)}
+                              className="text-slate-400 hover:text-sky-600 disabled:opacity-20 disabled:hover:text-slate-400 p-0.5 transition cursor-pointer"
+                              title="Đẩy chỉ số xuống dưới"
+                            >
+                              <ChevronDown className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      </td>
                       <td className="py-2 px-3">
                         <span className="font-bold text-slate-900 block">{t.name}</span>
                         <div className="flex items-center space-x-1.5 mt-0.5">

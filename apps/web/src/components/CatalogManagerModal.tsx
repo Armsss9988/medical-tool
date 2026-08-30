@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Save, Layers, Stethoscope, Sliders, FlaskConical } from 'lucide-react';
+import { X, Save, Layers, Stethoscope, FlaskConical, Activity } from 'lucide-react';
 import { autoResolveItemLinks } from '@data';
-import { CatalogItem, TestPackage, TestGroup, TestEquipment, Doctor, ReferenceRangeItem, CATALOG_TAB, CatalogTabType } from '@domain';
+import { CatalogItem, CatalogItemEquipmentLink, TestPackage, TestGroup, TestEquipment, Doctor, AllergenGradingScale, DEFAULT_ALLERGEN_SCALES, CATALOG_TAB, CatalogTabType } from '@domain';
 import CatalogItemsTab from './catalogManager/CatalogItemsTab';
 import TestPackagesTab from './catalogManager/TestPackagesTab';
 import DoctorsTab from './catalogManager/DoctorsTab';
-import { ReferenceRangesTab } from './catalogManager/ReferenceRangesTab';
+import ScalesTab from './catalogManager/ScalesTab';
 
 interface CatalogManagerModalProps {
   isOpen: boolean;
@@ -21,8 +21,10 @@ interface CatalogManagerModalProps {
   onSaveEquipments?: (newEquipments: TestEquipment[]) => void;
   doctorsList?: Doctor[];
   onSaveDoctors?: (newDoctors: Doctor[]) => void;
-  referenceRanges?: ReferenceRangeItem[];
-  onSaveReferenceRanges?: (newRanges: ReferenceRangeItem[]) => void;
+  catalogItemEquipments?: CatalogItemEquipmentLink[];
+  onSaveCatalogItemEquipments?: (links: CatalogItemEquipmentLink[]) => void;
+  allergenScales?: AllergenGradingScale[];
+  onSaveScales?: (scales: AllergenGradingScale[]) => void;
 }
 
 export default function CatalogManagerModal({ 
@@ -39,8 +41,10 @@ export default function CatalogManagerModal({
   onSaveEquipments,
   doctorsList = [],
   onSaveDoctors,
-  referenceRanges = [],
-  onSaveReferenceRanges
+  catalogItemEquipments = [],
+  onSaveCatalogItemEquipments,
+  allergenScales = DEFAULT_ALLERGEN_SCALES,
+  onSaveScales
 }: CatalogManagerModalProps) {
   const [activeTab, setActiveTab] = useState<CatalogTabType>(targetTab || CATALOG_TAB.INDICATORS);
   const [items, setItems] = useState<CatalogItem[]>(catalog);
@@ -48,7 +52,8 @@ export default function CatalogManagerModal({
   const [groups, setGroups] = useState<TestGroup[]>(testGroups);
   const [eqList, setEqList] = useState<TestEquipment[]>(equipments);
   const [docsList, setDocsList] = useState<Doctor[]>(doctorsList);
-  const [refRanges, setRefRanges] = useState<ReferenceRangeItem[]>(referenceRanges);
+  const [itemEquipments, setItemEquipments] = useState<CatalogItemEquipmentLink[]>(catalogItemEquipments);
+  const [scalesList, setScalesList] = useState<AllergenGradingScale[]>(allergenScales);
 
   const prevIsOpenRef = useRef(false);
 
@@ -60,11 +65,12 @@ export default function CatalogManagerModal({
       setGroups(testGroups);
       setEqList(equipments);
       setDocsList(doctorsList);
-      setRefRanges(referenceRanges);
+      setItemEquipments(catalogItemEquipments);
+      setScalesList(allergenScales && allergenScales.length > 0 ? allergenScales : DEFAULT_ALLERGEN_SCALES);
       setActiveTab(targetTab || CATALOG_TAB.INDICATORS);
     }
     prevIsOpenRef.current = isOpen;
-  }, [isOpen, catalog, testPackages, testGroups, equipments, doctorsList, referenceRanges, targetTab]);
+  }, [isOpen, catalog, testPackages, testGroups, equipments, doctorsList, catalogItemEquipments, allergenScales, targetTab]);
 
   // Nếu targetTab thay đổi từ bên ngoài khi modal đang mở, cập nhật activeTab tương ứng
   const prevTargetTabRef = useRef(targetTab);
@@ -111,7 +117,8 @@ export default function CatalogManagerModal({
     if (onSaveTestGroups) onSaveTestGroups(groups);
     if (onSaveEquipments) onSaveEquipments(eqList);
     if (onSaveDoctors) onSaveDoctors(docsList);
-    if (onSaveReferenceRanges) onSaveReferenceRanges(refRanges);
+    if (onSaveCatalogItemEquipments) onSaveCatalogItemEquipments(itemEquipments);
+    if (onSaveScales) onSaveScales(scalesList);
     onClose();
   };
 
@@ -129,11 +136,11 @@ export default function CatalogManagerModal({
               <h3 className="font-extrabold text-base tracking-wide flex items-center gap-2">
                 Quản Lý Danh Mục Xét Nghiệm & Bác Sĩ
                 <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-400/30 px-2 py-0.5 rounded">
-                  {items.length} Chỉ Số • {packages.length} Gói • {refRanges.length} Tham Chiếu
+                  {items.length} Chỉ Số • {packages.length} Gói • {scalesList.length} Thang Đo • {eqList.length} Máy
                 </span>
               </h3>
               <p className="text-xs text-slate-400">
-                Tùy biến chỉ số, gói xét nghiệm, khoảng tham chiếu, thang đo độ dương tính và bác sĩ chỉ định
+                Tùy biến chỉ số, gói xét nghiệm, thiết bị đo, khoảng tham chiếu, thang đo độ dương tính và bác sĩ chỉ định
               </p>
             </div>
           </div>
@@ -187,15 +194,15 @@ export default function CatalogManagerModal({
 
           <button
             type="button"
-            onClick={() => setActiveTab('REFERENCE_RANGES')}
+            onClick={() => setActiveTab('SCALES')}
             className={`px-4 py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-2 cursor-pointer ${
-              activeTab === 'REFERENCE_RANGES'
-                ? 'bg-white border-slate-200 text-sky-700 shadow-xs'
+              activeTab === 'SCALES'
+                ? 'bg-white border-slate-200 text-amber-700 shadow-xs'
                 : 'bg-transparent border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
             }`}
           >
-            <Sliders className="w-3.5 h-3.5 text-sky-600" />
-            <span>3. Bảng Tham Chiếu ({refRanges.length})</span>
+            <Activity className="w-3.5 h-3.5" />
+            <span>3. Thang Đo &amp; Phân Độ ({scalesList.length})</span>
           </button>
 
           <button
@@ -208,7 +215,7 @@ export default function CatalogManagerModal({
             }`}
           >
             <Stethoscope className="w-3.5 h-3.5" />
-            <span>4. Bác Sĩ & Chuyên Gia ({docsList.length})</span>
+            <span>4. Bác Sĩ &amp; Chuyên Gia ({docsList.length})</span>
           </button>
         </div>
 
@@ -223,7 +230,9 @@ export default function CatalogManagerModal({
             equipments={eqList}
             onCreateEquipment={handleCreateEquipment}
             onDeleteEquipment={handleDeleteEquipment}
-            referenceRanges={refRanges}
+            catalogItemEquipments={itemEquipments}
+            setCatalogItemEquipments={setItemEquipments}
+            scales={scalesList}
           />
         )}
 
@@ -233,14 +242,17 @@ export default function CatalogManagerModal({
             items={items}
             packages={packages}
             setPackages={setPackages}
+            equipments={eqList}
+            catalogItemEquipments={itemEquipments}
           />
         )}
 
-        {/* TAB 3: BẢNG THAM CHIẾU */}
-        {activeTab === 'REFERENCE_RANGES' && (
-          <ReferenceRangesTab
-            referenceRanges={refRanges}
-            setReferenceRanges={setRefRanges}
+        {/* TAB 3: THANG ĐO PHÂN ĐỘ */}
+        {activeTab === 'SCALES' && (
+          <ScalesTab
+            scales={scalesList}
+            setScales={setScalesList}
+            equipments={eqList}
           />
         )}
 
@@ -277,3 +289,4 @@ export default function CatalogManagerModal({
     </div>
   );
 }
+

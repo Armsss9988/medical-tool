@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Activity, ListChecks, TrendingUp, FolderOpen, Clock, Phone, ShieldCheck, ClipboardList, Package, Menu, X } from 'lucide-react';
+import { Settings, Activity, ListChecks, TrendingUp, FolderOpen, Clock, Phone, ShieldCheck, ClipboardList, Package, Menu, X, Sparkles } from 'lucide-react';
 import { ClinicInfo, CatalogItem } from '@domain/types';
 
 interface HeaderProps {
@@ -12,6 +12,7 @@ interface HeaderProps {
   onOpenRevenueModal: () => void;
   onOpenReportManagerModal: () => void;
   onOpenBatchExportModal?: () => void;
+  onOpenAiSmartFill?: () => void;
   onOpenDataFolder: () => void;
   invoiceCount?: number;
   reportCount?: number;
@@ -24,6 +25,7 @@ export default function Header({
   onOpenRevenueModal,
   onOpenReportManagerModal,
   onOpenBatchExportModal,
+  onOpenAiSmartFill,
   onOpenDataFolder,
   invoiceCount = 0,
   reportCount = 0
@@ -110,6 +112,19 @@ export default function Header({
               </span>
             )}
           </button>
+
+          {/* AI Smart Fill Button */}
+          {onOpenAiSmartFill && (
+            <button
+              type="button"
+              onClick={onOpenAiSmartFill}
+              title="Trợ lý AI tự động trích xuất từ ảnh scan, PDF, Excel thô và điền vào mẫu"
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-700 via-indigo-700 to-sky-700 hover:from-purple-600 hover:to-sky-600 text-white text-xs font-extrabold shadow-md shadow-purple-900/30 border border-purple-400/50 transition-all active:scale-95 group animate-pulse hover:animate-none"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300 group-hover:rotate-12 transition-transform" />
+              <span>✨ AI Điền Mẫu</span>
+            </button>
+          )}
 
           {/* Import Batch & Xuất Đồng Loạt Button */}
           {onOpenBatchExportModal && (
@@ -248,6 +263,17 @@ export default function Header({
                 {invoiceCount > 0 && <span className="ml-1 text-white font-mono">({invoiceCount})</span>}
               </div>
             </button>
+
+            {onOpenAiSmartFill && (
+              <button
+                type="button"
+                onClick={() => handleMobileNav(onOpenAiSmartFill)}
+                className="p-2.5 bg-gradient-to-r from-purple-700/40 to-sky-700/40 border border-purple-400/50 text-purple-200 rounded-xl flex items-center space-x-2 text-left active:scale-95 transition"
+              >
+                <Sparkles className="w-4 h-4 text-amber-300 shrink-0 animate-pulse" />
+                <span className="truncate font-extrabold text-white">✨ AI Điền Mẫu</span>
+              </button>
+            )}
 
             {onOpenBatchExportModal && (
               <button

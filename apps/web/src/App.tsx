@@ -38,8 +38,10 @@ function AppContent() {
     setEquipments,
     doctorsList,
     setDoctorsList,
-    referenceRanges,
-    setReferenceRanges,
+    catalogItemEquipments,
+    setCatalogItemEquipments,
+    allergenScales,
+    setAllergenScales,
     cloudDbConfig,
     setCloudDbConfig,
     zaloConfig,
@@ -63,6 +65,7 @@ function AppContent() {
     openReportManager,
     closeReportManager,
     openBatchExportModal,
+    openAiSmartFillModal,
     closeAllModals
   } = useModal();
 
@@ -156,14 +159,42 @@ function AppContent() {
     handleCancelInvoice
   } = useInvoiceActions(handleSaveCurrentReport, cloudLink, qrCodeDataUrl);
 
-  // 6. EXCEL CATALOG LOADER
+  // 6. EXCEL CATALOG LOADER (MERGE / UPSERT CHẾ ĐỘ THÔNG MINH)
   const handleLoadExcelFile = async (fileOrBuffer: Blob | ArrayBuffer) => {
     try {
       showToast('Đang đọc dữ liệu danh mục từ file Excel...', 'info');
       const items = await parseExcelCatalog(fileOrBuffer);
       if (items && items.length > 0) {
-        setCatalog(items);
-        showToast(`Đã nhập thành công ${items.length} chỉ số xét nghiệm từ Excel!`, 'success');
+        const map = new Map(catalog.map((it) => [it.code.toUpperCase(), it]));
+        let updatedCount = 0;
+        let addedCount = 0;
+        items.forEach((newItem) => {
+          const key = newItem.code.toUpperCase();
+          const existing = map.get(key);
+          if (existing) {
+            map.set(key, {
+              ...existing,
+              ...newItem,
+              category: newItem.category || existing.category,
+              name: newItem.name || existing.name,
+              scientific: newItem.scientific ?? existing.scientific,
+              unit: newItem.unit || existing.unit,
+              price: (newItem.price !== undefined && newItem.price > 0) ? newItem.price : existing.price,
+              refText: newItem.refText || existing.refText,
+              evaluationType: newItem.evaluationType || existing.evaluationType,
+              scaleId: newItem.scaleId ?? existing.scaleId,
+              refMin: newItem.refMin !== null ? newItem.refMin : (newItem.evaluationType === 'scale' ? null : existing.refMin),
+              refMax: newItem.refMax !== null ? newItem.refMax : (newItem.evaluationType === 'scale' ? null : existing.refMax)
+            });
+            updatedCount++;
+          } else {
+            map.set(key, newItem);
+            addedCount++;
+          }
+        });
+        const merged = Array.from(map.values());
+        setCatalog(merged);
+        showToast(`Đã cập nhật ${updatedCount} chỉ số cũ và thêm mới ${addedCount} chỉ số từ Excel (tổng ${merged.length} chỉ số)!`, 'success');
       } else {
         showToast('File Excel không đúng định dạng hoặc không có dữ liệu!', 'error');
       }
@@ -249,6 +280,7 @@ function AppContent() {
         onOpenRevenueModal={openRevenueModal}
         onOpenReportManagerModal={openReportManager}
         onOpenBatchExportModal={openBatchExportModal}
+        onOpenAiSmartFill={() => openAiSmartFillModal('CATALOG_ITEMS')}
         onOpenDataFolder={handleOpenDataDirectory}
         onLoadExcelFile={handleLoadExcelFile}
         reportCount={reports.length}
@@ -298,8 +330,10 @@ function AppContent() {
         setEquipments={setEquipments}
         doctorsList={doctorsList}
         setDoctorsList={setDoctorsList}
-        referenceRanges={referenceRanges}
-        setReferenceRanges={setReferenceRanges}
+        catalogItemEquipments={catalogItemEquipments}
+        setCatalogItemEquipments={setCatalogItemEquipments}
+        allergenScales={allergenScales}
+        setAllergenScales={setAllergenScales}
         cloudLink={cloudLink}
         qrCodeDataUrl={qrCodeDataUrl}
         isExporting={isExporting}

@@ -1,6 +1,7 @@
 import React from 'react';
-import { Trash2, Stethoscope, UserPlus } from 'lucide-react';
+import { Trash2, Stethoscope, UserPlus, Download, Upload } from 'lucide-react';
 import { Doctor } from '@domain/types';
+import { exportDoctorsTemplate, parseExcelDoctors } from '@infra/excelService';
 
 interface DoctorsTabProps {
   docsList: Doctor[];
@@ -8,9 +9,39 @@ interface DoctorsTabProps {
 }
 
 export default function DoctorsTab({ docsList, setDocsList }: DoctorsTabProps) {
+  const handleImportDoctorsExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      parseExcelDoctors(file).then((parsed) => {
+        if (parsed.length > 0) {
+          setDocsList((prev) => {
+            const map = new Map(prev.map((d) => [d.name.toLowerCase(), d]));
+            let updatedCount = 0;
+            let addedCount = 0;
+            parsed.forEach((d) => {
+              const key = d.name.toLowerCase();
+              if (map.has(key)) {
+                map.set(key, { ...map.get(key)!, ...d });
+                updatedCount++;
+              } else {
+                map.set(key, d);
+                addedCount++;
+              }
+            });
+            alert(`Đã cập nhật ${updatedCount} bác sĩ cũ và thêm mới ${addedCount} bác sĩ từ Excel (tổng ${map.size} bác sĩ)!`);
+            return Array.from(map.values());
+          });
+        } else {
+          alert('Không tìm thấy dữ liệu hợp lệ trong file Excel.');
+        }
+      });
+      e.target.value = '';
+    }
+  };
+
   return (
     <div className="p-6 flex-grow overflow-y-auto space-y-4">
-      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between text-xs">
+      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between flex-wrap gap-3 text-xs">
         <div>
           <h4 className="font-extrabold text-emerald-900 text-sm">
             Danh Sách Bác Sĩ Chỉ Định & Người Đọc Kết Quả
@@ -19,9 +50,28 @@ export default function DoctorsTab({ docsList, setDocsList }: DoctorsTabProps) {
             Dữ liệu này sẽ xuất hiện trong dropdown chọn Bác sĩ và hiển thị trên chữ ký của Phiếu Trả Kết Quả
           </p>
         </div>
-        <span className="font-mono font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-3 py-1 rounded-lg">
-          {docsList.length} Bác Sĩ
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="font-mono font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-3 py-1.5 rounded-lg">
+            {docsList.length} Bác Sĩ
+          </span>
+          <button
+            type="button"
+            onClick={() => exportDoctorsTemplate(docsList)}
+            className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-xs transition active:scale-95 cursor-pointer text-xs"
+            title="Xuất danh sách bác sĩ ra file Excel"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Xuất Excel</span>
+          </button>
+          <label
+            className="flex items-center gap-1 bg-slate-700 hover:bg-slate-800 text-white font-bold px-3 py-1.5 rounded-lg shadow-xs transition active:scale-95 cursor-pointer text-xs"
+            title="Nhập danh sách bác sĩ từ file Excel"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>Nhập Excel</span>
+            <input type="file" accept=".xlsx,.xls" onChange={handleImportDoctorsExcel} className="hidden" />
+          </label>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -79,7 +129,7 @@ export default function DoctorsTab({ docsList, setDocsList }: DoctorsTabProps) {
             ]);
           }
         }}
-        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-1.5"
+        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer"
       >
         <UserPlus className="w-4 h-4" />
         <span>Thêm Bác Sĩ Mới</span>
@@ -87,3 +137,4 @@ export default function DoctorsTab({ docsList, setDocsList }: DoctorsTabProps) {
     </div>
   );
 }
+

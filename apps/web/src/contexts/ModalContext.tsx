@@ -55,6 +55,12 @@ interface ModalContextValue extends ModalState {
   openBatchExportModal: () => void;
   closeBatchExportModal: () => void;
 
+  // AI Smart Fill
+  isAiSmartFillModalOpen: boolean;
+  aiSmartFillTarget: import('@domain').AiTemplateTarget;
+  openAiSmartFillModal: (target?: import('@domain').AiTemplateTarget) => void;
+  closeAiSmartFillModal: () => void;
+
   // Unsaved Guard
   openUnsavedModal: (actionName: string, actionFn: () => void) => void;
   closeUnsavedModal: () => void;
@@ -101,6 +107,10 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   // Batch Export
   const [isBatchExportModalOpen, setIsBatchExportModalOpen] = useState(false);
 
+  // AI Smart Fill
+  const [isAiSmartFillModalOpen, setIsAiSmartFillModalOpen] = useState(false);
+  const [aiSmartFillTarget, setAiSmartFillTarget] = useState<import('@domain').AiTemplateTarget>('CATALOG_ITEMS');
+
   // Unsaved Guard
   const [isUnsavedModalOpen, setIsUnsavedModalOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ name: string; run: () => void } | null>(null);
@@ -109,7 +119,8 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const isAnyModalOpen =
     isUnsavedModalOpen || isPreviewOpen || isSettingsOpen ||
     isCatalogModalOpen || isInvoiceModalOpen || isRevenueModalOpen ||
-    isReportManagerOpen || isZaloModalOpen || isBatchExportModalOpen;
+    isReportManagerOpen || isZaloModalOpen || isBatchExportModalOpen ||
+    isAiSmartFillModalOpen;
 
   // Actions
   const openPreview = useCallback((targetReport?: MedicalReport | null) => {
@@ -152,6 +163,12 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const openBatchExportModal = useCallback(() => setIsBatchExportModalOpen(true), []);
   const closeBatchExportModal = useCallback(() => setIsBatchExportModalOpen(false), []);
 
+  const openAiSmartFillModal = useCallback((target?: import('@domain').AiTemplateTarget) => {
+    if (target) setAiSmartFillTarget(target);
+    setIsAiSmartFillModalOpen(true);
+  }, []);
+  const closeAiSmartFillModal = useCallback(() => setIsAiSmartFillModalOpen(false), []);
+
   const openUnsavedModal = useCallback((actionName: string, actionFn: () => void) => {
     setPendingAction({ name: actionName, run: actionFn });
     setIsUnsavedModalOpen(true);
@@ -172,13 +189,18 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     if (isReportManagerOpen) { closeReportManager(); return; }
     if (isZaloModalOpen) { closeZaloModal(); return; }
     if (isBatchExportModalOpen) { closeBatchExportModal(); return; }
+    if (isAiSmartFillModalOpen) { closeAiSmartFillModal(); return; }
   }, [
-    isUnsavedModalOpen, isPreviewOpen, isSettingsOpen, isCatalogModalOpen,
-    isInvoiceModalOpen, isRevenueModalOpen, isReportManagerOpen,
-    isZaloModalOpen, isBatchExportModalOpen,
-    closeUnsavedModal, closePreview, closeSettings, closeCatalogModal,
-    closeInvoiceModal, closeRevenueModal, closeReportManager,
-    closeZaloModal, closeBatchExportModal
+    isUnsavedModalOpen, closeUnsavedModal,
+    isPreviewOpen, closePreview,
+    isSettingsOpen, closeSettings,
+    isCatalogModalOpen, closeCatalogModal,
+    isInvoiceModalOpen, closeInvoiceModal,
+    isRevenueModalOpen, closeRevenueModal,
+    isReportManagerOpen, closeReportManager,
+    isZaloModalOpen, closeZaloModal,
+    isBatchExportModalOpen, closeBatchExportModal,
+    isAiSmartFillModalOpen, closeAiSmartFillModal
   ]);
 
   const value: ModalContextValue = {
@@ -191,6 +213,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     isReportManagerOpen,
     isZaloModalOpen, zaloTargetReport,
     isBatchExportModalOpen,
+    isAiSmartFillModalOpen, aiSmartFillTarget,
     isUnsavedModalOpen, pendingAction,
     // Computed
     isAnyModalOpen,
@@ -203,6 +226,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     openReportManager, closeReportManager,
     openZaloModal, closeZaloModal,
     openBatchExportModal, closeBatchExportModal,
+    openAiSmartFillModal, closeAiSmartFillModal,
     openUnsavedModal, closeUnsavedModal, clearPendingAction,
     closeAllModals,
   };

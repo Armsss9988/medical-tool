@@ -31,3 +31,8 @@ export * from './events/DomainEventBus';
 export * from './constants';
 export * from './constants/allergenScales';
 
+// AI Smart Filler & Ingestion Domain
+export * from './ai/aiTypes';
+export * from './ai/templateSchemas';
+export * from './ai/promptTemplates';
+

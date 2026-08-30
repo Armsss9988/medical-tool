@@ -9,6 +9,8 @@ export const TABLE_API_NAMES: Record<string, string> = {
   [STORAGE_KEYS.CLINIC_INFO]: 'clinic-info',
   [STORAGE_KEYS.ZALO_CONFIG]: 'zalo-config',
   [STORAGE_KEYS.REFERENCE_RANGES]: 'reference-ranges',
+  [STORAGE_KEYS.CATALOG_ITEM_EQUIPMENTS]: 'catalog-item-equipments',
+  [STORAGE_KEYS.ALLERGEN_SCALES]: 'allergen-scales',
   [STORAGE_KEYS.REPORTS]: 'medical-reports',
   [STORAGE_KEYS.INVOICES]: 'invoices'
 };

@@ -8,6 +8,7 @@ import SendZaloModal from './SendZaloModal';
 import BatchExportModal from './BatchExportModal';
 import TransactionLoadingModal from './TransactionLoadingModal';
 import UnsavedChangesModal from './UnsavedChangesModal';
+import AiSmartFillModal from './ai/AiSmartFillModal';
 
 import { useWorkspace } from '../contexts/WorkspaceContext';
 import { useModal } from '../contexts/ModalContext';
@@ -29,7 +30,8 @@ import type {
   ExportStepName,
   ExportErrorDetail,
   BatchExportProgress,
-  ReferenceRangeItem
+  CatalogItemEquipmentLink,
+  AllergenGradingScale
 } from '@domain';
 
 // ─── MODAL LAYER COMPONENT ──────────────────────────────────────────────────
@@ -52,8 +54,10 @@ interface ModalLayerProps {
   setEquipments: (equipments: TestEquipment[]) => void;
   doctorsList: Doctor[];
   setDoctorsList: (doctors: Doctor[]) => void;
-  referenceRanges?: ReferenceRangeItem[];
-  setReferenceRanges?: (ranges: ReferenceRangeItem[]) => void;
+  catalogItemEquipments?: CatalogItemEquipmentLink[];
+  setCatalogItemEquipments?: (links: CatalogItemEquipmentLink[]) => void;
+  allergenScales?: AllergenGradingScale[];
+  setAllergenScales?: (scales: AllergenGradingScale[]) => void;
   reports?: MedicalReport[];
   setReports?: Dispatch<SetStateAction<MedicalReport[]>>;
   invoices?: Invoice[];
@@ -104,8 +108,10 @@ export function ModalLayer({
   setEquipments,
   doctorsList,
   setDoctorsList,
-  referenceRanges = [],
-  setReferenceRanges,
+  catalogItemEquipments = [],
+  setCatalogItemEquipments,
+  allergenScales = [],
+  setAllergenScales,
   cloudLink,
   qrCodeDataUrl,
   isExporting,
@@ -173,6 +179,10 @@ export function ModalLayer({
     isBatchExportModalOpen,
     closeBatchExportModal,
     openBatchExportModal,
+    isAiSmartFillModalOpen,
+    aiSmartFillTarget,
+    openAiSmartFillModal,
+    closeAiSmartFillModal,
     isUnsavedModalOpen,
     pendingAction
   } = useModal();
@@ -249,8 +259,10 @@ export function ModalLayer({
         onSaveEquipments={setEquipments}
         doctorsList={doctorsList}
         onSaveDoctors={setDoctorsList}
-        referenceRanges={referenceRanges}
-        onSaveReferenceRanges={setReferenceRanges}
+        catalogItemEquipments={catalogItemEquipments}
+        onSaveCatalogItemEquipments={setCatalogItemEquipments}
+        allergenScales={allergenScales}
+        onSaveScales={setAllergenScales}
       />
 
       {/* 4. INVOICE MODAL */}
@@ -316,6 +328,20 @@ export function ModalLayer({
         onClose={closeBatchExportModal}
         reports={reports}
         catalog={catalog}
+        setCatalog={setCatalog}
+        testGroups={testGroups}
+        setTestGroups={setTestGroups}
+        equipments={equipments}
+        setEquipments={setEquipments}
+        testPackages={testPackages}
+        setTestPackages={setTestPackages}
+        doctorsList={doctorsList}
+        setDoctorsList={setDoctorsList}
+        catalogItemEquipments={catalogItemEquipments}
+        setCatalogItemEquipments={setCatalogItemEquipments}
+        allergenScales={allergenScales}
+        setAllergenScales={setAllergenScales}
+        invoices={invoices}
         clinicInfo={clinicInfo}
         onBatchImport={onBatchImport}
         progress={batchProgress}
@@ -323,6 +349,7 @@ export function ModalLayer({
         onBatchExport={onBatchExport}
         onCancelBatch={onCancelBatch}
         onDownloadZip={onDownloadZip}
+        onOpenAiSmartFill={openAiSmartFillModal}
         showToast={showToast}
       />
 
@@ -355,6 +382,32 @@ export function ModalLayer({
         actionName={pendingAction?.name}
         patient={patient}
         isEditingExisting={!!currentReportId}
+      />
+
+      {/* 11. AI SMART TEMPLATE FILLER & INGESTION MODAL */}
+      <AiSmartFillModal
+        isOpen={isAiSmartFillModalOpen}
+        onClose={closeAiSmartFillModal}
+        initialTarget={aiSmartFillTarget}
+        catalog={catalog}
+        setCatalog={setCatalog}
+        equipments={equipments}
+        setEquipments={setEquipments}
+        testGroups={testGroups}
+        setTestGroups={setTestGroups}
+        testPackages={testPackages}
+        setTestPackages={setTestPackages}
+        doctorsList={doctorsList}
+        setDoctorsList={setDoctorsList}
+        catalogItemEquipments={catalogItemEquipments || []}
+        setCatalogItemEquipments={setCatalogItemEquipments}
+        allergenScales={allergenScales || []}
+        setAllergenScales={setAllergenScales}
+        onBatchImportToReports={(batchRows) => {
+          onBatchImport(batchRows);
+          openBatchExportModal();
+        }}
+        showToast={showToast}
       />
     </>
   );

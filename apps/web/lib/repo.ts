@@ -13,6 +13,7 @@ export const TABLES: Record<TableName, AnyPgTable> = {
   'zalo-config': tables.zaloConfig,
   'reference-ranges': tables.referenceRanges,
   'catalog-item-equipments': tables.catalogItemEquipments,
+  'allergen-scales': tables.allergenScales,
   'medical-reports': tables.medicalReports,
   invoices: tables.invoices
 };

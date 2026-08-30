@@ -9,7 +9,7 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="vi">
+    <html lang="vi" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
@@ -18,7 +18,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           rel="stylesheet"
         />
       </head>
-      <body className="bg-slate-100 text-slate-800 font-sans antialiased overflow-x-hidden selection:bg-sky-500 selection:text-white">
+      <body
+        suppressHydrationWarning
+        className="bg-slate-100 text-slate-800 font-sans antialiased overflow-x-hidden selection:bg-sky-500 selection:text-white"
+      >
         <Providers>{children}</Providers>
       </body>
     </html>

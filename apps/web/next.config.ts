@@ -25,9 +25,21 @@ function buildViteEnvShim(): Record<string, string> {
   return obj;
 }
 
+const root = path.resolve(__dirname, '../..');
+
 const nextConfig: NextConfig = {
   // postgres uses native bindings — must be excluded from the client bundle
   serverExternalPackages: ['postgres'],
+
+  turbopack: {
+    resolveAlias: {
+      '@domain': path.resolve(root, 'packages/shared/src/domain'),
+      '@infra': path.resolve(__dirname, 'src/infrastructure'),
+      '@data': path.resolve(root, 'packages/shared/src/data'),
+      '@components': path.resolve(__dirname, 'src/components'),
+      '@assets': path.resolve(__dirname, 'src/assets'),
+    },
+  },
 
   webpack(config, { webpack }) {
     // 1. Polyfill import.meta.env for all existing VITE_ references in src/
@@ -38,7 +50,6 @@ const nextConfig: NextConfig = {
     );
 
     // 2. Resolve workspace path aliases (same as root tsconfig paths)
-    const root = path.resolve(__dirname, '../..');
     config.resolve.alias = {
       ...config.resolve.alias,
       '@domain': path.resolve(root, 'packages/shared/src/domain'),

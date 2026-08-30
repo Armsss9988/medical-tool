@@ -10,6 +10,8 @@ import {
   CloudDbConfig, 
   ZaloZnsConfig,
   ReferenceRangeItem,
+  AllergenGradingScale,
+  DEFAULT_ALLERGEN_SCALES,
   STORAGE_KEYS
 } from '@domain';
 import { autoResolveItemLinks } from '@data';
@@ -23,6 +25,7 @@ import {
   fetchClinicInfoFromSupabase,
   fetchReferenceRangesFromSupabase,
   fetchCatalogItemEquipmentsFromSupabase,
+  fetchScalesFromSupabase,
   syncCatalogToSupabase,
   syncPackagesToSupabase,
   syncGroupsToSupabase,
@@ -31,6 +34,7 @@ import {
   syncClinicInfoToSupabase,
   syncReferenceRangesToSupabase,
   syncCatalogItemEquipmentsToSupabase,
+  syncScalesToSupabase,
   syncZaloConfigToSupabase
 } from '@infra/cloudDbService';
 
@@ -94,6 +98,11 @@ export function useCatalogData() {
 
   const [catalogItemEquipments, setCatalogItemEquipments] = useState<CatalogItemEquipmentLink[]>(() => {
     return loadState<CatalogItemEquipmentLink[]>(STORAGE_KEYS.CATALOG_ITEM_EQUIPMENTS, []);
+  });
+
+  const [allergenScales, setAllergenScales] = useState<AllergenGradingScale[]>(() => {
+    const loaded = loadState<AllergenGradingScale[]>(STORAGE_KEYS.ALLERGEN_SCALES, []);
+    return Array.isArray(loaded) && loaded.length > 0 ? loaded : DEFAULT_ALLERGEN_SCALES;
   });
 
   const [clinicInfo, setClinicInfo] = useState<ClinicInfo>(() => {
@@ -161,6 +170,13 @@ export function useCatalogData() {
   }, [catalogItemEquipments, cloudDbConfig]);
 
   useEffect(() => {
+    saveState(STORAGE_KEYS.ALLERGEN_SCALES, allergenScales);
+    if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
+      syncScalesToSupabase(allergenScales, cloudDbConfig).catch(() => {});
+    }
+  }, [allergenScales, cloudDbConfig]);
+
+  useEffect(() => {
     saveState(STORAGE_KEYS.CLINIC_INFO, clinicInfo);
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncClinicInfoToSupabase(clinicInfo, cloudDbConfig).catch(() => {});
@@ -195,7 +211,8 @@ export function useCatalogData() {
         cloudDocs, 
         cloudClinic, 
         cloudRefRanges,
-        cloudItemEquipLinks
+        cloudItemEquipLinks,
+        cloudScales
       ] = await Promise.all([
         fetchCatalogFromSupabase(cloudDbConfig),
         fetchPackagesFromSupabase(cloudDbConfig),
@@ -204,7 +221,8 @@ export function useCatalogData() {
         fetchDoctorsFromSupabase(cloudDbConfig),
         fetchClinicInfoFromSupabase(cloudDbConfig),
         fetchReferenceRangesFromSupabase(cloudDbConfig),
-        fetchCatalogItemEquipmentsFromSupabase(cloudDbConfig)
+        fetchCatalogItemEquipmentsFromSupabase(cloudDbConfig),
+        fetchScalesFromSupabase(cloudDbConfig)
       ]);
 
       if (cloudCatalog && cloudCatalog.length > 0) {
@@ -230,6 +248,9 @@ export function useCatalogData() {
       }
       if (cloudItemEquipLinks && cloudItemEquipLinks.length > 0) {
         setCatalogItemEquipments(cloudItemEquipLinks);
+      }
+      if (cloudScales && cloudScales.length > 0) {
+        setAllergenScales(cloudScales);
       }
     } catch (err) {
       console.warn('[CloudDB] Không thể tải dữ liệu từ Cloud:', err);
@@ -264,6 +285,8 @@ export function useCatalogData() {
     setReferenceRanges,
     catalogItemEquipments,
     setCatalogItemEquipments,
+    allergenScales,
+    setAllergenScales,
     clinicInfo,
     setClinicInfo,
     cloudDbConfig,
