@@ -1,6 +1,6 @@
 import { config } from 'dotenv';
 config({ path: '../../.env' });
-process.env.NODE_ENV = 'development';
+(process.env as Record<string, string>)['NODE_ENV'] = 'development';
 import { serve } from '@hono/node-server';
 import app from './index';
 

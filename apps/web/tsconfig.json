@@ -77,6 +77,9 @@
   ],
   "exclude": [
     "node_modules",
-    ".next"
+    ".next",
+    "../../apps/api/src/dev.ts",
+    "../../apps/api/src/__tests__/**",
+    "../../packages/shared/src/**/__tests__/**"
   ]
 }
