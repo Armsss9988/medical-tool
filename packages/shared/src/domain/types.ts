@@ -1,36 +1,46 @@
 export type Gender = 'Nam' | 'Nữ' | 'Khác';
 
-export interface PatientInfo {
-  name: string;
-  age: number | string;
-  gender: Gender;
-  address?: string;
-  phone?: string;
-  code?: string;
-  sampleId?: string;
-  orderNumber?: number | string;
-  testDate?: string;
-  orderDate?: string;
-  sampleCollectionTime?: string;
-  sampleReceiveTime?: string;
-  diagnosis?: string;
-}
+export type AllergenGrade = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
-export interface CatalogItem {
+export type ToastType = 'success' | 'error' | 'info' | 'warning';
+
+export type ResultStatus = 'normal' | 'low' | 'high';
+
+// ─── DOMAIN STATUS TYPES ─────────────────────────────────────────────────────
+export type ClinicalStatus = 'Chờ xét nghiệm' | 'Đã có kết quả' | 'Đã trả kết quả';
+export type DocumentStatus = 'Chưa xuất PDF' | 'Đã xuất Cloud' | 'Cần cập nhật PDF';
+export type BillingStatus = 'Chưa thu phí' | 'Đã thanh toán' | 'Đã hủy / Hoàn tiền';
+export type SampleStatus = 'Đạt' | 'Không đạt' | 'Đang lấy mẫu';
+export type PaymentMethod = 'Tiền mặt' | 'Chuyển khoản (VietQR)' | 'Quẹt thẻ' | 'Khác';
+export type InvoiceStatus = BillingStatus;
+export type ReportStatus = 
+  | 'Chờ xét nghiệm' 
+  | 'Đã có kết quả' 
+  | 'Đã xuất Cloud' 
+  | 'Cần cập nhật PDF' 
+  | 'Đã trả kết quả';
+
+export interface Patient {
   code: string;
-  category: string;
+  secretToken: string;
   name: string;
-  refMin?: number | null;
-  refMax?: number | null;
-  unit: string;
-  refText: string;
-  price?: number | null;
-  scientific?: string | null;
-  evaluationType?: string | null;
-  scaleId?: string | null;
-  referenceRangeId?: string | null;
+  dob: string;
+  gender: Gender;
+  phone: string;
+  address: string;
+  diagnosis: string;
+  doctor?: string;
+  sampleCode?: string;
+  sampleStatus?: SampleStatus | string;
+  orderedAt?: string;
+  paidAt?: string;
+  receivedAt?: string;
+  returnedAt?: string;
 }
 
+export type EvaluationType = 'range' | 'scale' | 'text';
+
+/** Liên kết giữa một chỉ số xét nghiệm và một loại máy đo cụ thể (kèm ngưỡng tham chiếu riêng cho máy) */
 export interface CatalogItemEquipmentLink {
   id: string;
   catalogCode: string;
@@ -43,28 +53,102 @@ export interface CatalogItemEquipmentLink {
   isDefault?: boolean;
 }
 
-export interface PackageItemDetail {
+export interface ReferenceRangeItem {
+  id: string;
+  name: string;
+  refMin: number | null;
+  refMax: number | null;
+  unit: string;
+  refText: string;
+  gender?: 'Nam' | 'Nữ' | 'Tất cả';
+  ageGroup?: string;
+}
+
+export interface CatalogItem {
+  category: string;
   code: string;
+  name: string;
+  refMin: number | null;
+  refMax: number | null;
+  unit: string;
+  refText: string;
+  price?: number;
+  scientific?: string;
+  evaluationType?: EvaluationType;
+  /** Danh sách liên kết máy đo → reference_range/scale riêng (tùy máy) */
+  equipmentLinks?: CatalogItemEquipmentLink[];
+  /** @deprecated Dùng equipmentLinks thay thế — giữ để backward compat với dữ liệu cũ */
+  equipment?: string;
+  /** @deprecated Dùng equipmentLinks thay thế */
+  referenceRangeId?: string;
+  /** @deprecated Dùng equipmentLinks thay thế */
+  scaleId?: string;
+}
+
+export interface SelectedTest extends CatalogItem {
+  result: string;
+  note: string;
+}
+
+/** Một mục chỉ số trong gói xét nghiệm, kèm thông tin máy đo được chọn */
+export interface PackageItem {
+  code: string;
+  /** ID máy đo được chọn cho chỉ số này trong gói. null = dùng máy mặc định của chỉ số */
   equipmentId?: string | null;
 }
 
 export interface TestPackage {
   id: string;
   name: string;
-  items: (string | PackageItemDetail)[];
+  /** Danh sách chỉ số trong gói, mỗi item có thể gắn máy đo cụ thể */
+  items: PackageItem[];
   price: number;
+  /**
+   * @deprecated Dùng items thay thế.
+   * Giữ lại để backward compat trong quá trình migration.
+   */
+  codes?: string[];
 }
 
-export function getPkgCodes(items: (string | PackageItemDetail)[]): string[] {
-  return items.map((it) => (typeof it === 'string' ? it : it.code));
-}
+/** Helper: lấy danh sách mã xét nghiệm từ một TestPackage (hỗ trợ an toàn cả format object, string, mảng cũ lẫn mới) */
+export function getPkgCodes(pkg: TestPackage | undefined | null): string[] {
+  if (!pkg) return [];
 
-export function normalizePkgItems(items: (string | PackageItemDetail)[]): PackageItemDetail[] {
-  return items.map((it) => (typeof it === 'string' ? { code: it, equipmentId: null } : it));
-}
+  if (Array.isArray(pkg.items) && pkg.items.length > 0) {
+    return pkg.items
+      .map((i) => (typeof i === 'string' ? i : (i && typeof i === 'object' && 'code' in i ? (i as { code: string }).code : '')))
+      .filter((c): c is string => Boolean(c && typeof c === 'string'));
+  }
 
-export function computeItemEquipmentLinkKey(catalogCode: string, equipmentId: string): string {
-  return `${catalogCode}__${equipmentId}`;
+  if (typeof pkg.items === 'string') {
+    try {
+      const parsed = JSON.parse(pkg.items);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((i) => (typeof i === 'string' ? i : (i && typeof i === 'object' && 'code' in i ? (i as { code: string }).code : '')))
+          .filter((c): c is string => Boolean(c && typeof c === 'string'));
+      }
+    } catch {
+      // Ignored: invalid JSON string
+    }
+  }
+
+  if (Array.isArray(pkg.codes) && pkg.codes.length > 0) {
+    return pkg.codes.filter((c): c is string => Boolean(c && typeof c === 'string'));
+  }
+
+  if (typeof pkg.codes === 'string') {
+    try {
+      const parsed = JSON.parse(pkg.codes);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((c): c is string => Boolean(c && typeof c === 'string'));
+      }
+    } catch {
+      // Ignored: invalid JSON string
+    }
+  }
+
+  return [];
 }
 
 export interface TestGroup {
@@ -85,48 +169,49 @@ export interface Doctor {
   phone?: string;
 }
 
-export interface SelectedTest extends CatalogItem {
-  result: string;
-  note?: string;
-  customRefText?: string;
-}
-
-export interface MedicalReport {
-  id?: string;
-  code?: string;
-  patient: PatientInfo;
-  selectedTests: SelectedTest[];
-  conclusion?: string;
-  doctorName?: string;
-  status?: string;
-  cloudPdfUrl?: string;
-  qrCodeDataUrl?: string;
-  createdAt?: string;
-  updatedAt?: string;
+export interface CloudDbConfig {
+  enabled: boolean;
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  autoSync?: boolean;
 }
 
 export interface InvoiceItem {
+  code: string;
   name: string;
-  quantity: number;
-  unitPrice: number;
-  amount: number;
+  price: number;
+  quantity?: number;
+  discount?: number;
   category?: string;
+  unit?: string;
 }
 
 export interface Invoice {
   id: string;
-  invoiceNo: string;
-  reportId?: string;
-  patient: PatientInfo;
+  code: string;
+  createdAt: string;
+  patientName: string;
+  patientDob: string;
+  patientPhone: string;
+  patientGender: Gender;
+  doctorName: string;
   items: InvoiceItem[];
   totalAmount: number;
+  discountPercent: number;
   discountAmount?: number;
+  surchargeAmount?: number;
+  surchargeNote?: string;
   finalAmount: number;
-  paidAmount: number;
-  paymentMethod: string;
-  createdAt: string;
-  creatorName?: string;
-  doctorName?: string;
+  paymentMethod: PaymentMethod;
+  status: InvoiceStatus;
+  notes?: string;
+  patientCode?: string;
+  packageName?: string;
+  cashierName?: string;
+  reportId?: string;
+  paidAt?: string;
+  cloudPdfUrl?: string;
+  qrCodeDataUrl?: string;
 }
 
 export interface ClinicInfo {
@@ -137,21 +222,32 @@ export interface ClinicInfo {
   defaultDoctor: string;
   logoUrl?: string;
   stampUrl?: string;
-  bankId?: string;
-  bankName?: string;
-  bankAccountNo?: string;
-  bankAccountName?: string;
-  bankBranch?: string;
-  bankQrImageUrl?: string;
-  cashierName?: string;
-  accountantName?: string;
+  bankId?: string;          // Mã định danh ngân hàng (VD: VBA, ICB, VCB, MB, TCB...)
+  bankName?: string;        // Tên ngân hàng (VD: Agribank, VietinBank, Vietcombank...)
+  bankAccountNo?: string;   // Số tài khoản
+  bankAccountName?: string; // Tên chủ tài khoản
+  bankBranch?: string;      // Chi nhánh ngân hàng (VD: Agribank - Chi nhánh Lý Thái Tổ - Quảng Bình)
+  bankQrImageUrl?: string;  // Ảnh QR code tùy chỉnh do người dùng upload
+  cashierName?: string;     // Tên người lập phiếu (VD: Lê Phan Anh)
+  accountantName?: string;  // Tên kế toán xác nhận (VD: Trần Thị Thanh Hương)
 }
 
-export interface CloudDbConfig {
-  supabaseUrl: string;
-  supabaseAnonKey: string;
-  cloudinaryPreset?: string;
-  cloudinaryCloudName?: string;
+export interface AllergenGradeResult {
+  grade: AllergenGrade;
+  iuValue: string;
+  note: string;
+  statusStr: 'Dương tính' | 'Âm tính';
+}
+
+export interface TestResultEvaluation {
+  status: ResultStatus;
+  label: string;
+}
+
+export interface StorageResult {
+  success: boolean;
+  path?: string;
+  error?: string;
 }
 
 export interface ZaloZnsConfig {
@@ -166,34 +262,82 @@ export interface ZaloZnsConfig {
   proxyUrl?: string;
 }
 
-export interface BatchImportRow {
-  patient: PatientInfo;
-  selectedTests: SelectedTest[];
-  conclusion?: string;
-  doctorName?: string;
+export interface ZaloSendResult {
+  success: boolean;
+  msgId?: string;
+  error?: number;
+  message?: string;
 }
 
-export type ToastType = 'success' | 'error' | 'warning' | 'info';
+export interface MedicalReport {
+  id: string;
+  code: string;
+  sampleCode: string;
+  createdAt: string;
+  updatedAt: string;
+  patient: Patient;
+  doctorName: string;
+  selectedTests: SelectedTest[];
+  conclusion: string;
+  isAllergen: boolean;
+  cloudPdfUrl?: string;
+  qrCodeDataUrl?: string;
+  invoiceId?: string;
+  status: ReportStatus;
+  testCount: number;
+  zaloSentAt?: string;
+  zaloMsgId?: string;
+  /** Dấu mốc thời gian xuất PDF gần nhất (ISO String) */
+  pdfGeneratedAt?: string;
+  /** Số phiên bản PDF (1, 2, 3...) */
+  pdfVersion?: number;
+  /** Cờ đánh dấu dữ liệu đã bị chỉnh sửa sau lần xuất PDF gần nhất */
+  isPdfOutdated?: boolean;
+}
 
-export type ExportStepName =
-  | 'RENDERING_CANVAS'
-  | 'CONVERTING_PDF'
-  | 'UPLOADING_SUPABASE'
-  | 'UPLOADING_CLOUDINARY'
-  | 'GENERATING_QR'
-  | 'SAVING_LOCAL'
-  | 'COMPLETED';
+// ─── BATCH IMPORT / EXPORT TYPES ─────────────────────────────────────────────
 
-export interface ExportErrorDetail {
-  message: string;
-  step?: ExportStepName;
-  originalError?: any;
+export interface BatchImportRow {
+  patient: Patient;
+  selectedTests: SelectedTest[];
+  conclusion: string;
+  doctorName: string;
 }
 
 export interface BatchExportProgress {
   total: number;
-  current: number;
-  successCount: number;
-  failCount: number;
-  currentPatientName?: string;
+  completed: number;
+  current: string;
+  status: 'idle' | 'running' | 'done' | 'cancelled' | 'error';
+  errors: Array<{ code: string; patientName: string; error: string }>;
+  results: Array<{ code: string; patientName: string; cloudUrl: string; qrDataUrl: string; blob: Blob }>;
+}
+
+export interface AllergenDatabaseItem {
+  tt: number;
+  code: string;
+  name: string;
+  allergenName: string;
+  route: string;
+  normalRef: string;
+  note: string;
+  scaleId?: string;
+}
+
+export interface AllergenGradeLevel {
+  grade: number;
+  minVal: number;
+  maxVal: number | null;
+  rangeText: string;
+  label: string;
+  isPositive: boolean;
+  colorKey?: string;
+}
+
+export interface AllergenGradingScale {
+  id: string;
+  name: string;
+  equipment?: string;
+  unit: string;
+  levels: AllergenGradeLevel[];
 }

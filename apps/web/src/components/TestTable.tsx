@@ -18,7 +18,8 @@ interface TestTableProps {
   testPackages?: TestPackage[];
   testGroups?: TestGroup[];
   selectedTests: SelectedTest[];
-  setSelectedTests: React.Dispatch<React.SetStateAction<SelectedTest[]>>;\n  showToast?: (message: string, type?: ToastType) => void;
+  setSelectedTests: React.Dispatch<React.SetStateAction<SelectedTest[]>>;
+  showToast?: (message: string, type?: ToastType) => void;
   onOpenInvoiceModal?: () => void;
   /** Recent tests for quick-add chips */
   recentTests?: RecentTestItem[];
@@ -162,459 +163,521 @@ export default function TestTable({
     );
   };
 
-  const handleCustomRefTextChange = (code: string, customText: string) => {
-    setSelectedTests((prev) =>
-      prev.map((t) => (t.code === code ? { ...t, customRefText: customText } : t))
-    );
-  };
+  const handleSelectPackage = (pkgId: string) => {
+    const pkg = testPackages.find((p) => p.id === pkgId);
+    if (!pkg) return;
 
-  const filteredCatalog = useMemo(() => {
-    if (!searchTerm.trim()) return [];
-    const term = searchTerm.toLowerCase();
-    return catalog
-      .filter((item) => {
-        return (
-          item.code.toLowerCase().includes(term) ||
-          item.name.toLowerCase().includes(term) ||
-          (item.category && item.category.toLowerCase().includes(term))
-        );
-      })
-      .slice(0, 10);
-  }, [catalog, searchTerm]);
+    const rawCodes = getPkgCodes(pkg);
+    const targetCodes = new Set(rawCodes.map((c) => c.trim().toLowerCase()));
+    const itemsToAdd = catalog.filter((item) => item.code && targetCodes.has(item.code.trim().toLowerCase()));
 
-  // Bulk paste parser
-  const handleProcessBulkPaste = () => {
-    if (!bulkPasteText.trim()) return;
-    const lines = bulkPasteText.split('\n');
-    const addedItems: CatalogItem[] = [];
-    const recentToAdd: RecentTestItem[] = [];
-
-    lines.forEach((line) => {
-      const parts = line.split(/[\t,;]+/).map((s) => s.trim());
-      if (parts.length === 0 || !parts[0]) return;
-
-      const codeOrName = parts[0].toLowerCase();
-      const matched = catalog.find(
-        (c) =>
-          c.code.toLowerCase() === codeOrName ||
-          c.name.toLowerCase() === codeOrName ||
-          c.name.toLowerCase().includes(codeOrName)
-      );
-
-      if (matched && !selectedTests.some((t) => t.code === matched.code) && !addedItems.some((a) => a.code === matched.code)) {
-        const val = parts[1] || '';
-        const note = parts[2] || '';
-        const resolved = autoResolveItemLinks(matched);
-        
-        let calculatedNote = note;
-        if (!note && val) {
-          const scale = resolved.scaleId ? getAllergenScaleById(resolved.scaleId) : undefined;
-          const refRange = resolved.referenceRangeId ? getReferenceRangeById(resolved.referenceRangeId) : undefined;
-          const evalRes = evaluateTestIndicator(matched.code, matched.category, matched.unit, val, matched.refMin, matched.refMax, scale, refRange);
-          calculatedNote = evalRes.label || (resolved.scaleId ? 'Âm tính (Độ 0)' : 'Bình thường');
-        }
-
-        addedItems.push(matched);
-        recentToAdd.push({ code: matched.code, name: matched.name, category: matched.category || '' });
-        
-        setSelectedTests((prev) => [
-          ...prev,
-          {
-            ...resolved,
-            result: val,
-            note: calculatedNote || (resolved.scaleId ? 'Âm tính (Độ 0)' : 'Bình thường')
-          }
-        ]);
+    if (itemsToAdd.length === 0) {
+      if (showToast) {
+        showToast(`Gói [${pkg.name}] không có chỉ số nào khớp với danh mục hiện tại!`, 'warning');
       }
+      return;
+    }
+
+    setSelectedTests((prev) => {
+      const existingCodes = new Set(prev.map((t) => (t.code || '').trim().toLowerCase()));
+      const newOnes = itemsToAdd
+        .filter((item) => !existingCodes.has(item.code.trim().toLowerCase()))
+        .map((item) => {
+          const resolved = autoResolveItemLinks(item);
+          const isTIgE = resolved.code.toLowerCase() === 'tige';
+          const isAllergenItem = !isTIgE && (resolved.category?.includes('Dị Nguyên') || resolved.unit === 'IU/mL' || !!resolved.scaleId);
+          const pkgItem = (pkg.items || []).find((pi) => pi.code?.trim().toLowerCase() === item.code.trim().toLowerCase());
+
+          return {
+            ...resolved,
+            equipment: pkgItem?.equipmentId || resolved.equipment,
+            result: '',
+            note: isTIgE ? 'Bình thường' : isAllergenItem ? 'Âm tính (Độ 0)' : 'Bình thường'
+          };
+        });
+      return [...prev, ...newOnes];
     });
 
-    if (onAddMultipleToRecent && recentToAdd.length > 0) {
-      onAddMultipleToRecent(recentToAdd);
+    // Track in recent tests
+    if (onAddMultipleToRecent) {
+      onAddMultipleToRecent(
+        itemsToAdd.map((item) => ({ code: item.code, name: item.name, category: item.category || '' }))
+      );
     }
 
-    if (addedItems.length > 0) {
-      if (showToast) showToast(`Đã thêm nhanh ${addedItems.length} chỉ số từ dữ liệu dán!`, 'success');
-      setBulkPasteText('');
-      setShowBulkPaste(false);
-    } else {
-      if (showToast) showToast('Không tìm thấy chỉ số phù hợp trong danh mục!', 'warning');
+    if (showToast) {
+      showToast(`Đã thêm ${itemsToAdd.length} chỉ số từ [${pkg.name}]`, 'success');
     }
   };
 
-  // Keyboard navigation inside search dropdown
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (filteredCatalog.length === 0) return;
+  const filteredCatalog = catalog.filter(
+    (item) =>
+      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.category && item.category.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  // ─── KEYBOARD: Search dropdown navigation ─────────────────────────
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!searchTerm) return;
+
+    const available = filteredCatalog.filter((item) => !selectedTests.some((t) => t.code === item.code));
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setHighlightedIndex((prev) => (prev < filteredCatalog.length - 1 ? prev + 1 : 0));
+      setHighlightedIndex((prev) => Math.min(prev + 1, available.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : filteredCatalog.length - 1));
+      setHighlightedIndex((prev) => Math.max(prev - 1, 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      const selected = filteredCatalog[highlightedIndex];
-      if (selected) {
-        handleAddTest(selected);
-        setSearchTerm('');
+      const targetItem = available[highlightedIndex];
+      if (targetItem) {
+        handleAddTest(targetItem);
+        // Don't clear search — let user keep adding
+        setHighlightedIndex(0);
       }
     } else if (e.key === 'Escape') {
+      e.preventDefault();
       setSearchTerm('');
     }
   };
 
-  const pricingBreakdown = useMemo(() => {
-    return computePricingWithPackages(selectedTests, testPackages);
+  // ─── KEYBOARD: Enter in result cell → move to next result ─────────
+  const handleResultKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, currentIndex: number) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      // Move to next result input
+      const nextTest = selectedTests[currentIndex + 1];
+      if (nextTest) {
+        const nextInput = resultInputRefs.current.get(nextTest.code);
+        if (nextInput) {
+          nextInput.focus();
+          nextInput.select();
+        }
+      }
+    } else if (e.key === 'Tab' && !e.shiftKey) {
+      // Tab also moves to next result (skip note column)
+      const nextTest = selectedTests[currentIndex + 1];
+      if (nextTest) {
+        e.preventDefault();
+        const nextInput = resultInputRefs.current.get(nextTest.code);
+        if (nextInput) {
+          nextInput.focus();
+          nextInput.select();
+        }
+      }
+      // If no next test, let Tab naturally leave the table
+    }
+  };
+
+  // ─── BULK PASTE: Map lines of values to selected tests ────────────
+  const handleApplyBulkPaste = () => {
+    const lines = bulkPasteText.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+    if (lines.length === 0) return;
+
+    setSelectedTests((prev) =>
+      prev.map((t, idx) => {
+        if (idx >= lines.length) return t;
+        const rawVal = lines[idx];
+
+        const evalRes = evaluateTestIndicator(t.code, t.category, t.unit, rawVal, t.refMin, t.refMax);
+        const autoNote = evalRes.label || t.note;
+
+        return { ...t, result: rawVal, note: autoNote };
+      })
+    );
+
+    if (showToast) {
+      showToast(`Đã dán ${Math.min(lines.length, selectedTests.length)} kết quả vào bảng!`, 'success');
+    }
+    setShowBulkPaste(false);
+    setBulkPasteText('');
+  };
+
+  // Focus first result input
+  const handleFocusFirstResult = () => {
+    if (selectedTests.length > 0) {
+      const firstInput = resultInputRefs.current.get(selectedTests[0].code);
+      if (firstInput) {
+        firstInput.focus();
+        firstInput.select();
+      }
+    }
+  };
+
+  const pricing = useMemo(() => {
+    return computePricingWithPackages(
+      selectedTests.map((t) => t.code),
+      selectedTests,
+      testPackages
+    );
   }, [selectedTests, testPackages]);
 
+  const totalFee = pricing.total;
+
+  // ─── RECENT TESTS: Filter out already-selected ─────────────────────
+  const availableRecentTests = recentTests.filter(
+    (rt) => !selectedTests.some((t) => t.code === rt.code)
+  );
+
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
-      {/* Header bar */}
-      <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-wrap items-center justify-between gap-3 shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="p-2 bg-sky-100 text-sky-700 rounded-xl">
-            <TestTube className="w-5 h-5" />
-          </div>
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200/90 p-4 lg:p-5 flex flex-col space-y-4">
+      {/* Header Panel Chỉ Số */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 border-b border-slate-100 gap-2">
+        <div className="flex items-center space-x-2">
+          <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 text-xs font-black">
+            3
+          </span>
           <div>
-            <h2 className="font-bold text-slate-800 text-sm sm:text-base flex items-center gap-2">
-              Chỉ Số Xét Nghiệm Đã Chọn
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700">
-                {selectedTests.length} chỉ số
-              </span>
+            <h2 className="text-xs lg:text-sm font-extrabold text-slate-900 tracking-tight flex items-center gap-1.5 uppercase">
+              <TestTube className="w-4 h-4 text-emerald-600" />
+              <span>Chỉ Định & Nhập Kết Quả Xét Nghiệm</span>
             </h2>
-            <p className="text-xs text-slate-500">
-              Nhập kết quả xét nghiệm, đánh giá kết quả tự động và tính viện phí
+            <p className="text-[11px] text-slate-400 font-medium">
+              Đang chọn: <strong className="text-emerald-700 font-bold">{selectedTests.length}</strong> chỉ số
+              {pricing.activePackages.length > 0 && (
+                <span className="text-indigo-600 font-semibold ml-1">
+                  ({pricing.activePackages.map((p) => p.name).join(', ')})
+                </span>
+              )}
+              {' '}• Tổng phí:{' '}
+              <strong className="text-emerald-700 font-bold font-mono">{totalFee.toLocaleString('vi-VN')} đ</strong>
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Quick Tools Header */}
+        <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
+          {/* Focus first result */}
           <button
             type="button"
-            onClick={handleAutoFillNormalValues}
+            onClick={handleFocusFirstResult}
             disabled={selectedTests.length === 0}
-            className="flex items-center gap-1 px-3 py-1.5 bg-sky-50 text-sky-700 hover:bg-sky-100 rounded-xl text-xs font-semibold transition border border-sky-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-            title="Điền giá trị bình thường mẫu cho tất cả chỉ số đang chọn"
+            className="px-2 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 disabled:opacity-50 disabled:cursor-not-allowed font-bold rounded-lg text-[11px] border border-sky-200 transition-all flex items-center space-x-1"
+            title="Focus vào ô kết quả đầu tiên (Enter = dòng tiếp theo)"
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Điền Mẫu Bình Thường</span>
+            <Keyboard className="w-3.5 h-3.5 text-sky-600" />
+            <span>Nhập KQ</span>
+          </button>
+
+          {/* Bulk Paste */}
+          <button
+            type="button"
+            onClick={() => {
+              setShowBulkPaste(!showBulkPaste);
+              setTimeout(() => bulkTextAreaRef.current?.focus(), 50);
+            }}
+            disabled={selectedTests.length === 0}
+            className="px-2 py-1.5 bg-violet-50 hover:bg-violet-100 text-violet-800 disabled:opacity-50 disabled:cursor-not-allowed font-bold rounded-lg text-[11px] border border-violet-200 transition-all flex items-center space-x-1"
+            title="Dán kết quả hàng loạt (mỗi dòng = 1 giá trị)"
+          >
+            <ClipboardPaste className="w-3.5 h-3.5 text-violet-600" />
+            <span>Dán KQ</span>
           </button>
 
           <button
             type="button"
-            onClick={() => setShowBulkPaste((prev) => !prev)}
-            className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl text-xs font-semibold transition border border-slate-200 cursor-pointer"
-            title="Nhập nhanh nhiều chỉ số bằng cách dán văn bản / Excel"
+            onClick={handleAutoFillNormalValues}
+            disabled={selectedTests.length === 0}
+            className="px-2 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed font-bold rounded-lg text-[11px] border border-emerald-200 transition-all flex items-center space-x-1"
+            title="Điền tự động kết quả bình thường"
           >
-            <ClipboardPaste className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Dán Hàng Loạt</span>
+            <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Mẫu Nhanh</span>
           </button>
+
+          {onOpenInvoiceModal && (
+            <button
+              type="button"
+              onClick={onOpenInvoiceModal}
+              disabled={selectedTests.length === 0}
+              className="px-2 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-800 disabled:opacity-50 disabled:cursor-not-allowed font-bold rounded-lg text-[11px] border border-teal-200 transition-all"
+            >
+              Thu Phí ({totalFee.toLocaleString('vi-VN')} đ)
+            </button>
+          )}
 
           <button
             type="button"
             onClick={handleClearAllTests}
             disabled={selectedTests.length === 0}
-            className="flex items-center gap-1 px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl text-xs font-semibold transition border border-rose-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-            title="Xóa tất cả chỉ số xét nghiệm đã chọn"
+            className="px-2 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 disabled:opacity-50 disabled:cursor-not-allowed font-bold rounded-lg text-[11px] border border-rose-200 transition-all flex items-center space-x-1"
           >
             <Trash2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Xóa Hết</span>
+            <span>Xóa Hết</span>
           </button>
         </div>
       </div>
 
-      {/* Bulk Paste Modal / Expandable Panel */}
+      {/* ═══ BULK PASTE PANEL ═══ */}
       {showBulkPaste && (
-        <div className="p-4 bg-slate-50 border-b border-slate-200 animate-in slide-in-from-top duration-150">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-              <ClipboardPaste className="w-4 h-4 text-sky-600" />
-              Dán dữ liệu chỉ số từ Excel hoặc bảng văn bản (Định dạng: Mã/Tên [Tab/Phẩy] Kết quả [Tab/Phẩy] Đánh giá)
+        <div className="bg-violet-50 border border-violet-200 rounded-xl p-3 space-y-2 animate-in fade-in zoom-in-95 duration-150">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-violet-900 uppercase flex items-center gap-1">
+              <ClipboardPaste className="w-3.5 h-3.5 text-violet-600" />
+              Dán kết quả hàng loạt ({selectedTests.length} chỉ số)
             </span>
             <button
               type="button"
-              onClick={() => setShowBulkPaste(false)}
-              className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              onClick={() => { setShowBulkPaste(false); setBulkPasteText(''); }}
+              className="text-violet-400 hover:text-violet-700 p-0.5"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
           <textarea
             ref={bulkTextAreaRef}
-            rows={3}
             value={bulkPasteText}
             onChange={(e) => setBulkPasteText(e.target.value)}
-            placeholder="Ví dụ:&#10;GLU	5.4	Bình thường&#10;UREA	4.8&#10;CHOLESTEROL	5.2"
-            className="w-full text-xs font-mono p-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-hidden"
+            placeholder={`Dán mỗi dòng 1 giá trị kết quả:\n5.2\n140\n98\n...`}
+            rows={5}
+            className="w-full px-3 py-2 bg-white border border-violet-300 rounded-lg text-xs font-mono text-slate-900 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
           />
-          <div className="mt-2 flex justify-end gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-violet-500">
+              {bulkPasteText.split('\n').filter((l) => l.trim()).length} dòng → {selectedTests.length} chỉ số
+            </span>
             <button
               type="button"
-              onClick={() => setShowBulkPaste(false)}
-              className="px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-200 rounded-lg cursor-pointer"
+              onClick={handleApplyBulkPaste}
+              disabled={!bulkPasteText.trim()}
+              className="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition active:scale-95"
             >
-              Hủy
-            </button>
-            <button
-              type="button"
-              onClick={handleProcessBulkPaste}
-              className="px-3 py-1 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg transition cursor-pointer"
-            >
-              Áp Dụng Dán Hàng Loạt
+              Áp dụng
             </button>
           </div>
         </div>
       )}
 
-      {/* Search & Quick-Add Bar */}
-      <div className="p-4 border-b border-slate-100 bg-slate-50/30">
+      {/* ═══ RECENT TESTS CHIPS ═══ */}
+      {availableRecentTests.length > 0 && (
+        <div className="flex items-center gap-1.5 p-2 bg-amber-50/70 border border-amber-200/80 rounded-xl overflow-x-auto no-scrollbar">
+          <span className="text-[11px] font-bold text-amber-700 flex items-center gap-1 px-1 shrink-0">
+            <Clock className="w-3.5 h-3.5 text-amber-500" /> Gần đây:
+          </span>
+          {availableRecentTests.slice(0, 12).map((rt) => {
+            const catalogItem = catalog.find((c) => c.code === rt.code);
+            if (!catalogItem) return null;
+            return (
+              <button
+                key={rt.code}
+                type="button"
+                onClick={() => handleAddTest(catalogItem)}
+                className="text-[10.5px] font-semibold bg-white hover:bg-amber-100 text-slate-700 hover:text-amber-900 px-2.5 py-1 rounded-lg border border-amber-200 hover:border-amber-400 transition-all shadow-2xs active:scale-95 shrink-0"
+                title={`${rt.name} [${rt.code}] — ${rt.category}`}
+              >
+                + {rt.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Package Quick Chips (Swipeable Horizontal Scroll on Mobile) */}
+      {testPackages.length > 0 && (
+        <div className="flex items-center gap-1.5 p-2 bg-slate-50 border border-slate-200/80 rounded-xl overflow-x-auto no-scrollbar">
+          <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1 px-1 shrink-0">
+            <Layers className="w-3.5 h-3.5 text-slate-400" /> Gói nhanh:
+          </span>
+          {testPackages.map((pkg) => (
+            <button
+              key={pkg.id}
+              type="button"
+              onClick={() => handleSelectPackage(pkg.id)}
+              className="text-[11px] font-bold bg-white hover:bg-emerald-600 text-slate-700 hover:text-white px-2.5 py-1 rounded-lg border border-slate-200 hover:border-emerald-600 transition-all shadow-2xs active:scale-95 shrink-0"
+            >
+              + {pkg.name} ({getPkgCodes(pkg).length})
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Catalog Search & Add Dropdown */}
+      <div className="relative">
         <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-            <Search className="w-4 h-4" />
-          </div>
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
           <input
             ref={searchInputRef}
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Tìm kiếm chỉ số xét nghiệm theo tên, mã viết tắt, nhóm (hoặc nhấn phím tắt để tìm)..."
-            className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-sky-500 focus:border-transparent focus:outline-hidden transition"
+            onKeyDown={handleSearchKeyDown}
+            placeholder="Tìm chỉ số → Enter thêm nhanh, ↑↓ chọn, Esc đóng"
+            className="w-full pl-9 pr-8 py-2 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-300 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 rounded-xl text-xs text-slate-900 font-semibold focus:outline-none transition-all shadow-2xs"
           />
           {searchTerm && (
             <button
               type="button"
               onClick={() => setSearchTerm('')}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+              className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
             >
               <X className="w-4 h-4" />
             </button>
           )}
+        </div>
 
-          {/* Search Dropdown */}
-          {filteredCatalog.length > 0 && (
-            <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-20 overflow-hidden max-h-72 overflow-y-auto">
-              <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 text-[11px] font-semibold text-slate-500 flex justify-between">
-                <span>Gợi ý ({filteredCatalog.length}) - Dùng phím ↑ ↓ Enter để chọn nhanh</span>
-                <span className="flex items-center gap-1"><Keyboard className="w-3 h-3" /> Enter</span>
+        {searchTerm && (
+          <div className="absolute left-0 right-0 top-11 bg-white border border-slate-200 rounded-xl shadow-xl z-30 max-h-64 overflow-y-auto p-1 space-y-0.5">
+            {filteredCatalog.length === 0 ? (
+              <div className="p-3 text-center text-xs text-slate-400 font-medium">
+                Không tìm thấy chỉ số xét nghiệm nào khớp với từ khóa "{searchTerm}"
               </div>
-              {filteredCatalog.map((item, index) => {
+            ) : (
+              filteredCatalog.map((item, idx) => {
                 const isSelected = selectedTests.some((t) => t.code === item.code);
-                const isHighlighted = index === highlightedIndex;
+                const isHighlighted = idx === highlightedIndex && !isSelected;
                 return (
                   <div
                     key={item.code}
                     onClick={() => {
-                      handleAddTest(item);
-                      setSearchTerm('');
+                      if (!isSelected) {
+                        handleAddTest(item);
+                        setHighlightedIndex(0);
+                      }
                     }}
-                    className={`px-3 py-2 text-xs flex items-center justify-between cursor-pointer border-b border-slate-50 last:border-b-0 transition ${
-                      isHighlighted ? 'bg-sky-50 text-sky-900' : 'hover:bg-slate-50 text-slate-700'
+                    className={`flex items-center justify-between p-2 rounded-lg text-xs cursor-pointer transition ${
+                      isSelected
+                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                        : isHighlighted
+                        ? 'bg-emerald-100 text-emerald-900 font-bold ring-1 ring-emerald-300'
+                        : 'hover:bg-emerald-50 text-slate-800 font-medium'
                     }`}
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 text-[11px]">
-                        {item.code}
-                      </span>
-                      <span className="font-medium">{item.name}</span>
-                      {item.category && (
-                        <span className="text-[10px] text-slate-500 px-1.5 py-0.5 rounded-full bg-slate-100">
-                          {item.category}
-                        </span>
-                      )}
+                    <div>
+                      <span className="font-bold text-slate-900">{item.name}</span>
+                      <span className="ml-2 font-mono text-[10.5px] text-slate-400">[{item.code}]</span>
+                      <span className="ml-2 text-[10.5px] text-emerald-700 font-semibold">{item.category}</span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-[11px] text-slate-500">
-                        {item.unit || '-'} | {item.refMin !== null && item.refMax !== null ? `${item.refMin} - ${item.refMax}` : item.refText || '-'}
+                    <div className="flex items-center space-x-2">
+                      <span className="font-mono text-xs text-slate-500 font-semibold">
+                        {(item.price || 0).toLocaleString('vi-VN')} đ
                       </span>
                       {isSelected ? (
-                        <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
-                          Đã chọn
-                        </span>
+                        <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">Đã chọn</span>
+                      ) : isHighlighted ? (
+                        <kbd className="text-[9px] font-mono bg-emerald-200 text-emerald-800 px-1 py-0.5 rounded">Enter</kbd>
                       ) : (
-                        <button
-                          type="button"
-                          className="text-sky-600 hover:text-sky-800 font-bold flex items-center gap-0.5"
-                        >
-                          <Plus className="w-3.5 h-3.5" /> Thêm
-                        </button>
+                        <Plus className="w-4 h-4 text-emerald-600" />
                       )}
                     </div>
                   </div>
                 );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Quick Recent Chips */}
-        {recentTests.length > 0 && (
-          <div className="mt-2 flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-            <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1 shrink-0">
-              <Clock className="w-3 h-3" /> Gần đây:
-            </span>
-            {recentTests.slice(0, 8).map((rec) => {
-              const fullItem = catalog.find((c) => c.code === rec.code);
-              const isSelected = selectedTests.some((t) => t.code === rec.code);
-              return (
-                <button
-                  key={rec.code}
-                  type="button"
-                  onClick={() => fullItem && handleAddTest(fullItem)}
-                  disabled={isSelected || !fullItem}
-                  className={`px-2 py-0.5 rounded-lg text-[11px] font-medium shrink-0 transition flex items-center gap-1 ${
-                    isSelected
-                      ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                      : 'bg-white border border-slate-200 text-slate-700 hover:border-sky-400 hover:text-sky-700 hover:bg-sky-50 cursor-pointer shadow-2xs'
-                  }`}
-                >
-                  <span className="font-mono font-bold">{rec.code}</span>
-                  <span className="truncate max-w-[120px]">{rec.name}</span>
-                </button>
-              );
-            })}
+              })
+            )}
           </div>
         )}
       </div>
 
-      {/* Main Table */}
-      <div className="flex-1 overflow-x-auto overflow-y-auto min-h-[300px]">
-        <table className="w-full text-left text-xs border-collapse">
-          <thead className="bg-slate-100/80 text-slate-700 uppercase font-bold sticky top-0 z-10 text-[11px] border-b border-slate-200 backdrop-blur-xs">
-            <tr>
-              <th className="py-2.5 px-3 w-12 text-center">STT</th>
-              <th className="py-2.5 px-3 w-28">Mã</th>
-              <th className="py-2.5 px-3">Tên Chỉ Số</th>
-              <th className="py-2.5 px-3 w-32 text-center">Kết Quả</th>
-              <th className="py-2.5 px-3 w-20 text-center">Đơn Vị</th>
-              <th className="py-2.5 px-3 w-40 text-center">Tham Chiếu</th>
-              <th className="py-2.5 px-3 w-44">Đánh Giá / Ghi Chú</th>
-              <th className="py-2.5 px-3 w-12 text-center">Xóa</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {selectedTests.length === 0 ? (
+      {/* Main Selected Tests Table */}
+      <div className="border border-slate-200/90 rounded-xl overflow-hidden shadow-2xs">
+        <div className="max-h-[500px] overflow-y-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead className="bg-slate-800 text-white font-bold sticky top-0 z-10">
               <tr>
-                <td colSpan={8} className="py-12 text-center text-slate-400">
-                  <div className="flex flex-col items-center justify-center gap-2">
-                    <TestTube className="w-10 h-10 text-slate-300 stroke-[1.5]" />
-                    <p className="font-medium text-sm text-slate-600">Chưa có chỉ số xét nghiệm nào</p>
-                    <p className="text-xs text-slate-400">Tìm kiếm chỉ số ở trên hoặc chọn gói xét nghiệm từ danh mục bên phải để bắt đầu.</p>
-                  </div>
-                </td>
+                <th className="py-2.5 px-3 w-8 text-center">STT</th>
+                <th className="py-2.5 px-3 min-w-[140px]">TÊN CHỈ SỐ</th>
+                <th className="py-2.5 px-2.5 w-28 text-center">
+                  KẾT QUẢ
+                  <span className="block text-[9px] font-normal text-slate-400 mt-0.5">Enter↓ Tab→</span>
+                </th>
+                <th className="py-2.5 px-2 w-16 text-center">ĐƠN VỊ</th>
+                <th className="py-2.5 px-2.5 w-28 text-center">THAM CHIẾU</th>
+                <th className="py-2.5 px-2.5 min-w-[170px]">ĐÁNH GIÁ / GHI CHÚ</th>
+                <th className="py-2.5 px-2 w-10 text-center">XÓA</th>
               </tr>
-            ) : (
-              selectedTests.map((t, idx) => {
-                const isTIgE = t.code.toLowerCase() === 'tige';
-                const isAllergenItem = !isTIgE && (t.category?.includes('Dị Nguyên') || t.unit === 'IU/mL' || !!t.scaleId);
-                const hasAbnormalNote = t.note && !t.note.includes('Bình thường') && !t.note.includes('Âm tính') && !t.note.includes('Độ 0');
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {selectedTests.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                    <TestTube className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                    <p className="font-bold text-slate-600">Chưa có chỉ số xét nghiệm nào được chọn</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Chọn gói xét nghiệm nhanh ở trên hoặc gõ tìm kiếm chỉ số để bắt đầu
+                    </p>
+                  </td>
+                </tr>
+              ) : (
+                selectedTests.map((t, idx) => {
+                  const resolved = autoResolveItemLinks(t);
+                  const scale = resolved.scaleId ? getAllergenScaleById(resolved.scaleId) : undefined;
+                  const refRange = resolved.referenceRangeId ? getReferenceRangeById(resolved.referenceRangeId) : undefined;
+                  const evalRes = evaluateTestIndicator(t.code, t.category, t.unit, t.result, t.refMin, t.refMax, scale, refRange);
+                  const isAbnormal = evalRes.isAbnormal;
 
-                return (
-                  <tr
-                    key={t.code}
-                    className={`hover:bg-slate-50/80 transition ${
-                      hasAbnormalNote ? 'bg-amber-50/40' : ''
-                    }`}
-                  >
-                    <td className="py-2.5 px-3 text-center text-slate-500 font-mono text-[11px]">
-                      {idx + 1}
-                    </td>
-                    <td className="py-2.5 px-3 font-mono font-bold text-slate-800">
-                      {t.code}
-                    </td>
-                    <td className="py-2.5 px-3">
-                      <div className="font-semibold text-slate-900">{t.name}</div>
-                      {t.scientific && (
-                        <div className="text-[10px] italic text-slate-400">{t.scientific}</div>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-3 text-center">
-                      <input
-                        ref={(el) => setResultInputRef(t.code, el)}
-                        type="text"
-                        value={t.result || ''}
-                        onChange={(e) => handleResultChange(t.code, e.target.value)}
-                        placeholder="--"
-                        className={`w-full text-center py-1 px-2 text-xs font-bold rounded-lg border focus:ring-2 focus:outline-hidden transition ${
-                          hasAbnormalNote
-                            ? 'border-rose-400 bg-rose-50/50 text-rose-800 focus:ring-rose-400'
-                            : 'border-slate-200 bg-white text-slate-800 focus:ring-sky-500'
-                        }`}
-                      />
-                    </td>
-                    <td className="py-2.5 px-3 text-center text-slate-600 font-medium">
-                      {t.unit || '-'}
-                    </td>
-                    <td className="py-2.5 px-3 text-center text-slate-600">
-                      {t.customRefText ? (
-                        <span className="font-medium text-slate-700">{t.customRefText}</span>
-                      ) : t.refMin !== null && t.refMin !== undefined && t.refMax !== null && t.refMax !== undefined ? (
-                        <span className="font-medium text-slate-700">{t.refMin} - {t.refMax}</span>
-                      ) : (
-                        <span className="font-medium text-slate-700">{t.refText || '-'}</span>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-3">
-                      <NoteCombobox
-                        value={t.note || ''}
-                        onChange={(val) => handleNoteChange(t.code, val)}
-                        isAllergen={isAllergenItem}
-                        scaleId={t.scaleId}
-                      />
-                    </td>
-                    <td className="py-2.5 px-3 text-center">
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveTest(t.code)}
-                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                        title="Xóa chỉ số này"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                  const displayUnit = resolved.unit || refRange?.unit || scale?.unit || t.unit || '---';
+                  const displayRef = resolved.refText || refRange?.refText || (scale ? `${scale.levels[0]?.rangeText || '<0,34'} (Độ 0)` : undefined) || (t.refMin !== null && t.refMax !== null ? `${t.refMin} - ${t.refMax}` : '---');
 
-      {/* Footer Pricing Summary Bar */}
-      {selectedTests.length > 0 && (
-        <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0 text-xs">
-          <div className="flex items-center gap-4 text-slate-600">
-            <span>
-              Tổng số chỉ số: <strong>{selectedTests.length}</strong>
-            </span>
-            {pricingBreakdown.appliedPackages.length > 0 && (
-              <span className="flex items-center gap-1 text-sky-700 font-medium">
-                <Layers className="w-3.5 h-3.5" />
-                Gói áp dụng: {pricingBreakdown.appliedPackages.map((p) => p.name).join(', ')}
-              </span>
-            )}
-          </div>
+                  return (
+                    <tr
+                      key={t.code || idx}
+                      className={`hover:bg-slate-50/80 transition-colors ${
+                        isAbnormal ? 'bg-amber-50/40' : ''
+                      }`}
+                    >
+                      <td className="py-2 px-3 text-center font-mono text-slate-400">{idx + 1}</td>
+                      <td className="py-2 px-3">
+                        <span className="font-bold text-slate-900 block">{t.name}</span>
+                        <div className="flex items-center space-x-1.5 mt-0.5">
+                          <span className="font-mono text-[10px] text-slate-400">{t.code}</span>
+                          {t.category && (
+                            <span className="text-[9.5px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-medium">
+                              {t.category}
+                            </span>
+                          )}
+                        </div>
+                      </td>
 
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <span className="text-slate-500 mr-2">Tổng viện phí tạm tính:</span>
-              <span className="text-base font-extrabold text-emerald-700">
-                {pricingBreakdown.totalFee.toLocaleString('vi-VN')} đ
-              </span>
-            </div>
+                      {/* Ô nhập kết quả — Enter = next row, Tab = next row (skip note) */}
+                      <td className="py-2 px-2.5">
+                        <input
+                          ref={(el) => setResultInputRef(t.code, el)}
+                          type="text"
+                          value={t.result}
+                          onChange={(e) => handleResultChange(t.code, e.target.value)}
+                          onKeyDown={(e) => handleResultKeyDown(e, idx)}
+                          placeholder="Nhập KQ..."
+                          className={`w-full px-2 py-1.5 min-h-[36px] text-center font-mono font-bold rounded-lg border text-xs sm:text-xs focus:outline-none transition-all shadow-2xs ${
+                            isAbnormal
+                              ? 'border-red-400 bg-red-50 text-red-700 focus:ring-2 focus:ring-red-300'
+                              : 'border-slate-300 bg-white text-slate-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100'
+                          }`}
+                        />
+                      </td>
 
-            {onOpenInvoiceModal && (
-              <button
-                type="button"
-                onClick={onOpenInvoiceModal}
-                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition flex items-center gap-1 shadow-sm cursor-pointer"
-              >
-                Tạo Hóa Đơn
-              </button>
-            )}
-          </div>
+                      <td className="py-2 px-2 text-center font-mono text-slate-600">{displayUnit}</td>
+                      <td className="py-2 px-2.5 text-center font-mono text-slate-600">{displayRef}</td>
+
+                      {/* Ghi chú & Đánh giá (Custom Dropdown + Search + Edit) */}
+                      <td className="py-2 px-2.5">
+                        <NoteCombobox
+                          value={t.note || ''}
+                          onChange={(val) => handleNoteChange(t.code, val)}
+                          isAllergen={!!scale || (t.category?.includes('Dị Nguyên') ?? false)}
+                          isAbnormal={isAbnormal}
+                          placeholder="Đánh giá..."
+                        />
+                      </td>
+
+                      <td className="py-2 px-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTest(t.code)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all active:scale-90"
+                          title="Xóa chỉ số này"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
     </div>
   );
 }

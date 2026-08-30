@@ -1,118 +1,136 @@
-import { boolean, jsonb, pgTable, real, text, timestamp } from 'drizzle-orm/pg-core';
+import { z } from 'zod';
 
-export const catalogItems = pgTable('catalog_items', {
-  code: text('code').primaryKey(),
-  category: text('category').notNull(),
-  name: text('name').notNull(),
-  refMin: real('ref_min'),
-  refMax: real('ref_max'),
-  unit: text('unit').notNull().default(''),
-  refText: text('ref_text').notNull().default(''),
-  price: real('price'),
-  scientific: text('scientific'),
-  evaluationType: text('evaluation_type'),
-  updatedAt: timestamp('updated_at').notNull().defaultNow()
+export const TABLE_NAMES = [
+  'catalog',
+  'test-packages',
+  'test-groups',
+  'equipments',
+  'doctors',
+  'clinic-info',
+  'zalo-config',
+  'reference-ranges',
+  'catalog-item-equipments',
+  'medical-reports',
+  'invoices'
+] as const;
+
+export type TableName = (typeof TABLE_NAMES)[number];
+
+export const tableNameSchema = z.enum(TABLE_NAMES);
+
+export const catalogRowSchema = z.object({
+  code: z.string().min(1),
+  category: z.string().min(1),
+  name: z.string().min(1),
+  refMin: z.number().nullable().optional(),
+  refMax: z.number().nullable().optional(),
+  unit: z.string().optional().default(''),
+  refText: z.string().optional().default(''),
+  price: z.number().optional(),
+  scientific: z.string().optional(),
+  evaluationType: z.string().optional()
 });
 
-/** Bảng cấu hình thiết bị: 1 chỉ số xét nghiệm × nhiều loại máy đo → mỗi máy có ngưỡng đo (ref_min, ref_max, ref_text, unit, scale_id) riêng */
-export const catalogItemEquipments = pgTable('catalog_item_equipments', {
-  id: text('id').primaryKey(),
-  catalogCode: text('catalog_code').notNull(),
-  equipmentId: text('equipment_id').notNull(),
-  refMin: real('ref_min'),
-  refMax: real('ref_max'),
-  unit: text('unit'),
-  refText: text('ref_text'),
-  scaleId: text('scale_id'),
-  isDefault: boolean('is_default').notNull().default(false),
-  updatedAt: timestamp('updated_at').notNull().defaultNow()
+/** Zod schema cho một PackageItem (chỉ số trong gói kèm máy đo) */
+export const packageItemSchema = z.object({
+  code: z.string().min(1),
+  equipmentId: z.string().nullable().optional()
 });
 
-export const testPackages = pgTable('test_packages', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  /** Mảng JSON [{code, equipmentId}] — thay thế cột codes cũ */
-  items: jsonb('items').notNull().$type<{ code: string; equipmentId?: string | null }[]>(),
-  price: real('price').notNull().default(0),
-  updatedAt: timestamp('updated_at').notNull().defaultNow()
+export const testPackageRowSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  items: z.array(packageItemSchema).default([]),
+  /** @deprecated backward compat — sẽ bị bỏ sau migration hoàn tất */
+  codes: z.array(z.string()).optional(),
+  price: z.number().default(0)
 });
 
-export const testGroups = pgTable('test_groups', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow()
+export const testGroupRowSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1)
 });
 
-export const equipments = pgTable('equipments', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  code: text('code'),
-  updatedAt: timestamp('updated_at').notNull().defaultNow()
+export const equipmentRowSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  code: z.string().optional()
 });
 
-export const doctors = pgTable('doctors', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  specialty: text('specialty'),
-  phone: text('phone'),
-  updatedAt: timestamp('updated_at').notNull().defaultNow()
+export const doctorRowSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  specialty: z.string().optional(),
+  phone: z.string().optional()
 });
 
-export const clinicInfo = pgTable('clinic_info', {
-  id: text('id').primaryKey().default('default'),
-  name: text('name').notNull(),
-  address: text('address').notNull(),
-  phone: text('phone').notNull(),
-  website: text('website'),
-  defaultDoctor: text('default_doctor').notNull(),
-  logoUrl: text('logo_url'),
-  stampUrl: text('stamp_url'),
-  bankId: text('bank_id'),
-  bankName: text('bank_name'),
-  bankAccountNo: text('bank_account_no'),
-  bankAccountName: text('bank_account_name'),
-  bankBranch: text('bank_branch'),
-  bankQrImageUrl: text('bank_qr_image_url'),
-  cashierName: text('cashier_name'),
-  accountantName: text('accountant_name'),
-  updatedAt: timestamp('updated_at').notNull().defaultNow()
+export const clinicInfoRowSchema = z.object({
+  name: z.string(),
+  address: z.string(),
+  phone: z.string(),
+  website: z.string().optional(),
+  defaultDoctor: z.string(),
+  logoUrl: z.string().optional(),
+  stampUrl: z.string().optional(),
+  bankId: z.string().optional(),
+  bankName: z.string().optional(),
+  bankAccountNo: z.string().optional(),
+  bankAccountName: z.string().optional(),
+  bankBranch: z.string().optional(),
+  bankQrImageUrl: z.string().optional(),
+  cashierName: z.string().optional(),
+  accountantName: z.string().optional()
 });
 
-export const zaloConfig = pgTable('zalo_config', {
-  id: text('id').primaryKey().default('default'),
-  enabled: boolean('enabled').notNull().default(false),
-  appId: text('app_id').notNull().default(''),
-  secretKey: text('secret_key').notNull().default(''),
-  oaId: text('oa_id').notNull().default(''),
-  accessToken: text('access_token').notNull().default(''),
-  refreshToken: text('refresh_token'),
-  templateId: text('template_id').notNull().default(''),
-  autoSendOnExport: boolean('auto_send_on_export').notNull().default(false),
-  proxyUrl: text('proxy_url'),
-  updatedAt: timestamp('updated_at').notNull().defaultNow()
+export const zaloConfigRowSchema = z.object({
+  enabled: z.boolean(),
+  appId: z.string(),
+  secretKey: z.string(),
+  oaId: z.string(),
+  accessToken: z.string(),
+  refreshToken: z.string().optional(),
+  templateId: z.string(),
+  autoSendOnExport: z.boolean(),
+  proxyUrl: z.string().optional()
 });
 
-export const referenceRanges = pgTable('reference_ranges', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  refMin: real('ref_min'),
-  refMax: real('ref_max'),
-  unit: text('unit').notNull().default(''),
-  refText: text('ref_text').notNull().default(''),
-  gender: text('gender'),
-  ageGroup: text('age_group'),
-  note: text('note'),
-  updatedAt: timestamp('updated_at').notNull().defaultNow()
+export const referenceRangeRowSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  refMin: z.number().nullable().optional(),
+  refMax: z.number().nullable().optional(),
+  unit: z.string().optional().default(''),
+  refText: z.string().optional().default(''),
+  gender: z.string().optional(),
+  ageGroup: z.string().optional(),
+  note: z.string().optional()
 });
 
-export const medicalReports = pgTable('medical_reports', {
-  id: text('id').primaryKey(),
-  data: jsonb('data').notNull(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow()
+/** Zod schema cho bảng catalog_item_equipments */
+export const catalogItemEquipmentRowSchema = z.object({
+  id: z.string().min(1),
+  catalogCode: z.string().min(1),
+  equipmentId: z.string().min(1),
+  refMin: z.number().nullable().optional(),
+  refMax: z.number().nullable().optional(),
+  unit: z.string().nullable().optional(),
+  refText: z.string().nullable().optional(),
+  scaleId: z.string().nullable().optional(),
+  isDefault: z.boolean().optional().default(false)
 });
 
-export const invoices = pgTable('invoices', {
-  id: text('id').primaryKey(),
-  data: jsonb('data').notNull(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow()
-});
+export const documentRowSchema = z.object({ id: z.string().min(1) }).passthrough();
+
+export const ROW_SCHEMAS: Record<TableName, z.ZodTypeAny> = {
+  catalog: catalogRowSchema,
+  'test-packages': testPackageRowSchema,
+  'test-groups': testGroupRowSchema,
+  equipments: equipmentRowSchema,
+  doctors: doctorRowSchema,
+  'clinic-info': clinicInfoRowSchema,
+  'zalo-config': zaloConfigRowSchema,
+  'reference-ranges': referenceRangeRowSchema,
+  'catalog-item-equipments': catalogItemEquipmentRowSchema,
+  'medical-reports': documentRowSchema,
+  invoices: documentRowSchema
+};

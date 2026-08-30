@@ -199,7 +199,20 @@ export default function CatalogManagerModal({
         </div>
 
         {/* TAB 1: TOÀN BỘ CHỈ SỐ XÉT NGHIỆM */}
-        {(activeTab === 'INDICATORS' || activeTab === 'ALLERGENS') && (\n          <CatalogItemsTab\n            items={items}\n            setItems={setItems}\n            groups={groups}\n            onCreateGroup={handleCreateGroup}\n            onDeleteGroup={handleDeleteGroup}\n            equipments={eqList}\n            onCreateEquipment={handleCreateEquipment}\n            onDeleteEquipment={handleDeleteEquipment}\n            catalogItemEquipments={itemEquipments}\n            setCatalogItemEquipments={setItemEquipments}\n          />\n        )}
+        {(activeTab === 'INDICATORS' || activeTab === 'ALLERGENS') && (
+          <CatalogItemsTab
+            items={items}
+            setItems={setItems}
+            groups={groups}
+            onCreateGroup={handleCreateGroup}
+            onDeleteGroup={handleDeleteGroup}
+            equipments={eqList}
+            onCreateEquipment={handleCreateEquipment}
+            onDeleteEquipment={handleDeleteEquipment}
+            catalogItemEquipments={itemEquipments}
+            setCatalogItemEquipments={setItemEquipments}
+          />
+        )}
 
         {/* TAB 2: TOÀN BỘ GÓI XÉT NGHIỆM */}
         {(activeTab === 'PACKAGES' || activeTab === 'PACKAGES_INDICATOR' || activeTab === 'PACKAGES_ALLERGEN') && (
