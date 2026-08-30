@@ -28,7 +28,8 @@ import type {
   BatchImportRow,
   ExportStepName,
   ExportErrorDetail,
-  BatchExportProgress
+  BatchExportProgress,
+  ReferenceRangeItem
 } from '@domain';
 
 // ─── MODAL LAYER COMPONENT ──────────────────────────────────────────────────
@@ -51,6 +52,8 @@ interface ModalLayerProps {
   setEquipments: (equipments: TestEquipment[]) => void;
   doctorsList: Doctor[];
   setDoctorsList: (doctors: Doctor[]) => void;
+  referenceRanges?: ReferenceRangeItem[];
+  setReferenceRanges?: (ranges: ReferenceRangeItem[]) => void;
   reports?: MedicalReport[];
   setReports?: Dispatch<SetStateAction<MedicalReport[]>>;
   invoices?: Invoice[];
@@ -101,6 +104,8 @@ export function ModalLayer({
   setEquipments,
   doctorsList,
   setDoctorsList,
+  referenceRanges = [],
+  setReferenceRanges,
   cloudLink,
   qrCodeDataUrl,
   isExporting,
@@ -244,6 +249,8 @@ export function ModalLayer({
         onSaveEquipments={setEquipments}
         doctorsList={doctorsList}
         onSaveDoctors={setDoctorsList}
+        referenceRanges={referenceRanges}
+        onSaveReferenceRanges={setReferenceRanges}
       />
 
       {/* 4. INVOICE MODAL */}

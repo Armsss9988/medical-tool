@@ -8,6 +8,7 @@ import {
   ClinicInfo, 
   CloudDbConfig, 
   ZaloZnsConfig,
+  ReferenceRangeItem,
   STORAGE_KEYS
 } from '@domain';
 import { autoResolveItemLinks } from '@data';
@@ -19,12 +20,14 @@ import {
   fetchEquipmentsFromSupabase, 
   fetchDoctorsFromSupabase,
   fetchClinicInfoFromSupabase,
+  fetchReferenceRangesFromSupabase,
   syncCatalogToSupabase,
   syncPackagesToSupabase,
   syncGroupsToSupabase,
   syncEquipmentsToSupabase,
   syncDoctorsToSupabase,
   syncClinicInfoToSupabase,
+  syncReferenceRangesToSupabase,
   syncZaloConfigToSupabase
 } from '@infra/cloudDbService';
 
@@ -82,6 +85,10 @@ export function useCatalogData() {
     return loadState<Doctor[]>(STORAGE_KEYS.DOCTORS, []);
   });
 
+  const [referenceRanges, setReferenceRanges] = useState<ReferenceRangeItem[]>(() => {
+    return loadState<ReferenceRangeItem[]>(STORAGE_KEYS.REFERENCE_RANGES, []);
+  });
+
   const [clinicInfo, setClinicInfo] = useState<ClinicInfo>(() => {
     return loadState<ClinicInfo>(STORAGE_KEYS.CLINIC_INFO, DEFAULT_CLINIC_INFO);
   });
@@ -133,6 +140,13 @@ export function useCatalogData() {
   }, [doctorsList, cloudDbConfig]);
 
   useEffect(() => {
+    saveState(STORAGE_KEYS.REFERENCE_RANGES, referenceRanges);
+    if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
+      syncReferenceRangesToSupabase(referenceRanges, cloudDbConfig).catch(() => {});
+    }
+  }, [referenceRanges, cloudDbConfig]);
+
+  useEffect(() => {
     saveState(STORAGE_KEYS.CLINIC_INFO, clinicInfo);
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncClinicInfoToSupabase(clinicInfo, cloudDbConfig).catch(() => {});
@@ -160,13 +174,14 @@ export function useCatalogData() {
     const syncCloudData = async () => {
       try {
         setIsLoading(true);
-        const [cloudCatalog, cloudPackages, cloudGroups, cloudEquip, cloudDocs, cloudClinic] = await Promise.all([
+        const [cloudCatalog, cloudPackages, cloudGroups, cloudEquip, cloudDocs, cloudClinic, cloudRefRanges] = await Promise.all([
           fetchCatalogFromSupabase(cloudDbConfig),
           fetchPackagesFromSupabase(cloudDbConfig),
           fetchGroupsFromSupabase(cloudDbConfig),
           fetchEquipmentsFromSupabase(cloudDbConfig),
           fetchDoctorsFromSupabase(cloudDbConfig),
-          fetchClinicInfoFromSupabase(cloudDbConfig)
+          fetchClinicInfoFromSupabase(cloudDbConfig),
+          fetchReferenceRangesFromSupabase(cloudDbConfig)
         ]);
 
         if (cloudCatalog && cloudCatalog.length > 0) {
@@ -186,6 +201,9 @@ export function useCatalogData() {
         }
         if (cloudClinic && cloudClinic.name) {
           setClinicInfo(cloudClinic);
+        }
+        if (cloudRefRanges && cloudRefRanges.length > 0) {
+          setReferenceRanges(cloudRefRanges);
         }
       } catch (err) {
         console.warn('[CloudDB] Không thể tải dữ liệu từ Cloud:', err);
@@ -208,6 +226,8 @@ export function useCatalogData() {
     setEquipments,
     doctorsList,
     setDoctorsList,
+    referenceRanges,
+    setReferenceRanges,
     clinicInfo,
     setClinicInfo,
     cloudDbConfig,

@@ -80,6 +80,19 @@ export const zaloConfig = pgTable('zalo_config', {
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 
+export const referenceRanges = pgTable('reference_ranges', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  refMin: real('ref_min'),
+  refMax: real('ref_max'),
+  unit: text('unit').notNull().default(''),
+  refText: text('ref_text').notNull().default(''),
+  gender: text('gender'),
+  ageGroup: text('age_group'),
+  note: text('note'),
+  updatedAt: timestamp('updated_at').notNull().defaultNow()
+});
+
 export const medicalReports = pgTable('medical_reports', {
   id: text('id').primaryKey(),
   data: jsonb('data').notNull(),

@@ -8,6 +8,7 @@ export const TABLE_NAMES = [
   'doctors',
   'clinic-info',
   'zalo-config',
+  'reference-ranges',
   'medical-reports',
   'invoices'
 ] as const;
@@ -87,6 +88,18 @@ export const zaloConfigRowSchema = z.object({
   proxyUrl: z.string().optional()
 });
 
+export const referenceRangeRowSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  refMin: z.number().nullable().optional(),
+  refMax: z.number().nullable().optional(),
+  unit: z.string().optional().default(''),
+  refText: z.string().optional().default(''),
+  gender: z.string().optional(),
+  ageGroup: z.string().optional(),
+  note: z.string().optional()
+});
+
 export const documentRowSchema = z.object({ id: z.string().min(1) }).passthrough();
 
 export const ROW_SCHEMAS: Record<TableName, z.ZodTypeAny> = {
@@ -97,6 +110,7 @@ export const ROW_SCHEMAS: Record<TableName, z.ZodTypeAny> = {
   doctors: doctorRowSchema,
   'clinic-info': clinicInfoRowSchema,
   'zalo-config': zaloConfigRowSchema,
+  'reference-ranges': referenceRangeRowSchema,
   'medical-reports': documentRowSchema,
   invoices: documentRowSchema
 };

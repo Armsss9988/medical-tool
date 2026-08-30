@@ -38,6 +38,8 @@ function AppContent() {
     setEquipments,
     doctorsList,
     setDoctorsList,
+    referenceRanges,
+    setReferenceRanges,
     cloudDbConfig,
     setCloudDbConfig,
     zaloConfig,
@@ -296,6 +298,8 @@ function AppContent() {
         setEquipments={setEquipments}
         doctorsList={doctorsList}
         setDoctorsList={setDoctorsList}
+        referenceRanges={referenceRanges}
+        setReferenceRanges={setReferenceRanges}
         cloudLink={cloudLink}
         qrCodeDataUrl={qrCodeDataUrl}
         isExporting={isExporting}

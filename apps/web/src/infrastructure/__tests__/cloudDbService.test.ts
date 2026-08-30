@@ -86,6 +86,7 @@ describe('cloudDbService wired to apiClient', () => {
   it('(d2) fetchAllCloudDataToLocal unwraps clinicInfo and zaloConfig as single objects', async () => {
     const clinic = { name: 'GoLab', address: '', phone: '', defaultDoctor: '' } as never;
     const zalo = { enabled: false } as never;
+    const refRange = { id: 'ref_glu', name: 'Glucose' } as never;
     mockGetTable
       .mockResolvedValueOnce({ rows: [{ code: 'GLU' }], count: 1, updatedAt: '' }) // catalog
       .mockResolvedValueOnce({ rows: [], count: 0, updatedAt: '' }) // packages
@@ -93,12 +94,14 @@ describe('cloudDbService wired to apiClient', () => {
       .mockResolvedValueOnce({ rows: [], count: 0, updatedAt: '' }) // equipments
       .mockResolvedValueOnce({ rows: [], count: 0, updatedAt: '' }) // doctors
       .mockResolvedValueOnce({ rows: [clinic], count: 1, updatedAt: '' }) // clinic
+      .mockResolvedValueOnce({ rows: [refRange], count: 1, updatedAt: '' }) // reference_ranges
       .mockResolvedValueOnce({ rows: [], count: 0, updatedAt: '' }) // reports
       .mockResolvedValueOnce({ rows: [], count: 0, updatedAt: '' }) // invoices
       .mockResolvedValueOnce({ rows: [zalo], count: 1, updatedAt: '' }); // zalo
     const res = await fetchAllCloudDataToLocal(cfg);
     expect(res?.clinicInfo).toEqual(clinic);
     expect(res?.zaloConfig).toEqual(zalo);
+    expect(res?.referenceRanges).toEqual([refRange]);
   });
 
   it('(e) config.enabled === false returns false without calling putTable', async () => {
@@ -120,11 +123,11 @@ describe('cloudDbService wired to apiClient', () => {
     const res = await testSupabaseConnection(cfg);
     expect(mockGetTable).toHaveBeenCalledWith('catalog');
     expect(res.success).toBe(true);
-    expect(res.message).toContain('Kết nối thành công');
+    expect(res.message).toBe('Kết nối thành công tới GoLab API!');
   });
 
   it('testSupabaseConnection reports wrong password on ApiAuthError', async () => {
-    mockGetTable.mockRejectedValue(new ApiAuthError('Unauthorized'));
+    mockGetTable.mockRejectedValue(new ApiAuthError('unauthorized'));
     const res = await testSupabaseConnection(cfg);
     expect(res.success).toBe(false);
     expect(res.message).toBe('Sai mật khẩu API!');
@@ -147,6 +150,7 @@ describe('cloudDbService wired to apiClient', () => {
         equipments: [{ id: 'e1', code: 'EC', name: 'EQ' }] as never,
         doctorsList: [{ id: 'd1', name: 'Dr' }] as never,
         clinicInfo: { name: 'GoLab', address: '', phone: '', defaultDoctor: '' } as never,
+        referenceRanges: [{ id: 'ref_glu', name: 'Glucose' }] as never,
         reports: [{ id: 'r1', code: 'BN1' }] as never,
         invoices: [{ id: 'i1', code: 'HD1' }] as never,
         zaloConfig: { enabled: false } as never
@@ -155,6 +159,7 @@ describe('cloudDbService wired to apiClient', () => {
     );
     expect(res.success).toBe(true);
     expect(mockPutTable).toHaveBeenCalledWith('catalog', expect.anything());
+    expect(mockPutTable).toHaveBeenCalledWith('reference-ranges', [{ id: 'ref_glu', name: 'Glucose' }]);
     expect(mockPutTable).toHaveBeenCalledWith('medical-reports', [{ id: 'r1', code: 'BN1' }]);
     expect(mockPutTable).toHaveBeenCalledWith('clinic-info', [
       { name: 'GoLab', address: '', phone: '', defaultDoctor: '' }

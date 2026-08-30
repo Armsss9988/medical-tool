@@ -11,7 +11,8 @@ export const STORAGE_KEYS = {
   CLINIC_INFO: 'clinicInfo',
   CLOUD_DB: 'cloudDbConfig',
   ZALO_CONFIG: 'zaloConfig',
-  RECENT_TESTS: 'recent_tests'
+  RECENT_TESTS: 'recent_tests',
+  REFERENCE_RANGES: 'referenceRanges'
 } as const;
 
 export type StorageKey = typeof STORAGE_KEYS[keyof typeof STORAGE_KEYS];
