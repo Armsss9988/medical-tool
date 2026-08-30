@@ -107,10 +107,44 @@ export interface TestPackage {
   codes?: string[];
 }
 
-/** Helper: lấy danh sách mã xét nghiệm từ một TestPackage (hỗ trợ cả format cũ lẫn mới) */
-export function getPkgCodes(pkg: TestPackage): string[] {
-  if (pkg.items && pkg.items.length > 0) return pkg.items.map((i) => i.code);
-  if (pkg.codes && pkg.codes.length > 0) return pkg.codes;
+/** Helper: lấy danh sách mã xét nghiệm từ một TestPackage (hỗ trợ an toàn cả format object, string, mảng cũ lẫn mới) */
+export function getPkgCodes(pkg: TestPackage | undefined | null): string[] {
+  if (!pkg) return [];
+
+  if (Array.isArray(pkg.items) && pkg.items.length > 0) {
+    return pkg.items
+      .map((i) => (typeof i === 'string' ? i : (i && typeof i === 'object' && 'code' in i ? (i as { code: string }).code : '')))
+      .filter((c): c is string => Boolean(c && typeof c === 'string'));
+  }
+
+  if (typeof pkg.items === 'string') {
+    try {
+      const parsed = JSON.parse(pkg.items);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((i) => (typeof i === 'string' ? i : (i && typeof i === 'object' && 'code' in i ? (i as { code: string }).code : '')))
+          .filter((c): c is string => Boolean(c && typeof c === 'string'));
+      }
+    } catch {
+      // Ignored: invalid JSON string
+    }
+  }
+
+  if (Array.isArray(pkg.codes) && pkg.codes.length > 0) {
+    return pkg.codes.filter((c): c is string => Boolean(c && typeof c === 'string'));
+  }
+
+  if (typeof pkg.codes === 'string') {
+    try {
+      const parsed = JSON.parse(pkg.codes);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((c): c is string => Boolean(c && typeof c === 'string'));
+      }
+    } catch {
+      // Ignored: invalid JSON string
+    }
+  }
+
   return [];
 }
 

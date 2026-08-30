@@ -79,13 +79,33 @@ export const DEFAULT_TEST_GROUPS: TestGroup[] = [
   { id: crypto.randomUUID(), name: 'Giải Phẫu Bệnh & Tế Bào' }
 ];
 
-export const DEFAULT_CATALOG: CatalogItem[] = [
-  // === 76 CHỈ SỐ NHI KHOA (từ Excel UPLOAD_PHAN_MEM_NHI) ===
-  ...NHI_CATALOG,
+export const STANDARD_CLINICAL_ITEMS: CatalogItem[] = [
+  // 1. SINH HÓA MÁU CƠ BẢN
+  { category: 'Sinh Hóa', code: 'GLU', name: 'Glucose (Đường huyết lúc đói)', refMin: 3.9, refMax: 6.4, unit: 'mmol/L', refText: '3.9 - 6.4', price: 35000, referenceRangeId: 'ref_glucose', evaluationType: 'range', equipment: 'MS-360' },
+  { category: 'Sinh Hóa', code: 'URE', name: 'Ure máu', refMin: 2.5, refMax: 7.5, unit: 'mmol/L', refText: '2.5 - 7.5', price: 35000, referenceRangeId: 'ref_ure', evaluationType: 'range', equipment: 'MS-360' },
+  { category: 'Sinh Hóa', code: 'CREAT', name: 'Creatinine máu', refMin: 53, refMax: 110, unit: 'µmol/L', refText: '53 - 110', price: 40000, referenceRangeId: 'ref_creatinine', evaluationType: 'range', equipment: 'MS-360' },
+  { category: 'Sinh Hóa', code: 'AST', name: 'AST (GOT) - Men gan', refMin: 0, refMax: 37, unit: 'U/L', refText: '< 37', price: 40000, referenceRangeId: 'ref_ast', evaluationType: 'range', equipment: 'MS-360' },
+  { category: 'Sinh Hóa', code: 'ALT', name: 'ALT (GPT) - Men gan', refMin: 0, refMax: 40, unit: 'U/L', refText: '< 40', price: 40000, referenceRangeId: 'ref_alt', evaluationType: 'range', equipment: 'MS-360' },
+  { category: 'Sinh Hóa', code: 'CHO', name: 'Cholesterol toàn phần', refMin: 3.6, refMax: 5.2, unit: 'mmol/L', refText: '3.6 - 5.2', price: 40000, referenceRangeId: 'ref_cholesterol', evaluationType: 'range', equipment: 'MS-360' },
+  { category: 'Sinh Hóa', code: 'TRI', name: 'Triglyceride (Mỡ máu)', refMin: 0.4, refMax: 1.7, unit: 'mmol/L', refText: '0.4 - 1.7', price: 40000, referenceRangeId: 'ref_triglyceride', evaluationType: 'range', equipment: 'MS-360' },
+  { category: 'Sinh Hóa', code: 'URIC', name: 'Acid Uric (Gút)', refMin: 180, refMax: 420, unit: 'µmol/L', refText: '180 - 420', price: 45000, referenceRangeId: 'ref_uric', evaluationType: 'range', equipment: 'MS-360' },
 
-  // === 91 DỊ NGUYÊN IgE CHUẨN PROTIA (giữ nguyên) ===
-  ...ALLERGEN_CATALOG_ITEMS
+  // 2. NƯỚC TIỂU
+  { category: 'Nước Tiểu', code: 'LEU_U', name: 'Bạch cầu (LEU) nước tiểu', refMin: 0, refMax: 10, unit: 'Cells/µL', refText: 'Âm tính (< 10)', price: 40000, evaluationType: 'text' },
+  { category: 'Nước Tiểu', code: 'PRO_U', name: 'Protein (PRO) nước tiểu', refMin: 0, refMax: 0.1, unit: 'g/L', refText: 'Âm tính (< 0.1)', price: 40000, evaluationType: 'text' },
+  { category: 'Nước Tiểu', code: 'GLU_U', name: 'Glucose (GLU) nước tiểu', refMin: 0, refMax: 0.8, unit: 'mmol/L', refText: 'Âm tính (< 0.8)', price: 40000, evaluationType: 'text' },
+
+  // 3. MIỄN DỊCH & TẦM SOÁT
+  { category: 'Miễn Dịch', code: 'HP', name: 'HP Test (Vi khuẩn dạ dày)', refMin: null, refMax: null, unit: 'Cut-off', refText: 'Âm tính (Negative)', price: 100000, evaluationType: 'text' }
 ];
+
+export const DEFAULT_CATALOG: CatalogItem[] = (() => {
+  const map = new Map<string, CatalogItem>();
+  for (const item of STANDARD_CLINICAL_ITEMS) map.set(item.code.toUpperCase(), item);
+  for (const item of NHI_CATALOG) map.set(item.code.toUpperCase(), item);
+  for (const item of ALLERGEN_CATALOG_ITEMS) map.set(item.code.toUpperCase(), item);
+  return Array.from(map.values());
+})();
 
 export const TEST_PACKAGES: TestPackage[] = [
   {

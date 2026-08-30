@@ -167,12 +167,21 @@ export default function TestTable({
     const pkg = testPackages.find((p) => p.id === pkgId);
     if (!pkg) return;
 
-    const itemsToAdd = catalog.filter((item) => getPkgCodes(pkg).includes(item.code));
+    const rawCodes = getPkgCodes(pkg);
+    const targetCodes = new Set(rawCodes.map((c) => c.trim().toLowerCase()));
+    const itemsToAdd = catalog.filter((item) => item.code && targetCodes.has(item.code.trim().toLowerCase()));
+
+    if (itemsToAdd.length === 0) {
+      if (showToast) {
+        showToast(`Gói [${pkg.name}] không có chỉ số nào khớp với danh mục hiện tại!`, 'warning');
+      }
+      return;
+    }
 
     setSelectedTests((prev) => {
-      const existingCodes = new Set(prev.map((t) => t.code));
+      const existingCodes = new Set(prev.map((t) => (t.code || '').trim().toLowerCase()));
       const newOnes = itemsToAdd
-        .filter((item) => !existingCodes.has(item.code))
+        .filter((item) => !existingCodes.has(item.code.trim().toLowerCase()))
         .map((item) => {
           const resolved = autoResolveItemLinks(item);
           const isTIgE = resolved.code.toLowerCase() === 'tige';

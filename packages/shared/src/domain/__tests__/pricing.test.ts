@@ -120,4 +120,14 @@ describe('Pricing Domain - computePricingWithPackages & buildInvoiceItems', () =
     expect(invoiceItems[0].name).toBe('Gói Trọn Bộ Dị Nguyên 91 Chỉ Số');
     expect(invoiceItems[0].price).toBe(1900000);
   });
+
+  it('getPkgCodes correctly extracts codes from various package formats', async () => {
+    const { getPkgCodes } = await import('../types');
+    expect(getPkgCodes(null)).toEqual([]);
+    expect(getPkgCodes(undefined)).toEqual([]);
+    expect(getPkgCodes({ id: '1', name: 'P', price: 0, items: [{ code: 'RBC' }, { code: 'WBC' }] })).toEqual(['RBC', 'WBC']);
+    expect(getPkgCodes({ id: '2', name: 'P2', price: 0, items: [] as never, codes: ['GLU', 'URE'] })).toEqual(['GLU', 'URE']);
+    expect(getPkgCodes({ id: '3', name: 'P3', price: 0, items: '[{"code":"AST"},{"code":"ALT"}]' as never })).toEqual(['AST', 'ALT']);
+    expect(getPkgCodes({ id: '4', name: 'P4', price: 0, items: [] as never, codes: '["CHO","TRI"]' as never })).toEqual(['CHO', 'TRI']);
+  });
 });
