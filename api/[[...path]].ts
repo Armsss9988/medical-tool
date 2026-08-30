@@ -1,5 +1,8 @@
 // Import from pre-bundled output (built by `npm run build:api` before Vercel deploys)
-import app from '../dist/api/index.js';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore – dist/api/index.js is generated at build time, no .d.ts available
+import appModule from '../dist/api/index.js';
+const app = appModule as { fetch: (req: Request) => Promise<Response> };
 
 function isWebRequest(value: unknown): value is Request {
   return typeof Request !== 'undefined' && value instanceof Request;
@@ -31,7 +34,7 @@ async function incomingToWebRequest(incoming: any): Promise<Request> {
   return new Request(url, { method, headers, body });
 }
 
-export default async function handler(reqOrRequest: any, maybeRes?: any): Promise<Response> {
+export default async function handler(reqOrRequest: any, _maybeRes?: any): Promise<Response> {
   try {
     const request = isWebRequest(reqOrRequest)
       ? reqOrRequest
