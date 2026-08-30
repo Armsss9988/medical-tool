@@ -1,14 +1,6 @@
 {
-  "framework": "vite",
+  "framework": "nextjs",
   "buildCommand": "npm run build",
-  "outputDirectory": "apps/web/dist",
-  "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
-  ],
-  "functions": {
-    "api/**": {
-      "maxDuration": 30,
-      "includeFiles": "dist/api/**"
-    }
-  }
+  "installCommand": "npm install",
+  "outputDirectory": "apps/web/.next"
 }
