@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Save, Layers, Stethoscope, Sliders, FlaskConical } from 'lucide-react';
 import { autoResolveItemLinks } from '@data';
 import { CatalogItem, TestPackage, TestGroup, TestEquipment, Doctor, ReferenceRangeItem, CATALOG_TAB, CatalogTabType } from '@domain';
@@ -42,7 +42,7 @@ export default function CatalogManagerModal({
   referenceRanges = [],
   onSaveReferenceRanges
 }: CatalogManagerModalProps) {
-  const [activeTab, setActiveTab] = useState<CatalogTabType>(CATALOG_TAB.INDICATORS);
+  const [activeTab, setActiveTab] = useState<CatalogTabType>(targetTab || CATALOG_TAB.INDICATORS);
   const [items, setItems] = useState<CatalogItem[]>(catalog);
   const [packages, setPackages] = useState<TestPackage[]>(testPackages);
   const [groups, setGroups] = useState<TestGroup[]>(testGroups);
@@ -50,19 +50,30 @@ export default function CatalogManagerModal({
   const [docsList, setDocsList] = useState<Doctor[]>(doctorsList);
   const [refRanges, setRefRanges] = useState<ReferenceRangeItem[]>(referenceRanges);
 
+  const prevIsOpenRef = useRef(false);
+
+  // Chỉ khởi tạo/đồng bộ dữ liệu khi modal chuyển từ đóng sang mở
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
       setItems(catalog.map(autoResolveItemLinks));
       setPackages(testPackages);
       setGroups(testGroups);
       setEqList(equipments);
       setDocsList(doctorsList);
       setRefRanges(referenceRanges);
-      if (targetTab) {
-        setActiveTab(targetTab);
-      }
+      setActiveTab(targetTab || CATALOG_TAB.INDICATORS);
     }
+    prevIsOpenRef.current = isOpen;
   }, [isOpen, catalog, testPackages, testGroups, equipments, doctorsList, referenceRanges, targetTab]);
+
+  // Nếu targetTab thay đổi từ bên ngoài khi modal đang mở, cập nhật activeTab tương ứng
+  const prevTargetTabRef = useRef(targetTab);
+  useEffect(() => {
+    if (isOpen && targetTab && targetTab !== prevTargetTabRef.current) {
+      setActiveTab(targetTab);
+    }
+    prevTargetTabRef.current = targetTab;
+  }, [isOpen, targetTab]);
 
   if (!isOpen) return null;
 
