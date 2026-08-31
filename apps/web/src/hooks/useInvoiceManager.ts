@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Invoice, InvoiceStatus, STORAGE_KEYS, BILLING_STATUS, CloudDbConfig } from '@domain';
 import { loadData, saveData, loadState } from '@infra/storage';
-import { syncInvoicesToSupabase, DEFAULT_CLOUD_DB_CONFIG } from '@infra/cloudDbService';
+import { syncInvoicesToSupabase, fetchInvoicesFromSupabase, DEFAULT_CLOUD_DB_CONFIG } from '@infra/cloudDbService';
 import { domainEventBus } from '@domain/events/DomainEventBus';
 import {
   INVOICE_EVENT_TYPES,
@@ -16,7 +16,7 @@ export function useInvoiceManager() {
   });
   const isLoadedRef = useRef(false);
 
-  // 2. Môi trường Electron: tải thêm từ file hệ thống nếu có và merge an toàn
+  // 2. Tải thêm từ storage và Cloud-First từ Supabase
   useEffect(() => {
     async function initInvoices() {
       try {
@@ -24,12 +24,32 @@ export function useInvoiceManager() {
         if (Array.isArray(saved) && saved.length > 0) {
           setInvoices((prev) => {
             const map = new Map<string, Invoice>();
-            saved.forEach((i) => map.set(i.id, i));
+            saved.forEach((i) => { if (i?.id) map.set(i.id, i); });
             prev.forEach((i) => {
-              if (!map.has(i.id)) map.set(i.id, i);
+              if (i?.id && !map.has(i.id)) {
+                map.set(i.id, i);
+              }
             });
             return Array.from(map.values());
           });
+        }
+
+        // Tải từ Cloud DB nếu có kết nối
+        const cloudConfig = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
+        if (cloudConfig?.enabled !== false && cloudConfig?.supabaseUrl) {
+          const cloudInvoices = await fetchInvoicesFromSupabase(cloudConfig).catch(() => null);
+          if (Array.isArray(cloudInvoices) && cloudInvoices.length > 0) {
+            setInvoices((prev) => {
+              const map = new Map<string, Invoice>();
+              cloudInvoices.forEach((i) => { if (i?.id) map.set(i.id, i); });
+              prev.forEach((i) => {
+                if (i?.id && !map.has(i.id)) {
+                  map.set(i.id, i);
+                }
+              });
+              return Array.from(map.values());
+            });
+          }
         }
       } catch (err) {
         console.error('Lỗi khi nạp danh sách hóa đơn từ storage:', err);
@@ -76,16 +96,30 @@ export function useInvoiceManager() {
     };
   }, []);
 
+  // Helper: Đồng bộ ngay lập tức và trực tiếp lên Cloud DB
+  const syncInvoicesDirectly = (nextList: Invoice[]) => {
+    saveData(STORAGE_KEYS.INVOICES, nextList);
+    const cloudConfig = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
+    if (cloudConfig?.enabled !== false && cloudConfig?.supabaseUrl) {
+      syncInvoicesToSupabase(nextList, cloudConfig).catch((err) =>
+        console.warn('[useInvoiceManager] Lỗi đồng bộ trực tiếp hóa đơn lên Cloud:', err)
+      );
+    }
+  };
+
   // 5. Thêm mới hoặc cập nhật hóa đơn & Phát Domain Events
   const saveOrUpdateInvoice = (invoice: Invoice): Invoice => {
     setInvoices((prev) => {
       const idx = prev.findIndex((inv) => inv.id === invoice.id || (inv.code && inv.code === invoice.code));
+      let next: Invoice[];
       if (idx >= 0) {
-        const next = [...prev];
+        next = [...prev];
         next[idx] = { ...invoice };
-        return next;
+      } else {
+        next = [invoice, ...prev];
       }
-      return [invoice, ...prev];
+      syncInvoicesDirectly(next);
+      return next;
     });
 
     // Phát sự kiện tương ứng với trạng thái hóa đơn
@@ -115,7 +149,9 @@ export function useInvoiceManager() {
 
     setInvoices((prev) => {
       deletedInvoice = prev.find((inv) => inv.id === id);
-      return prev.filter((inv) => inv.id !== id);
+      const next = prev.filter((inv) => inv.id !== id);
+      syncInvoicesDirectly(next);
+      return next;
     });
 
     // Phát Domain Event: INVOICE_DELETED
@@ -128,6 +164,7 @@ export function useInvoiceManager() {
   // 7. Xóa tất cả hóa đơn
   const clearAllInvoices = () => {
     setInvoices([]);
+    syncInvoicesDirectly([]);
   };
 
   // 8. Cập nhật trạng thái hóa đơn
@@ -135,13 +172,15 @@ export function useInvoiceManager() {
     let updatedInv: Invoice | undefined;
 
     setInvoices((prev) => {
-      return prev.map((inv) => {
+      const next = prev.map((inv) => {
         if (inv.id === id) {
           updatedInv = { ...inv, status };
           return updatedInv;
         }
         return inv;
       });
+      syncInvoicesDirectly(next);
+      return next;
     });
 
     if (updatedInv) {

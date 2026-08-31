@@ -3,7 +3,7 @@ import { MedicalReport, Patient, SelectedTest, ReportStatus, STORAGE_KEYS, Cloud
 import { hasAllergenTests } from '@domain/allergenDetector';
 import { ReportStateMachine } from '@domain/stateMachine/ReportStateMachine';
 import { loadData, saveData, loadState } from '@infra/storage';
-import { syncReportsToSupabase, DEFAULT_CLOUD_DB_CONFIG } from '@infra/cloudDbService';
+import { syncReportsToSupabase, fetchReportsFromSupabase, DEFAULT_CLOUD_DB_CONFIG } from '@infra/cloudDbService';
 import { domainEventBus } from '@domain/events/DomainEventBus';
 import {
   REPORT_EVENT_TYPES,
@@ -22,7 +22,7 @@ export function useReportManager() {
   });
   const isLoadedRef = useRef(false);
 
-  // 2. Nếu trong môi trường Electron, tải bổ sung từ file hệ thống và merge an toàn
+  // 2. Tải bổ sung từ Storage và Cloud-First từ Supabase
   useEffect(() => {
     async function initReports() {
       try {
@@ -30,14 +30,32 @@ export function useReportManager() {
         if (Array.isArray(savedReports) && savedReports.length > 0) {
           setReports((prev) => {
             const reportMap = new Map<string, MedicalReport>();
-            savedReports.forEach((r) => reportMap.set(r.id, r));
+            savedReports.forEach((r) => { if (r?.id) reportMap.set(r.id, r); });
             prev.forEach((r) => {
-              if (!reportMap.has(r.id)) {
+              if (r?.id && !reportMap.has(r.id)) {
                 reportMap.set(r.id, r);
               }
             });
             return Array.from(reportMap.values());
           });
+        }
+
+        // Tải từ Cloud DB nếu có kết nối
+        const cloudConfig = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
+        if (cloudConfig?.enabled !== false && cloudConfig?.supabaseUrl) {
+          const cloudReports = await fetchReportsFromSupabase(cloudConfig).catch(() => null);
+          if (Array.isArray(cloudReports) && cloudReports.length > 0) {
+            setReports((prev) => {
+              const reportMap = new Map<string, MedicalReport>();
+              cloudReports.forEach((r) => { if (r?.id) reportMap.set(r.id, r); });
+              prev.forEach((r) => {
+                if (r?.id && !reportMap.has(r.id)) {
+                  reportMap.set(r.id, r);
+                }
+              });
+              return Array.from(reportMap.values());
+            });
+          }
         }
       } catch (err) {
         console.error('Lỗi khi tải danh sách phiếu xét nghiệm:', err);
@@ -180,9 +198,18 @@ export function useReportManager() {
     };
   }, []);
 
+  // Helper: Đồng bộ ngay lập tức và trực tiếp lên Cloud DB
+  const syncReportsDirectly = (nextList: MedicalReport[]) => {
+    saveData(STORAGE_KEYS.REPORTS, nextList);
+    const cloudConfig = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
+    if (cloudConfig?.enabled !== false && cloudConfig?.supabaseUrl) {
+      syncReportsToSupabase(nextList, cloudConfig).catch((err) =>
+        console.warn('[useReportManager] Lỗi đồng bộ trực tiếp phiếu lên Cloud:', err)
+      );
+    }
+  };
+
   // 5. Thêm mới hoặc cập nhật phiếu thông qua Domain State Machine & Phát Event
-  //    FIX: Compute report update BEFORE setState to avoid closure race condition.
-  //    Sử dụng reportsRef để đọc state đồng bộ, tránh side-effect bên trong setState callback.
   const reportsRef = useRef(reports);
   reportsRef.current = reports;
 
@@ -254,22 +281,16 @@ export function useReportManager() {
       }
     }
 
-    // Update state với report đã computed sẵn (không có side-effect trong callback)
-    setReports((currentPrev) => {
-      // Re-check index against latest state in case of concurrent updates
-      const currentIdx = params.id
-        ? currentPrev.findIndex((r) => r.id === params.id)
-        : currentPrev.findIndex(
-            (r) => params.patient.code && (r.code === params.patient.code || r.patient?.code === params.patient.code)
-          );
+    let nextReports: MedicalReport[];
+    if (idx >= 0) {
+      nextReports = [...prev];
+      nextReports[idx] = updatedReport;
+    } else {
+      nextReports = [updatedReport, ...prev];
+    }
 
-      if (currentIdx >= 0) {
-        const next = [...currentPrev];
-        next[currentIdx] = updatedReport;
-        return next;
-      }
-      return [updatedReport, ...currentPrev];
-    });
+    setReports(nextReports);
+    syncReportsDirectly(nextReports);
 
     // Phát Domain Event: REPORT_SAVED (sử dụng report đã computed)
     domainEventBus.emit(REPORT_EVENT_TYPES.SAVED, {
@@ -284,7 +305,9 @@ export function useReportManager() {
   const bulkUpdateReports = (updatedList: MedicalReport[]) => {
     setReports((prev) => {
       const updatedMap = new Map(updatedList.map((r) => [r.id, r]));
-      return prev.map((r) => updatedMap.get(r.id) || r);
+      const next = prev.map((r) => updatedMap.get(r.id) || r);
+      syncReportsDirectly(next);
+      return next;
     });
   };
 
@@ -295,7 +318,9 @@ export function useReportManager() {
     setReports((prev) => {
       const target = prev.find((r) => r.id === id);
       if (target) deletedReportCode = target.code;
-      return prev.filter((r) => r.id !== id);
+      const next = prev.filter((r) => r.id !== id);
+      syncReportsDirectly(next);
+      return next;
     });
 
     // Phát Domain Event: REPORT_DELETED
@@ -308,14 +333,17 @@ export function useReportManager() {
   // 8. Xóa toàn bộ phiếu
   const clearAllReports = () => {
     setReports([]);
+    syncReportsDirectly([]);
   };
 
   // 9. Cập nhật trạng thái phiếu
   const updateReportStatus = (id: string, newStatus: ReportStatus) => {
     setReports((prev) => {
-      return prev.map((r) =>
+      const next = prev.map((r) =>
         r.id === id ? { ...r, status: newStatus, updatedAt: new Date().toISOString() } : r
       );
+      syncReportsDirectly(next);
+      return next;
     });
   };
 

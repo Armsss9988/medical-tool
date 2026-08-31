@@ -22,7 +22,11 @@ const DOC_TABLES: ReadonlySet<TableName> = new Set(['medical-reports', 'invoices
 
 export async function getTableRows(db: Db, name: TableName): Promise<unknown[]> {
   const table = TABLES[name];
-  return (await db.select().from(table)) as unknown[];
+  const rows = (await db.select().from(table)) as unknown[];
+  if (DOC_TABLES.has(name)) {
+    return (rows as { id: string; data: unknown }[]).map((r) => r.data ?? r);
+  }
+  return rows;
 }
 
 export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Promise<number> {
