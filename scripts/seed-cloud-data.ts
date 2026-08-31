@@ -102,6 +102,39 @@ async function syncToSupabaseStorage(key: string, data: unknown) {
   }
 }
 
+const DEFAULT_ALLERGEN_SCALES = [
+  {
+    id: 'scale_protia_91',
+    name: 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH (PROTIA 91)',
+    equipment: 'Máy PROTIA Allergy-Q Smart và Q-processor',
+    unit: 'IU/ml',
+    levels: [
+      { grade: 0, minVal: 0, maxVal: 0.34, rangeText: '<0.34', label: 'Không phản ứng', isPositive: false, colorKey: 'white' },
+      { grade: 1, minVal: 0.35, maxVal: 0.69, rangeText: '0.35 - 0.69', label: 'Yếu', isPositive: true, colorKey: 'amber-light' },
+      { grade: 2, minVal: 0.70, maxVal: 3.49, rangeText: '0.70 - 3.49', label: 'Trung bình', isPositive: true, colorKey: 'amber' },
+      { grade: 3, minVal: 3.50, maxVal: 17.49, rangeText: '3.50 - 17.49', label: 'Khá', isPositive: true, colorKey: 'red-light' },
+      { grade: 4, minVal: 17.50, maxVal: 49.99, rangeText: '17.50 - 49.99', label: 'Mạnh', isPositive: true, colorKey: 'red' },
+      { grade: 5, minVal: 50.00, maxVal: 99.99, rangeText: '50.00 - 99.99', label: 'Rất mạnh', isPositive: true, colorKey: 'red-bold' },
+      { grade: 6, minVal: 100.0, maxVal: null, rangeText: '>100.0', label: 'Cực mạnh', isPositive: true, colorKey: 'red-extreme' }
+    ]
+  },
+  {
+    id: 'scale_allergen_44',
+    name: 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH (MEDIWISS 44)',
+    equipment: 'MEDIWISS AlleisaScreen 44 BLOTrix Reader C1',
+    unit: 'IU/ml',
+    levels: [
+      { grade: 0, minVal: 0, maxVal: 0.34, rangeText: '<0.35', label: 'Không phản ứng', isPositive: false, colorKey: 'white' },
+      { grade: 1, minVal: 0.35, maxVal: 0.69, rangeText: '0.35 - 0.69', label: 'Yếu', isPositive: true, colorKey: 'amber-light' },
+      { grade: 2, minVal: 0.70, maxVal: 3.49, rangeText: '0.70 - 3.49', label: 'Trung bình', isPositive: true, colorKey: 'amber' },
+      { grade: 3, minVal: 3.50, maxVal: 17.49, rangeText: '3.50 - 17.49', label: 'Khá', isPositive: true, colorKey: 'red-light' },
+      { grade: 4, minVal: 17.50, maxVal: 49.99, rangeText: '17.50 - 49.99', label: 'Mạnh', isPositive: true, colorKey: 'red' },
+      { grade: 5, minVal: 50.00, maxVal: 99.99, rangeText: '50.00 - 99.99', label: 'Rất mạnh', isPositive: true, colorKey: 'red-bold' },
+      { grade: 6, minVal: 100.0, maxVal: null, rangeText: '>100.0', label: 'Cực mạnh', isPositive: true, colorKey: 'red-extreme' }
+    ]
+  }
+];
+
 async function main() {
   console.log('\n--- Bắt đầu nạp dữ liệu mẫu từ Backup lên Cloud ---');
   console.log(`- Chỉ số xét nghiệm: ${DEFAULT_CATALOG.length} chỉ số`);
@@ -109,6 +142,7 @@ async function main() {
   console.log(`- Nhóm xét nghiệm: ${DEFAULT_TEST_GROUPS.length} nhóm`);
   console.log(`- Thiết bị xét nghiệm: ${DEFAULT_EQUIPMENTS.length} máy`);
   console.log(`- Bảng tham chiếu: ${DEFAULT_REFERENCE_RANGES.length} bộ tham chiếu`);
+  console.log(`- Bảng thang đo dị nguyên: ${DEFAULT_ALLERGEN_SCALES.length} thang đo`);
   console.log(`- Bác sĩ mặc định: ${defaultDoctors.length} bác sĩ`);
 
   // 1. Sync to Supabase Storage (REST)
@@ -118,6 +152,7 @@ async function main() {
   await syncToSupabaseStorage('test_groups', DEFAULT_TEST_GROUPS);
   await syncToSupabaseStorage('equipments_catalog', DEFAULT_EQUIPMENTS);
   await syncToSupabaseStorage('reference_ranges', DEFAULT_REFERENCE_RANGES);
+  await syncToSupabaseStorage('allergen_scales', DEFAULT_ALLERGEN_SCALES);
   await syncToSupabaseStorage('doctors_list', defaultDoctors);
   await syncToSupabaseStorage('clinic_info', defaultClinic);
   await syncToSupabaseStorage('catalog_item_equipments', DEFAULT_CATALOG.filter(c => c.equipment || c.referenceRangeId || c.scaleId).map(c => {
@@ -216,13 +251,30 @@ async function main() {
         CREATE TABLE IF NOT EXISTS "test_packages" (
           "id" text PRIMARY KEY,
           "name" text NOT NULL,
+          "default_equipment_id" text,
           "items" jsonb NOT NULL DEFAULT '[]'::jsonb,
           "price" real NOT NULL DEFAULT 0,
           "updated_at" timestamp NOT NULL DEFAULT now()
         );
       `;
       await sql`ALTER TABLE "test_packages" ADD COLUMN IF NOT EXISTS "items" jsonb NOT NULL DEFAULT '[]'::jsonb;`;
+      await sql`ALTER TABLE "test_packages" ADD COLUMN IF NOT EXISTS "default_equipment_id" text;`;
       await sql`ALTER TABLE "test_packages" DROP COLUMN IF EXISTS "codes";`;
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS "allergen_scales" (
+          "id" text PRIMARY KEY,
+          "name" text NOT NULL,
+          "equipment" text,
+          "unit" text NOT NULL DEFAULT 'IU/ml',
+          "levels" jsonb NOT NULL DEFAULT '[]'::jsonb,
+          "updated_at" timestamp NOT NULL DEFAULT now()
+        );
+      `;
+      await sql`ALTER TABLE "allergen_scales" ADD COLUMN IF NOT EXISTS "equipment" text;`;
+      await sql`ALTER TABLE "allergen_scales" ADD COLUMN IF NOT EXISTS "unit" text NOT NULL DEFAULT 'IU/ml';`;
+      await sql`ALTER TABLE "allergen_scales" ADD COLUMN IF NOT EXISTS "levels" jsonb NOT NULL DEFAULT '[]'::jsonb;`;
+      await sql`ALTER TABLE "allergen_scales" ADD COLUMN IF NOT EXISTS "updated_at" timestamp NOT NULL DEFAULT now();`;
 
       await sql`
         CREATE TABLE IF NOT EXISTS "test_groups" (
@@ -383,11 +435,25 @@ async function main() {
       const pkgRows = TEST_PACKAGES.map((p) => ({
         id: p.id,
         name: p.name,
+        default_equipment_id: p.defaultEquipmentId || null,
         items: sql.json(p.items || (p.codes || []).map((c) => ({ code: c, equipmentId: null }))),
         price: p.price ?? 0
       }));
       if (pkgRows.length > 0) {
         await sql`INSERT INTO "test_packages" ${sql(pkgRows)}`;
+      }
+
+      // 5b. Allergen Scales
+      await sql`DELETE FROM "allergen_scales"`;
+      const scaleRows = DEFAULT_ALLERGEN_SCALES.map((s) => ({
+        id: s.id,
+        name: s.name,
+        equipment: s.equipment || null,
+        unit: s.unit || 'IU/ml',
+        levels: sql.json(s.levels || [])
+      }));
+      if (scaleRows.length > 0) {
+        await sql`INSERT INTO "allergen_scales" ${sql(scaleRows)}`;
       }
 
       // 6. Doctors

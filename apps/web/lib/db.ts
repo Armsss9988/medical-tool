@@ -52,7 +52,8 @@ export function getDb(): Db {
       max: 5,
       idle_timeout: 20,
       connect_timeout: 10,
-      prepare: false
+      prepare: false,
+      ssl: { rejectUnauthorized: false }
     });
     globalThis._postgresClient = queryClient;
     globalThis._drizzleDb = drizzle(queryClient, { schema });

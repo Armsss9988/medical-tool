@@ -202,12 +202,17 @@ export function getPkgItems(pkg: TestPackage | undefined | null): PackageItem[] 
   return [];
 }
 
-/** Helper: chuẩn hóa gói xét nghiệm đảm bảo luôn có items và codes mảng chuẩn */
+/** Helper: chuẩn hóa gói xét nghiệm đảm bảo luôn có items, codes và price mảng chuẩn */
 export function normalizeTestPackage(pkg: TestPackage): TestPackage {
+  if (!pkg) {
+    return { id: '', name: '', items: [], codes: [], price: 0 };
+  }
   const items = getPkgItems(pkg);
   const codes = getPkgCodes(pkg);
+  const numPrice = typeof pkg.price === 'number' && !isNaN(pkg.price) ? pkg.price : (Number(pkg.price) || 0);
   return {
     ...pkg,
+    price: numPrice,
     items,
     codes: codes.length > 0 ? codes : items.map((i) => i.code)
   };

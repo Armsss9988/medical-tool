@@ -419,7 +419,7 @@ export default function TestPackagesTab({
                   <div className="flex items-center justify-between gap-1">
                     <span className="font-bold text-slate-900 text-xs truncate">{pkg.name}</span>
                     <span className="font-mono font-bold text-xs text-emerald-700 shrink-0">
-                      {pkg.price.toLocaleString('vi-VN')} đ
+                      {(pkg.price ?? 0).toLocaleString('vi-VN')} đ
                     </span>
                   </div>
 
