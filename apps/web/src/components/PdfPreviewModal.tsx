@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import PrintReportView from './PrintReportView';
 import FullAllergenReportView from './FullAllergenReportView';
-import { ClinicInfo, Patient, SelectedTest, ToastType, TestPackage } from '@domain/types';
+import { ClinicInfo, Patient, SelectedTest, ToastType, TestPackage, TestEquipment, CatalogItemEquipmentLink } from '@domain/types';
 import { hasAllergenTests } from '@domain/allergenDetector';
 import {
   ExportStepName,
@@ -48,6 +48,8 @@ interface PdfPreviewModalProps {
   onPrintDirect: () => void;
   onDownloadQrCode: () => void;
   testPackages?: TestPackage[];
+  equipments?: TestEquipment[];
+  catalogItemEquipments?: CatalogItemEquipmentLink[];
 }
 
 export default function PdfPreviewModal({
@@ -69,7 +71,9 @@ export default function PdfPreviewModal({
   onRetryExport,
   onPrintDirect,
   onDownloadQrCode,
-  testPackages = []
+  testPackages = [],
+  equipments = [],
+  catalogItemEquipments = []
 }: PdfPreviewModalProps) {
   // State điều khiển độ thu phóng
   const [zoomScale, setZoomScale] = useState<number>(0.85);
@@ -413,6 +417,8 @@ export default function PdfPreviewModal({
                 conclusion={conclusion}
                 doctorName={doctorName}
                 qrCodeDataUrl={qrCodeDataUrl}
+                equipments={equipments}
+                catalogItemEquipments={catalogItemEquipments}
               />
             )}
           </div>

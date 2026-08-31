@@ -293,6 +293,8 @@ function AppContent() {
         testPackages={testPackages}
         testGroups={testGroups}
         doctorsList={doctorsList}
+        equipments={equipments}
+        catalogItemEquipments={catalogItemEquipments}
         cloudLink={cloudLink}
         isExporting={isExporting}
         currentStep={currentStep}
@@ -369,6 +371,8 @@ function AppContent() {
         qrCodeDataUrl={qrCodeDataUrl}
         batchRenderReport={batchRenderReport}
         testPackages={testPackages}
+        equipments={equipments}
+        catalogItemEquipments={catalogItemEquipments}
       />
 
       {/* PASSWORD GATE OVERLAY */}

@@ -3,7 +3,7 @@ import { evaluateResult } from '@domain/testResult';
 import { generateQrCodeDataUrl } from '@infra/qrService';
 import golabLogo from '@assets/golabLogoDataUrl';
 import doctorStamp from '@assets/doctorStampDataUrl';
-import { Patient, SelectedTest, ClinicInfo } from '@domain/types';
+import { Patient, SelectedTest, ClinicInfo, TestEquipment, CatalogItemEquipmentLink, resolveTestEquipmentName } from '@domain/types';
 
 interface PrintReportViewProps {
   elementId?: string;
@@ -15,6 +15,8 @@ interface PrintReportViewProps {
   qrCodeDataUrl?: string;
   qrCodeUrl?: string;
   clinicInfo?: ClinicInfo;
+  equipments?: TestEquipment[];
+  catalogItemEquipments?: CatalogItemEquipmentLink[];
 }
 
 interface FlatEntry {
@@ -40,7 +42,9 @@ function PrintReportView({
     phone: '032.855.3773',
     website: 'golab.com.vn',
     defaultDoctor: 'Nguyễn Thị Thành Trung'
-  }
+  },
+  equipments = [],
+  catalogItemEquipments = []
 }: PrintReportViewProps) {
   const tests = selectedTests || [];
   const [autoQrCode, setAutoQrCode] = useState<string>(qrCodeDataUrl || '');
@@ -486,7 +490,7 @@ function PrintReportView({
                             {t.refText || (t.refMin !== null && t.refMax !== null ? `${t.refMin} - ${t.refMax}` : '---')}
                           </td>
                           <td className="py-2 px-1 text-center text-[12px] text-slate-600 border-r border-slate-300 align-middle leading-snug">
-                            {t.equipment || 'Tự động'}
+                            {resolveTestEquipmentName(t, equipments, catalogItemEquipments)}
                           </td>
                           <td
                             className={`py-2 px-1 text-center text-[12px] font-bold align-middle leading-snug ${

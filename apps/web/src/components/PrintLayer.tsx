@@ -3,7 +3,7 @@ import FullAllergenReportView from './FullAllergenReportView';
 import { useWorkspace } from '../contexts/WorkspaceContext';
 import { PRINT_ELEMENT_ID } from '@domain/constants';
 import { hasAllergenTests } from '@domain/allergenDetector';
-import type { ClinicInfo, MedicalReport, TestPackage } from '@domain';
+import type { ClinicInfo, MedicalReport, TestPackage, TestEquipment, CatalogItemEquipmentLink } from '@domain';
 
 // ─── PRINT LAYER COMPONENT ──────────────────────────────────────────────────
 // Hidden off-screen DOM elements for pixel-perfect A4 printing & PDF capture.
@@ -13,13 +13,17 @@ interface PrintLayerProps {
   qrCodeDataUrl?: string;
   batchRenderReport: MedicalReport | null;
   testPackages?: TestPackage[];
+  equipments?: TestEquipment[];
+  catalogItemEquipments?: CatalogItemEquipmentLink[];
 }
 
 export function PrintLayer({
   clinicInfo,
   qrCodeDataUrl,
   batchRenderReport,
-  testPackages = []
+  testPackages = [],
+  equipments = [],
+  catalogItemEquipments = []
 }: PrintLayerProps) {
   const {
     patient,
@@ -54,6 +58,8 @@ export function PrintLayer({
           conclusion={conclusion}
           doctorName={doctorName}
           qrCodeDataUrl={qrCodeDataUrl}
+          equipments={equipments}
+          catalogItemEquipments={catalogItemEquipments}
         />
       )}
 
@@ -79,6 +85,8 @@ export function PrintLayer({
               conclusion={batchRenderReport.conclusion}
               doctorName={batchRenderReport.doctorName}
               qrCodeDataUrl={undefined}
+              equipments={equipments}
+              catalogItemEquipments={catalogItemEquipments}
             />
           )}
         </>

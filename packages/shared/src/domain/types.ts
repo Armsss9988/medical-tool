@@ -153,6 +153,68 @@ export function getPkgCodes(pkg: TestPackage | undefined | null): string[] {
   return [];
 }
 
+/**
+ * Helper: Tra cứu tên thiết bị đo phù hợp cho một chỉ số xét nghiệm
+ */
+export function resolveTestEquipmentName(
+  t: { code?: string; category?: string; scaleId?: string; equipment?: string } | undefined | null,
+  equipments: TestEquipment[] = [],
+  catalogItemEquipments: CatalogItemEquipmentLink[] = []
+): string {
+  if (!t) return 'Tự động';
+
+  // 1. Nếu đã có tên máy đo cụ thể và không phải là ID thô (eq_...)
+  if (t.equipment && t.equipment.trim() !== '') {
+    const raw = t.equipment.trim();
+    // Nếu trùng tên hoặc code với thiết bị đã có
+    const matched = equipments.find((e) => e.id === raw || e.name.toLowerCase() === raw.toLowerCase() || (e.code && e.code.toLowerCase() === raw.toLowerCase()));
+    if (matched) return matched.name;
+    if (!raw.startsWith('eq_') && raw !== 'Tự động') return raw;
+  }
+
+  // 2. Tra cứu từ liên kết catalog_item_equipments
+  const code = (t.code || '').trim().toUpperCase();
+  if (code && catalogItemEquipments.length > 0) {
+    const links = catalogItemEquipments.filter((l) => l.catalogCode.toUpperCase() === code);
+    const defaultLink = links.find((l) => l.isDefault) || links[0];
+    if (defaultLink) {
+      const eq = equipments.find((e) => e.id === defaultLink.equipmentId);
+      if (eq) return eq.name;
+    }
+  }
+
+  // 3. Tra cứu theo nhóm dị nguyên hoặc thang đo
+  if (t.category?.includes('Dị Nguyên') || t.scaleId) {
+    if (t.scaleId === 'scale_allergen_44') return 'MEDIWISS AlleisaScreen 44 BLOTrix Reader C1';
+    return 'Máy Đọc Dị Nguyên PROTIA Smart Analyzer';
+  }
+
+  // 4. Fallback mặc định theo nhóm xét nghiệm phổ biến
+  const cat = (t.category || '').toLowerCase();
+  if (cat.includes('huyết học') || ['rbc', 'wbc', 'plt', 'hgb', 'hct', 'mcv', 'mch', 'mchc'].includes(code.toLowerCase())) {
+    const eq = equipments.find((e) => e.name.includes('Huyết Học') || e.code === 'MS-H630');
+    if (eq) return eq.name;
+    return 'MS-H630 (Máy Phân Tích Huyết Học)';
+  }
+  if (cat.includes('sinh hóa') || ['glu', 'ure', 'creat', 'ast', 'alt', 'cho', 'tri', 'uric', 'crp', 'fe', 'ferr'].includes(code.toLowerCase())) {
+    const eq = equipments.find((e) => e.code === 'MS-360' || e.name.includes('MS-360'));
+    if (eq) return eq.name;
+    return 'MS-360 (Vi Chất)';
+  }
+  if (cat.includes('miễn dịch') || ['e2', 'lh', 'fsh', 'prl', 'prog', 'testo', 'hcg', 'afp', 'cea', 'ca125', 'ca19-9', 'ca15-3', 'tsh', 'ft3', 'ft4', 't3', 't4', 'ferritin'].includes(code.toLowerCase())) {
+    const eq = equipments.find((e) => e.name.includes('cobas') || e.code === 'COBAS-E801');
+    if (eq) return eq.name;
+    return 'Roche cobas e 801 (Miễn Dịch)';
+  }
+  if (cat.includes('huyết sắc tố') || ['hba1c', 'hba2', 'hbf'].includes(code.toLowerCase())) {
+    const eq = equipments.find((e) => e.code === 'TOSOH-G11' || e.name.includes('Tosoh'));
+    if (eq) return eq.name;
+    return 'Tosoh HLC-723G11 (Huyết Sắc Tố)';
+  }
+
+  return 'Tự động';
+}
+
 export interface TestGroup {
   id: string;
   name: string;

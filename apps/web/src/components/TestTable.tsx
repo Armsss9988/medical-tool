@@ -3,7 +3,7 @@ import { TestTube, Plus, Trash2, Search, Layers, Sparkles, X, ClipboardPaste, Cl
 import { evaluateTestIndicator } from '@domain/testResult';
 import { getAllergenScaleById } from '@domain/constants/allergenScales';
 import { getReferenceRangeById, autoResolveItemLinks } from '@data';
-import { CatalogItem, SelectedTest, TestPackage, TestGroup, ToastType, getPkgCodes } from '@domain/types';
+import { CatalogItem, SelectedTest, TestPackage, TestGroup, ToastType, getPkgCodes, TestEquipment, CatalogItemEquipmentLink, resolveTestEquipmentName } from '@domain/types';
 import { computePricingWithPackages } from '@domain/pricing';
 import NoteCombobox from './NoteCombobox';
 
@@ -17,6 +17,8 @@ interface TestTableProps {
   catalog: CatalogItem[];
   testPackages?: TestPackage[];
   testGroups?: TestGroup[];
+  equipments?: TestEquipment[];
+  catalogItemEquipments?: CatalogItemEquipmentLink[];
   selectedTests: SelectedTest[];
   setSelectedTests: React.Dispatch<React.SetStateAction<SelectedTest[]>>;
   showToast?: (message: string, type?: ToastType) => void;
@@ -30,6 +32,9 @@ interface TestTableProps {
 export default function TestTable({ 
   catalog, 
   testPackages = [],
+  testGroups: _testGroups = [],
+  equipments = [],
+  catalogItemEquipments = [],
   selectedTests, 
   setSelectedTests,
   showToast,
@@ -89,11 +94,13 @@ export default function TestTable({
     const isTIgE = resolved.code.toLowerCase() === 'tige';
     const isAllergenItem = !isTIgE && (resolved.category?.includes('Dị Nguyên') || resolved.unit === 'IU/mL' || !!resolved.scaleId);
     const defaultNote = isTIgE ? 'Bình thường' : isAllergenItem ? 'Âm tính (Độ 0)' : 'Bình thường';
+    const equipmentName = resolveTestEquipmentName(resolved, equipments, catalogItemEquipments);
 
     setSelectedTests((prev) => [
       ...prev,
       {
         ...resolved,
+        equipment: equipmentName,
         result: '',
         note: defaultNote
       }
@@ -103,7 +110,7 @@ export default function TestTable({
     if (onAddToRecent) {
       onAddToRecent({ code: resolved.code, name: resolved.name, category: resolved.category || '' });
     }
-  }, [selectedTests, setSelectedTests, onAddToRecent]);
+  }, [selectedTests, setSelectedTests, onAddToRecent, equipments, catalogItemEquipments]);
 
   const handleRemoveTest = (code: string) => {
     setSelectedTests((prev) => prev.filter((t) => t.code !== code));
@@ -210,9 +217,24 @@ export default function TestTable({
           const isAllergenItem = !isTIgE && (resolved.category?.includes('Dị Nguyên') || resolved.unit === 'IU/mL' || !!resolved.scaleId);
           const pkgItem = (pkg.items || []).find((pi) => pi.code?.trim().toLowerCase() === item.code.trim().toLowerCase());
 
+          let assignedEqName = '';
+          if (pkgItem?.equipmentId) {
+            const eq = equipments.find((e) => e.id === pkgItem.equipmentId);
+            assignedEqName = eq ? eq.name : pkgItem.equipmentId;
+          } else if (pkg.defaultEquipmentId) {
+            const hasLink = catalogItemEquipments.some((l) => l.catalogCode.toUpperCase() === item.code.toUpperCase() && l.equipmentId === pkg.defaultEquipmentId);
+            if (hasLink) {
+              const eq = equipments.find((e) => e.id === pkg.defaultEquipmentId);
+              assignedEqName = eq ? eq.name : '';
+            }
+          }
+          if (!assignedEqName) {
+            assignedEqName = resolveTestEquipmentName(resolved, equipments, catalogItemEquipments);
+          }
+
           return {
             ...resolved,
-            equipment: pkgItem?.equipmentId || resolved.equipment,
+            equipment: assignedEqName,
             result: '',
             note: isTIgE ? 'Bình thường' : isAllergenItem ? 'Âm tính (Độ 0)' : 'Bình thường'
           };

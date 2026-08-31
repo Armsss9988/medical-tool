@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { evaluateResult, evaluateTestIndicator } from '../testResult';
-import { ReferenceRangeItem, AllergenGradingScale } from '../types';
+import { ReferenceRangeItem, AllergenGradingScale, resolveTestEquipmentName } from '../types';
 
 describe('TestResult Domain - evaluateResult & evaluateTestIndicator', () => {
   describe('evaluateResult', () => {
@@ -104,6 +104,39 @@ describe('TestResult Domain - evaluateResult & evaluateTestIndicator', () => {
       const res = evaluateTestIndicator('d1', 'Dị Nguyên', 'IU/mL', '6.0', 0, 0.5, customScale);
       expect(res.isAbnormal).toBe(true);
       expect(res.label).toBe('Dương tính dương tính mạnh (Độ 2)');
+    });
+  });
+
+  describe('resolveTestEquipmentName', () => {
+    const mockEquipments = [
+      { id: 'eq_1', name: 'MS-H630 (Máy Phân Tích Huyết Học)', code: 'MS-H630' },
+      { id: 'eq_2', name: 'MS-360 (Vi Chất)', code: 'MS-360' },
+      { id: 'eq_3', name: 'Roche cobas e 801 (Miễn Dịch)', code: 'COBAS-E801' }
+    ];
+
+    const mockLinks = [
+      { id: 'l1', catalogCode: 'GLU', equipmentId: 'eq_2', isDefault: true },
+      { id: 'l2', catalogCode: 'RBC', equipmentId: 'eq_1', isDefault: true }
+    ];
+
+    it('should resolve equipment name from catalog links', () => {
+      expect(resolveTestEquipmentName({ code: 'GLU', category: 'Sinh Hóa' }, mockEquipments, mockLinks)).toBe('MS-360 (Vi Chất)');
+      expect(resolveTestEquipmentName({ code: 'RBC', category: 'Huyết Học' }, mockEquipments, mockLinks)).toBe('MS-H630 (Máy Phân Tích Huyết Học)');
+    });
+
+    it('should resolve allergen equipment based on scaleId or category', () => {
+      expect(resolveTestEquipmentName({ code: 'd1', category: 'Dị Nguyên Hô Hấp', scaleId: 'scale_allergen_44' }, mockEquipments, [])).toBe('MEDIWISS AlleisaScreen 44 BLOTrix Reader C1');
+      expect(resolveTestEquipmentName({ code: 'f1', category: 'Dị Nguyên Thực Phẩm', scaleId: 'scale_protia_91' }, mockEquipments, [])).toBe('Máy Đọc Dị Nguyên PROTIA Smart Analyzer');
+    });
+
+    it('should fallback to category default equipment when no link exists', () => {
+      expect(resolveTestEquipmentName({ code: 'WBC', category: 'Huyết Học' }, mockEquipments, [])).toBe('MS-H630 (Máy Phân Tích Huyết Học)');
+      expect(resolveTestEquipmentName({ code: 'URE', category: 'Sinh Hóa' }, mockEquipments, [])).toBe('MS-360 (Vi Chất)');
+    });
+
+    it('should return Tự động for unknown indicators without links', () => {
+      expect(resolveTestEquipmentName({ code: 'LEU_U', category: 'Nước Tiểu' }, mockEquipments, [])).toBe('Tự động');
+      expect(resolveTestEquipmentName(null, mockEquipments, [])).toBe('Tự động');
     });
   });
 });

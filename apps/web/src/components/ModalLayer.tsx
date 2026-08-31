@@ -242,6 +242,8 @@ export function ModalLayer({
           onDownloadQrCode(target?.name || '', target?.code || '');
         }}
         testPackages={testPackages}
+        equipments={equipments}
+        catalogItemEquipments={catalogItemEquipments}
       />
 
       {/* 3. CATALOG MANAGER MODAL */}
