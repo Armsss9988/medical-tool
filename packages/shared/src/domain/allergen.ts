@@ -1,16 +1,30 @@
 import { AllergenGradeResult, AllergenGrade, AllergenGradingScale } from './types';
-import { DEFAULT_PROTIA_91_SCALE } from './constants/allergenScales';
 
 export function calculateAllergenGrade(
   valStr: string | number | null | undefined,
-  scale: AllergenGradingScale = DEFAULT_PROTIA_91_SCALE
+  scale?: AllergenGradingScale
 ): AllergenGradeResult {
   if (valStr === undefined || valStr === null || String(valStr).trim() === '') {
     return { grade: 0, iuValue: '<0,15', note: 'Âm tính (Độ 0)', statusStr: 'Âm tính' };
   }
-  
+
   const cleanStr = String(valStr).trim().replace(',', '.');
   const num = parseFloat(cleanStr);
+
+  if (!scale || !scale.levels || scale.levels.length === 0) {
+    if (cleanStr.startsWith('<')) {
+      return { grade: 0, iuValue: cleanStr, note: 'Âm tính (Độ 0)', statusStr: 'Âm tính' };
+    }
+    if (isNaN(num)) {
+      return { grade: 0, iuValue: String(valStr), note: '', statusStr: 'Âm tính' };
+    }
+    return {
+      grade: 0,
+      iuValue: String(num).replace('.', ','),
+      note: '',
+      statusStr: 'Âm tính'
+    };
+  }
 
   if (isNaN(num)) {
     const matchGrade = cleanStr.match(/(?:Độ|do|grade)?\s*([0-6])/i);

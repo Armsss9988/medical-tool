@@ -20,6 +20,8 @@ export default [
       '**/.next/**',
       'apps/web/.next/**',
       '**/scripts/**',
+      '.agents/**',
+      '**/.agents/**',
       '*.config.js',
       '*.config.ts',
       '*.config.cjs',

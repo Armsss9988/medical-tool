@@ -11,7 +11,6 @@ import {
   ZaloZnsConfig,
   ReferenceRangeItem,
   AllergenGradingScale,
-  DEFAULT_ALLERGEN_SCALES,
   STORAGE_KEYS,
   normalizeTestPackage
 } from '@domain';
@@ -103,7 +102,7 @@ export function useCatalogData() {
 
   const [allergenScales, setAllergenScales] = useState<AllergenGradingScale[]>(() => {
     const loaded = loadState<AllergenGradingScale[]>(STORAGE_KEYS.ALLERGEN_SCALES, []);
-    return Array.isArray(loaded) && loaded.length > 0 ? loaded : DEFAULT_ALLERGEN_SCALES;
+    return Array.isArray(loaded) ? loaded : [];
   });
 
   const [clinicInfo, setClinicInfo] = useState<ClinicInfo>(() => {

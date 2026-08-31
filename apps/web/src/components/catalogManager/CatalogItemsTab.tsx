@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Plus, Trash2, Search, Download, Upload, Dna, FlaskConical, Layers, Settings2, Star, X, FileSpreadsheet, ChevronDown } from 'lucide-react';
 import { CatalogItem, CatalogItemEquipmentLink, TestGroup, TestEquipment, AllergenGradingScale } from '@domain/types';
-import { getAllergenScaleById, DEFAULT_ALLERGEN_SCALES } from '@domain/constants/allergenScales';
+import { getAllergenScaleById } from '@domain/constants/allergenScales';
 import {
   exportCatalogItemsTemplate,
   parseExcelCatalog,
@@ -43,7 +43,7 @@ export default function CatalogItemsTab({
   onDeleteEquipment,
   catalogItemEquipments = [],
   setCatalogItemEquipments,
-  scales = DEFAULT_ALLERGEN_SCALES
+  scales = []
 }: CatalogItemsTabProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
@@ -772,8 +772,7 @@ export default function CatalogItemsTab({
                   const isAllergen = isAllergenItem(item);
                   const itemLinks = getLinksForCode(item.code);
                   const defaultLink = itemLinks.find((l) => l.isDefault) || itemLinks[0];
-
-                  const defaultScale = defaultLink?.scaleId ? getAllergenScaleById(defaultLink.scaleId, scales) : (isAllergen ? getAllergenScaleById('scale_protia_91', scales) : undefined);
+                  const defaultScale = defaultLink?.scaleId ? getAllergenScaleById(defaultLink.scaleId, scales) : undefined;
 
                   const displayUnit = item.unit || defaultLink?.unit || defaultScale?.unit || '---';
 
@@ -933,7 +932,7 @@ export default function CatalogItemsTab({
                   <div className="space-y-2">
                     {getLinksForCode(configItem.code).map((link) => {
                       const eq = equipments.find((e) => e.id === link.equipmentId);
-                      const scale = link.scaleId ? getAllergenScaleById(link.scaleId) : undefined;
+                      const scale = link.scaleId ? getAllergenScaleById(link.scaleId, scales) : undefined;
                       const refLabel = link.refText || (link.refMin != null || link.refMax != null
                         ? `${link.refMin ?? '?'} - ${link.refMax ?? '?'} ${link.unit || ''}`.trim()
                         : null);

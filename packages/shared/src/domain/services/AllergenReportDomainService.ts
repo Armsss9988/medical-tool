@@ -1,7 +1,7 @@
 import { SelectedTest, TestPackage, AllergenDatabaseItem, AllergenGradingScale } from '../types';
 import { calculateAllergenGrade } from '../allergen';
 import { computePricingWithPackages } from '../pricing';
-import { getAllergenScaleById, DEFAULT_PROTIA_91_SCALE } from '../constants/allergenScales';
+import { getAllergenScaleById } from '../constants/allergenScales';
 
 export interface AllergenReportItemDTO {
   tt: number;
@@ -83,7 +83,9 @@ export class AllergenReportDomainService {
         const gradeRes = calculateAllergenGrade(t.result || t.note, scale);
         grade = gradeRes.grade;
         isPositive = grade >= 1;
-        appliedScalesMap.set(scale.id, scale);
+        if (scale) {
+          appliedScalesMap.set(scale.id, scale);
+        }
       }
 
       const ext = t as SelectedTest & { allergenName?: string; route?: string };
@@ -96,8 +98,8 @@ export class AllergenReportDomainService {
         route: ext.route || dbItem?.route || (isTIgE ? 'Kháng thể huyết thanh' : 'Đường tiêu hóa / Hô hấp'),
         normalRef: isTIgE
           ? '<15,0'
-          : (dbItem?.normalRef || (t.refMin !== null && t.refMax !== null ? `${t.refMin} - ${t.refMax}` : (scale.levels[0]?.rangeText || '<0,34'))),
-        result: t.result || (isTIgE ? '' : (scale.levels[0]?.rangeText ? `<${scale.levels[1]?.minVal || 0.15}`.replace('.', ',') : '<0,15')),
+          : (dbItem?.normalRef || (t.refMin !== null && t.refMax !== null ? `${t.refMin} - ${t.refMax}` : (scale?.levels[0]?.rangeText || '<0,34'))),
+        result: t.result || (isTIgE ? '' : (scale?.levels[0]?.rangeText ? `<${scale.levels[1]?.minVal || 0.15}`.replace('.', ',') : '<0,15')),
         grade,
         isPositive,
         isTIgE,
@@ -150,9 +152,6 @@ export class AllergenReportDomainService {
     const totalPages = detailPages.length + 3; // Trang 1 bìa + Trang 2 tổng hợp + Các trang chi tiết + Trang cuối lưu ý
 
     const appliedScales = Array.from(appliedScalesMap.values());
-    if (appliedScales.length === 0) {
-      appliedScales.push(DEFAULT_PROTIA_91_SCALE);
-    }
 
     return {
       detailedList,

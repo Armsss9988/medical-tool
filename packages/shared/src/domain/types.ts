@@ -360,7 +360,7 @@ export interface AllergenGradeResult {
   grade: AllergenGrade;
   iuValue: string;
   note: string;
-  statusStr: 'Dương tính' | 'Âm tính';
+  statusStr: 'Dương tính' | 'Âm tính' | 'Bình thường';
 }
 
 export interface TestResultEvaluation {

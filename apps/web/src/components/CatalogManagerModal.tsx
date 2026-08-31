@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Save, Layers, Stethoscope, FlaskConical, Activity } from 'lucide-react';
 import { autoResolveItemLinks } from '@data';
-import { CatalogItem, CatalogItemEquipmentLink, TestPackage, TestGroup, TestEquipment, Doctor, AllergenGradingScale, DEFAULT_ALLERGEN_SCALES, CATALOG_TAB, CatalogTabType, normalizeTestPackage } from '@domain';
+import { CatalogItem, CatalogItemEquipmentLink, TestPackage, TestGroup, TestEquipment, Doctor, AllergenGradingScale, CATALOG_TAB, CatalogTabType, normalizeTestPackage } from '@domain';
 import CatalogItemsTab from './catalogManager/CatalogItemsTab';
 import TestPackagesTab from './catalogManager/TestPackagesTab';
 import DoctorsTab from './catalogManager/DoctorsTab';
@@ -43,7 +43,7 @@ export default function CatalogManagerModal({
   onSaveDoctors,
   catalogItemEquipments = [],
   onSaveCatalogItemEquipments,
-  allergenScales = DEFAULT_ALLERGEN_SCALES,
+  allergenScales = [],
   onSaveScales
 }: CatalogManagerModalProps) {
   const [activeTab, setActiveTab] = useState<CatalogTabType>(targetTab || CATALOG_TAB.INDICATORS);
@@ -66,7 +66,7 @@ export default function CatalogManagerModal({
       setEqList(equipments);
       setDocsList(doctorsList);
       setItemEquipments(catalogItemEquipments);
-      setScalesList(allergenScales && allergenScales.length > 0 ? allergenScales : DEFAULT_ALLERGEN_SCALES);
+      setScalesList(allergenScales || []);
       setActiveTab(targetTab || CATALOG_TAB.INDICATORS);
     }
     prevIsOpenRef.current = isOpen;

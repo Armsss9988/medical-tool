@@ -8,7 +8,7 @@ import {
 import {
   MedicalReport, CatalogItem, ClinicInfo, BatchImportRow, BatchExportProgress, ToastType,
   TestGroup, TestEquipment, TestPackage, Doctor, CatalogItemEquipmentLink, Invoice, getPkgCodes,
-  AllergenGradingScale, DEFAULT_ALLERGEN_SCALES, AiTemplateTarget
+  AllergenGradingScale, AiTemplateTarget
 } from '@domain';
 import {
   exportBatchTemplateExcel,
@@ -82,7 +82,7 @@ export default function BatchExportModal({
   setDoctorsList,
   catalogItemEquipments = [],
   setCatalogItemEquipments,
-  allergenScales = DEFAULT_ALLERGEN_SCALES,
+  allergenScales = [],
   setAllergenScales,
   invoices = [],
   clinicInfo: _clinicInfo,

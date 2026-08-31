@@ -3,7 +3,7 @@ import { TestTube, Plus, Trash2, Search, Layers, Sparkles, X, ClipboardPaste, Cl
 import { evaluateTestIndicator } from '@domain/testResult';
 import { getAllergenScaleById } from '@domain/constants/allergenScales';
 import { getReferenceRangeById, autoResolveItemLinks } from '@data';
-import { CatalogItem, SelectedTest, TestPackage, TestGroup, ToastType, getPkgCodes, TestEquipment, CatalogItemEquipmentLink, resolveTestEquipmentName } from '@domain/types';
+import { CatalogItem, SelectedTest, TestPackage, TestGroup, ToastType, getPkgCodes, TestEquipment, CatalogItemEquipmentLink, resolveTestEquipmentName, ReferenceRangeItem, AllergenGradingScale } from '@domain/types';
 import { computePricingWithPackages } from '@domain/pricing';
 import NoteCombobox from './NoteCombobox';
 
@@ -19,6 +19,8 @@ interface TestTableProps {
   testGroups?: TestGroup[];
   equipments?: TestEquipment[];
   catalogItemEquipments?: CatalogItemEquipmentLink[];
+  referenceRanges?: ReferenceRangeItem[];
+  allergenScales?: AllergenGradingScale[];
   selectedTests: SelectedTest[];
   setSelectedTests: React.Dispatch<React.SetStateAction<SelectedTest[]>>;
   showToast?: (message: string, type?: ToastType) => void;
@@ -35,6 +37,8 @@ export default function TestTable({
   testGroups: _testGroups = [],
   equipments = [],
   catalogItemEquipments = [],
+  referenceRanges = [],
+  allergenScales = [],
   selectedTests, 
   setSelectedTests,
   showToast,
@@ -172,8 +176,8 @@ export default function TestTable({
         if (t.code !== code) return t;
 
         const resolved = autoResolveItemLinks(t);
-        const scale = resolved.scaleId ? getAllergenScaleById(resolved.scaleId) : undefined;
-        const refRange = resolved.referenceRangeId ? getReferenceRangeById(resolved.referenceRangeId) : undefined;
+        const scale = resolved.scaleId ? getAllergenScaleById(resolved.scaleId, allergenScales) : undefined;
+        const refRange = resolved.referenceRangeId ? getReferenceRangeById(resolved.referenceRangeId, referenceRanges) : undefined;
         const evalRes = evaluateTestIndicator(t.code, t.category, t.unit, rawVal, t.refMin, t.refMax, scale, refRange);
         const autoNote = evalRes.label || t.note;
 
@@ -645,8 +649,8 @@ export default function TestTable({
               ) : (
                 selectedTests.map((t, idx) => {
                   const resolved = autoResolveItemLinks(t);
-                  const scale = resolved.scaleId ? getAllergenScaleById(resolved.scaleId) : undefined;
-                  const refRange = resolved.referenceRangeId ? getReferenceRangeById(resolved.referenceRangeId) : undefined;
+                  const scale = resolved.scaleId ? getAllergenScaleById(resolved.scaleId, allergenScales) : undefined;
+                  const refRange = resolved.referenceRangeId ? getReferenceRangeById(resolved.referenceRangeId, referenceRanges) : undefined;
                   const evalRes = evaluateTestIndicator(t.code, t.category, t.unit, t.result, t.refMin, t.refMax, scale, refRange);
                   const isAbnormal = evalRes.isAbnormal;
 

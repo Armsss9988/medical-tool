@@ -19,6 +19,21 @@ describe('AllergenReportDomainService', () => {
     }
   ];
 
+  const mockScaleProtia91: AllergenGradingScale = {
+    id: 'scale_protia_91',
+    name: 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH (PROTIA 91)',
+    unit: 'IU/ml',
+    levels: [
+      { grade: 0, minVal: 0, maxVal: 0.34, rangeText: '<0,34', label: 'Không phản ứng', isPositive: false },
+      { grade: 1, minVal: 0.35, maxVal: 0.69, rangeText: '0,35 - 0,69', label: 'Yếu', isPositive: true },
+      { grade: 2, minVal: 0.70, maxVal: 3.49, rangeText: '0,70 - 3,49', label: 'Trung bình', isPositive: true },
+      { grade: 3, minVal: 3.50, maxVal: 17.49, rangeText: '3,50 - 17,49', label: 'Khá', isPositive: true },
+      { grade: 4, minVal: 17.50, maxVal: 49.99, rangeText: '17,50 - 49,99', label: 'Mạnh', isPositive: true },
+      { grade: 5, minVal: 50.00, maxVal: 99.99, rangeText: '50,00 - 99,99', label: 'Rất mạnh', isPositive: true },
+      { grade: 6, minVal: 100.0, maxVal: null, rangeText: '>100,0', label: 'Cực mạnh', isPositive: true }
+    ]
+  };
+
   const customScale44: AllergenGradingScale = {
     id: 'scale_allergen_44',
     name: 'DIỄN GIẢI THANG ĐO 44 DỊ NGUYÊN',
@@ -29,6 +44,8 @@ describe('AllergenReportDomainService', () => {
       { grade: 2, minVal: 2.00, maxVal: null, rangeText: '>=2,00', label: 'Dương tính mạnh', isPositive: true }
     ]
   };
+
+  const allMockScales = [mockScaleProtia91, customScale44];
 
   it('should format TIgE and calculate positive status when result > 15.0', () => {
     const tests: SelectedTest[] = [
@@ -70,7 +87,8 @@ describe('AllergenReportDomainService', () => {
     const dto = AllergenReportDomainService.buildReportDTO({
       tests,
       testPackages: mockPackages,
-      databaseItems: mockDbItems
+      databaseItems: mockDbItems,
+      customScales: allMockScales
     });
 
     expect(dto.detailedList).toHaveLength(3);
@@ -118,7 +136,7 @@ describe('AllergenReportDomainService', () => {
     const dto = AllergenReportDomainService.buildReportDTO({
       tests,
       databaseItems: mockDbItems,
-      customScales: [customScale44]
+      customScales: allMockScales
     });
 
     expect(dto.detailedList[0].grade).toBe(2);
@@ -159,7 +177,8 @@ describe('AllergenReportDomainService', () => {
     const dto = AllergenReportDomainService.buildReportDTO({
       tests,
       testPackages: mockPackages,
-      databaseItems: mockDbItems
+      databaseItems: mockDbItems,
+      customScales: allMockScales
     });
 
     expect(dto.detailedList[0].isPositive).toBe(false);

@@ -57,12 +57,24 @@ describe('TestResult Domain - evaluateResult & evaluateTestIndicator', () => {
   });
 
   describe('evaluateTestIndicator - Allergen indicators (non-TIgE)', () => {
+    const testScale: AllergenGradingScale = {
+      id: 'scale_protia_91',
+      name: 'Thang Protia 91',
+      unit: 'IU/ml',
+      levels: [
+        { grade: 0, minVal: 0, maxVal: 0.34, rangeText: '<0,34', label: 'Không phản ứng', isPositive: false },
+        { grade: 1, minVal: 0.35, maxVal: 0.69, rangeText: '0,35 - 0,69', label: 'Yếu', isPositive: true },
+        { grade: 2, minVal: 0.70, maxVal: 3.49, rangeText: '0,70 - 3,49', label: 'Trung bình', isPositive: true },
+        { grade: 3, minVal: 3.50, maxVal: 17.49, rangeText: '3,50 - 17,49', label: 'Khá', isPositive: true }
+      ]
+    };
+
     it('should calculate allergen grades 0 to 6 for standard allergen tests', () => {
-      const resNeg = evaluateTestIndicator('d1', 'Dị Nguyên Hô Hấp', 'IU/mL', '<0.35', 0, 0.34);
+      const resNeg = evaluateTestIndicator('d1', 'Dị Nguyên Hô Hấp', 'IU/mL', '<0.35', 0, 0.34, testScale);
       expect(resNeg.isAbnormal).toBe(false);
       expect(resNeg.label).toContain('Độ 0');
 
-      const resPos = evaluateTestIndicator('d1', 'Dị Nguyên Hô Hấp', 'IU/mL', '12.5', 0, 0.34);
+      const resPos = evaluateTestIndicator('d1', 'Dị Nguyên Hô Hấp', 'IU/mL', '12.5', 0, 0.34, testScale);
       expect(resPos.isAbnormal).toBe(true);
       expect(resPos.label).toContain('Độ 3');
     });

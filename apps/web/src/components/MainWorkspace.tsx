@@ -5,7 +5,7 @@ import ConclusionForm from './ConclusionForm';
 import { useWorkspace } from '../contexts/WorkspaceContext';
 import { useToast } from '../contexts/ToastContext';
 import { User, FlaskConical, FileText, CreditCard, Eye, CloudUpload } from 'lucide-react';
-import type { CatalogItem, TestPackage, TestGroup, Doctor, ExportStepName, Invoice, TestEquipment, CatalogItemEquipmentLink } from '@domain';
+import type { CatalogItem, TestPackage, TestGroup, Doctor, ExportStepName, Invoice, TestEquipment, CatalogItemEquipmentLink, ReferenceRangeItem, AllergenGradingScale } from '@domain';
 
 // ─── MAIN WORKSPACE COMPONENT ───────────────────────────────────────────────
 // Renders the responsive 2-column layout (Desktop) or 3-tab layout (Mobile)
@@ -18,6 +18,8 @@ interface MainWorkspaceProps {
   doctorsList: Doctor[];
   equipments?: TestEquipment[];
   catalogItemEquipments?: CatalogItemEquipmentLink[];
+  referenceRanges?: ReferenceRangeItem[];
+  allergenScales?: AllergenGradingScale[];
   cloudLink?: string;
   isExporting: boolean;
   currentStep: ExportStepName | null;
@@ -44,6 +46,8 @@ export function MainWorkspace({
   doctorsList,
   equipments = [],
   catalogItemEquipments = [],
+  referenceRanges = [],
+  allergenScales = [],
   cloudLink,
   isExporting,
   currentStep,
@@ -202,6 +206,8 @@ export function MainWorkspace({
               testGroups={testGroups}
               equipments={equipments}
               catalogItemEquipments={catalogItemEquipments}
+              referenceRanges={referenceRanges}
+              allergenScales={allergenScales}
               selectedTests={selectedTests}
               setSelectedTests={setSelectedTests}
               showToast={showToast}

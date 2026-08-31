@@ -38,6 +38,7 @@ function AppContent() {
     setEquipments,
     doctorsList,
     setDoctorsList,
+    referenceRanges,
     catalogItemEquipments,
     setCatalogItemEquipments,
     allergenScales,
@@ -295,6 +296,8 @@ function AppContent() {
         doctorsList={doctorsList}
         equipments={equipments}
         catalogItemEquipments={catalogItemEquipments}
+        referenceRanges={referenceRanges}
+        allergenScales={allergenScales}
         cloudLink={cloudLink}
         isExporting={isExporting}
         currentStep={currentStep}

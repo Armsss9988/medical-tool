@@ -2,7 +2,6 @@ import { memo } from 'react';
 import { Patient, ClinicInfo, AllergenGradingScale } from '@domain/types';
 import { getAllergenGradeClasses } from '@domain/allergenDetector';
 import { AllergenReportItemDTO } from '@domain/services/AllergenReportDomainService';
-import { DEFAULT_PROTIA_91_SCALE } from '@domain/constants/allergenScales';
 
 interface AllergenSummaryPageProps {
   patient: Patient;
@@ -19,9 +18,9 @@ function AllergenSummaryPage({
   currentLogo,
   totalCount,
   positiveList,
-  appliedScales = [DEFAULT_PROTIA_91_SCALE]
+  appliedScales = []
 }: AllergenSummaryPageProps) {
-  const scales = appliedScales && appliedScales.length > 0 ? appliedScales : [DEFAULT_PROTIA_91_SCALE];
+  const scales = appliedScales || [];
 
   return (
     <div 

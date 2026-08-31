@@ -25,3 +25,19 @@
    - Giữ nguyên bộ lưu trữ 3 tầng chịu lỗi (Supabase Storage $\rightarrow$ Cloudinary $\rightarrow$ Local Data URL).
 3. **Mẫu Phiếu Trả Kết Quả Y Khoa**:
    - Giữ đúng bảng thông tin bệnh nhân 12 trường (6 hàng, 4 cột) với tên bệnh nhân và số bệnh phẩm màu đỏ in đậm.
+
+---
+
+## 🧱 STRICT EXECUTION & ANTI-HALLUCINATION HARNESS (KỶ LUẬT CỨNG)
+
+1. **Quy tắc Chống Ảo Giác (Zero-Guessing)**:
+   - TUYỆT ĐỐI KHÔNG đoán mò interface, type, schema DB hoặc đường dẫn file.
+   - BẮT BUỘC dùng công cụ đọc file (`view_file`, `grep_search`) để nắm chắc ngữ cảnh trước khi can thiệp mã nguồn.
+2. **Quy tắc Sửa Đổi Tối Thiểu (Surgical Edits)**:
+   - Chỉ chỉnh sửa đúng các dòng liên quan, bảo toàn toàn bộ logic và comment hiện có, không viết lại toàn bộ file.
+3. **Quy tắc Vòng Lặp Tự Sửa Lỗi Bắt Buộc (Enforced Self-Correction)**:
+   - Hệ thống được trang bị Stop Hook tự động kiểm tra `typecheck`.
+   - Nếu còn lỗi TypeScript hoặc Lint, Agent PHẢI tự động phân tích và khắc phục triệt để, không được dừng lại khi chưa đạt trạng thái Clean Build.
+4. **Tác Phong Phản Hồi**:
+   - Ngắn gọn, tập trung thẳng vào giải pháp kỹ thuật và kết quả thực tế, không giải thích lý thuyết rườm rà.
+

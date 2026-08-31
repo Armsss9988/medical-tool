@@ -4,7 +4,6 @@ import {
   Trash2, 
   Copy, 
   Search, 
-  RotateCcw, 
   Download, 
   Upload, 
   Layers, 
@@ -16,8 +15,7 @@ import {
 import { 
   AllergenGradingScale, 
   AllergenGradeLevel, 
-  TestEquipment,
-  DEFAULT_ALLERGEN_SCALES 
+  TestEquipment 
 } from '@domain';
 import { exportScalesTemplate, parseExcelScales } from '@infra/excelService';
 
@@ -40,7 +38,7 @@ const COLOR_PRESETS: { key: string; label: string; bgClass: string; textClass: s
 ];
 
 export default function ScalesTab({ scales, setScales, equipments }: ScalesTabProps) {
-  const [activeScaleId, setActiveScaleId] = useState<string>(() => scales[0]?.id || 'scale_protia_91');
+  const [activeScaleId, setActiveScaleId] = useState<string>(() => scales[0]?.id || '');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
@@ -60,7 +58,7 @@ export default function ScalesTab({ scales, setScales, equipments }: ScalesTabPr
   }, [scales, searchTerm]);
 
   const activeScale = useMemo(() => {
-    return scales.find((s) => s.id === activeScaleId) || scales[0] || DEFAULT_ALLERGEN_SCALES[0];
+    return scales.find((s) => s.id === activeScaleId) || scales[0] || ({ id: '', name: '', unit: 'IU/ml', levels: [] } as AllergenGradingScale);
   }, [scales, activeScaleId]);
 
   // Cập nhật thông tin chung của thang đo hiện tại
@@ -192,16 +190,6 @@ export default function ScalesTab({ scales, setScales, equipments }: ScalesTabPr
       setScales(remaining);
       setActiveScaleId(remaining[0].id);
       showToast('Đã xóa thang đo thành công!');
-    }
-  };
-
-  // Khôi phục mặc định các thang chuẩn
-  const handleResetDefaults = () => {
-    if (confirm('Khôi phục danh sách thang đo mặc định của hệ thống (Protia 91 & 44 Dị Nguyên)? Các thang tự tạo vẫn sẽ được giữ lại.')) {
-      const customOnes = scales.filter((s) => s.id !== 'scale_protia_91' && s.id !== 'scale_allergen_44');
-      const updated = [...DEFAULT_ALLERGEN_SCALES, ...customOnes];
-      setScales(updated);
-      showToast('Đã khôi phục các thang đo mặc định thành công!');
     }
   };
 
@@ -350,17 +338,7 @@ export default function ScalesTab({ scales, setScales, equipments }: ScalesTabPr
         </div>
 
         {/* Sidebar Footer Controls */}
-        <div className="p-3 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={handleResetDefaults}
-            className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-200 transition font-medium cursor-pointer"
-            title="Khôi phục danh sách thang đo mặc định ban đầu"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Khôi Phục Mẫu</span>
-          </button>
-
+        <div className="p-3 border-t border-slate-800 bg-slate-950/80 flex items-center justify-end gap-2">
           <div className="flex items-center gap-1.5">
             <button
               type="button"
