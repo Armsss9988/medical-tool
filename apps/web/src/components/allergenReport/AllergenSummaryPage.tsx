@@ -165,9 +165,9 @@ function AllergenSummaryPage({
                   <table className="w-full text-[11.5px] border-collapse">
                     <thead className="bg-slate-50 font-bold border-b border-slate-300">
                       <tr>
-                        <th className="py-1 px-1.5 text-center border-r border-slate-300 align-middle leading-snug w-12">ĐỘ (+)</th>
-                        <th className="py-1 px-1.5 text-center border-r border-slate-300 align-middle leading-snug">NỒNG ĐỘ ({scale.unit || 'IU/ml'})</th>
-                        <th className="py-1 px-1.5 text-center align-middle leading-snug">DIỄN GIẢI</th>
+                        <th className="h-7 py-0 px-1.5 text-center border-r border-slate-300 align-middle w-12">ĐỘ (+)</th>
+                        <th className="h-7 py-0 px-1.5 text-center border-r border-slate-300 align-middle">NỒNG ĐỘ ({scale.unit || 'IU/ml'})</th>
+                        <th className="h-7 py-0 px-1.5 text-center align-middle">DIỄN GIẢI</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-300">
@@ -175,7 +175,7 @@ function AllergenSummaryPage({
                         const gradeStyle = getAllergenGradeClasses(level.grade);
                         return (
                           <tr key={level.grade} className={gradeStyle.rowBg}>
-                            <td className="py-0.5 text-center border-r border-slate-300 font-bold align-middle leading-snug">
+                            <td className="h-7 py-0 text-center border-r border-slate-300 font-bold align-middle">
                               <div className="flex items-center justify-center">
                                 <img 
                                   src={getAllergenBadgeSvg(level.grade, 18)} 
@@ -186,10 +186,10 @@ function AllergenSummaryPage({
                                 />
                               </div>
                             </td>
-                            <td className={`py-0.5 text-center font-mono border-r border-slate-300 align-middle leading-snug ${level.isPositive ? gradeStyle.textColor + ' font-bold' : 'text-slate-600'}`}>
+                            <td className={`h-7 py-0 text-center font-mono border-r border-slate-300 align-middle ${level.isPositive ? gradeStyle.textColor + ' font-bold' : 'text-slate-600'}`}>
                               {level.rangeText}
                             </td>
-                            <td className={`py-0.5 text-center align-middle leading-snug ${level.isPositive ? gradeStyle.textColor + ' font-bold' : 'text-slate-700 font-semibold'}`}>
+                            <td className={`h-7 py-0 text-center align-middle ${level.isPositive ? gradeStyle.textColor + ' font-bold' : 'text-slate-700 font-semibold'}`}>
                               {level.label}
                             </td>
                           </tr>
@@ -202,19 +202,20 @@ function AllergenSummaryPage({
             </div>
 
             {/* Cột phải: Triệu chứng thường gặp */}
-            <div className="col-span-7 border border-slate-300 rounded p-2 text-[12px] leading-relaxed space-y-0.5 bg-slate-50/50 flex flex-col justify-between">
-              <div>
-                <div className="text-center font-bold text-red-700 text-[12.5px] uppercase pb-0.5 border-b border-slate-300 mb-1">
-                  MỘT SỐ TRIỆU CHỨNG THƯỜNG GẶP KHI DỊ ỨNG
-                </div>
-                <p><strong className="text-slate-900">Da, niêm mạc:</strong> nổi mề đay, phát ban, viêm da; ngứa, sưng môi, lưỡi, miệng, mắt đỏ, viêm kết mạc.</p>
-                <p><strong className="text-slate-900">Hô hấp:</strong> ho, khó thở, hắt hơi, sổ mũi, khò khè, hen suyễn, viêm phổi.</p>
-                <p><strong className="text-slate-900">Tiêu hóa:</strong> nuốt khó, nôn, đau bụng, đầy hơi, tiêu chảy.</p>
-                <p><strong className="text-slate-900">Thần kinh & Nặng:</strong> đau đầu, chóng mặt; Sốt, sốc phản vệ.</p>
+            <div className="col-span-7 border border-slate-300 rounded text-[12px] leading-relaxed bg-slate-50/50 flex flex-col">
+              <div className="text-center font-bold text-red-700 text-[12.5px] uppercase py-1.5 px-2 border-b border-slate-300">
+                MỘT SỐ TRIỆU CHỨNG THƯỜNG GẶP KHI DỊ ỨNG
               </div>
-              <p className="text-red-700 font-bold italic pt-1 border-t border-slate-300 mt-2">
+              <div className="flex-1 flex flex-col justify-center px-3 py-2 space-y-1.5">
+                <p className="flex items-start gap-1"><strong className="text-slate-900 shrink-0">Da, niêm mạc:</strong><span>nổi mề đay, phát ban, viêm da; ngứa, sưng môi, lưỡi, miệng, mắt đỏ, viêm kết mạc.</span></p>
+                <p className="flex items-start gap-1"><strong className="text-slate-900 shrink-0">Hô hấp:</strong><span>ho, khó thở, hắt hơi, sổ mũi, khò khè, hen suyễn, viêm phổi.</span></p>
+                <p className="flex items-start gap-1"><strong className="text-slate-900 shrink-0">Tiêu hóa:</strong><span>nuốt khó, nôn, đau bụng, đầy hơi, tiêu chảy.</span></p>
+                <p className="flex items-start gap-1"><strong className="text-slate-900 shrink-0">Thần kinh &amp; Nặng:</strong><span>đau đầu, chóng mặt; Sốt, sốc phản vệ.</span></p>
+              </div>
+              <p className="text-red-700 font-bold italic px-3 py-1.5 border-t border-slate-300 text-[11.5px]">
                 Nếu xuất hiện các triệu chứng trên sau tiếp xúc cần tư vấn bác sỹ ngay.
               </p>
+            
             </div>
           </div>
 
