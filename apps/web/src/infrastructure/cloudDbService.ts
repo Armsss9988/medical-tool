@@ -48,6 +48,8 @@ export interface DatabaseBackupFile {
   doctors_list: Doctor[];
   clinic_info: ClinicInfo | null;
   reference_ranges?: ReferenceRangeItem[];
+  catalog_item_equipments?: CatalogItemEquipmentLink[];
+  allergen_scales?: AllergenGradingScale[];
   medical_reports?: MedicalReport[];
   invoices_data: Invoice[];
   zalo_config?: ZaloZnsConfig | null;
@@ -61,6 +63,8 @@ export interface AllLocalDataPayload {
   doctorsList: Doctor[];
   clinicInfo: ClinicInfo | null;
   referenceRanges?: ReferenceRangeItem[];
+  catalogItemEquipments?: CatalogItemEquipmentLink[];
+  allergenScales?: AllergenGradingScale[];
   reports: MedicalReport[];
   invoices: Invoice[];
   zaloConfig?: ZaloZnsConfig | null;
@@ -74,6 +78,8 @@ export interface AllCloudDataResult {
   doctorsList: Doctor[] | null;
   clinicInfo: ClinicInfo | null;
   referenceRanges?: ReferenceRangeItem[] | null;
+  catalogItemEquipments?: CatalogItemEquipmentLink[] | null;
+  allergenScales?: AllergenGradingScale[] | null;
   reports: MedicalReport[] | null;
   invoices: Invoice[] | null;
   zaloConfig: ZaloZnsConfig | null;
@@ -393,6 +399,8 @@ export async function syncAllLocalDataToSupabase(
       payload.doctorsList ? syncTableToCloud('doctors_list', payload.doctorsList, config) : Promise.resolve(true),
       payload.clinicInfo ? syncTableToCloud('clinic_info', payload.clinicInfo, config) : Promise.resolve(true),
       payload.referenceRanges ? syncTableToCloud('reference_ranges', payload.referenceRanges, config) : Promise.resolve(true),
+      payload.catalogItemEquipments ? syncTableToCloud('catalog_item_equipments', payload.catalogItemEquipments, config) : Promise.resolve(true),
+      payload.allergenScales ? syncTableToCloud('allergen_scales', payload.allergenScales, config) : Promise.resolve(true),
       payload.reports ? syncTableToCloud('medical_reports', payload.reports, config) : Promise.resolve(true),
       payload.invoices ? syncTableToCloud('invoices_data', payload.invoices, config) : Promise.resolve(true),
       payload.zaloConfig ? syncTableToCloud('zalo_config', payload.zaloConfig, config) : Promise.resolve(true),
@@ -405,6 +413,8 @@ export async function syncAllLocalDataToSupabase(
       equipments: payload.equipments?.length ?? 0,
       doctorsList: payload.doctorsList?.length ?? 0,
       referenceRanges: payload.referenceRanges?.length ?? 0,
+      catalogItemEquipments: payload.catalogItemEquipments?.length ?? 0,
+      allergenScales: payload.allergenScales?.length ?? 0,
       reports: payload.reports?.length ?? 0,
       invoices: payload.invoices?.length ?? 0,
     };
@@ -413,7 +423,7 @@ export async function syncAllLocalDataToSupabase(
     return {
       success: allOk,
       message: allOk
-        ? `Đã đồng bộ thành công toàn bộ 100% dữ liệu Local lên Cloud DB: ${stats.catalog} chỉ số, ${stats.testPackages} gói, ${stats.referenceRanges} bảng tham chiếu, ${stats.reports} phiếu xét nghiệm, ${stats.invoices} hóa đơn, ${stats.doctorsList} bác sĩ.`
+        ? `Đã đồng bộ thành công toàn bộ 100% dữ liệu Local lên Cloud DB: ${stats.catalog} chỉ số, ${stats.testPackages} gói, ${stats.equipments} thiết bị, ${stats.catalogItemEquipments} liên kết máy đo, ${stats.reports} phiếu xét nghiệm, ${stats.invoices} hóa đơn, ${stats.doctorsList} bác sĩ.`
         : 'Một số bảng chưa đồng bộ thành công. Vui lòng kiểm tra lại kết nối Supabase.',
       stats
     };
@@ -440,6 +450,8 @@ export async function fetchAllCloudDataToLocal(
       doctorsList,
       clinicInfo,
       referenceRanges,
+      catalogItemEquipments,
+      allergenScales,
       reports,
       invoices,
       zaloConfig
@@ -451,6 +463,8 @@ export async function fetchAllCloudDataToLocal(
       fetchTableFromCloud<Doctor[]>('doctors_list', config),
       fetchTableFromCloud<ClinicInfo>('clinic_info', config),
       fetchTableFromCloud<ReferenceRangeItem[]>('reference_ranges', config),
+      fetchTableFromCloud<CatalogItemEquipmentLink[]>('catalog_item_equipments', config),
+      fetchTableFromCloud<AllergenGradingScale[]>('allergen_scales', config),
       fetchTableFromCloud<MedicalReport[]>('medical_reports', config),
       fetchTableFromCloud<Invoice[]>('invoices_data', config),
       fetchTableFromCloud<ZaloZnsConfig>('zalo_config', config),
@@ -464,6 +478,8 @@ export async function fetchAllCloudDataToLocal(
       doctorsList,
       clinicInfo,
       referenceRanges,
+      catalogItemEquipments,
+      allergenScales,
       reports,
       invoices,
       zaloConfig
@@ -476,7 +492,7 @@ export async function fetchAllCloudDataToLocal(
 
 /**
  * Fetch TOÀN BỘ dữ liệu từ Supabase và download về máy dưới dạng file JSON backup.
- * Bao gồm: catalog_data, test_packages, test_groups, equipments_catalog, doctors_list, clinic_info, reference_ranges, medical_reports, invoices_data, zalo_config.
+ * Bao gồm: catalog_data, test_packages, test_groups, equipments_catalog, doctors_list, clinic_info, reference_ranges, catalog_item_equipments, allergen_scales, medical_reports, invoices_data, zalo_config.
  */
 export async function backupAllDataFromSupabase(
   config: CloudDbConfig
@@ -486,7 +502,7 @@ export async function backupAllDataFromSupabase(
   }
 
   try {
-    const [catalog, packages, groups, equipments, doctors, clinic, referenceRanges, reports, invoices, zaloConfig] = await Promise.all([
+    const [catalog, packages, groups, equipments, doctors, clinic, referenceRanges, catalogItemEquipments, allergenScales, reports, invoices, zaloConfig] = await Promise.all([
       fetchTableFromCloud<CatalogItem[]>('catalog_data', config),
       fetchTableFromCloud<TestPackage[]>('test_packages', config),
       fetchTableFromCloud<TestGroup[]>('test_groups', config),
@@ -494,6 +510,8 @@ export async function backupAllDataFromSupabase(
       fetchTableFromCloud<Doctor[]>('doctors_list', config),
       fetchTableFromCloud<ClinicInfo>('clinic_info', config),
       fetchTableFromCloud<ReferenceRangeItem[]>('reference_ranges', config),
+      fetchTableFromCloud<CatalogItemEquipmentLink[]>('catalog_item_equipments', config),
+      fetchTableFromCloud<AllergenGradingScale[]>('allergen_scales', config),
       fetchTableFromCloud<MedicalReport[]>('medical_reports', config),
       fetchTableFromCloud<Invoice[]>('invoices_data', config),
       fetchTableFromCloud<ZaloZnsConfig>('zalo_config', config),
@@ -504,7 +522,7 @@ export async function backupAllDataFromSupabase(
         backup_at: new Date().toISOString(),
         supabase_url: config.supabaseUrl,
         version: '2.0',
-        tables: ['catalog_data', 'test_packages', 'test_groups', 'equipments_catalog', 'doctors_list', 'clinic_info', 'reference_ranges', 'medical_reports', 'invoices_data', 'zalo_config']
+        tables: ['catalog_data', 'test_packages', 'test_groups', 'equipments_catalog', 'doctors_list', 'clinic_info', 'reference_ranges', 'catalog_item_equipments', 'allergen_scales', 'medical_reports', 'invoices_data', 'zalo_config']
       },
       catalog_data: catalog ?? [],
       test_packages: packages ?? [],
@@ -513,6 +531,8 @@ export async function backupAllDataFromSupabase(
       doctors_list: doctors ?? [],
       clinic_info: clinic ?? null,
       reference_ranges: referenceRanges ?? [],
+      catalog_item_equipments: catalogItemEquipments ?? [],
+      allergen_scales: allergenScales ?? [],
       medical_reports: reports ?? [],
       invoices_data: invoices ?? [],
       zalo_config: zaloConfig ?? null,
@@ -525,6 +545,8 @@ export async function backupAllDataFromSupabase(
       equipments: (equipments ?? []).length,
       doctors: (doctors ?? []).length,
       referenceRanges: (referenceRanges ?? []).length,
+      catalogItemEquipments: (catalogItemEquipments ?? []).length,
+      allergenScales: (allergenScales ?? []).length,
       reports: (reports ?? []).length,
       invoices: (invoices ?? []).length,
     };
@@ -544,7 +566,7 @@ export async function backupAllDataFromSupabase(
 
     return {
       success: true,
-      message: `Backup thành công! ${stats.catalog} chỉ số, ${stats.packages} gói, ${stats.groups} nhóm, ${stats.equipments} thiết bị, ${stats.doctors} bác sĩ, ${stats.referenceRanges} bảng tham chiếu, ${stats.reports} phiếu XN, ${stats.invoices} hóa đơn. File đã tải xuống.`
+      message: `Backup thành công! ${stats.catalog} chỉ số, ${stats.packages} gói, ${stats.groups} nhóm, ${stats.equipments} thiết bị, ${stats.catalogItemEquipments} liên kết máy đo, ${stats.doctors} bác sĩ, ${stats.reports} phiếu XN, ${stats.invoices} hóa đơn. File đã tải xuống.`
     };
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : 'Lỗi không xác định';
@@ -571,16 +593,18 @@ export async function restoreAllDataToSupabase(
     }
 
     const results = await Promise.all([
-      backup.catalog_data?.length      ? syncTableToCloud('catalog_data',       backup.catalog_data,       config) : Promise.resolve(true),
-      backup.test_packages?.length      ? syncTableToCloud('test_packages',       backup.test_packages,       config) : Promise.resolve(true),
-      backup.test_groups?.length        ? syncTableToCloud('test_groups',         backup.test_groups,         config) : Promise.resolve(true),
-      backup.equipments_catalog?.length ? syncTableToCloud('equipments_catalog', backup.equipments_catalog, config) : Promise.resolve(true),
-      backup.doctors_list?.length       ? syncTableToCloud('doctors_list',        backup.doctors_list,        config) : Promise.resolve(true),
-      backup.clinic_info                ? syncTableToCloud('clinic_info',         backup.clinic_info,         config) : Promise.resolve(true),
-      backup.reference_ranges?.length   ? syncTableToCloud('reference_ranges',    backup.reference_ranges,    config) : Promise.resolve(true),
-      backup.medical_reports?.length    ? syncTableToCloud('medical_reports',     backup.medical_reports,     config) : Promise.resolve(true),
-      backup.invoices_data?.length      ? syncTableToCloud('invoices_data',       backup.invoices_data,       config) : Promise.resolve(true),
-      backup.zalo_config                ? syncTableToCloud('zalo_config',         backup.zalo_config,         config) : Promise.resolve(true),
+      backup.catalog_data?.length             ? syncTableToCloud('catalog_data',             backup.catalog_data,             config) : Promise.resolve(true),
+      backup.test_packages?.length             ? syncTableToCloud('test_packages',             backup.test_packages,             config) : Promise.resolve(true),
+      backup.test_groups?.length               ? syncTableToCloud('test_groups',               backup.test_groups,               config) : Promise.resolve(true),
+      backup.equipments_catalog?.length        ? syncTableToCloud('equipments_catalog',       backup.equipments_catalog,       config) : Promise.resolve(true),
+      backup.doctors_list?.length              ? syncTableToCloud('doctors_list',              backup.doctors_list,              config) : Promise.resolve(true),
+      backup.clinic_info                       ? syncTableToCloud('clinic_info',               backup.clinic_info,               config) : Promise.resolve(true),
+      backup.reference_ranges?.length          ? syncTableToCloud('reference_ranges',          backup.reference_ranges,          config) : Promise.resolve(true),
+      backup.catalog_item_equipments?.length   ? syncTableToCloud('catalog_item_equipments',   backup.catalog_item_equipments,   config) : Promise.resolve(true),
+      backup.allergen_scales?.length           ? syncTableToCloud('allergen_scales',           backup.allergen_scales,           config) : Promise.resolve(true),
+      backup.medical_reports?.length           ? syncTableToCloud('medical_reports',           backup.medical_reports,           config) : Promise.resolve(true),
+      backup.invoices_data?.length             ? syncTableToCloud('invoices_data',             backup.invoices_data,             config) : Promise.resolve(true),
+      backup.zalo_config                       ? syncTableToCloud('zalo_config',               backup.zalo_config,               config) : Promise.resolve(true),
     ]);
 
     const allOk = results.every(Boolean);

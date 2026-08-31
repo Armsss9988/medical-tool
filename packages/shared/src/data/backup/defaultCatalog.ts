@@ -35,48 +35,48 @@ const ALLERGEN_CATALOG_ITEMS: CatalogItem[] = ALLERGEN_91_DATABASE.map(item => {
 
 export const DEFAULT_EQUIPMENTS: TestEquipment[] = [
   // Thiết bị từ Excel UPLOAD_PHAN_MEM_NHI (12 máy)
-  { id: crypto.randomUUID(), name: 'MS-H630 (Máy Phân Tích Huyết Học)', code: 'MS-H630' },
-  { id: crypto.randomUUID(), name: 'Dynex DS2 (ELISA Reader)', code: 'DYNEX-DS2' },
-  { id: crypto.randomUUID(), name: 'Roche cobas e 801 (Miễn Dịch)', code: 'COBAS-E801' },
-  { id: crypto.randomUUID(), name: 'Tosoh HLC-723G11 (Huyết Sắc Tố)', code: 'TOSOH-G11' },
-  { id: crypto.randomUUID(), name: 'MS-360 (Vi Chất)', code: 'MS-360' },
-  { id: crypto.randomUUID(), name: 'PROTIA Allergy-Q Smart Q-processor (Dị Nguyên)', code: 'PROTIA-ALLERGY-Q' },
-  { id: crypto.randomUUID(), name: 'Agilent 7850 ICP-MS (Nguyên Tố Vi Lượng)', code: 'AGILENT-7850' },
-  { id: crypto.randomUUID(), name: 'MEDIWISS AlleisaScreen 44 BLOTrix Reader C1', code: 'MEDIWISS-C1' },
-  { id: crypto.randomUUID(), name: 'MADx ALEX2 MAX 9k (Dị Nguyên Panel)', code: 'MADX-ALEX2' },
-  { id: crypto.randomUUID(), name: 'Applied Biosystems VeritiPro PCR (Di Truyền)', code: 'VERITIPRO-PCR' },
-  { id: crypto.randomUUID(), name: 'Kính Hiển Vi Quang Học', code: 'MICROSCOPE' },
-  { id: crypto.randomUUID(), name: 'Radiometer ABL90 FLEX (Khí Máu)', code: 'ABL90-FLEX' },
-  // Thiết bị cũ giữ lại
-  { id: crypto.randomUUID(), name: 'Máy Đọc Dị Nguyên PROTIA Smart Analyzer', code: 'PROTIA-SMART' },
-  { id: crypto.randomUUID(), name: 'Thủ Công / Khác', code: 'MANUAL' }
+  { id: 'eq_msh630', name: 'MS-H630 (Máy Phân Tích Huyết Học)', code: 'MS-H630' },
+  { id: 'eq_dynex_ds2', name: 'Dynex DS2 (ELISA Reader)', code: 'DYNEX-DS2' },
+  { id: 'eq_cobas_e801', name: 'Roche cobas e 801 (Miễn Dịch)', code: 'COBAS-E801' },
+  { id: 'eq_tosoh_g11', name: 'Tosoh HLC-723G11 (Huyết Sắc Tố)', code: 'TOSOH-G11' },
+  { id: 'eq_ms360', name: 'MS-360 (Vi Chất)', code: 'MS-360' },
+  { id: 'eq_protia_q', name: 'PROTIA Allergy-Q Smart Q-processor (Dị Nguyên)', code: 'PROTIA-ALLERGY-Q' },
+  { id: 'eq_agilent_7850', name: 'Agilent 7850 ICP-MS (Nguyên Tố Vi Lượng)', code: 'AGILENT-7850' },
+  { id: 'eq_mediwiss_c1', name: 'MEDIWISS AlleisaScreen 44 BLOTrix Reader C1', code: 'MEDIWISS-C1' },
+  { id: 'eq_madx_alex2', name: 'MADx ALEX2 MAX 9k (Dị Nguyên Panel)', code: 'MADX-ALEX2' },
+  { id: 'eq_veritipro_pcr', name: 'Applied Biosystems VeritiPro PCR (Di Truyền)', code: 'VERITIPRO-PCR' },
+  { id: 'eq_microscope', name: 'Kính Hiển Vi Quang Học', code: 'MICROSCOPE' },
+  { id: 'eq_abl90_flex', name: 'Radiometer ABL90 FLEX (Khí Máu)', code: 'ABL90-FLEX' },
+  // Thiết bị bổ sung
+  { id: 'eq_protia_smart', name: 'Máy Đọc Dị Nguyên PROTIA Smart Analyzer', code: 'PROTIA-SMART' },
+  { id: 'eq_manual', name: 'Thủ Công / Khác', code: 'MANUAL' }
 ];
 
 export const DEFAULT_TEST_GROUPS: TestGroup[] = [
   // Nhóm từ Excel Nhi
-  { id: crypto.randomUUID(), name: 'Huyết Học' },
-  { id: crypto.randomUUID(), name: 'Sinh Hóa' },
-  { id: crypto.randomUUID(), name: 'Huyết Sắc Tố' },
-  { id: crypto.randomUUID(), name: 'Ký Sinh Trùng' },
-  { id: crypto.randomUUID(), name: 'Vi Chất' },
-  { id: crypto.randomUUID(), name: 'Hóc Môn' },
-  { id: crypto.randomUUID(), name: 'Miễn Dịch' },
-  { id: crypto.randomUUID(), name: 'Dị Nguyên' },
-  { id: crypto.randomUUID(), name: 'Di Truyền' },
+  { id: 'grp_huyet_hoc', name: 'Huyết Học' },
+  { id: 'grp_sinh_hoa', name: 'Sinh Hóa' },
+  { id: 'grp_huyet_sac_to', name: 'Huyết Sắc Tố' },
+  { id: 'grp_ky_sinh_trung', name: 'Ký Sinh Trùng' },
+  { id: 'grp_vi_chat', name: 'Vi Chất' },
+  { id: 'grp_hoc_mon', name: 'Hóc Môn' },
+  { id: 'grp_mien_dich', name: 'Miễn Dịch' },
+  { id: 'grp_di_nguyen', name: 'Dị Nguyên' },
+  { id: 'grp_di_truyen', name: 'Di Truyền' },
   // Nhóm bổ sung
-  { id: crypto.randomUUID(), name: 'Sinh Hóa Máu' },
-  { id: crypto.randomUUID(), name: 'Đông Máu' },
-  { id: crypto.randomUUID(), name: 'Nước Tiểu' },
-  { id: crypto.randomUUID(), name: 'Miễn Dịch & Tầm Soát' },
-  { id: crypto.randomUUID(), name: 'Nội Tiết Tố & Hormone' },
-  { id: crypto.randomUUID(), name: 'Tầm Soát Ung Thư (Marker)' },
-  { id: crypto.randomUUID(), name: 'Ký Sinh Trùng & Vi Sinh' },
-  { id: crypto.randomUUID(), name: 'Bệnh Truyền Nhiễm' },
-  { id: crypto.randomUUID(), name: 'Sinh Học Phân Tử (PCR)' },
-  { id: crypto.randomUUID(), name: 'Dị Nguyên Thực Phẩm' },
-  { id: crypto.randomUUID(), name: 'Dị Nguyên Hô Hấp' },
-  { id: crypto.randomUUID(), name: 'Dị Nguyên Côn Trùng & Khác' },
-  { id: crypto.randomUUID(), name: 'Giải Phẫu Bệnh & Tế Bào' }
+  { id: 'grp_sinh_hoa_mau', name: 'Sinh Hóa Máu' },
+  { id: 'grp_dong_mau', name: 'Đông Máu' },
+  { id: 'grp_nuoc_tieu', name: 'Nước Tiểu' },
+  { id: 'grp_mien_dich_tam_soat', name: 'Miễn Dịch & Tầm Soát' },
+  { id: 'grp_noi_tiet_to', name: 'Nội Tiết Tố & Hormone' },
+  { id: 'grp_ung_thu_marker', name: 'Tầm Soát Ung Thư (Marker)' },
+  { id: 'grp_ky_sinh_trung_vi_sinh', name: 'Ký Sinh Trùng & Vi Sinh' },
+  { id: 'grp_benh_truyen_nhiem', name: 'Bệnh Truyền Nhiễm' },
+  { id: 'grp_pcr', name: 'Sinh Học Phân Tử (PCR)' },
+  { id: 'grp_di_nguyen_thuc_pham', name: 'Dị Nguyên Thực Phẩm' },
+  { id: 'grp_di_nguyen_ho_hap', name: 'Dị Nguyên Hô Hấp' },
+  { id: 'grp_di_nguyen_con_trung', name: 'Dị Nguyên Côn Trùng & Khác' },
+  { id: 'grp_giai_phau_benh', name: 'Giải Phẫu Bệnh & Tế Bào' }
 ];
 
 export const STANDARD_CLINICAL_ITEMS: CatalogItem[] = [

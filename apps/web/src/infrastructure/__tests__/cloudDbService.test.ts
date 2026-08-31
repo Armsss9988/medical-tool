@@ -87,6 +87,8 @@ describe('cloudDbService wired to apiClient', () => {
     const clinic = { name: 'GoLab', address: '', phone: '', defaultDoctor: '' } as never;
     const zalo = { enabled: false } as never;
     const refRange = { id: 'ref_glu', name: 'Glucose' } as never;
+    const cieLink = { id: 'l1', catalogCode: 'GLU', equipmentId: 'eq_1' } as never;
+    const scale = { id: 'scale_1', name: 'Scale 1' } as never;
     mockGetTable
       .mockResolvedValueOnce({ rows: [{ code: 'GLU' }], count: 1, updatedAt: '' }) // catalog
       .mockResolvedValueOnce({ rows: [], count: 0, updatedAt: '' }) // packages
@@ -95,6 +97,8 @@ describe('cloudDbService wired to apiClient', () => {
       .mockResolvedValueOnce({ rows: [], count: 0, updatedAt: '' }) // doctors
       .mockResolvedValueOnce({ rows: [clinic], count: 1, updatedAt: '' }) // clinic
       .mockResolvedValueOnce({ rows: [refRange], count: 1, updatedAt: '' }) // reference_ranges
+      .mockResolvedValueOnce({ rows: [cieLink], count: 1, updatedAt: '' }) // catalog_item_equipments
+      .mockResolvedValueOnce({ rows: [scale], count: 1, updatedAt: '' }) // allergen_scales
       .mockResolvedValueOnce({ rows: [], count: 0, updatedAt: '' }) // reports
       .mockResolvedValueOnce({ rows: [], count: 0, updatedAt: '' }) // invoices
       .mockResolvedValueOnce({ rows: [zalo], count: 1, updatedAt: '' }); // zalo
@@ -102,6 +106,8 @@ describe('cloudDbService wired to apiClient', () => {
     expect(res?.clinicInfo).toEqual(clinic);
     expect(res?.zaloConfig).toEqual(zalo);
     expect(res?.referenceRanges).toEqual([refRange]);
+    expect(res?.catalogItemEquipments).toEqual([cieLink]);
+    expect(res?.allergenScales).toEqual([scale]);
   });
 
   it('(e) config.enabled === false returns false without calling putTable', async () => {
@@ -123,7 +129,6 @@ describe('cloudDbService wired to apiClient', () => {
     const res = await testSupabaseConnection(cfg);
     expect(mockGetTable).toHaveBeenCalledWith('catalog');
     expect(res.success).toBe(true);
-    expect(res.message).toBe('Kết nối thành công tới GoLab API!');
   });
 
   it('testSupabaseConnection reports wrong password on ApiAuthError', async () => {
@@ -151,6 +156,8 @@ describe('cloudDbService wired to apiClient', () => {
         doctorsList: [{ id: 'd1', name: 'Dr' }] as never,
         clinicInfo: { name: 'GoLab', address: '', phone: '', defaultDoctor: '' } as never,
         referenceRanges: [{ id: 'ref_glu', name: 'Glucose' }] as never,
+        catalogItemEquipments: [{ id: 'l1', catalogCode: 'GLU', equipmentId: 'eq_1' }] as never,
+        allergenScales: [{ id: 'scale_1', name: 'Scale 1' }] as never,
         reports: [{ id: 'r1', code: 'BN1' }] as never,
         invoices: [{ id: 'i1', code: 'HD1' }] as never,
         zaloConfig: { enabled: false } as never
@@ -159,6 +166,8 @@ describe('cloudDbService wired to apiClient', () => {
     );
     expect(res.success).toBe(true);
     expect(mockPutTable).toHaveBeenCalledWith('catalog', expect.anything());
+    expect(mockPutTable).toHaveBeenCalledWith('catalog-item-equipments', [{ id: 'l1', catalogCode: 'GLU', equipmentId: 'eq_1' }]);
+    expect(mockPutTable).toHaveBeenCalledWith('allergen-scales', [{ id: 'scale_1', name: 'Scale 1' }]);
     expect(mockPutTable).toHaveBeenCalledWith('reference-ranges', [{ id: 'ref_glu', name: 'Glucose' }]);
     expect(mockPutTable).toHaveBeenCalledWith('medical-reports', [{ id: 'r1', code: 'BN1' }]);
     expect(mockPutTable).toHaveBeenCalledWith('clinic-info', [

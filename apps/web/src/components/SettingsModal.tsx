@@ -34,7 +34,9 @@ import {
   TestEquipment,
   Doctor,
   Invoice,
-  MedicalReport
+  MedicalReport,
+  CatalogItemEquipmentLink,
+  AllergenGradingScale
 } from '@domain/types';
 import {
   testSupabaseConnection,
@@ -90,6 +92,10 @@ interface SettingsModalProps {
   setEquipments?: (equipments: TestEquipment[]) => void;
   doctorsList?: Doctor[];
   setDoctorsList?: (doctors: Doctor[]) => void;
+  catalogItemEquipments?: CatalogItemEquipmentLink[];
+  setCatalogItemEquipments?: (links: CatalogItemEquipmentLink[]) => void;
+  allergenScales?: AllergenGradingScale[];
+  setAllergenScales?: (scales: AllergenGradingScale[]) => void;
   reports?: MedicalReport[];
   setReports?: React.Dispatch<React.SetStateAction<MedicalReport[]>>;
   invoices?: Invoice[];
@@ -116,6 +122,10 @@ export default function SettingsModal({
   setEquipments,
   doctorsList = [],
   setDoctorsList,
+  catalogItemEquipments = [],
+  setCatalogItemEquipments,
+  allergenScales = [],
+  setAllergenScales,
   reports = [],
   setReports,
   invoices = [],
@@ -618,6 +628,8 @@ export default function SettingsModal({
                       testGroups,
                       equipments,
                       doctorsList,
+                      catalogItemEquipments,
+                      allergenScales,
                       clinicInfo,
                       reports,
                       invoices,
@@ -668,12 +680,14 @@ export default function SettingsModal({
                     if (data.testGroups && setTestGroups) setTestGroups(data.testGroups);
                     if (data.equipments && setEquipments) setEquipments(data.equipments);
                     if (data.doctorsList && setDoctorsList) setDoctorsList(data.doctorsList);
+                    if (data.catalogItemEquipments && setCatalogItemEquipments) setCatalogItemEquipments(data.catalogItemEquipments);
+                    if (data.allergenScales && setAllergenScales) setAllergenScales(data.allergenScales);
                     if (data.clinicInfo) setClinicInfo(data.clinicInfo);
                     if (data.reports && setReports) setReports(data.reports);
                     if (data.invoices && setInvoices) setInvoices(data.invoices);
                     if (data.zaloConfig) { setZaloConfig(data.zaloConfig); setLocalZaloConfig(data.zaloConfig); }
 
-                    showToast(`Đã đồng bộ thành công toàn bộ dữ liệu từ Cloud về máy (${count} chỉ số + sổ phiếu + hóa đơn)!`, 'success');
+                    showToast(`Đã đồng bộ thành công toàn bộ dữ liệu từ Cloud về máy (${count} chỉ số + cấu hình máy đo + sổ phiếu + hóa đơn)!`, 'success');
                   }}
                   className="w-full px-3 py-2 bg-sky-700 hover:bg-sky-600 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 shadow transition active:scale-95 disabled:opacity-50 cursor-pointer"
                 >

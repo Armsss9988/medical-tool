@@ -122,10 +122,12 @@ async function main() {
   await syncToSupabaseStorage('clinic_info', defaultClinic);
   await syncToSupabaseStorage('catalog_item_equipments', DEFAULT_CATALOG.filter(c => c.equipment || c.referenceRangeId || c.scaleId).map(c => {
     const matchedRef = DEFAULT_REFERENCE_RANGES.find(r => r.id === c.referenceRangeId);
+    const matchedEq = DEFAULT_EQUIPMENTS.find(e => e.name === c.equipment || e.code === c.equipment || (c.equipment && (e.name.includes(c.equipment) || (e.code && e.code.includes(c.equipment)))));
+    const eqId = matchedEq ? matchedEq.id : (c.equipment ? 'eq_' + c.equipment.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'eq_manual');
     return {
-      id: `cie_${c.code.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${c.equipment ? 'eq_' + c.equipment.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'eq_default'}`,
+      id: `cie_${c.code.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${eqId}`,
       catalogCode: c.code,
-      equipmentId: c.equipment ? 'eq_' + c.equipment.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'eq_default',
+      equipmentId: eqId,
       refMin: c.refMin ?? matchedRef?.refMin ?? null,
       refMax: c.refMax ?? matchedRef?.refMax ?? null,
       unit: c.unit || matchedRef?.unit || '',
@@ -355,8 +357,8 @@ async function main() {
       }> = [];
       for (const c of DEFAULT_CATALOG) {
         if (c.equipment || c.referenceRangeId || c.scaleId) {
-          const matchedEq = eqRows.find((e) => e.name === c.equipment || e.code === c.equipment);
-          const eqId = matchedEq ? matchedEq.id : (c.equipment ? 'eq_' + c.equipment.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'eq_default');
+          const matchedEq = eqRows.find((e) => e.name === c.equipment || e.code === c.equipment || (c.equipment && (e.name.includes(c.equipment) || (e.code && e.code.includes(c.equipment)))));
+          const eqId = matchedEq ? matchedEq.id : (c.equipment ? 'eq_' + c.equipment.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'eq_manual');
           const matchedRef = DEFAULT_REFERENCE_RANGES.find((r) => r.id === c.referenceRangeId);
 
           cieRows.push({

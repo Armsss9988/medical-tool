@@ -212,6 +212,10 @@ export function ModalLayer({
         setEquipments={setEquipments}
         doctorsList={doctorsList}
         setDoctorsList={setDoctorsList}
+        catalogItemEquipments={catalogItemEquipments}
+        setCatalogItemEquipments={setCatalogItemEquipments}
+        allergenScales={allergenScales}
+        setAllergenScales={setAllergenScales}
         reports={reports}
         setReports={setReports}
         invoices={invoices}
