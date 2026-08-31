@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Save, Layers, Stethoscope, FlaskConical, Activity } from 'lucide-react';
 import { autoResolveItemLinks } from '@data';
-import { CatalogItem, CatalogItemEquipmentLink, TestPackage, TestGroup, TestEquipment, Doctor, AllergenGradingScale, DEFAULT_ALLERGEN_SCALES, CATALOG_TAB, CatalogTabType } from '@domain';
+import { CatalogItem, CatalogItemEquipmentLink, TestPackage, TestGroup, TestEquipment, Doctor, AllergenGradingScale, DEFAULT_ALLERGEN_SCALES, CATALOG_TAB, CatalogTabType, normalizeTestPackage } from '@domain';
 import CatalogItemsTab from './catalogManager/CatalogItemsTab';
 import TestPackagesTab from './catalogManager/TestPackagesTab';
 import DoctorsTab from './catalogManager/DoctorsTab';
@@ -47,8 +47,8 @@ export default function CatalogManagerModal({
   onSaveScales
 }: CatalogManagerModalProps) {
   const [activeTab, setActiveTab] = useState<CatalogTabType>(targetTab || CATALOG_TAB.INDICATORS);
-  const [items, setItems] = useState<CatalogItem[]>(catalog);
-  const [packages, setPackages] = useState<TestPackage[]>(testPackages);
+  const [items, setItems] = useState<CatalogItem[]>(() => catalog.map(autoResolveItemLinks));
+  const [packages, setPackages] = useState<TestPackage[]>(() => testPackages.map(normalizeTestPackage));
   const [groups, setGroups] = useState<TestGroup[]>(testGroups);
   const [eqList, setEqList] = useState<TestEquipment[]>(equipments);
   const [docsList, setDocsList] = useState<Doctor[]>(doctorsList);
@@ -61,7 +61,7 @@ export default function CatalogManagerModal({
   useEffect(() => {
     if (isOpen && !prevIsOpenRef.current) {
       setItems(catalog.map(autoResolveItemLinks));
-      setPackages(testPackages);
+      setPackages(testPackages.map(normalizeTestPackage));
       setGroups(testGroups);
       setEqList(equipments);
       setDocsList(doctorsList);

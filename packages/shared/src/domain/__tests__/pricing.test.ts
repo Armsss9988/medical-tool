@@ -130,4 +130,29 @@ describe('Pricing Domain - computePricingWithPackages & buildInvoiceItems', () =
     expect(getPkgCodes({ id: '3', name: 'P3', price: 0, items: '[{"code":"AST"},{"code":"ALT"}]' as never })).toEqual(['AST', 'ALT']);
     expect(getPkgCodes({ id: '4', name: 'P4', price: 0, items: [] as never, codes: '["CHO","TRI"]' as never })).toEqual(['CHO', 'TRI']);
   });
+
+  it('getPkgItems and normalizeTestPackage correctly handle all package structures', async () => {
+    const { getPkgItems, normalizeTestPackage } = await import('../types');
+    expect(getPkgItems(null)).toEqual([]);
+    expect(getPkgItems(undefined)).toEqual([]);
+    expect(getPkgItems({ id: '1', name: 'P', price: 0, codes: ['GLU', 'URE'] } as never)).toEqual([
+      { code: 'GLU', equipmentId: null },
+      { code: 'URE', equipmentId: null }
+    ]);
+    expect(getPkgItems({ id: '2', name: 'P2', price: 0, items: [{ code: 'RBC', equipmentId: 'eq_1' }] } as never)).toEqual([
+      { code: 'RBC', equipmentId: 'eq_1' }
+    ]);
+
+    const normalized = normalizeTestPackage({
+      id: 'p_test',
+      name: 'Test Pkg',
+      price: 100000,
+      codes: ['AST', 'ALT']
+    } as never);
+    expect(normalized.items).toEqual([
+      { code: 'AST', equipmentId: null },
+      { code: 'ALT', equipmentId: null }
+    ]);
+    expect(normalized.codes).toEqual(['AST', 'ALT']);
+  });
 });

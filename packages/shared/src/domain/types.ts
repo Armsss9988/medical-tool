@@ -153,6 +153,66 @@ export function getPkgCodes(pkg: TestPackage | undefined | null): string[] {
   return [];
 }
 
+/** Helper: lấy danh sách PackageItem [{code, equipmentId}] từ một TestPackage (an toàn với mọi format) */
+export function getPkgItems(pkg: TestPackage | undefined | null): PackageItem[] {
+  if (!pkg) return [];
+
+  let rawItems: unknown = pkg.items;
+  if (typeof rawItems === 'string') {
+    try {
+      rawItems = JSON.parse(rawItems);
+    } catch {
+      rawItems = [];
+    }
+  }
+
+  if (Array.isArray(rawItems) && rawItems.length > 0) {
+    const list: PackageItem[] = [];
+    for (const i of rawItems) {
+      if (typeof i === 'string' && i.trim()) {
+        list.push({ code: i.trim(), equipmentId: null });
+      } else if (i && typeof i === 'object' && 'code' in i) {
+        const c = String((i as { code: unknown }).code || '').trim();
+        if (c) {
+          list.push({
+            code: c,
+            equipmentId: (i as { equipmentId?: string | null }).equipmentId || null
+          });
+        }
+      }
+    }
+    if (list.length > 0) return list;
+  }
+
+  let rawCodes: unknown = pkg.codes;
+  if (typeof rawCodes === 'string') {
+    try {
+      rawCodes = JSON.parse(rawCodes);
+    } catch {
+      rawCodes = [];
+    }
+  }
+
+  if (Array.isArray(rawCodes) && rawCodes.length > 0) {
+    return rawCodes
+      .filter((c): c is string => Boolean(c && typeof c === 'string' && c.trim()))
+      .map((c) => ({ code: c.trim(), equipmentId: null }));
+  }
+
+  return [];
+}
+
+/** Helper: chuẩn hóa gói xét nghiệm đảm bảo luôn có items và codes mảng chuẩn */
+export function normalizeTestPackage(pkg: TestPackage): TestPackage {
+  const items = getPkgItems(pkg);
+  const codes = getPkgCodes(pkg);
+  return {
+    ...pkg,
+    items,
+    codes: codes.length > 0 ? codes : items.map((i) => i.code)
+  };
+}
+
 /**
  * Helper: Tra cứu tên thiết bị đo phù hợp cho một chỉ số xét nghiệm
  */

@@ -12,7 +12,8 @@ import {
   ReferenceRangeItem,
   AllergenGradingScale,
   DEFAULT_ALLERGEN_SCALES,
-  STORAGE_KEYS
+  STORAGE_KEYS,
+  normalizeTestPackage
 } from '@domain';
 import { autoResolveItemLinks } from '@data';
 import { loadState, saveState } from '@infra/storage';
@@ -77,7 +78,7 @@ export function useCatalogData() {
 
   const [testPackages, setTestPackages] = useState<TestPackage[]>(() => {
     const loaded = loadState<TestPackage[]>(STORAGE_KEYS.TEST_PACKAGES, []);
-    return Array.isArray(loaded) ? loaded : [];
+    return Array.isArray(loaded) ? loaded.map(normalizeTestPackage) : [];
   });
 
   const [testGroups, setTestGroups] = useState<TestGroup[]>(() => {
@@ -229,7 +230,7 @@ export function useCatalogData() {
         setCatalog(cloudCatalog.map(autoResolveItemLinks));
       }
       if (cloudPackages && cloudPackages.length > 0) {
-        setTestPackages(cloudPackages);
+        setTestPackages(cloudPackages.map(normalizeTestPackage));
       }
       if (cloudGroups && cloudGroups.length > 0) {
         setTestGroups(cloudGroups);

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
-import { Plus, Trash2, Copy, CheckSquare, Square, Layers, FlaskConical, Dna, Search, ListChecks, PlusCircle, Download, Upload, X, Cpu } from 'lucide-react';
-import { CatalogItem, CatalogItemEquipmentLink, TestEquipment, TestPackage, PackageItem, getPkgCodes } from '@domain/types';
+import { Plus, Trash2, Copy, Layers, FlaskConical, Dna, Search, ListChecks, PlusCircle, Download, Upload, X, Cpu, CheckSquare, Square } from 'lucide-react';
+import { CatalogItem, CatalogItemEquipmentLink, TestEquipment, TestPackage, PackageItem, getPkgCodes, getPkgItems, normalizeTestPackage } from '@domain/types';
 import { exportTestPackagesTemplate, parseExcelTestPackages } from '@infra/excelService';
 
 function parseAllergenOrder(code: string): number {
@@ -77,8 +77,14 @@ export default function TestPackagesTab({
   const isAllergenPkg = (pkg: TestPackage) =>
     pkg.id.includes('di_nguyen') || pkg.name.toLowerCase().includes('dị nguyên');
 
-  const allergenPkgCount = useMemo(() => packages.filter(isAllergenPkg).length, [packages]);
-  const generalPkgCount = useMemo(() => packages.filter((p) => !isAllergenPkg(p)).length, [packages]);
+  const validPackages = useMemo(() => {
+    return packages
+      .filter((pkg) => pkg && pkg.id !== 'all' && !pkg.name.startsWith('---'))
+      .map(normalizeTestPackage);
+  }, [packages]);
+
+  const allergenPkgCount = useMemo(() => validPackages.filter(isAllergenPkg).length, [validPackages]);
+  const generalPkgCount = useMemo(() => validPackages.filter((p) => !isAllergenPkg(p)).length, [validPackages]);
 
   const categories = useMemo(
     () => Array.from(new Set(items.map((i) => i.category).filter(Boolean))),
@@ -86,7 +92,7 @@ export default function TestPackagesTab({
   );
 
   const filteredPackages = useMemo(() => {
-    return packages.filter((pkg) => {
+    return validPackages.filter((pkg) => {
       const isAllergen = isAllergenPkg(pkg);
       if (pkgFilter === 'general' && isAllergen) return false;
       if (pkgFilter === 'allergen' && !isAllergen) return false;
@@ -97,9 +103,10 @@ export default function TestPackagesTab({
 
       return matchSearch;
     });
-  }, [packages, pkgFilter, packageSearch]);
+  }, [validPackages, pkgFilter, packageSearch]);
 
-  const currentSelectedPkg = packages.find((p) => p.id === selectedPackageId) || filteredPackages[0];
+  const currentSelectedPkg = validPackages.find((p) => p.id === selectedPackageId) || filteredPackages[0];
+  const currentPkgItems = useMemo(() => getPkgItems(currentSelectedPkg), [currentSelectedPkg]);
 
   // Helper lấy các thiết bị đo đã cấu hình cho 1 chỉ số
   const getEquipmentsForTestCode = (code: string) => {
@@ -126,8 +133,9 @@ export default function TestPackagesTab({
     setPackages((prev) =>
       prev.map((pkg) => {
         if (pkg.id === pkgId) {
+          const curItems = getPkgItems(pkg);
           // Tự động quét và cập nhật các chỉ số trong gói nếu chỉ số đó có liên kết với máy đo chính mới
-          const nextItems = (pkg.items || []).map((item) => {
+          const nextItems = curItems.map((item) => {
             const links = getEquipmentsForTestCode(item.code);
             if (equipmentId) {
               const hasLinkToNewPrimary = links.some((l) => l.equipmentId === equipmentId);
@@ -143,7 +151,7 @@ export default function TestPackagesTab({
             return item;
           });
 
-          return { ...pkg, defaultEquipmentId: equipmentId, items: nextItems };
+          return { ...pkg, defaultEquipmentId: equipmentId, items: nextItems, codes: nextItems.map((i) => i.code) };
         }
         return pkg;
       })
@@ -154,19 +162,19 @@ export default function TestPackagesTab({
     setPackages((prev) =>
       prev.map((pkg) => {
         if (pkg.id === pkgId) {
-          const currentCodes = getPkgCodes(pkg);
-          const has = currentCodes.includes(testCode);
+          const curItems = getPkgItems(pkg);
+          const has = curItems.some((i) => i.code.trim().toUpperCase() === testCode.trim().toUpperCase());
           if (has) {
-            const nextItems = (pkg.items || []).filter((i) => i.code !== testCode);
-            return { ...pkg, items: nextItems };
+            const nextItems = curItems.filter((i) => i.code.trim().toUpperCase() !== testCode.trim().toUpperCase());
+            return { ...pkg, items: nextItems, codes: nextItems.map((i) => i.code) };
           } else {
             // Tự động ưu tiên máy đo chính của gói nếu có liên kết
             const assignedEqId = resolveEquipmentForPackageItem(testCode, pkg);
             const nextItems: PackageItem[] = [
-              ...(pkg.items || []),
+              ...curItems,
               { code: testCode, equipmentId: assignedEqId }
             ];
-            return { ...pkg, items: nextItems };
+            return { ...pkg, items: nextItems, codes: nextItems.map((i) => i.code) };
           }
         }
         return pkg;
@@ -178,10 +186,11 @@ export default function TestPackagesTab({
     setPackages((prev) =>
       prev.map((pkg) => {
         if (pkg.id === pkgId) {
-          const nextItems = (pkg.items || []).map((i) =>
-            i.code === testCode ? { ...i, equipmentId } : i
+          const curItems = getPkgItems(pkg);
+          const nextItems = curItems.map((i) =>
+            i.code.trim().toUpperCase() === testCode.trim().toUpperCase() ? { ...i, equipmentId } : i
           );
-          return { ...pkg, items: nextItems };
+          return { ...pkg, items: nextItems, codes: nextItems.map((i) => i.code) };
         }
         return pkg;
       })
@@ -192,7 +201,9 @@ export default function TestPackagesTab({
     setPackages((prev) =>
       prev.map((pkg) => {
         if (pkg.id === pkgId) {
-          return { ...pkg, items: (pkg.items || []).filter((i) => i.code !== testCode) };
+          const curItems = getPkgItems(pkg);
+          const nextItems = curItems.filter((i) => i.code.trim().toUpperCase() !== testCode.trim().toUpperCase());
+          return { ...pkg, items: nextItems, codes: nextItems.map((i) => i.code) };
         }
         return pkg;
       })
@@ -210,6 +221,7 @@ export default function TestPackagesTab({
       name: name.trim(),
       defaultEquipmentId: null,
       items: [],
+      codes: [],
       price: isAllergenType ? 1400000 : 350000
     };
 
@@ -222,7 +234,9 @@ export default function TestPackagesTab({
     const copyPkg: TestPackage = {
       ...pkg,
       id: `${pkg.id}_copy_${Date.now()}`,
-      name: `${pkg.name} (Bản sao)`
+      name: `${pkg.name} (Bản sao)`,
+      items: getPkgItems(pkg),
+      codes: getPkgCodes(pkg)
     };
     setPackages((prev) => [copyPkg, ...prev]);
     setSelectedPackageId(copyPkg.id);
@@ -246,18 +260,19 @@ export default function TestPackagesTab({
       )
       .map((i) => i.code);
 
-    const existingCodes = new Set(getPkgCodes(currentSelectedPkg));
+    const curItems = getPkgItems(currentSelectedPkg);
+    const existingCodes = new Set(curItems.map((i) => i.code.trim().toUpperCase()));
     const newItemsToAdd: PackageItem[] = filteredCodes
-      .filter((c) => !existingCodes.has(c))
+      .filter((c) => !existingCodes.has(c.trim().toUpperCase()))
       .map((c) => {
         // Tự động ưu tiên máy đo chính của gói nếu có liên kết
         const assignedEqId = resolveEquipmentForPackageItem(c, currentSelectedPkg);
         return { code: c, equipmentId: assignedEqId };
       });
 
-    const merged = [...(currentSelectedPkg.items || []), ...newItemsToAdd];
+    const merged = [...curItems, ...newItemsToAdd];
     setPackages((prev) =>
-      prev.map((p) => (p.id === currentSelectedPkg.id ? { ...p, items: merged } : p))
+      prev.map((p) => (p.id === currentSelectedPkg.id ? { ...p, items: merged, codes: merged.map((i) => i.code) } : p))
     );
   };
 
@@ -272,12 +287,13 @@ export default function TestPackagesTab({
               i.code.toLowerCase().includes(testSearch.toLowerCase()) ||
               (i.category && i.category.toLowerCase().includes(testSearch.toLowerCase())))
         )
-        .map((i) => i.code)
+        .map((i) => i.code.trim().toUpperCase())
     );
 
-    const remaining = (currentSelectedPkg.items || []).filter((i) => !filteredCodesSet.has(i.code));
+    const curItems = getPkgItems(currentSelectedPkg);
+    const remaining = curItems.filter((i) => !filteredCodesSet.has(i.code.trim().toUpperCase()));
     setPackages((prev) =>
-      prev.map((p) => (p.id === currentSelectedPkg.id ? { ...p, items: remaining } : p))
+      prev.map((p) => (p.id === currentSelectedPkg.id ? { ...p, items: remaining, codes: remaining.map((i) => i.code) } : p))
     );
   };
 
@@ -513,7 +529,7 @@ export default function TestPackagesTab({
                   }`}
                 >
                   <ListChecks className="w-3.5 h-3.5" />
-                  <span>Chỉ Số Trong Gói ({(currentSelectedPkg.items || []).length})</span>
+                  <span>Chỉ Số Trong Gói ({currentPkgItems.length})</span>
                 </button>
 
                 <button
@@ -545,7 +561,7 @@ export default function TestPackagesTab({
             {/* VIEW 1: BẢNG CHỈ SỐ ĐÃ CHỌN TRONG GÓI (KÈM CHỌN MÁY ĐO) */}
             {detailSubView === 'SELECTED_LIST' && (
               <div className="flex-grow flex flex-col space-y-2">
-                {(currentSelectedPkg.items || []).length === 0 ? (
+                {currentPkgItems.length === 0 ? (
                   <div className="py-12 text-center text-slate-400 text-xs border border-dashed border-slate-300 rounded-xl">
                     <p className="mb-2">Gói này chưa có chỉ số xét nghiệm nào.</p>
                     <button
@@ -571,8 +587,8 @@ export default function TestPackagesTab({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 bg-white">
-                        {(currentSelectedPkg.items || []).map((pkgItem, idx) => {
-                          const itemInfo = items.find((i) => i.code.toUpperCase() === pkgItem.code.toUpperCase());
+                        {currentPkgItems.map((pkgItem, idx) => {
+                          const itemInfo = items.find((i) => i.code.trim().toUpperCase() === pkgItem.code.trim().toUpperCase());
                           const availableLinks = getEquipmentsForTestCode(pkgItem.code);
 
                           return (
