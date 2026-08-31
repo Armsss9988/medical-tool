@@ -61,8 +61,9 @@ function PrintReportView({
       return;
     }
     // Tự động tạo mã QR tra cứu trực tuyến thời gian thực
-    const baseUrl = clinicInfo?.website
-      ? (clinicInfo.website.startsWith('http') ? clinicInfo.website : `https://${clinicInfo.website}`)
+    const rawWebsite = typeof clinicInfo?.website === 'string' ? clinicInfo.website.trim() : '';
+    const baseUrl = rawWebsite
+      ? (rawWebsite.startsWith('http') ? rawWebsite : `https://${rawWebsite}`)
       : 'https://golab.com.vn';
     const code = patient.code || `BN-${Date.now()}`;
     const sample = patient.sampleCode || code;
