@@ -198,6 +198,7 @@ export default function TestPackagesTab({
   };
 
   const handleRemoveItemFromPackage = (pkgId: string, testCode: string) => {
+    if (!window.confirm(`Bạn có chắc muốn xóa chỉ số [${testCode}] khỏi gói xét nghiệm này?`)) return;
     setPackages((prev) =>
       prev.map((pkg) => {
         if (pkg.id === pkgId) {

@@ -136,6 +136,14 @@ export default function ScalesTab({ scales, setScales, equipments }: ScalesTabPr
       showToast('Thang đo phải có ít nhất 2 bậc phân độ!', 'error');
       return;
     }
+    const targetLevel = activeScale.levels[index];
+    if (
+      !window.confirm(
+        `Bạn có chắc muốn xóa bậc [${targetLevel?.grade} - ${targetLevel?.label || ''}] khỏi thang đo này?`
+      )
+    ) {
+      return;
+    }
     const updatedLevels = activeScale.levels.filter((_, idx) => idx !== index);
     const updated = scales.map((s) => (s.id === activeScale.id ? { ...s, levels: updatedLevels } : s));
     setScales(updated);

@@ -125,7 +125,9 @@ export default function TestTable({
   }, [selectedTests, setSelectedTests, onAddToRecent, equipments, catalogItemEquipments, referenceRanges, allergenScales]);
 
   const handleRemoveTest = (code: string) => {
-    setSelectedTests((prev) => prev.filter((t) => t.code !== code));
+    if (window.confirm(`Bạn có chắc muốn xóa chỉ số [${code}] khỏi bảng xét nghiệm?`)) {
+      setSelectedTests((prev) => prev.filter((t) => t.code !== code));
+    }
   };
 
   const handleClearAllTests = () => {

@@ -707,7 +707,15 @@ export default function ReportManagerModal({
                             {/* Nút Xóa phiếu */}
                             <button
                               type="button"
-                              onClick={() => onDeleteReport(rep.id)}
+                              onClick={() => {
+                                if (
+                                  window.confirm(
+                                    `Bạn có chắc chắn muốn xóa phiếu xét nghiệm của bệnh nhân [${rep.patient?.name || rep.code}] khỏi Sổ lưu và Cloud?`
+                                  )
+                                ) {
+                                  onDeleteReport(rep.id);
+                                }
+                              }}
                               className="p-1.5 bg-slate-800 hover:bg-rose-600 text-slate-400 hover:text-white rounded-lg transition"
                               title="Xóa phiếu này khỏi Sổ lưu"
                             >
@@ -734,7 +742,15 @@ export default function ReportManagerModal({
             {reports.length > 0 && (
               <button
                 type="button"
-                onClick={onClearAllReports}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      'CẢNH BÁO: Bạn có chắc chắn muốn xóa TOÀN BỘ hồ sơ phiếu xét nghiệm trong Sổ lưu? Thao tác này sẽ xóa vĩnh viễn trên Cloud và không thể hoàn tác!'
+                    )
+                  ) {
+                    onClearAllReports();
+                  }
+                }}
                 className="px-3 py-1.5 bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/60 rounded-xl font-bold transition"
               >
                 Xóa Toàn Bộ Sổ Lưu

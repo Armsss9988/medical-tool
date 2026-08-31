@@ -377,7 +377,9 @@ export default function CatalogItemsTab({
 
   const handleRemoveEquipmentLink = (linkId: string) => {
     if (!setCatalogItemEquipments) return;
-    setCatalogItemEquipments((prev) => prev.filter((l) => l.id !== linkId));
+    if (window.confirm('Bạn có chắc muốn xóa cấu hình máy đo này khỏi chỉ số?')) {
+      setCatalogItemEquipments((prev) => prev.filter((l) => l.id !== linkId));
+    }
   };
 
   const handleSetDefaultEquipmentLink = (catalogCode: string, linkId: string) => {

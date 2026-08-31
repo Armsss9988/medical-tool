@@ -122,7 +122,10 @@ export default function InvoiceModal({
   };
 
   const handleRemoveItem = (idx: number) => {
-    setItems((prev) => prev.filter((_, i) => i !== idx));
+    const item = items[idx];
+    if (window.confirm(`Bạn có chắc muốn xóa dịch vụ "${item?.name || item?.code}" khỏi hóa đơn?`)) {
+      setItems((prev) => prev.filter((_, i) => i !== idx));
+    }
   };
 
   const handleAddCustomItem = () => {
