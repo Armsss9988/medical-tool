@@ -110,15 +110,29 @@ function AllergenSummaryPage({
                       <td className={`py-2 px-4 border-r border-slate-300 align-middle leading-snug ${gradeStyle.nameColor}`}>{pos.name}</td>
                       <td className="py-2 px-4 border-r border-slate-300 italic font-medium opacity-90 align-middle leading-snug">{pos.allergenName}</td>
                       <td className="py-2 px-3 text-center font-mono border-r border-slate-300 align-middle leading-snug">{pos.code}</td>
-                      <td className="py-2 px-4 text-center font-mono text-[14.5px] align-middle leading-snug">
+                      <td className="py-2 px-4 text-center align-middle leading-snug">
                         {pos.isTIgE ? (
                           <span className={`text-[12.5px] font-bold ${pos.isPositive ? 'text-red-700' : 'text-sky-900'}`}>
                             {pos.result || '---'} <span className="text-slate-500 text-[10px] font-normal">(IU/ml)</span>
                           </span>
                         ) : (
-                          <span className={`inline-flex items-center justify-center min-w-[26px] h-[22px] px-1.5 rounded font-black border leading-none text-center ${gradeStyle.badgeBg}`}>
-                            {pos.grade}
-                          </span>
+                          <div className="flex items-center justify-center">
+                            <div 
+                              className={`rounded font-bold border shadow-2xs ${gradeStyle.badgeBg}`}
+                              style={{ 
+                                width: '20px', 
+                                height: '20px', 
+                                lineHeight: '18px', 
+                                textAlign: 'center', 
+                                display: 'inline-block', 
+                                boxSizing: 'border-box',
+                                fontSize: '11px', 
+                                fontFamily: 'Arial, Helvetica, sans-serif' 
+                              }}
+                            >
+                              {pos.grade}
+                            </div>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -160,9 +174,23 @@ function AllergenSummaryPage({
                         return (
                           <tr key={level.grade} className={gradeStyle.rowBg}>
                             <td className="py-0.5 text-center border-r border-slate-300 font-bold align-middle leading-snug">
-                              <span className={`inline-flex items-center justify-center w-5 h-5 rounded font-black border leading-none text-center ${gradeStyle.badgeBg}`}>
-                                {level.grade}
-                              </span>
+                              <div className="flex items-center justify-center">
+                                <div 
+                                  className={`rounded font-bold border shadow-2xs ${gradeStyle.badgeBg}`}
+                                  style={{ 
+                                    width: '18px', 
+                                    height: '18px', 
+                                    lineHeight: '16px', 
+                                    textAlign: 'center', 
+                                    display: 'inline-block', 
+                                    boxSizing: 'border-box',
+                                    fontSize: '10.5px', 
+                                    fontFamily: 'Arial, Helvetica, sans-serif' 
+                                  }}
+                                >
+                                  {level.grade}
+                                </div>
+                              </div>
                             </td>
                             <td className={`py-0.5 text-center font-mono border-r border-slate-300 align-middle leading-snug ${level.isPositive ? gradeStyle.textColor + ' font-bold' : 'text-slate-600'}`}>
                               {level.rangeText}

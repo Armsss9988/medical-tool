@@ -64,11 +64,25 @@ function AllergenDetailPage({
                     <td className={`py-1.5 px-1.5 text-center font-mono border-r border-slate-300 text-[12.5px] align-middle leading-snug ${resultTextColor}`}>
                       {item.result}
                     </td>
-                    <td className="py-1.5 px-1 text-center font-mono font-bold border-r border-slate-300 text-[13px] align-middle leading-snug">
+                    <td className="py-1.5 px-1 text-center align-middle leading-snug">
                       {item.isTIgE ? '' : (item.isPositive ? (
-                        <span className={`inline-flex items-center justify-center w-5 h-5 rounded font-black border leading-none text-center ${gradeStyle.badgeBg}`}>
-                          {item.grade}
-                        </span>
+                        <div className="flex items-center justify-center">
+                          <div 
+                            className={`rounded font-bold border shadow-2xs ${gradeStyle.badgeBg}`}
+                            style={{ 
+                              width: '18px', 
+                              height: '18px', 
+                              lineHeight: '16px', 
+                              textAlign: 'center', 
+                              display: 'inline-block', 
+                              boxSizing: 'border-box',
+                              fontSize: '10.5px', 
+                              fontFamily: 'Arial, Helvetica, sans-serif' 
+                            }}
+                          >
+                            {item.grade}
+                          </div>
+                        </div>
                       ) : '')}
                     </td>
                     <td className="py-1.5 px-2 text-slate-600 text-[11px] leading-snug align-middle">
