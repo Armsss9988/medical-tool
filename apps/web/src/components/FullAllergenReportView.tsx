@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, memo } from 'react';
 import golabLogo from '@assets/golabLogoDataUrl';
 import doctorStamp from '@assets/doctorStampDataUrl';
-import { Patient, SelectedTest, ClinicInfo, TestPackage } from '@domain/types';
+import { Patient, SelectedTest, ClinicInfo, TestPackage, AllergenGradingScale } from '@domain/types';
 import { AllergenReportDomainService } from '@domain/services/AllergenReportDomainService';
 import { generateQrCodeDataUrl } from '@infra/qrService';
 import AllergenCoverPage from './allergenReport/AllergenCoverPage';
@@ -21,6 +21,7 @@ interface FullAllergenReportViewProps {
   clinicInfo?: ClinicInfo;
   testPackages?: TestPackage[];
   packagePrice?: number;
+  allergenScales?: AllergenGradingScale[];
 }
 
 function FullAllergenReportView({
@@ -40,7 +41,8 @@ function FullAllergenReportView({
     defaultDoctor: 'Nguyễn Thị Thành Trung'
   },
   testPackages = [],
-  packagePrice: explicitPackagePrice
+  packagePrice: explicitPackagePrice,
+  allergenScales = []
 }: FullAllergenReportViewProps) {
   const tests = useMemo(() => allergenTests || selectedTests || [], [allergenTests, selectedTests]);
   const [autoQrCode, setAutoQrCode] = useState<string>(qrCodeDataUrl || '');
@@ -92,9 +94,10 @@ function FullAllergenReportView({
     return AllergenReportDomainService.buildReportDTO({
       tests,
       testPackages,
-      packagePrice: explicitPackagePrice
+      packagePrice: explicitPackagePrice,
+      customScales: allergenScales
     });
-  }, [tests, testPackages, explicitPackagePrice]);
+  }, [tests, testPackages, explicitPackagePrice, allergenScales]);
 
   return (
     <div id={elementId} className="w-[210mm] max-w-[210mm] mx-auto bg-slate-200 print:bg-white print:m-0 print:p-0 font-serif">

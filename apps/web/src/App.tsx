@@ -376,6 +376,7 @@ function AppContent() {
         testPackages={testPackages}
         equipments={equipments}
         catalogItemEquipments={catalogItemEquipments}
+        allergenScales={allergenScales}
       />
 
       {/* PASSWORD GATE OVERLAY */}

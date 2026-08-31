@@ -248,6 +248,7 @@ export function ModalLayer({
         testPackages={testPackages}
         equipments={equipments}
         catalogItemEquipments={catalogItemEquipments}
+        allergenScales={allergenScales}
       />
 
       {/* 3. CATALOG MANAGER MODAL */}
