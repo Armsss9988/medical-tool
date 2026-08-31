@@ -1,13 +1,13 @@
 import { memo } from 'react';
 import { Patient, ClinicInfo, AllergenGradingScale } from '@domain/types';
-import { getAllergenGradeClasses } from '@domain/allergenDetector';
+import { getAllergenGradeClasses, getAllergenBadgeSvg } from '@domain/allergenDetector';
 import { AllergenReportItemDTO } from '@domain/services/AllergenReportDomainService';
 
 interface AllergenSummaryPageProps {
   patient: Patient;
   clinicInfo?: ClinicInfo;
   currentLogo: string;
-  totalCount: number;
+  totalCount?: number;
   positiveList: AllergenReportItemDTO[];
   appliedScales?: AllergenGradingScale[];
 }
@@ -16,7 +16,7 @@ function AllergenSummaryPage({
   patient,
   clinicInfo,
   currentLogo,
-  totalCount,
+  totalCount: _totalCount,
   positiveList,
   appliedScales = []
 }: AllergenSummaryPageProps) {
@@ -29,41 +29,51 @@ function AllergenSummaryPage({
       style={{ fontFamily: '"Times New Roman", Times, "Liberation Serif", serif' }}
     >
       <div>
-        {/* Header */}
-        <div className="flex items-center justify-between border-b-2 border-sky-600 pb-2 mb-2">
+        {/* Header Thông Tin Phòng Khám */}
+        <div className="flex items-start justify-between border-b-2 border-slate-900 pb-3 mb-3">
           <div className="flex items-center space-x-3">
-            <div className="h-14 w-28 flex items-center justify-start shrink-0">
-              <img src={currentLogo} alt="GoLab Logo" className="h-14 max-w-[112px] w-auto object-contain" />
-            </div>
+            {currentLogo ? (
+              <img
+                src={currentLogo}
+                alt="Logo"
+                className="h-14 w-auto object-contain max-w-[120px]"
+              />
+            ) : (
+              <div className="h-14 w-14 bg-sky-900 text-white font-black flex items-center justify-center rounded-lg text-lg tracking-wider">
+                GOLAB
+              </div>
+            )}
             <div>
-              <p className="text-[12.5px] font-bold text-sky-800 uppercase tracking-widest leading-none mb-0.5">
-                HỆ THỐNG XÉT NGHIỆM GOLAB
-              </p>
-              <h1 className="text-[16px] font-black text-sky-950 uppercase tracking-tight">
-                {clinicInfo?.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'}
+              <h1 className="text-[17px] font-black uppercase text-sky-950 tracking-tight leading-none mb-1">
+                {clinicInfo?.name || 'PHÒNG XÉT NGHIỆM Y KHOA GOLAB'}
               </h1>
-              <p className="text-[12px] text-slate-700 font-medium">
-                Địa chỉ: {clinicInfo?.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị'}
+              <p className="text-[11.5px] text-slate-600 leading-tight">
+                {clinicInfo?.address || 'Địa chỉ: 123 Đường Y Học, Phường 1, TP. Đông Hà, Quảng Trị'}
               </p>
-              <p className="text-[12px] text-slate-700 font-medium">
-                Website: <strong className="text-sky-800">{clinicInfo?.website || 'golab.com.vn'}</strong> – Hotline: <strong className="text-sky-800">{clinicInfo?.phone || '032.855.3773'}</strong>
+              <p className="text-[11.5px] text-slate-600 leading-tight">
+                Hotline: <strong className="text-slate-800">{clinicInfo?.phone || '0901 234 567'}</strong> {clinicInfo?.website ? `| Website: ${clinicInfo.website}` : ''}
               </p>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="inline-block bg-red-600 text-white font-black text-[12px] px-2.5 py-0.5 rounded tracking-wide uppercase">
+              Báo Cáo Dị Nguyên
             </div>
           </div>
         </div>
 
-        {/* Tiêu đề trang 2 */}
-        <div className="text-center my-2">
-          <h2 className="text-[18px] font-black text-sky-900 uppercase tracking-wide">
-            ĐỊNH LƯỢNG IgE ĐẶC HIỆU {totalCount} DỊ NGUYÊN
+        {/* Tiêu đề trang tổng hợp */}
+        <div className="text-center mb-3">
+          <h2 className="text-[19px] font-black text-slate-900 uppercase tracking-wide">
+            KẾT QUẢ ĐỊNH LƯỢNG KHÁNG THỂ IGE ĐẶC HIỆU
           </h2>
-          <p className="text-[13px] text-sky-700 italic font-medium">
-            (Thực hiện trên máy PROTIA Allergy-Q Smart và Q-processor)
+          <p className="text-[13px] font-bold text-red-700 italic">
+            (Tổng hợp các dị nguyên dương tính & nồng độ IgE toàn phần)
           </p>
         </div>
 
-        {/* Thông tin vắn tắt bệnh nhân */}
-        <div className="flex items-center justify-between bg-slate-50 border border-slate-300 rounded px-4 py-2 mb-2 text-[13px] leading-snug">
+        {/* Thanh Thông Tin Bệnh Nhân Tóm Tắt */}
+        <div className="flex items-center justify-between bg-slate-50 border border-slate-300 rounded px-4 py-1.5 mb-2 text-[13px] leading-snug">
           <div>
             <span className="font-semibold text-slate-600">Họ tên: </span>
             <strong className="text-red-600 uppercase font-bold text-[14px]">{patient.name || '---'}</strong>
@@ -83,7 +93,7 @@ function AllergenSummaryPage({
         </div>
 
         {/* Bảng Dị Nguyên Dương Tính */}
-        <div className="border border-slate-300 rounded mb-1.5 bg-white">
+        <div className="border border-slate-300 rounded mb-2 bg-white">
           <table className="w-full text-[13px] border-collapse">
             <thead className="bg-slate-50 text-slate-900 font-bold border-b-2 border-slate-300">
               <tr>
@@ -117,21 +127,13 @@ function AllergenSummaryPage({
                           </span>
                         ) : (
                           <div className="flex items-center justify-center">
-                            <div 
-                              className={`rounded font-bold border shadow-2xs ${gradeStyle.badgeBg}`}
-                              style={{ 
-                                width: '20px', 
-                                height: '20px', 
-                                lineHeight: '18px', 
-                                textAlign: 'center', 
-                                display: 'inline-block', 
-                                boxSizing: 'border-box',
-                                fontSize: '11px', 
-                                fontFamily: 'Arial, Helvetica, sans-serif' 
-                              }}
-                            >
-                              {pos.grade}
-                            </div>
+                            <img 
+                              src={getAllergenBadgeSvg(pos.grade, 20)} 
+                              width={20} 
+                              height={20} 
+                              alt={`Độ ${pos.grade}`} 
+                              className="inline-block align-middle"
+                            />
                           </div>
                         )}
                       </td>
@@ -175,21 +177,13 @@ function AllergenSummaryPage({
                           <tr key={level.grade} className={gradeStyle.rowBg}>
                             <td className="py-0.5 text-center border-r border-slate-300 font-bold align-middle leading-snug">
                               <div className="flex items-center justify-center">
-                                <div 
-                                  className={`rounded font-bold border shadow-2xs ${gradeStyle.badgeBg}`}
-                                  style={{ 
-                                    width: '18px', 
-                                    height: '18px', 
-                                    lineHeight: '16px', 
-                                    textAlign: 'center', 
-                                    display: 'inline-block', 
-                                    boxSizing: 'border-box',
-                                    fontSize: '10.5px', 
-                                    fontFamily: 'Arial, Helvetica, sans-serif' 
-                                  }}
-                                >
-                                  {level.grade}
-                                </div>
+                                <img 
+                                  src={getAllergenBadgeSvg(level.grade, 18)} 
+                                  width={18} 
+                                  height={18} 
+                                  alt={`Độ ${level.grade}`} 
+                                  className="inline-block align-middle"
+                                />
                               </div>
                             </td>
                             <td className={`py-0.5 text-center font-mono border-r border-slate-300 align-middle leading-snug ${level.isPositive ? gradeStyle.textColor + ' font-bold' : 'text-slate-600'}`}>

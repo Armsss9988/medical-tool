@@ -130,3 +130,53 @@ export function getAllergenGradeClasses(grade: number, isTIgE?: boolean, isTIgEP
     borderClass: 'border-slate-300'
   };
 }
+
+/**
+ * Tạo Data URI SVG cho badge độ dương tính (0 - 6).
+ * Dùng thẻ <img> với SVG Data URI giúp khóa cứng tọa độ và font vector,
+ * đảm bảo con số luôn nằm chính giữa 100% trong khung vuông khi render trên DOM và xuất PDF qua html2canvas.
+ */
+export function getAllergenBadgeSvg(grade: number, size: number = 20): string {
+  let bg = '#f1f5f9';
+  let text = '#334155';
+  let border = '#cbd5e1';
+
+  if (grade >= 6) {
+    bg = '#fee2e2';
+    text = '#450a0a';
+    border = '#ef4444';
+  } else if (grade >= 5) {
+    bg = '#fee2e2';
+    text = '#7f1d1d';
+    border = '#f87171';
+  } else if (grade >= 4) {
+    bg = '#fee2e2';
+    text = '#991b1b';
+    border = '#fca5a5';
+  } else if (grade >= 3) {
+    bg = '#fef2f2';
+    text = '#b91c1c';
+    border = '#fecaca';
+  } else if (grade >= 2) {
+    bg = '#fef3c7';
+    text = '#78350f';
+    border = '#fcd34d';
+  } else if (grade >= 1) {
+    bg = '#fffbeb';
+    text = '#92400e';
+    border = '#fde68a';
+  }
+
+  const radius = Math.round(size * 0.2);
+  const fontSize = Math.round(size * 0.58);
+  const yPos = Math.round(size * 0.72);
+  const strokeWidth = 1.2;
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <rect x="0.6" y="0.6" width="${size - 1.2}" height="${size - 1.2}" rx="${radius}" fill="${bg}" stroke="${border}" stroke-width="${strokeWidth}"/>
+    <text x="${size / 2}" y="${yPos}" text-anchor="middle" fill="${text}" font-size="${fontSize}" font-weight="900" font-family="Arial, Helvetica, sans-serif">${grade}</text>
+  </svg>`;
+
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.trim())}`;
+}
+

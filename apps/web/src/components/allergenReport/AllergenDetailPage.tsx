@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { getAllergenGradeClasses } from '@domain/allergenDetector';
+import { getAllergenGradeClasses, getAllergenBadgeSvg } from '@domain/allergenDetector';
 import { AllergenReportItemDTO } from '@domain/services/AllergenReportDomainService';
 
 interface AllergenDetailPageProps {
@@ -67,21 +67,13 @@ function AllergenDetailPage({
                     <td className="py-1.5 px-1 text-center align-middle leading-snug">
                       {item.isTIgE ? '' : (item.isPositive ? (
                         <div className="flex items-center justify-center">
-                          <div 
-                            className={`rounded font-bold border shadow-2xs ${gradeStyle.badgeBg}`}
-                            style={{ 
-                              width: '18px', 
-                              height: '18px', 
-                              lineHeight: '16px', 
-                              textAlign: 'center', 
-                              display: 'inline-block', 
-                              boxSizing: 'border-box',
-                              fontSize: '10.5px', 
-                              fontFamily: 'Arial, Helvetica, sans-serif' 
-                            }}
-                          >
-                            {item.grade}
-                          </div>
+                          <img 
+                            src={getAllergenBadgeSvg(item.grade, 18)} 
+                            width={18} 
+                            height={18} 
+                            alt={`Độ ${item.grade}`} 
+                            className="inline-block align-middle"
+                          />
                         </div>
                       ) : '')}
                     </td>
