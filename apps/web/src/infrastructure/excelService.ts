@@ -1457,7 +1457,7 @@ export async function exportBatchTemplateExcel(
 
   sampleData.forEach((row, idx) => {
     targetItems.forEach((item) => {
-      if (idx === 0) row[`test_${item.code}`] = item.refMin !== null && item.refMax !== null ? String(((item.refMin + item.refMax) / 2).toFixed(1)) : '5.2';
+      if (idx === 0) row[`test_${item.code}`] = item.refMin != null && item.refMax != null ? String(((item.refMin + item.refMax) / 2).toFixed(1)) : '5.2';
       else if (idx === 1) row[`test_${item.code}`] = item.unit === 'mmol/L' ? '5.6' : '135';
       else row[`test_${item.code}`] = '';
     });

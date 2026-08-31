@@ -68,13 +68,15 @@ export interface CatalogItem {
   category: string;
   code: string;
   name: string;
-  refMin: number | null;
-  refMax: number | null;
   unit: string;
   refText: string;
   price?: number;
   scientific?: string;
   evaluationType?: EvaluationType;
+  /** @deprecated Ngưỡng tham chiếu tĩnh — Khuyến nghị phân giải động qua catalog_item_equipments */
+  refMin?: number | null;
+  /** @deprecated Ngưỡng tham chiếu tĩnh — Khuyến nghị phân giải động qua catalog_item_equipments */
+  refMax?: number | null;
   /** Danh sách liên kết máy đo → reference_range/scale riêng (tùy máy) */
   equipmentLinks?: CatalogItemEquipmentLink[];
   /** @deprecated Dùng equipmentLinks thay thế — giữ để backward compat với dữ liệu cũ */
@@ -88,6 +90,14 @@ export interface CatalogItem {
 export interface SelectedTest extends CatalogItem {
   result: string;
   note: string;
+  /** ID thiết bị đo được gán cụ thể cho chỉ số này */
+  equipmentId?: string | null;
+  /** Tên thiết bị đo được giải quyết */
+  equipment?: string;
+  /** Ngưỡng tối thiểu được phân giải động từ catalog_item_equipments hoặc thang đo grade 0 */
+  refMin?: number | null;
+  /** Ngưỡng tối đa được phân giải động từ catalog_item_equipments hoặc thang đo grade 0 */
+  refMax?: number | null;
 }
 
 /** Một mục chỉ số trong gói xét nghiệm, kèm thông tin máy đo được chọn */

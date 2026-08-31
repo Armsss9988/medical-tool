@@ -84,3 +84,11 @@ export function getReferenceRangeById(
   if (!id || !customRanges) return undefined;
   return customRanges.find((r) => r.id === id);
 }
+
+export { 
+  resolveIndicatorReference,
+  type ResolvedReferenceInfo,
+  type ResolveIndicatorOptions,
+  DEFAULT_CODE_TO_REFERENCE_RANGE_MAP
+} from '../domain/services/itemResolver';
+

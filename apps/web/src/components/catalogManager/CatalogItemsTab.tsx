@@ -87,13 +87,21 @@ export default function CatalogItemsTab({
   const handleOpenConfigModal = (item: CatalogItem) => {
     setConfigItem(item);
     setSelectedEquipName('');
-    setNewLinkRefMin(item.refMin != null ? String(item.refMin) : '');
-    setNewLinkRefMax(item.refMax != null ? String(item.refMax) : '');
-    setNewLinkUnit(item.unit || '');
-    setNewLinkRefText(item.refText || '');
-    const isScale = Boolean(isAllergenItem(item) || item.scaleId);
-    setNewEvalMode(isScale ? 'SCALE' : 'RANGE');
-    setSelectedScaleId(item.scaleId || 'scale_protia_91');
+    const existingLinks = (catalogItemEquipments || []).filter(
+      (l) => l.catalogCode.toUpperCase() === item.code.toUpperCase()
+    );
+    const defaultLink = existingLinks.find((l) => l.isDefault) || existingLinks[0];
+
+    const isScale = Boolean(
+      isAllergenItem(item) || item.scaleId || defaultLink?.scaleId || defaultLink?.scaleId !== undefined
+    );
+    setNewEvalMode(defaultLink?.scaleId ? 'SCALE' : isScale ? 'SCALE' : 'RANGE');
+    setSelectedScaleId(defaultLink?.scaleId || item.scaleId || 'scale_protia_91');
+
+    setNewLinkRefMin(defaultLink?.refMin != null ? String(defaultLink.refMin) : (item.refMin != null ? String(item.refMin) : ''));
+    setNewLinkRefMax(defaultLink?.refMax != null ? String(defaultLink.refMax) : (item.refMax != null ? String(item.refMax) : ''));
+    setNewLinkUnit(defaultLink?.unit || item.unit || '');
+    setNewLinkRefText(defaultLink?.refText || item.refText || '');
     setIsNewEquipDefault(false);
   };
 

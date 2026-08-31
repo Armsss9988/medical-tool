@@ -1,27 +1,42 @@
-import { SelectedTest, CatalogItem } from '@domain/types';
-import { evaluateResult } from '@domain/testResult';
+import { SelectedTest, CatalogItem, CatalogItemEquipmentLink, ReferenceRangeItem, AllergenGradingScale } from '@domain/types';
+import { evaluateTestIndicator } from '@domain/testResult';
+import { resolveIndicatorReference } from '@domain/services/itemResolver';
 
 export class EvaluateTestResultUseCase {
   public execute(
     selectedTests: SelectedTest[],
-    catalog: CatalogItem[]
+    _catalog?: CatalogItem[],
+    options?: {
+      catalogItemEquipments?: CatalogItemEquipmentLink[];
+      referenceRanges?: ReferenceRangeItem[];
+      allergenScales?: AllergenGradingScale[];
+    }
   ): SelectedTest[] {
-    const catalogMap = new Map<string, CatalogItem>();
-    catalog.forEach((item) => catalogMap.set(item.code, item));
-
     return selectedTests.map((test) => {
-      const catItem = catalogMap.get(test.code);
-      if (!catItem) return test;
+      const resolved = resolveIndicatorReference(test, {
+        equipmentId: test.equipmentId,
+        catalogItemEquipments: options?.catalogItemEquipments,
+        referenceRanges: options?.referenceRanges,
+        allergenScales: options?.allergenScales
+      });
 
-      const evalRes = evaluateResult(
+      const evalRes = evaluateTestIndicator(
+        test.code,
+        test.category,
+        resolved.unit,
         test.result,
-        catItem.refMin ?? null,
-        catItem.refMax ?? null
+        resolved.refMin,
+        resolved.refMax,
+        resolved.scale
       );
 
       return {
         ...test,
-        note: evalRes.label
+        refMin: resolved.refMin,
+        refMax: resolved.refMax,
+        refText: resolved.refText,
+        unit: resolved.unit,
+        note: evalRes.label || test.note
       };
     });
   }

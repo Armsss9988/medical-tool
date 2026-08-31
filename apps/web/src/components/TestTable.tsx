@@ -1,9 +1,8 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { TestTube, Plus, Trash2, Search, Layers, Sparkles, X, ClipboardPaste, Clock, Keyboard, ChevronUp, ChevronDown } from 'lucide-react';
 import { evaluateTestIndicator } from '@domain/testResult';
-import { getAllergenScaleById } from '@domain/constants/allergenScales';
-import { getReferenceRangeById, autoResolveItemLinks } from '@data';
-import { CatalogItem, SelectedTest, TestPackage, TestGroup, ToastType, getPkgCodes, TestEquipment, CatalogItemEquipmentLink, resolveTestEquipmentName, ReferenceRangeItem, AllergenGradingScale } from '@domain/types';
+import { resolveIndicatorReference } from '@data';
+import { CatalogItem, SelectedTest, TestPackage, TestGroup, ToastType, getPkgCodes, TestEquipment, CatalogItemEquipmentLink, ReferenceRangeItem, AllergenGradingScale } from '@domain/types';
 import { computePricingWithPackages } from '@domain/pricing';
 import NoteCombobox from './NoteCombobox';
 
@@ -94,17 +93,26 @@ export default function TestTable({
   const handleAddTest = useCallback((item: CatalogItem) => {
     if (selectedTests.some((t) => t.code === item.code)) return;
 
-    const resolved = autoResolveItemLinks(item);
-    const isTIgE = resolved.code.toLowerCase() === 'tige';
-    const isAllergenItem = !isTIgE && (resolved.category?.includes('Dị Nguyên') || resolved.unit === 'IU/mL' || !!resolved.scaleId);
-    const defaultNote = isTIgE ? 'Bình thường' : isAllergenItem ? 'Âm tính (Độ 0)' : 'Bình thường';
-    const equipmentName = resolveTestEquipmentName(resolved, equipments, catalogItemEquipments);
+    const resolved = resolveIndicatorReference(item, {
+      catalogItemEquipments,
+      referenceRanges,
+      allergenScales,
+      equipments
+    });
+    const isTIgE = (item.code || '').toLowerCase() === 'tige';
+    const defaultNote = isTIgE ? 'Bình thường' : resolved.isAllergen ? 'Âm tính (Độ 0)' : 'Bình thường';
 
     setSelectedTests((prev) => [
       ...prev,
       {
-        ...resolved,
-        equipment: equipmentName,
+        ...item,
+        equipmentId: resolved.equipmentId,
+        equipment: resolved.equipmentName,
+        refMin: resolved.refMin,
+        refMax: resolved.refMax,
+        refText: resolved.refText,
+        unit: resolved.unit,
+        scaleId: resolved.scaleId,
         result: '',
         note: defaultNote
       }
@@ -112,9 +120,9 @@ export default function TestTable({
 
     // Track in recent tests
     if (onAddToRecent) {
-      onAddToRecent({ code: resolved.code, name: resolved.name, category: resolved.category || '' });
+      onAddToRecent({ code: item.code, name: item.name, category: item.category || '' });
     }
-  }, [selectedTests, setSelectedTests, onAddToRecent, equipments, catalogItemEquipments]);
+  }, [selectedTests, setSelectedTests, onAddToRecent, equipments, catalogItemEquipments, referenceRanges, allergenScales]);
 
   const handleRemoveTest = (code: string) => {
     setSelectedTests((prev) => prev.filter((t) => t.code !== code));
@@ -131,8 +139,15 @@ export default function TestTable({
   const handleAutoFillNormalValues = () => {
     setSelectedTests((prev) =>
       prev.map((t) => {
-        const resolved = autoResolveItemLinks(t);
-        const isTIgE = resolved.code.toLowerCase() === 'tige';
+        const resolved = resolveIndicatorReference(t, {
+          equipmentId: t.equipmentId,
+          catalogItemEquipments,
+          referenceRanges,
+          allergenScales,
+          equipments
+        });
+
+        const isTIgE = (t.code || '').toLowerCase() === 'tige';
         if (isTIgE) {
           return {
             ...t,
@@ -141,8 +156,7 @@ export default function TestTable({
           };
         }
 
-        const isAllergenItem = (resolved.category?.includes('Dị Nguyên') || resolved.unit === 'IU/mL' || !!resolved.scaleId);
-        if (isAllergenItem) {
+        if (resolved.isAllergen) {
           const isScale44 = resolved.scaleId === 'scale_allergen_44';
           return {
             ...t,
@@ -152,11 +166,11 @@ export default function TestTable({
         }
 
         let normalVal = '';
-        if (t.refMin !== null && t.refMin !== undefined && t.refMax !== null && t.refMax !== undefined) {
-          const mid = (t.refMin + t.refMax) / 2;
+        if (resolved.refMin !== null && resolved.refMin !== undefined && resolved.refMax !== null && resolved.refMax !== undefined) {
+          const mid = (resolved.refMin + resolved.refMax) / 2;
           normalVal = Number.isInteger(mid) ? String(mid) : mid.toFixed(1);
-        } else if (t.refMax !== null && t.refMax !== undefined) {
-          normalVal = (t.refMax * 0.7).toFixed(1);
+        } else if (resolved.refMax !== null && resolved.refMax !== undefined) {
+          normalVal = (resolved.refMax * 0.7).toFixed(1);
         } else {
           normalVal = 'Âm tính';
         }
@@ -175,10 +189,23 @@ export default function TestTable({
       prev.map((t) => {
         if (t.code !== code) return t;
 
-        const resolved = autoResolveItemLinks(t);
-        const scale = resolved.scaleId ? getAllergenScaleById(resolved.scaleId, allergenScales) : undefined;
-        const refRange = resolved.referenceRangeId ? getReferenceRangeById(resolved.referenceRangeId, referenceRanges) : undefined;
-        const evalRes = evaluateTestIndicator(t.code, t.category, t.unit, rawVal, t.refMin, t.refMax, scale, refRange);
+        const resolved = resolveIndicatorReference(t, {
+          equipmentId: t.equipmentId,
+          catalogItemEquipments,
+          referenceRanges,
+          allergenScales,
+          equipments
+        });
+
+        const evalRes = evaluateTestIndicator(
+          t.code,
+          t.category,
+          resolved.unit,
+          rawVal,
+          resolved.refMin,
+          resolved.refMax,
+          resolved.scale
+        );
         const autoNote = evalRes.label || t.note;
 
         return {
@@ -216,31 +243,35 @@ export default function TestTable({
       const newOnes = itemsToAdd
         .filter((item) => !existingCodes.has(item.code.trim().toLowerCase()))
         .map((item) => {
-          const resolved = autoResolveItemLinks(item);
-          const isTIgE = resolved.code.toLowerCase() === 'tige';
-          const isAllergenItem = !isTIgE && (resolved.category?.includes('Dị Nguyên') || resolved.unit === 'IU/mL' || !!resolved.scaleId);
           const pkgItem = (pkg.items || []).find((pi) => pi.code?.trim().toLowerCase() === item.code.trim().toLowerCase());
-
-          let assignedEqName = '';
-          if (pkgItem?.equipmentId) {
-            const eq = equipments.find((e) => e.id === pkgItem.equipmentId);
-            assignedEqName = eq ? eq.name : pkgItem.equipmentId;
-          } else if (pkg.defaultEquipmentId) {
+          let targetEquipmentId: string | undefined = pkgItem?.equipmentId || undefined;
+          if (!targetEquipmentId && pkg.defaultEquipmentId) {
             const hasLink = catalogItemEquipments.some((l) => l.catalogCode.toUpperCase() === item.code.toUpperCase() && l.equipmentId === pkg.defaultEquipmentId);
-            if (hasLink) {
-              const eq = equipments.find((e) => e.id === pkg.defaultEquipmentId);
-              assignedEqName = eq ? eq.name : '';
-            }
+            if (hasLink) targetEquipmentId = pkg.defaultEquipmentId;
           }
-          if (!assignedEqName) {
-            assignedEqName = resolveTestEquipmentName(resolved, equipments, catalogItemEquipments);
-          }
+
+          const resolved = resolveIndicatorReference(item, {
+            equipmentId: targetEquipmentId,
+            catalogItemEquipments,
+            referenceRanges,
+            allergenScales,
+            equipments
+          });
+
+          const isTIgE = (item.code || '').toLowerCase() === 'tige';
+          const defaultNote = isTIgE ? 'Bình thường' : resolved.isAllergen ? 'Âm tính (Độ 0)' : 'Bình thường';
 
           return {
-            ...resolved,
-            equipment: assignedEqName,
+            ...item,
+            equipmentId: resolved.equipmentId,
+            equipment: resolved.equipmentName,
+            refMin: resolved.refMin,
+            refMax: resolved.refMax,
+            refText: resolved.refText,
+            unit: resolved.unit,
+            scaleId: resolved.scaleId,
             result: '',
-            note: isTIgE ? 'Bình thường' : isAllergenItem ? 'Âm tính (Độ 0)' : 'Bình thường'
+            note: defaultNote
           };
         });
       return [...prev, ...newOnes];
@@ -329,7 +360,23 @@ export default function TestTable({
         if (idx >= lines.length) return t;
         const rawVal = lines[idx];
 
-        const evalRes = evaluateTestIndicator(t.code, t.category, t.unit, rawVal, t.refMin, t.refMax);
+        const resolved = resolveIndicatorReference(t, {
+          equipmentId: t.equipmentId,
+          catalogItemEquipments,
+          referenceRanges,
+          allergenScales,
+          equipments
+        });
+
+        const evalRes = evaluateTestIndicator(
+          t.code,
+          t.category,
+          resolved.unit,
+          rawVal,
+          resolved.refMin,
+          resolved.refMax,
+          resolved.scale
+        );
         const autoNote = evalRes.label || t.note;
 
         return { ...t, result: rawVal, note: autoNote };
@@ -648,14 +695,26 @@ export default function TestTable({
                 </tr>
               ) : (
                 selectedTests.map((t, idx) => {
-                  const resolved = autoResolveItemLinks(t);
-                  const scale = resolved.scaleId ? getAllergenScaleById(resolved.scaleId, allergenScales) : undefined;
-                  const refRange = resolved.referenceRangeId ? getReferenceRangeById(resolved.referenceRangeId, referenceRanges) : undefined;
-                  const evalRes = evaluateTestIndicator(t.code, t.category, t.unit, t.result, t.refMin, t.refMax, scale, refRange);
+                  const resolved = resolveIndicatorReference(t, {
+                    equipmentId: t.equipmentId,
+                    catalogItemEquipments,
+                    referenceRanges,
+                    allergenScales,
+                    equipments
+                  });
+                  const evalRes = evaluateTestIndicator(
+                    t.code,
+                    t.category,
+                    resolved.unit,
+                    t.result,
+                    resolved.refMin,
+                    resolved.refMax,
+                    resolved.scale
+                  );
                   const isAbnormal = evalRes.isAbnormal;
 
-                  const displayUnit = resolved.unit || refRange?.unit || scale?.unit || t.unit || '---';
-                  const displayRef = resolved.refText || refRange?.refText || (scale ? `${scale.levels[0]?.rangeText || '<0,34'} (Độ 0)` : undefined) || (t.refMin !== null && t.refMax !== null ? `${t.refMin} - ${t.refMax}` : '---');
+                  const displayUnit = resolved.unit || '---';
+                  const displayRef = resolved.refText || '---';
 
                   return (
                     <tr
@@ -726,7 +785,7 @@ export default function TestTable({
                         <NoteCombobox
                           value={t.note || ''}
                           onChange={(val) => handleNoteChange(t.code, val)}
-                          isAllergen={!!scale || (t.category?.includes('Dị Nguyên') ?? false)}
+                          isAllergen={resolved.isAllergen || !!resolved.scale || (t.category?.includes('Dị Nguyên') ?? false)}
                           isAbnormal={isAbnormal}
                           placeholder="Đánh giá..."
                         />
