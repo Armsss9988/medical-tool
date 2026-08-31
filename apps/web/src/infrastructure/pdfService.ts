@@ -258,8 +258,20 @@ export async function generateHighQualityPdf(
     backgroundColor: '#ffffff',
     logging: false,
     imageTimeout: 15000,
-    onclone: (clonedDoc: Document) => {
+    onclone: async (clonedDoc: Document) => {
       sanitizeDocumentOklch(clonedDoc);
+      // Đảm bảo tất cả <img> SVG Data URI đã load xong trong clone DOM
+      const clonedImgs = Array.from(clonedDoc.querySelectorAll('img[src^="data:image/svg"]'));
+      await Promise.all(
+        clonedImgs.map((img) => {
+          const el = img as HTMLImageElement;
+          if (el.complete && el.naturalWidth > 0) return Promise.resolve();
+          return new Promise<void>((resolve) => {
+            el.onload = () => resolve();
+            el.onerror = () => resolve();
+          });
+        })
+      );
     }
   };
 

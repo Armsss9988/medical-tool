@@ -168,13 +168,14 @@ export function getAllergenBadgeSvg(grade: number, size: number = 20): string {
   }
 
   const radius = Math.round(size * 0.2);
-  const fontSize = Math.round(size * 0.58);
-  const yPos = Math.round(size * 0.72);
+  const fontSize = Math.round(size * 0.6);
   const strokeWidth = 1.2;
 
+  // Dùng y="50%" + dy="0.35em" để căn giữa chính xác dọc/ngang
+  // bất kể font-metrics, không bị lệch trong html2canvas / PDF export
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
     <rect x="0.6" y="0.6" width="${size - 1.2}" height="${size - 1.2}" rx="${radius}" fill="${bg}" stroke="${border}" stroke-width="${strokeWidth}"/>
-    <text x="${size / 2}" y="${yPos}" text-anchor="middle" fill="${text}" font-size="${fontSize}" font-weight="900" font-family="Arial, Helvetica, sans-serif">${grade}</text>
+    <text x="50%" y="50%" dy="0.35em" text-anchor="middle" fill="${text}" font-size="${fontSize}" font-weight="900" font-family="Arial, Helvetica, sans-serif">${grade}</text>
   </svg>`;
 
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.trim())}`;
