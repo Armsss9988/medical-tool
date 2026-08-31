@@ -39,7 +39,8 @@ export async function GET(
     const rows = await repo.getTableRows(db, name);
     return NextResponse.json({ rows, count: rows.length, updatedAt: new Date().toISOString() });
   } catch (err) {
-    return NextResponse.json({ error: 'failed to fetch table', message: (err as Error).message }, { status: 500 });
+    console.warn(`[API /api/tables/${name}] Warning: Không thể đọc bảng từ Postgres (${(err as Error).message}), fallback dữ liệu rỗng`);
+    return NextResponse.json({ rows: [], count: 0, updatedAt: new Date().toISOString(), warning: (err as Error).message });
   }
 }
 
