@@ -534,8 +534,8 @@ function PrintReportView({
 
                   {/* Bên phải: Chữ ký & Đóng dấu Phụ trách chuyên môn */}
                   <div className="text-center min-w-[220px]">
-                    <p className="text-[12.5px] text-slate-700 italic leading-snug">Ngày {currentDateStr}</p>
-                    <p className="text-[13.5px] font-bold uppercase text-slate-900 mt-0.5 mb-0.5 tracking-wide leading-snug">PHỤ TRÁCH CHUYÊN MÔN</p>
+                    <p className="text-[12.5px] text-slate-700 italic leading-normal pb-0.5">Ngày {currentDateStr}</p>
+                    <p className="text-[13.5px] font-bold uppercase text-slate-900 my-1 tracking-wide leading-normal pb-0.5">PHỤ TRÁCH CHUYÊN MÔN</p>
                     <div className="h-20 flex items-center justify-center my-1.5">
                       <img
                         src={currentStamp}
@@ -550,7 +550,7 @@ function PrintReportView({
                         }}
                       />
                     </div>
-                    <p className="text-[14px] font-bold text-slate-900 uppercase tracking-tight leading-snug">
+                    <p className="text-[14px] font-bold text-slate-900 uppercase tracking-tight leading-normal pt-1 pb-0.5">
                       {clinicInfo.defaultDoctor || 'Nguyễn Thị Thành Trung'}
                     </p>
                   </div>

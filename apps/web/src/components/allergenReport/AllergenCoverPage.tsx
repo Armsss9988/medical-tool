@@ -163,8 +163,8 @@ function AllergenCoverPage({
         {/* Chữ Ký & Con Dấu Phụ Trách Chuyên Môn */}
         <div className="flex justify-end pt-2">
           <div className="text-center min-w-[220px]">
-            <p className="text-[13px] text-slate-700 italic leading-snug">Ngày {currentDateStr}</p>
-            <p className="text-[14px] font-bold uppercase text-slate-900 tracking-wide mb-0.5 leading-snug">
+            <p className="text-[13px] text-slate-700 italic leading-normal pb-0.5">Ngày {currentDateStr}</p>
+            <p className="text-[14px] font-bold uppercase text-slate-900 tracking-wide my-1 leading-normal pb-0.5">
               PHỤ TRÁCH CHUYÊN MÔN
             </p>
             <div className="h-26 flex items-center justify-center my-0.5">
@@ -181,7 +181,7 @@ function AllergenCoverPage({
                 }}
               />
             </div>
-            <p className="text-[14.5px] font-bold text-slate-900 uppercase leading-snug">
+            <p className="text-[14.5px] font-bold text-slate-900 uppercase leading-normal pt-1 pb-0.5">
               {clinicInfo?.defaultDoctor || 'Nguyễn Thị Thành Trung'}
             </p>
           </div>

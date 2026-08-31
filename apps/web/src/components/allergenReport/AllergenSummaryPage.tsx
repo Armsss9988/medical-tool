@@ -56,7 +56,7 @@ function AllergenSummaryPage({
             </div>
           </div>
           <div className="text-right">
-            <div className="inline-block bg-red-600 text-white font-black text-[12px] px-2.5 py-0.5 rounded tracking-wide uppercase">
+            <div className="inline-flex items-center justify-center bg-red-600 text-white font-black text-[12.5px] px-3.5 py-1 rounded tracking-wide uppercase leading-normal shadow-xs">
               Báo Cáo Dị Nguyên
             </div>
           </div>
