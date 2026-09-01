@@ -148,7 +148,13 @@ export async function fetchTableFromCloud<T>(
   try {
     const res = await getTable(tableName);
     if (DOC_TABLES.has(tableName)) {
-      return res.rows.map((r) => (r as { data: T }).data) as T;
+      return res.rows.map((r) => {
+        const item = r as { id?: string; data?: unknown };
+        if (item && typeof item === 'object' && 'data' in item && item.data) {
+          return item.data;
+        }
+        return r;
+      }) as T;
     }
     if (SINGLE_OBJECT_TABLES.has(tableName)) {
       return (res.rows[0] ?? null) as T;
