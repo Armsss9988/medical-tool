@@ -1,16 +1,7 @@
 import { useState, useEffect, useMemo, memo } from 'react';
 import golabLogo from '@assets/golabLogoDataUrl';
 import doctorStamp from '@assets/doctorStampDataUrl';
-import {
-  Patient,
-  SelectedTest,
-  ClinicInfo,
-  TestPackage,
-  AllergenGradingScale,
-  TestEquipment,
-  CatalogItemEquipmentLink
-} from '@domain/types';
-import { isAllergenTest } from '@domain/allergenDetector';
+import { Patient, SelectedTest, ClinicInfo, TestPackage, AllergenGradingScale, TestEquipment, CatalogItemEquipmentLink } from '@domain/types';
 import { AllergenReportDomainService } from '@domain/services/AllergenReportDomainService';
 import { generateQrCodeDataUrl } from '@infra/qrService';
 import AllergenCoverPage from './allergenReport/AllergenCoverPage';
@@ -25,13 +16,13 @@ interface FullAllergenReportViewProps {
   selectedTests?: SelectedTest[];
   currentDateStr?: string;
   doctorName?: string;
-  conclusion?: string;
   qrCodeDataUrl?: string;
   qrCodeUrl?: string;
   clinicInfo?: ClinicInfo;
   testPackages?: TestPackage[];
   packagePrice?: number;
   allergenScales?: AllergenGradingScale[];
+  conclusion?: string;
   equipments?: TestEquipment[];
   catalogItemEquipments?: CatalogItemEquipmentLink[];
 }
@@ -39,11 +30,10 @@ interface FullAllergenReportViewProps {
 function FullAllergenReportView({
   elementId = 'printable-allergen-report',
   patient,
-  allergenTests: explicitAllergenTests,
+  allergenTests,
   selectedTests = [],
   currentDateStr = new Date().toLocaleDateString('vi-VN'),
   doctorName,
-  conclusion,
   qrCodeDataUrl,
   qrCodeUrl,
   clinicInfo = {
@@ -56,32 +46,11 @@ function FullAllergenReportView({
   testPackages = [],
   packagePrice: explicitPackagePrice,
   allergenScales = [],
-  equipments = [],
-  catalogItemEquipments = []
+  conclusion: _conclusion,
+  equipments: _equipments,
+  catalogItemEquipments: _catalogItemEquipments
 }: FullAllergenReportViewProps) {
-  const allTests = useMemo(() => selectedTests || [], [selectedTests]);
-
-  // Phân loại danh sách chỉ số: Chỉ số thường vs Chỉ số Dị nguyên
-  const { regularTests, allergenTests } = useMemo(() => {
-    if (explicitAllergenTests && explicitAllergenTests.length > 0) {
-      return {
-        regularTests: allTests.filter((t) => !isAllergenTest(t)),
-        allergenTests: explicitAllergenTests
-      };
-    }
-
-    const reg: SelectedTest[] = [];
-    const alg: SelectedTest[] = [];
-    for (const t of allTests) {
-      if (isAllergenTest(t)) {
-        alg.push(t);
-      } else {
-        reg.push(t);
-      }
-    }
-    return { regularTests: reg, allergenTests: alg };
-  }, [allTests, explicitAllergenTests]);
-
+  const tests = useMemo(() => allergenTests || selectedTests || [], [allergenTests, selectedTests]);
   const [autoQrCode, setAutoQrCode] = useState<string>(qrCodeDataUrl || '');
 
   useEffect(() => {
@@ -130,37 +99,27 @@ function FullAllergenReportView({
   // Xây dựng DTO chuẩn từ Domain Service (Pure Business Logic)
   const reportDTO = useMemo(() => {
     return AllergenReportDomainService.buildReportDTO({
-      tests: allergenTests,
+      tests,
       testPackages,
       packagePrice: explicitPackagePrice,
       customScales: allergenScales
     });
-  }, [allergenTests, testPackages, explicitPackagePrice, allergenScales]);
-
-  const matchedPackageName = useMemo(() => {
-    const pkg = testPackages.find((p) => p.items?.some((i) => allergenTests.some((at) => at.code === i.code)));
-    return pkg?.name;
-  }, [testPackages, allergenTests]);
+  }, [tests, testPackages, explicitPackagePrice, allergenScales]);
 
   return (
     <div id={elementId} className="w-[210mm] max-w-[210mm] mx-auto bg-slate-200 print:bg-white print:m-0 print:p-0 font-serif">
-      {/* TRANG 1: PHIẾU KẾT QUẢ XÉT NGHIỆM (TRANG BÌA: BẢNG CHỈ SỐ THƯỜNG + TỔNG QUÁT GÓI DỊ NGUYÊN) */}
+      {/* TRANG 1: PHIẾU KẾT QUẢ XÉT NGHIỆM (TRANG BÌA / TỔNG QUÁT) */}
       <AllergenCoverPage
         patient={patient}
         clinicInfo={clinicInfo}
         currentDateStr={currentDateStr}
         doctorName={doctorName}
-        conclusion={conclusion}
         finalQrCode={finalQrCode}
         currentLogo={currentLogo}
         currentStamp={currentStamp}
         totalCount={reportDTO.totalCount}
         packagePrice={reportDTO.packagePrice}
-        packageName={matchedPackageName}
         totalPages={reportDTO.totalPages}
-        regularTests={regularTests}
-        equipments={equipments}
-        catalogItemEquipments={catalogItemEquipments}
       />
 
       {/* TRANG 2: ĐỊNH LƯỢNG IgE ĐẶC HIỆU {N} DỊ NGUYÊN (TỔNG HỢP & DƯƠNG TÍNH) */}

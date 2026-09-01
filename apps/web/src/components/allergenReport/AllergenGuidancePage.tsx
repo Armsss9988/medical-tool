@@ -8,8 +8,15 @@ function AllergenGuidancePage({ totalPages }: AllergenGuidancePageProps) {
   return (
     <div 
       data-page="true"
-      className="report-page w-[210mm] min-h-[297mm] max-w-[210mm] bg-white text-slate-900 p-8 mb-4 shadow-xl print:shadow-none print:mb-0 print:p-6 flex flex-col justify-between box-border"
-      style={{ fontFamily: '"Times New Roman", Times, "Liberation Serif", serif' }}
+      className="report-page bg-white text-slate-900 p-8 mb-4 shadow-xl print:shadow-none print:mb-0 print:p-6 flex flex-col justify-between"
+      style={{
+        fontFamily: '"Times New Roman", Times, "Liberation Serif", serif',
+        width: '210mm',
+        minWidth: '210mm',
+        maxWidth: '210mm',
+        minHeight: '297mm',
+        boxSizing: 'border-box'
+      }}
     >
       <div>
         {/* Tiêu đề trang lưu ý phòng ngừa */}

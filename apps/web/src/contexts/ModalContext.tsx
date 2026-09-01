@@ -18,6 +18,7 @@ interface ModalState {
   isZaloModalOpen: boolean;
   zaloTargetReport: MedicalReport | null;
   isBatchExportModalOpen: boolean;
+  isTemplateBuilderOpen: boolean;
   isUnsavedModalOpen: boolean;
   pendingAction: { name: string; run: () => void } | null;
 }
@@ -60,6 +61,10 @@ interface ModalContextValue extends ModalState {
   aiSmartFillTarget: import('@domain').AiTemplateTarget;
   openAiSmartFillModal: (target?: import('@domain').AiTemplateTarget) => void;
   closeAiSmartFillModal: () => void;
+
+  // Template Builder
+  openTemplateBuilder: () => void;
+  closeTemplateBuilder: () => void;
 
   // Unsaved Guard
   openUnsavedModal: (actionName: string, actionFn: () => void) => void;
@@ -115,12 +120,17 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const [isUnsavedModalOpen, setIsUnsavedModalOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ name: string; run: () => void } | null>(null);
 
+  // Template Builder
+  const [isTemplateBuilderOpen, setIsTemplateBuilderOpen] = useState(false);
+  const openTemplateBuilder = useCallback(() => setIsTemplateBuilderOpen(true), []);
+  const closeTemplateBuilder = useCallback(() => setIsTemplateBuilderOpen(false), []);
+
   // Computed
   const isAnyModalOpen =
     isUnsavedModalOpen || isPreviewOpen || isSettingsOpen ||
     isCatalogModalOpen || isInvoiceModalOpen || isRevenueModalOpen ||
     isReportManagerOpen || isZaloModalOpen || isBatchExportModalOpen ||
-    isAiSmartFillModalOpen;
+    isAiSmartFillModalOpen || isTemplateBuilderOpen;
 
   // Actions
   const openPreview = useCallback((targetReport?: MedicalReport | null) => {
@@ -190,6 +200,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     if (isZaloModalOpen) { closeZaloModal(); return; }
     if (isBatchExportModalOpen) { closeBatchExportModal(); return; }
     if (isAiSmartFillModalOpen) { closeAiSmartFillModal(); return; }
+    if (isTemplateBuilderOpen) { closeTemplateBuilder(); return; }
   }, [
     isUnsavedModalOpen, closeUnsavedModal,
     isPreviewOpen, closePreview,
@@ -200,7 +211,8 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     isReportManagerOpen, closeReportManager,
     isZaloModalOpen, closeZaloModal,
     isBatchExportModalOpen, closeBatchExportModal,
-    isAiSmartFillModalOpen, closeAiSmartFillModal
+    isAiSmartFillModalOpen, closeAiSmartFillModal,
+    isTemplateBuilderOpen, closeTemplateBuilder
   ]);
 
   const value: ModalContextValue = {
@@ -214,6 +226,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     isZaloModalOpen, zaloTargetReport,
     isBatchExportModalOpen,
     isAiSmartFillModalOpen, aiSmartFillTarget,
+    isTemplateBuilderOpen,
     isUnsavedModalOpen, pendingAction,
     // Computed
     isAnyModalOpen,
@@ -227,6 +240,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     openZaloModal, closeZaloModal,
     openBatchExportModal, closeBatchExportModal,
     openAiSmartFillModal, closeAiSmartFillModal,
+    openTemplateBuilder, closeTemplateBuilder,
     openUnsavedModal, closeUnsavedModal, clearPendingAction,
     closeAllModals,
   };

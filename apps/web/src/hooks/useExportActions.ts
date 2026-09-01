@@ -3,7 +3,7 @@ import { useWorkspace } from '../contexts/WorkspaceContext';
 import { useModal } from '../contexts/ModalContext';
 import { useToast } from '../contexts/ToastContext';
 import { PRINT_ELEMENT_ID, REPORT_STATUS } from '@domain/constants';
-import { hasAllergenTests } from '@domain/allergenDetector';
+import { hasAllergenTests, hasMixedTests } from '@domain/allergenDetector';
 import { buildCurrentReport, resolveDoctorName } from '@domain/reportFactory';
 import { generateZaloTextMessage, openZaloChat } from '@infra/zaloService';
 import type { ClinicInfo, MedicalReport, ToastType } from '@domain';
@@ -43,8 +43,13 @@ export function useExportActions(
     const reportId = onSaveCurrentReport();
     if (!reportId) return;
 
-    const isAllergen = hasAllergenTests(selectedTests);
-    const elementId = isAllergen ? PRINT_ELEMENT_ID.ALLERGEN_REPORT : PRINT_ELEMENT_ID.MEDICAL_REPORT;
+    const isMixed = hasMixedTests(selectedTests);
+    const isAllergen = !isMixed && hasAllergenTests(selectedTests);
+    const elementId = isMixed
+      ? PRINT_ELEMENT_ID.HYBRID_REPORT
+      : isAllergen
+      ? PRINT_ELEMENT_ID.ALLERGEN_REPORT
+      : PRINT_ELEMENT_ID.MEDICAL_REPORT;
     const filename = `PhieuXN_${(patient.name || 'BenhNhan').replace(/\s+/g, '_')}_${patient.code}.pdf`;
 
     const result = await handleExportPdfAndUploadCloud(
@@ -82,8 +87,13 @@ export function useExportActions(
 
   // 2. ACTION: TẢI FILE PDF TRỰC TIẾP VỀ MÁY
   const handleDownloadPdfDirect = useCallback(() => {
-    const isAllergen = hasAllergenTests(selectedTests);
-    const elementId = isAllergen ? PRINT_ELEMENT_ID.ALLERGEN_REPORT : PRINT_ELEMENT_ID.MEDICAL_REPORT;
+    const isMixed = hasMixedTests(selectedTests);
+    const isAllergen = !isMixed && hasAllergenTests(selectedTests);
+    const elementId = isMixed
+      ? PRINT_ELEMENT_ID.HYBRID_REPORT
+      : isAllergen
+      ? PRINT_ELEMENT_ID.ALLERGEN_REPORT
+      : PRINT_ELEMENT_ID.MEDICAL_REPORT;
     const filename = `PhieuXN_${(patient.name || 'BenhNhan').replace(/\s+/g, '_')}_${patient.code}.pdf`;
     handleDownloadPdf(elementId, filename);
   }, [selectedTests, patient, handleDownloadPdf]);

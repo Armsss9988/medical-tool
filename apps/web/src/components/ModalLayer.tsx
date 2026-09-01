@@ -9,6 +9,7 @@ import BatchExportModal from './BatchExportModal';
 import TransactionLoadingModal from './TransactionLoadingModal';
 import UnsavedChangesModal from './UnsavedChangesModal';
 import AiSmartFillModal from './ai/AiSmartFillModal';
+import TemplateBuilderModal from './templateBuilder/TemplateBuilderModal';
 
 import { useWorkspace } from '../contexts/WorkspaceContext';
 import { useModal } from '../contexts/ModalContext';
@@ -183,6 +184,8 @@ export function ModalLayer({
     aiSmartFillTarget,
     openAiSmartFillModal,
     closeAiSmartFillModal,
+    isTemplateBuilderOpen,
+    closeTemplateBuilder,
     isUnsavedModalOpen,
     pendingAction
   } = useModal();
@@ -415,6 +418,23 @@ export function ModalLayer({
           openBatchExportModal();
         }}
         showToast={showToast}
+      />
+
+      {/* 12. VISUAL REPORT TEMPLATE BUILDER MODAL */}
+      <TemplateBuilderModal
+        isOpen={isTemplateBuilderOpen}
+        onClose={closeTemplateBuilder}
+        patient={patient}
+        selectedTests={selectedTests}
+        clinicInfo={clinicInfo}
+        doctorName={doctorName}
+        conclusion={conclusion}
+        qrCodeDataUrl={qrCodeDataUrl}
+        testPackages={testPackages}
+        equipments={equipments}
+        catalogItemEquipments={catalogItemEquipments}
+        allergenScales={allergenScales}
+        onShowToast={showToast}
       />
     </>
   );

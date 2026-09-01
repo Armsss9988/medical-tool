@@ -1,8 +1,9 @@
 import PrintReportView from './PrintReportView';
 import FullAllergenReportView from './FullAllergenReportView';
+import HybridReportView from './HybridReportView';
 import { useWorkspace } from '../contexts/WorkspaceContext';
 import { PRINT_ELEMENT_ID } from '@domain/constants';
-import { hasAllergenTests } from '@domain/allergenDetector';
+import { hasAllergenTests, hasMixedTests } from '@domain/allergenDetector';
 import type { ClinicInfo, MedicalReport, TestPackage, TestEquipment, CatalogItemEquipmentLink, AllergenGradingScale } from '@domain';
 
 // ─── PRINT LAYER COMPONENT ──────────────────────────────────────────────────
@@ -34,10 +35,12 @@ export function PrintLayer({
     doctorName
   } = useWorkspace();
 
-  const isAllergen = hasAllergenTests(selectedTests);
+  const isMixed = hasMixedTests(selectedTests);
+  const isAllergen = !isMixed && hasAllergenTests(selectedTests);
 
+  const isBatchMixed = batchRenderReport ? hasMixedTests(batchRenderReport.selectedTests) : false;
   const isBatchAllergen = batchRenderReport
-    ? (batchRenderReport.isAllergen || hasAllergenTests(batchRenderReport.selectedTests))
+    ? (!isBatchMixed && (batchRenderReport.isAllergen || hasAllergenTests(batchRenderReport.selectedTests)))
     : false;
 
   return (
@@ -45,7 +48,21 @@ export function PrintLayer({
       className="fixed -left-[9999px] top-0 pointer-events-none overflow-hidden"
       style={{ width: '210mm', minWidth: '210mm', maxWidth: '210mm', opacity: 1, zIndex: -100 }}
     >
-      {isAllergen ? (
+      {isMixed ? (
+        <HybridReportView
+          elementId={PRINT_ELEMENT_ID.HYBRID_REPORT}
+          clinicInfo={clinicInfo}
+          patient={patient}
+          selectedTests={selectedTests}
+          doctorName={doctorName}
+          conclusion={conclusion}
+          qrCodeDataUrl={qrCodeDataUrl}
+          testPackages={testPackages}
+          allergenScales={allergenScales}
+          equipments={equipments}
+          catalogItemEquipments={catalogItemEquipments}
+        />
+      ) : isAllergen ? (
         <FullAllergenReportView
           elementId={PRINT_ELEMENT_ID.ALLERGEN_REPORT}
           clinicInfo={clinicInfo}
@@ -76,7 +93,21 @@ export function PrintLayer({
       {/* HIDDEN BATCH RENDER AREA — cho xuất PDF đồng loạt */}
       {batchRenderReport && (
         <>
-          {isBatchAllergen ? (
+          {isBatchMixed ? (
+            <HybridReportView
+              elementId={PRINT_ELEMENT_ID.BATCH_HYBRID}
+              clinicInfo={clinicInfo}
+              patient={batchRenderReport.patient}
+              selectedTests={batchRenderReport.selectedTests}
+              doctorName={batchRenderReport.doctorName}
+              conclusion={batchRenderReport.conclusion}
+              qrCodeDataUrl={undefined}
+              testPackages={testPackages}
+              allergenScales={allergenScales}
+              equipments={equipments}
+              catalogItemEquipments={catalogItemEquipments}
+            />
+          ) : isBatchAllergen ? (
             <FullAllergenReportView
               elementId={PRINT_ELEMENT_ID.BATCH_ALLERGEN}
               clinicInfo={clinicInfo}

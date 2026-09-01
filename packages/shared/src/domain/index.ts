@@ -36,3 +36,6 @@ export * from './ai/aiTypes';
 export * from './ai/templateSchemas';
 export * from './ai/promptTemplates';
 
+// Report Template Builder Domain
+export * from './templateTypes';
+
