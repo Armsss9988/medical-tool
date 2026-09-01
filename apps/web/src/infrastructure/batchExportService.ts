@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import { MedicalReport, ClinicInfo, BatchExportProgress } from '@domain/types';
+import { hasAllergenTests, hasMixedTests } from '@domain/allergenDetector';
 import { generateHighQualityPdf } from './pdfService';
 import { uploadPdfToCloud } from './cloudService';
 import { generateQrCodeDataUrl } from './qrService';
@@ -62,10 +63,9 @@ export async function batchExportPdfs(
       await waitForDomRender(400);
 
       // 3. Xác định element ID
-      const isAllergen = report.isAllergen || report.selectedTests.some(
-        (t) => (t.category && t.category.includes('Dị Nguyên')) || t.unit === 'IU/mL'
-      );
-      const elementId = isAllergen ? 'batch-allergen-report' : 'batch-medical-report';
+      const isMixed = hasMixedTests(report.selectedTests);
+      const isAllergenOnly = !isMixed && (report.isAllergen || hasAllergenTests(report.selectedTests));
+      const elementId = isAllergenOnly ? 'batch-allergen-report' : 'batch-medical-report';
 
       // 4. Render PDF
       const safeName = patientName.replace(/\s+/g, '_');

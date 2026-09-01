@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { FileText, RotateCcw, Eye, CloudUpload, QrCode, CreditCard, BookmarkCheck, MessageSquare, SlidersHorizontal, Loader2, Download, Zap } from 'lucide-react';
 import { SelectedTest } from '@domain';
-import { hasAllergenTests, isAllergenTest } from '@domain/allergenDetector';
+import { hasAllergenTests, isAllergenTest, hasMixedTests } from '@domain/allergenDetector';
 import { ExportStepName, EXPORT_STEP_LABELS } from '@domain/exportTransaction';
 import { evaluateTestIndicator } from '@domain/testResult';
 
@@ -83,7 +83,8 @@ export default function ConclusionForm({
     if (testsWithResults.length === 0) return null;
 
     const abnormalTests: string[] = [];
-    const isAllergenBatch = hasAllergenTests(safeTests);
+    const isMixed = hasMixedTests(safeTests);
+    const isAllergenOnly = !isMixed && hasAllergenTests(safeTests);
 
     for (const t of testsWithResults) {
       if (isAllergenTest(t)) {
@@ -97,12 +98,30 @@ export default function ConclusionForm({
       }
     }
 
-    if (isAllergenBatch) {
-      // For allergen panels, check if any positive
-      const positiveAllergens = testsWithResults.filter((t) => {
-        if (!isAllergenTest(t)) return false;
-        return t.note && t.note.includes('Dương tính');
-      });
+    const positiveAllergens = testsWithResults.filter((t) => {
+      if (!isAllergenTest(t)) return false;
+      return t.note && (t.note.includes('Dương tính') || t.note.includes('Độ'));
+    });
+
+    if (isMixed) {
+      const parts: string[] = [];
+      if (abnormalTests.length > 0) {
+        parts.push(`Chỉ số bất thường: ${abnormalTests.join(', ')}`);
+      } else {
+        parts.push('Các chỉ số sinh hóa/huyết học trong giới hạn bình thường');
+      }
+
+      if (positiveAllergens.length > 0) {
+        const allergenNames = positiveAllergens.map((t) => t.name).join(', ');
+        parts.push(`Dương tính với dị nguyên: ${allergenNames}`);
+      } else {
+        parts.push('Âm tính với các dị nguyên tầm soát');
+      }
+
+      return `${parts.join('. ')}. Đề nghị kết hợp lâm sàng và theo dõi`;
+    }
+
+    if (isAllergenOnly) {
       if (positiveAllergens.length === 0) {
         return 'Kết quả xét nghiệm dị nguyên: Tất cả các chỉ số đều Âm tính';
       }

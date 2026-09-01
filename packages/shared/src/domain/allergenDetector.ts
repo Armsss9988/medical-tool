@@ -24,6 +24,54 @@ export function hasAllergenTests(tests: ReadonlyArray<Pick<CatalogItem, 'code' |
 }
 
 /**
+ * Kiểm tra danh sách chỉ số có chứa ít nhất 1 chỉ số thường (Huyết học, Sinh hóa, Vi chất...) không.
+ */
+export function hasRegularTests(tests: ReadonlyArray<Pick<CatalogItem, 'code' | 'category' | 'unit'>>): boolean {
+  return tests.some((t) => !isAllergenTest(t));
+}
+
+/**
+ * Kiểm tra danh sách có phải dạng Hỗn Hợp (chứa cả chỉ số thường và chỉ số dị nguyên) không.
+ */
+export function hasMixedTests(tests: ReadonlyArray<Pick<CatalogItem, 'code' | 'category' | 'unit'>>): boolean {
+  return hasRegularTests(tests) && hasAllergenTests(tests);
+}
+
+/**
+ * Phân loại danh sách chỉ số thành 2 mảng: thường và dị nguyên
+ */
+export function classifyTests<T extends Pick<CatalogItem, 'code' | 'category' | 'unit'>>(tests: ReadonlyArray<T>): {
+  regularTests: T[];
+  allergenTests: T[];
+  isMixed: boolean;
+  isAllergenOnly: boolean;
+  isRegularOnly: boolean;
+} {
+  const regularTests: T[] = [];
+  const allergenTests: T[] = [];
+
+  for (const t of tests) {
+    if (isAllergenTest(t)) {
+      allergenTests.push(t);
+    } else {
+      regularTests.push(t);
+    }
+  }
+
+  const isMixed = regularTests.length > 0 && allergenTests.length > 0;
+  const isAllergenOnly = regularTests.length === 0 && allergenTests.length > 0;
+  const isRegularOnly = regularTests.length > 0 && allergenTests.length === 0;
+
+  return {
+    regularTests,
+    allergenTests,
+    isMixed,
+    isAllergenOnly,
+    isRegularOnly
+  };
+}
+
+/**
  * Kiểm tra 1 chỉ số bất kỳ thuộc dạng dị nguyên (bao gồm cả category check lỏng).
  * Dùng khi phân loại item trong danh mục (CatalogManagerModal).
  */

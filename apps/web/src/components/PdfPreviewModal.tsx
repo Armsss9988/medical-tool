@@ -18,8 +18,9 @@ import {
 } from 'lucide-react';
 import PrintReportView from './PrintReportView';
 import FullAllergenReportView from './FullAllergenReportView';
+import HybridReportView from './HybridReportView';
 import { ClinicInfo, Patient, SelectedTest, ToastType, TestPackage, TestEquipment, CatalogItemEquipmentLink, AllergenGradingScale } from '@domain/types';
-import { hasAllergenTests } from '@domain/allergenDetector';
+import { hasAllergenTests, hasMixedTests } from '@domain/allergenDetector';
 import {
   ExportStepName,
   ExportErrorDetail,
@@ -106,8 +107,9 @@ export default function PdfPreviewModal({
 
   const safeSelectedTests = selectedTests || [];
 
-  // Nhận diện loại báo cáo: Xét nghiệm thông thường hay Booklet Dị nguyên 6 trang
-  const isAllergenPackage = hasAllergenTests(safeSelectedTests);
+  // Nhận diện loại báo cáo: Thường, Dị nguyên thuần túy, hay Hỗn hợp (Hybrid)
+  const isMixed = hasMixedTests(safeSelectedTests);
+  const isAllergenOnly = !isMixed && hasAllergenTests(safeSelectedTests);
 
   const handleZoomIn = () => {
     setZoomScale((prev) => Math.min(prev + 0.1, 1.5));
@@ -134,11 +136,15 @@ export default function PdfPreviewModal({
             <div>
               <h3 className="font-extrabold text-sm text-slate-100 flex items-center gap-2">
                 <span>Xem Trước Bản In & Xuất PDF Chất Lượng Cao</span>
-                {isAllergenPackage && (
+                {isMixed ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    Phiếu Hỗn Hợp (Chỉ Số Thường + Dị Nguyên)
+                  </span>
+                ) : isAllergenOnly ? (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
                     Booklet Dị Nguyên 6 Trang
                   </span>
-                )}
+                ) : null}
               </h3>
               <p className="text-[11px] text-slate-400">
                 Bệnh nhân: <strong className="text-slate-200">{safePatient.name || 'Bệnh nhân mới'}</strong> ({safePatient.code})
@@ -207,7 +213,7 @@ export default function PdfPreviewModal({
             {onDownloadPdf && (
               <button
                 onClick={() => {
-                  const elemId = isAllergenPackage ? 'preview-allergen-element' : 'preview-print-element';
+                  const elemId = isMixed ? 'preview-hybrid-element' : isAllergenOnly ? 'preview-allergen-element' : 'preview-print-element';
                   const fname = `PhieuXN_${(safePatient.name || 'BenhNhan').replace(/\s+/g, '_')}_${safePatient.code}.pdf`;
                   onDownloadPdf(elemId, fname);
                 }}
@@ -400,7 +406,21 @@ export default function PdfPreviewModal({
             className="shadow-2xl rounded-sm overflow-hidden bg-white transition-transform duration-150 origin-top"
             style={{ transform: `scale(${zoomScale})` }}
           >
-            {isAllergenPackage ? (
+            {isMixed ? (
+              <HybridReportView
+                elementId="preview-hybrid-element"
+                clinicInfo={clinicInfo}
+                patient={safePatient}
+                selectedTests={safeSelectedTests}
+                conclusion={conclusion}
+                doctorName={doctorName}
+                qrCodeDataUrl={qrCodeDataUrl}
+                equipments={equipments}
+                catalogItemEquipments={catalogItemEquipments}
+                allergenScales={allergenScales}
+                testPackages={testPackages}
+              />
+            ) : isAllergenOnly ? (
               <FullAllergenReportView
                 elementId="preview-allergen-element"
                 clinicInfo={clinicInfo}
@@ -507,7 +527,7 @@ export default function PdfPreviewModal({
                 <div className="flex justify-between items-center py-0.5 border-b border-slate-200/60">
                   <span className="text-slate-500 font-medium">Loại phiếu:</span>
                   <span className="font-bold text-sky-700">
-                    {isAllergenPackage ? 'Báo cáo Dị nguyên IgE' : 'Phiếu Xét Nghiệm Y Khoa'}
+                    {isMixed ? 'Phiếu Hỗn Hợp (Thường + Dị Nguyên)' : isAllergenOnly ? 'Báo cáo Dị nguyên IgE' : 'Phiếu Xét Nghiệm Y Khoa'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center py-0.5 border-b border-slate-200/60">
