@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 import PrintReportView from './PrintReportView';
 import FullAllergenReportView from './FullAllergenReportView';
-import HybridReportView from './HybridReportView';
 import { ClinicInfo, Patient, SelectedTest, ToastType, TestPackage, TestEquipment, CatalogItemEquipmentLink, AllergenGradingScale } from '@domain/types';
 import { hasAllergenTests, hasMixedTests } from '@domain/allergenDetector';
 import {
@@ -213,7 +212,8 @@ export default function PdfPreviewModal({
             {onDownloadPdf && (
               <button
                 onClick={() => {
-                  const elemId = isMixed ? 'preview-hybrid-element' : isAllergenOnly ? 'preview-allergen-element' : 'preview-print-element';
+                  const isAllergen = hasAllergenTests(safeSelectedTests);
+                  const elemId = isAllergen ? 'preview-allergen-element' : 'preview-print-element';
                   const fname = `PhieuXN_${(safePatient.name || 'BenhNhan').replace(/\s+/g, '_')}_${safePatient.code}.pdf`;
                   onDownloadPdf(elemId, fname);
                 }}
@@ -406,30 +406,19 @@ export default function PdfPreviewModal({
             className="shadow-2xl rounded-sm overflow-hidden bg-white transition-transform duration-150 origin-top"
             style={{ transform: `scale(${zoomScale})` }}
           >
-            {isMixed ? (
-              <HybridReportView
-                elementId="preview-hybrid-element"
-                clinicInfo={clinicInfo}
-                patient={safePatient}
-                selectedTests={safeSelectedTests}
-                conclusion={conclusion}
-                doctorName={doctorName}
-                qrCodeDataUrl={qrCodeDataUrl}
-                equipments={equipments}
-                catalogItemEquipments={catalogItemEquipments}
-                allergenScales={allergenScales}
-                testPackages={testPackages}
-              />
-            ) : isAllergenOnly ? (
+            {hasAllergenTests(safeSelectedTests) ? (
               <FullAllergenReportView
                 elementId="preview-allergen-element"
                 clinicInfo={clinicInfo}
                 patient={safePatient}
                 selectedTests={safeSelectedTests}
                 doctorName={doctorName}
+                conclusion={conclusion}
                 qrCodeDataUrl={qrCodeDataUrl}
                 testPackages={testPackages}
                 allergenScales={allergenScales}
+                equipments={equipments}
+                catalogItemEquipments={catalogItemEquipments}
               />
             ) : (
               <PrintReportView
