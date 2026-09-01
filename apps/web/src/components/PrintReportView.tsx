@@ -331,15 +331,66 @@ function PrintReportView({
               </div>
             ) : (
               /* MINI HEADER CHO TRANG 2 TRỞ ĐI */
-              <div data-avoid-break="true" className="header-mini flex items-center justify-between border-b border-slate-300 pb-2 mb-2">
-                <div className="flex items-center space-x-2">
-                  <img src={currentLogo} alt="GoLab Logo" className="h-7 w-auto object-contain shrink-0" />
-                  <span className="font-extrabold text-[14px] text-sky-950 uppercase tracking-tight">
-                    {clinicInfo.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'}
-                  </span>
+              <div 
+                data-avoid-break="true" 
+                className="header-mini flex items-center justify-between border-b border-slate-300 pb-1.5 mb-2.5 gap-4"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  borderBottom: '1px solid #cbd5e1',
+                  paddingBottom: '6px',
+                  marginBottom: '10px',
+                  width: '100%',
+                  boxSizing: 'border-box'
+                }}
+              >
+                <div 
+                  className="flex items-center space-x-2.5 shrink-0"
+                  style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '10px', flexShrink: 0 }}
+                >
+                  <div className="h-[34px] w-[70px] max-h-[34px] max-w-[70px] flex items-center justify-center shrink-0 overflow-hidden">
+                    <img 
+                      src={currentLogo} 
+                      alt="GoLab Logo" 
+                      style={{ maxHeight: '34px', maxWidth: '70px', height: '34px', width: 'auto', objectFit: 'contain' }}
+                      className="h-[34px] w-auto object-contain shrink-0" 
+                      loading="eager"
+                      decoding="sync"
+                      onError={(e) => {
+                        const target = e.currentTarget as HTMLImageElement;
+                        target.onerror = null;
+                        target.src = golabLogo;
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <span 
+                      className="font-extrabold text-[13px] text-sky-950 uppercase tracking-tight block leading-tight"
+                      style={{ fontWeight: 800, fontSize: '13px', color: '#082f49', textTransform: 'uppercase', lineHeight: '1.2' }}
+                    >
+                      {clinicInfo.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'}
+                    </span>
+                    <span 
+                      className="text-[10.5px] text-slate-500 font-medium leading-none"
+                      style={{ fontSize: '10.5px', color: '#64748b' }}
+                    >
+                      Hotline: {clinicInfo.phone || '032.855.3773'}
+                    </span>
+                  </div>
                 </div>
-                <div className="text-[13px] text-slate-700 font-medium">
-                  Bệnh nhân: <strong className="text-red-600 font-bold uppercase">{patient.name}</strong> • Mã BN: <strong className="font-mono">{patient.code}</strong> • Số BP: <strong className="font-mono text-red-600 font-bold">{patient.sampleCode || patient.code}</strong>
+
+                <div 
+                  className="text-right shrink-0 leading-tight"
+                  style={{ textAlign: 'right', flexShrink: 0, lineHeight: '1.25' }}
+                >
+                  <div className="text-[12.5px] text-slate-700">
+                    Bệnh nhân: <strong className="text-red-600 font-bold uppercase text-[13px]" style={{ color: '#dc2626', fontWeight: 'bold' }}>{patient.name}</strong>
+                  </div>
+                  <div className="text-[11px] text-slate-500 font-mono mt-0.5" style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace', marginTop: '2px' }}>
+                    Mã BN: <strong className="text-slate-800" style={{ color: '#1e293b' }}>{patient.code}</strong> • Số BP: <strong className="text-red-600 font-bold" style={{ color: '#dc2626', fontWeight: 'bold' }}>{patient.sampleCode || patient.code}</strong>
+                  </div>
                 </div>
               </div>
             )}

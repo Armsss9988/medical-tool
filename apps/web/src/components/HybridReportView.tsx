@@ -504,16 +504,16 @@ function HybridReportView({
             ) : (
               /* Mini Header cho các trang sau */
               <div 
-                className="flex items-center justify-between border-b-2 border-sky-600 pb-2 mb-3"
-                style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2px solid #0284c7' }}
+                className="header-mini flex items-center justify-between border-b-2 border-sky-600 pb-1.5 mb-2.5 gap-4"
+                style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2px solid #0284c7', width: '100%', boxSizing: 'border-box' }}
               >
-                <div className="flex items-center space-x-3" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
-                  <div className="h-[44px] w-[85px] max-h-[44px] max-w-[85px] flex items-center justify-center shrink-0 overflow-hidden">
+                <div className="flex items-center space-x-2.5 shrink-0" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                  <div className="h-[34px] w-[70px] max-h-[34px] max-w-[70px] flex items-center justify-center shrink-0 overflow-hidden">
                     <img
                       src={currentLogo}
                       alt="GoLab Logo"
-                      style={{ maxHeight: '44px', maxWidth: '85px', height: '44px', width: 'auto', objectFit: 'contain' }}
-                      className="h-11 w-auto object-contain shrink-0"
+                      style={{ maxHeight: '34px', maxWidth: '70px', height: '34px', width: 'auto', objectFit: 'contain' }}
+                      className="h-[34px] w-auto object-contain shrink-0"
                       loading="eager"
                       decoding="sync"
                       onError={(e) => {
@@ -524,16 +524,19 @@ function HybridReportView({
                     />
                   </div>
                   <div>
-                    <h1 className="text-[14px] font-black text-sky-950 uppercase tracking-tight">
+                    <span className="text-[13px] font-black text-sky-950 uppercase tracking-tight block leading-tight" style={{ fontWeight: 800, fontSize: '13px', color: '#082f49', textTransform: 'uppercase', lineHeight: '1.2' }}>
                       {clinicInfo?.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'}
-                    </h1>
-                    <p className="text-[11.5px] text-slate-600">Hotline: {clinicInfo?.phone || '032.855.3773'}</p>
+                    </span>
+                    <span className="text-[10.5px] text-slate-500 font-medium leading-none" style={{ fontSize: '10.5px', color: '#64748b' }}>Hotline: {clinicInfo?.phone || '032.855.3773'}</span>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-[12.5px] font-bold text-slate-800 font-mono">
-                    BN: <strong className="text-red-600 uppercase" style={{ color: '#dc2626' }}>{patient.name || '---'}</strong> ({patient.sampleCode || patient.code})
-                  </span>
+                <div className="text-right shrink-0 leading-tight" style={{ textAlign: 'right', flexShrink: 0, lineHeight: '1.25' }}>
+                  <div className="text-[12.5px] text-slate-700">
+                    Bệnh nhân: <strong className="text-red-600 font-bold uppercase text-[13px]" style={{ color: '#dc2626' }}>{patient.name || '---'}</strong>
+                  </div>
+                  <div className="text-[11px] text-slate-500 font-mono mt-0.5" style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace', marginTop: '2px' }}>
+                    Mã BN: <strong className="text-slate-800" style={{ color: '#1e293b' }}>{patient.code}</strong> • Số BP: <strong className="text-red-600 font-bold" style={{ color: '#dc2626' }}>{patient.sampleCode || patient.code}</strong>
+                  </div>
                 </div>
               </div>
             )}
