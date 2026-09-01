@@ -626,3 +626,99 @@ export async function restoreAllDataToSupabase(
     return { success: false, message: `Lỗi restore: ${errMsg}` };
   }
 }
+
+export interface CloudSnapshotSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+/**
+ * Lấy danh sách các bản snapshot từ Cloud DB
+ */
+export async function listCloudSnapshots(): Promise<CloudSnapshotSummary[]> {
+  try {
+    const res = await fetch('/api/snapshots', {
+      headers: {
+        'x-app-password': typeof window !== 'undefined' ? localStorage.getItem('golab_app_password') || '' : ''
+      }
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.snapshots) ? data.snapshots : [];
+  } catch (err) {
+    console.warn('[CloudDB] Không thể lấy danh sách snapshots:', err);
+    return [];
+  }
+}
+
+/**
+ * Tạo một bản Snapshot mới trên Cloud DB
+ */
+export async function createCloudSnapshot(name: string, description: string = ''): Promise<{ success: boolean; message: string; id?: string }> {
+  try {
+    const res = await fetch('/api/snapshots', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-app-password': typeof window !== 'undefined' ? localStorage.getItem('golab_app_password') || '' : ''
+      },
+      body: JSON.stringify({ name, description, createdBy: 'Admin' })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, message: data.error || data.message || 'Lỗi tạo snapshot' };
+    }
+    return { success: true, message: data.message || 'Đã tạo snapshot thành công!', id: data.id };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : 'Lỗi không xác định';
+    return { success: false, message: `Lỗi tạo snapshot: ${errMsg}` };
+  }
+}
+
+/**
+ * Khôi phục Cloud DB về bản snapshot đã chọn
+ */
+export async function restoreCloudSnapshot(id: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch(`/api/snapshots/${encodeURIComponent(id)}`, {
+      method: 'POST',
+      headers: {
+        'x-app-password': typeof window !== 'undefined' ? localStorage.getItem('golab_app_password') || '' : ''
+      }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, message: data.error || data.message || 'Lỗi khôi phục snapshot' };
+    }
+    return { success: true, message: data.message || 'Khôi phục thành công!' };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : 'Lỗi không xác định';
+    return { success: false, message: `Lỗi khôi phục: ${errMsg}` };
+  }
+}
+
+/**
+ * Xóa một bản snapshot
+ */
+export async function deleteCloudSnapshot(id: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch(`/api/snapshots/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: {
+        'x-app-password': typeof window !== 'undefined' ? localStorage.getItem('golab_app_password') || '' : ''
+      }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, message: data.error || data.message || 'Lỗi xóa snapshot' };
+    }
+    return { success: true, message: 'Đã xóa bản snapshot' };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : 'Lỗi không xác định';
+    return { success: false, message: `Lỗi xóa snapshot: ${errMsg}` };
+  }
+}
+

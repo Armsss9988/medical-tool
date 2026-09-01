@@ -19,7 +19,10 @@ import {
   Eye,
   EyeOff,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Camera,
+  Trash2,
+  History
 } from 'lucide-react';
 import golabLogo from '@assets/golabLogoDataUrl';
 import doctorStamp from '@assets/doctorStampDataUrl';
@@ -45,6 +48,11 @@ import {
   fetchAllCloudDataToLocal,
   backupAllDataFromSupabase,
   restoreAllDataToSupabase,
+  listCloudSnapshots,
+  createCloudSnapshot,
+  restoreCloudSnapshot,
+  deleteCloudSnapshot,
+  CloudSnapshotSummary,
   AllLocalDataPayload
 } from '@infra/cloudDbService';
 import { testZaloConnection } from '@infra/zaloService';
@@ -164,6 +172,21 @@ export default function SettingsModal({
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const fileRestoreInputRef = useRef<HTMLInputElement>(null);
+
+  // Snapshot Management State
+  const [snapshots, setSnapshots] = useState<CloudSnapshotSummary[]>([]);
+  const [hasLoadedSnapshots, setHasLoadedSnapshots] = useState(false);
+  const [isLoadingSnapshots, setIsLoadingSnapshots] = useState(false);
+  const [isCreatingSnapshot, setIsCreatingSnapshot] = useState(false);
+  const [restoringSnapshotId, setRestoringSnapshotId] = useState<string | null>(null);
+
+  const loadSnapshotsList = async () => {
+    setIsLoadingSnapshots(true);
+    const list = await listCloudSnapshots();
+    setSnapshots(list);
+    setHasLoadedSnapshots(true);
+    setIsLoadingSnapshots(false);
+  };
 
   if (!isOpen) return null;
 
@@ -779,6 +802,128 @@ export default function SettingsModal({
                   <RefreshCw className="w-3 h-3 text-slate-600" />
                   <span>Nạp Dữ Liệu Gốc</span>
                 </button>
+              </div>
+            </div>
+
+            {/* KHUNG QUẢN LÝ SNAPSHOT DATABASE 1-CLICK */}
+            <div className="bg-gradient-to-br from-indigo-50 via-slate-50 to-purple-50 border-2 border-indigo-200/80 rounded-xl p-3.5 space-y-3 shadow-xs mt-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h5 className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5 text-indigo-950">
+                    <Camera className="w-4 h-4 text-indigo-700 shrink-0" />
+                    <span>Quản Lý Snapshot &amp; Đóng Băng Database (1-Click)</span>
+                  </h5>
+                  <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
+                    Tạo các bản chụp trạng thái (Snapshot) toàn bộ 12 bảng để khôi phục (Rollback) tức thì khi có sự cố.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const snapName = window.prompt('Nhập tên gợi nhớ cho bản Snapshot (Ví dụ: Trước khi cập nhật danh mục):', `Snapshot_${new Date().toLocaleDateString('vi-VN')}`);
+                    if (!snapName) return;
+                    setIsCreatingSnapshot(true);
+                    showToast('Đang tạo bản Snapshot trên Cloud DB...', 'info');
+                    const res = await createCloudSnapshot(snapName, 'Tạo từ Giao diện Cài đặt');
+                    setIsCreatingSnapshot(false);
+                    showToast(res.message, res.success ? 'success' : 'error');
+                    if (res.success) {
+                      loadSnapshotsList();
+                    }
+                  }}
+                  disabled={isCreatingSnapshot}
+                  className="px-2.5 py-1.5 bg-indigo-700 hover:bg-indigo-600 text-white rounded-lg font-bold text-[11px] flex items-center gap-1 shadow transition active:scale-95 disabled:opacity-50 cursor-pointer shrink-0"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>{isCreatingSnapshot ? 'Đang Chụp...' : '📸 Chụp Snapshot'}</span>
+                </button>
+              </div>
+
+              {/* Danh sách các bản Snapshot đã lưu */}
+              <div className="pt-2 border-t border-indigo-200/60">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-bold text-slate-700 text-[11px] flex items-center gap-1">
+                    <History className="w-3 h-3 text-slate-500" />
+                    <span>Lịch Sử Các Bản Snapshot ({snapshots.length})</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={loadSnapshotsList}
+                    disabled={isLoadingSnapshots}
+                    className="text-[10.5px] text-indigo-700 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-2.5 h-2.5 ${isLoadingSnapshots ? 'animate-spin' : ''}`} />
+                    <span>{hasLoadedSnapshots ? 'Tải lại danh sách' : 'Xem danh sách Snapshot'}</span>
+                  </button>
+                </div>
+
+                {!hasLoadedSnapshots ? (
+                  <button
+                    type="button"
+                    onClick={loadSnapshotsList}
+                    className="w-full py-2 bg-white/80 border border-dashed border-indigo-300 rounded-lg text-slate-600 hover:text-indigo-800 hover:bg-white text-center font-medium transition cursor-pointer text-[11px]"
+                  >
+                    Bấm để tải danh sách các bản Snapshot hiện có từ Cloud DB
+                  </button>
+                ) : snapshots.length === 0 ? (
+                  <div className="text-center py-2 text-slate-400 italic text-[11px]">
+                    Chưa có bản Snapshot nào được lưu trên Cloud DB.
+                  </div>
+                ) : (
+                  <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                    {snapshots.map((s) => (
+                      <div
+                        key={s.id}
+                        className="bg-white/90 border border-slate-200 rounded-lg p-2 flex items-center justify-between gap-2 text-[11px] hover:border-indigo-300 transition"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-800 truncate">{s.name}</p>
+                          <p className="text-[10px] text-slate-500">
+                            {new Date(s.createdAt).toLocaleString('vi-VN')} {s.createdBy ? `• Tạo bởi: ${s.createdBy}` : ''}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            disabled={restoringSnapshotId === s.id}
+                            onClick={async () => {
+                              if (!window.confirm(`Bạn có chắc muốn KHÔI PHỤC toàn bộ dữ liệu database về bản snapshot "${s.name}"? Dữ liệu hiện tại sẽ được thay thế bằng dữ liệu tại thời điểm chụp.`)) {
+                                return;
+                              }
+                              setRestoringSnapshotId(s.id);
+                              showToast('Đang khôi phục dữ liệu database...', 'info');
+                              const res = await restoreCloudSnapshot(s.id);
+                              setRestoringSnapshotId(null);
+                              showToast(res.message, res.success ? 'success' : 'error');
+                              if (res.success) {
+                                window.location.reload();
+                              }
+                            }}
+                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-bold text-[10px] flex items-center gap-1 transition active:scale-95 disabled:opacity-50 cursor-pointer"
+                          >
+                            {restoringSnapshotId === s.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+                            <span>Khôi phục</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!window.confirm(`Xóa bản snapshot "${s.name}"?`)) return;
+                              const res = await deleteCloudSnapshot(s.id);
+                              showToast(res.message, res.success ? 'success' : 'error');
+                              if (res.success) {
+                                loadSnapshotsList();
+                              }
+                            }}
+                            className="p-1 text-slate-400 hover:text-red-600 rounded transition cursor-pointer"
+                            title="Xóa snapshot"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>

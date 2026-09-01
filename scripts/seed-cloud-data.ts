@@ -430,30 +430,74 @@ async function main() {
         await sql`INSERT INTO "catalog_item_equipments" ${sql(cieRows)}`;
       }
 
-      // 5. Test Packages
+      // 5. Test Packages & Package Items
+      await sql`DELETE FROM "package_items"`;
       await sql`DELETE FROM "test_packages"`;
       const pkgRows = TEST_PACKAGES.map((p) => ({
         id: p.id,
         name: p.name,
         default_equipment_id: p.defaultEquipmentId || null,
-        items: sql.json(p.items || (p.codes || []).map((c) => ({ code: c, equipmentId: null }))),
         price: p.price ?? 0
       }));
       if (pkgRows.length > 0) {
         await sql`INSERT INTO "test_packages" ${sql(pkgRows)}`;
       }
 
-      // 5b. Allergen Scales
+      const allPkgItems: { id: string; package_id: string; catalog_code: string; equipment_id: string | null; order_index: number }[] = [];
+      for (const p of TEST_PACKAGES) {
+        const items = p.items || (p.codes || []).map((c) => ({ code: c }));
+        for (let idx = 0; idx < items.length; idx++) {
+          const it = items[idx];
+          const code = typeof it === 'string' ? it : (it.code || '');
+          const eqId = typeof it === 'object' ? (it.equipmentId || null) : null;
+          if (!code) continue;
+          allPkgItems.push({
+            id: `${p.id}_${code}_${idx}`,
+            package_id: p.id,
+            catalog_code: code,
+            equipment_id: eqId,
+            order_index: idx
+          });
+        }
+      }
+      if (allPkgItems.length > 0) {
+        await sql`INSERT INTO "package_items" ${sql(allPkgItems)}`;
+      }
+
+      // 5b. Allergen Scales & Scale Levels
+      await sql`DELETE FROM "allergen_scale_levels"`;
       await sql`DELETE FROM "allergen_scales"`;
       const scaleRows = DEFAULT_ALLERGEN_SCALES.map((s) => ({
         id: s.id,
         name: s.name,
         equipment: s.equipment || null,
-        unit: s.unit || 'IU/ml',
-        levels: sql.json(s.levels || [])
+        unit: s.unit || 'IU/ml'
       }));
       if (scaleRows.length > 0) {
         await sql`INSERT INTO "allergen_scales" ${sql(scaleRows)}`;
+      }
+
+      const allLevels: { id: string; scale_id: string; grade: number; min_val: number; max_val: number | null; range_text: string; label: string; is_positive: boolean; color_key: string | null; order_index: number }[] = [];
+      for (const s of DEFAULT_ALLERGEN_SCALES) {
+        const levels = s.levels || [];
+        for (let idx = 0; idx < levels.length; idx++) {
+          const l = levels[idx];
+          allLevels.push({
+            id: `${s.id}_grade_${l.grade}`,
+            scale_id: s.id,
+            grade: l.grade,
+            min_val: l.minVal,
+            max_val: l.maxVal ?? null,
+            range_text: l.rangeText,
+            label: l.label,
+            is_positive: l.isPositive,
+            color_key: l.colorKey || null,
+            order_index: idx
+          });
+        }
+      }
+      if (allLevels.length > 0) {
+        await sql`INSERT INTO "allergen_scale_levels" ${sql(allLevels)}`;
       }
 
       // 6. Doctors
