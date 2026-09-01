@@ -264,9 +264,7 @@ function PrintReportView({
             width: '210mm',
             minWidth: '210mm',
             maxWidth: '210mm',
-            height: '297mm',
             minHeight: '297mm',
-            maxHeight: '297mm',
             padding: '10mm 14mm 10mm 14mm',
             boxSizing: 'border-box',
             pageBreakAfter: pIdx < totalPages - 1 ? 'always' : 'auto',
@@ -280,11 +278,12 @@ function PrintReportView({
             {page.isFirstPage ? (
               <div data-avoid-break="true" className="header-section flex items-center justify-between border-b-2 border-slate-300 pb-2.5 mb-2">
                 <div className="flex items-center space-x-4">
-                  <div className="h-[74px] w-[142px] flex items-center justify-center shrink-0">
+                  <div className="h-[74px] w-[142px] max-h-[74px] max-w-[142px] flex items-center justify-center shrink-0 overflow-hidden">
                     <img
                       src={currentLogo}
                       alt="GoLab Logo"
-                      className="max-h-full max-w-full w-auto h-auto object-contain object-center"
+                      style={{ maxHeight: '74px', maxWidth: '142px', height: '74px', width: 'auto', objectFit: 'contain' }}
+                      className="h-[74px] max-w-[142px] w-auto object-contain object-center shrink-0"
                       loading="eager"
                       decoding="sync"
                       onError={(e) => {
@@ -317,7 +316,8 @@ function PrintReportView({
                       src={finalQrCode}
                       alt="QR Code Tra Cứu"
                       data-qr="true"
-                      className="w-14 h-14 object-contain"
+                      style={{ width: '56px', height: '56px', objectFit: 'contain' }}
+                      className="w-14 h-14 object-contain shrink-0"
                       loading="eager"
                       decoding="sync"
                     />
@@ -410,7 +410,7 @@ function PrintReportView({
             )}
 
             {/* 4. BẢNG CHỈ SỐ XÉT NGHIỆM TRÊN TRANG HIỆN TẠI (TĂNG CHIỀU CAO HÀNG ĐỂ ĐỌC DỄ DÀNG) */}
-            <div className="border border-slate-300 rounded mb-2.5 bg-white overflow-hidden">
+            {page.entries.length !== 0 && <div className="border border-slate-300 rounded mb-2.5 bg-white overflow-hidden">
               <table className="w-full table-fixed text-left text-[13px] border-collapse">
                 <colgroup>
                   <col className="w-[5%]" />
@@ -507,7 +507,7 @@ function PrintReportView({
                 </tbody>
               </table>
             </div>
-
+}
             {/* 5. KHỐI KẾT LUẬN CỦA BÁC SĨ (CHỈ XUẤT HIỆN Ở TRANG CUỐI) */}
             {page.showConclusion && conclusion && (
               <div data-avoid-break="true" className="conclusion-section border border-sky-300 bg-sky-50/60 rounded p-2.5 mb-2 text-[13.5px] leading-snug">
@@ -533,13 +533,17 @@ function PrintReportView({
                   </div>
 
                   {/* Bên phải: Chữ ký & Đóng dấu Phụ trách chuyên môn */}
-                  <div className="text-center min-w-[220px]">
+                  <div className="text-center min-w-[220px] flex flex-col items-center">
                     <p className="text-[12.5px] text-slate-700 italic leading-normal pb-0.5">Ngày {currentDateStr}</p>
                     <p className="text-[13.5px] font-bold uppercase text-slate-900 my-1 tracking-wide leading-normal pb-0.5">PHỤ TRÁCH CHUYÊN MÔN</p>
-                    <div className="h-20 flex items-center justify-center my-1.5">
+                    <div 
+                      className="h-20 w-[120px] flex items-center justify-center my-1.5 overflow-hidden mx-auto"
+                      style={{ margin: '6px auto' }}
+                    >
                       <img
                         src={currentStamp}
                         alt="Đã ký & Đóng dấu"
+                        style={{ maxHeight: '80px', maxWidth: '120px', height: '80px', width: 'auto', objectFit: 'contain' }}
                         className="h-20 w-auto object-contain max-w-[120px]"
                         loading="eager"
                         decoding="sync"

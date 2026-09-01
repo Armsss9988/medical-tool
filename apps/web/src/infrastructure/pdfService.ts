@@ -288,7 +288,9 @@ export async function generateHighQualityPdf(
       if (i > 0) {
         pdf.addPage('a4', 'portrait');
       }
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
+      const imgWidth = pdfWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight, undefined, 'FAST');
     }
   } else {
     // -------------------------------------------------------------

@@ -67,6 +67,7 @@ function AppContent() {
     closeReportManager,
     openBatchExportModal,
     openAiSmartFillModal,
+    openTemplateBuilder,
     closeAllModals
   } = useModal();
 
@@ -257,6 +258,7 @@ function AppContent() {
       { key: 'p', ctrl: true, action: () => openPreview(), disableInModal: true },
       { key: 'e', ctrl: true, shift: true, action: handleExportPdfAndUpload, disableInModal: true },
       { key: 'l', ctrl: true, action: () => openReportManager(), disableInModal: true },
+      { key: 'F8', action: openTemplateBuilder, disableInModal: true },
       { key: 'Escape', action: closeAllModals }
     ],
     [
@@ -265,6 +267,7 @@ function AppContent() {
       openPreview,
       handleExportPdfAndUpload,
       openReportManager,
+      openTemplateBuilder,
       closeAllModals
     ]
   );
@@ -282,6 +285,7 @@ function AppContent() {
         onOpenReportManagerModal={openReportManager}
         onOpenBatchExportModal={openBatchExportModal}
         onOpenAiSmartFill={() => openAiSmartFillModal('CATALOG_ITEMS')}
+        onOpenTemplateBuilder={openTemplateBuilder}
         onOpenDataFolder={handleOpenDataDirectory}
         onLoadExcelFile={handleLoadExcelFile}
         reportCount={reports.length}

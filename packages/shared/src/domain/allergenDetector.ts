@@ -6,12 +6,20 @@ import type { CatalogItem } from './types';
 //       EXCEPT for TIgE (Total IgE) which is a special aggregate indicator.
 
 /**
+ * Kiểm tra 1 chỉ số có phải là Tổng IgE (TIgE / Total IgE) hay không.
+ */
+export function isTIgETest(test: Pick<CatalogItem, 'code'> & { name?: string }): boolean {
+  const code = (test.code || '').toLowerCase().trim();
+  const name = (test.name || '').toLowerCase().trim();
+  return code === 'tige' || code === 'total_ige' || code === 'total-ige' || code.includes('tige') || name.includes('tổng ige') || name.includes('total ige');
+}
+
+/**
  * Kiểm tra 1 chỉ số có phải dị nguyên (allergen) không.
  * Áp dụng cho cả CatalogItem và SelectedTest.
  */
-export function isAllergenTest(test: Pick<CatalogItem, 'code' | 'category' | 'unit'>): boolean {
-  const isTIgE = (test.code || '').toLowerCase() === 'tige';
-  if (isTIgE) return false;
+export function isAllergenTest(test: Pick<CatalogItem, 'code' | 'category' | 'unit'> & { name?: string }): boolean {
+  if (isTIgETest(test)) return false;
   return (test.category?.includes('Dị Nguyên') === true) || test.unit === 'IU/mL';
 }
 

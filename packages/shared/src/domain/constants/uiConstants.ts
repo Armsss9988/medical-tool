@@ -36,8 +36,10 @@ export type CatalogTabType = typeof CATALOG_TAB[keyof typeof CATALOG_TAB];
 export const PRINT_ELEMENT_ID = {
   MEDICAL_REPORT: 'printable-medical-report',
   ALLERGEN_REPORT: 'printable-allergen-report',
+  HYBRID_REPORT: 'printable-hybrid-report',
   BATCH_MEDICAL: 'batch-medical-report',
-  BATCH_ALLERGEN: 'batch-allergen-report'
+  BATCH_ALLERGEN: 'batch-allergen-report',
+  BATCH_HYBRID: 'batch-hybrid-report'
 } as const;
 
 export type PrintElementId = typeof PRINT_ELEMENT_ID[keyof typeof PRINT_ELEMENT_ID];

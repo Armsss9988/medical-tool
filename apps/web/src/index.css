@@ -42,7 +42,15 @@
   background: #94a3b8;
 }
 
-/* Specific styling for A4 Print Paper preview & Direct Browser Printing */
+/* Định dạng khung trang A4 chuẩn y khoa 210mm x min 297mm */
+.report-page {
+  width: 210mm !important;
+  min-width: 210mm !important;
+  max-width: 210mm !important;
+  min-height: 297mm !important;
+  box-sizing: border-box !important;
+}
+
 @media print {
   html, body {
     background-color: #ffffff !important;
@@ -71,9 +79,6 @@
     break-after: page;
     margin: 0 !important;
     box-shadow: none !important;
-    width: 210mm !important;
-    min-height: 297mm !important;
-    box-sizing: border-box !important;
   }
 
   .report-page:last-child {

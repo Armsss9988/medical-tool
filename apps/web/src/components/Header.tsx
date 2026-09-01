@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Activity, ListChecks, TrendingUp, FolderOpen, Clock, Phone, ShieldCheck, ClipboardList, Package, Menu, X, Sparkles } from 'lucide-react';
+import { Settings, Activity, ListChecks, TrendingUp, FolderOpen, Clock, Phone, ShieldCheck, ClipboardList, Package, Menu, X, Sparkles, Palette } from 'lucide-react';
 import { ClinicInfo, CatalogItem } from '@domain/types';
 
 interface HeaderProps {
@@ -13,6 +13,7 @@ interface HeaderProps {
   onOpenReportManagerModal: () => void;
   onOpenBatchExportModal?: () => void;
   onOpenAiSmartFill?: () => void;
+  onOpenTemplateBuilder?: () => void;
   onOpenDataFolder: () => void;
   invoiceCount?: number;
   reportCount?: number;
@@ -26,6 +27,7 @@ export default function Header({
   onOpenReportManagerModal,
   onOpenBatchExportModal,
   onOpenAiSmartFill,
+  onOpenTemplateBuilder,
   onOpenDataFolder,
   invoiceCount = 0,
   reportCount = 0
@@ -166,6 +168,19 @@ export default function Header({
             <span>Danh Mục</span>
           </button>
 
+          {/* Trình Thiết Kế Mẫu In Button */}
+          {onOpenTemplateBuilder && (
+            <button
+              type="button"
+              onClick={onOpenTemplateBuilder}
+              title="Trình thiết kế và chỉnh sửa mẫu phiếu in A4 kéo thả trực quan"
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-sky-300 hover:text-sky-200 text-xs font-bold border border-sky-500/40 shadow transition-all active:scale-95 group"
+            >
+              <Palette className="w-3.5 h-3.5 text-sky-400 group-hover:rotate-12 transition-transform" />
+              <span>Mẫu In</span>
+            </button>
+          )}
+
           {/* Mở Thư Mục Dữ Liệu Button */}
           {window.electronAPI?.openDataFolder && (
             <button
@@ -294,6 +309,17 @@ export default function Header({
               <ListChecks className="w-4 h-4 text-sky-400 shrink-0" />
               <span className="truncate">Quản Lý Danh Mục</span>
             </button>
+
+            {onOpenTemplateBuilder && (
+              <button
+                type="button"
+                onClick={() => handleMobileNav(onOpenTemplateBuilder)}
+                className="p-2.5 bg-slate-800 border border-sky-500/40 text-sky-300 rounded-xl flex items-center space-x-2 text-left active:scale-95 transition"
+              >
+                <Palette className="w-4 h-4 text-sky-400 shrink-0" />
+                <span className="truncate">Thiết Kế Mẫu In</span>
+              </button>
+            )}
           </div>
 
           <div className="pt-2 border-t border-slate-800 flex items-center justify-between">

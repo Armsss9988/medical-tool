@@ -16,6 +16,8 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    pool: 'threads',
+    maxWorkers: 2,
     include: ['apps/web/src/**/*.test.{ts,tsx}', 'packages/shared/src/**/*.test.{ts,tsx}']
   }
 });

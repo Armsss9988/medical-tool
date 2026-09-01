@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import PrintReportView from './PrintReportView';
 import FullAllergenReportView from './FullAllergenReportView';
+import HybridReportView from './HybridReportView';
 import { ClinicInfo, Patient, SelectedTest, ToastType, TestPackage, TestEquipment, CatalogItemEquipmentLink, AllergenGradingScale } from '@domain/types';
 import { hasAllergenTests, hasMixedTests } from '@domain/allergenDetector';
 import {
@@ -141,7 +142,7 @@ export default function PdfPreviewModal({
                   </span>
                 ) : isAllergenOnly ? (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                    Booklet Dị Nguyên 6 Trang
+                    Booklet Dị Nguyên
                   </span>
                 ) : null}
               </h3>
@@ -153,7 +154,7 @@ export default function PdfPreviewModal({
 
           {/* Quick Action Controls trong Header Modal */}
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
-            
+
             {/* Nút Xem Lịch Sử Version */}
             {historyList.length > 0 && (
               <button
@@ -174,7 +175,7 @@ export default function PdfPreviewModal({
             <div className="flex items-center space-x-1 bg-slate-800 border border-slate-700 rounded-lg p-1 mr-1">
               <button
                 onClick={handleZoomOut}
-                className="p-1 text-slate-300 hover:text-white hover:bg-slate-700 rounded transition"
+                className="p-1 text-slate-300 hover:text-white hover:bg-slate-700 rounded transition cursor-pointer"
                 title="Thu nhỏ xem toàn trang"
               >
                 <ZoomOut className="w-3.5 h-3.5" />
@@ -184,14 +185,14 @@ export default function PdfPreviewModal({
               </span>
               <button
                 onClick={handleZoomIn}
-                className="p-1 text-slate-300 hover:text-white hover:bg-slate-700 rounded transition"
+                className="p-1 text-slate-300 hover:text-white hover:bg-slate-700 rounded transition cursor-pointer"
                 title="Phóng to"
               >
                 <ZoomIn className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={handleResetZoom}
-                className="p-1 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition ml-0.5"
+                className="p-1 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition ml-0.5 cursor-pointer"
                 title="Đặt về tỷ lệ vừa màn hình"
               >
                 <Maximize2 className="w-3.5 h-3.5" />
@@ -212,8 +213,11 @@ export default function PdfPreviewModal({
             {onDownloadPdf && (
               <button
                 onClick={() => {
-                  const isAllergen = hasAllergenTests(safeSelectedTests);
-                  const elemId = isAllergen ? 'preview-allergen-element' : 'preview-print-element';
+                  const elemId = isMixed
+                    ? 'preview-hybrid-element'
+                    : isAllergenOnly
+                    ? 'preview-allergen-element'
+                    : 'preview-print-element';
                   const fname = `PhieuXN_${(safePatient.name || 'BenhNhan').replace(/\s+/g, '_')}_${safePatient.code}.pdf`;
                   onDownloadPdf(elemId, fname);
                 }}
@@ -406,28 +410,42 @@ export default function PdfPreviewModal({
             className="shadow-2xl rounded-sm overflow-hidden bg-white transition-transform duration-150 origin-top"
             style={{ transform: `scale(${zoomScale})` }}
           >
-            {hasAllergenTests(safeSelectedTests) ? (
-              <FullAllergenReportView
-                elementId="preview-allergen-element"
-                clinicInfo={clinicInfo}
+            {isMixed ? (
+              <HybridReportView
+                elementId="preview-hybrid-element"
                 patient={safePatient}
                 selectedTests={safeSelectedTests}
+                clinicInfo={clinicInfo}
                 doctorName={doctorName}
                 conclusion={conclusion}
                 qrCodeDataUrl={qrCodeDataUrl}
                 testPackages={testPackages}
-                allergenScales={allergenScales}
                 equipments={equipments}
                 catalogItemEquipments={catalogItemEquipments}
+                allergenScales={allergenScales}
+              />
+            ) : isAllergenOnly ? (
+              <FullAllergenReportView
+                elementId="preview-allergen-element"
+                patient={safePatient}
+                selectedTests={safeSelectedTests}
+                clinicInfo={clinicInfo}
+                doctorName={doctorName}
+                conclusion={conclusion}
+                qrCodeDataUrl={qrCodeDataUrl}
+                testPackages={testPackages}
+                equipments={equipments}
+                catalogItemEquipments={catalogItemEquipments}
+                allergenScales={allergenScales}
               />
             ) : (
               <PrintReportView
                 elementId="preview-print-element"
-                clinicInfo={clinicInfo}
                 patient={safePatient}
                 selectedTests={safeSelectedTests}
-                conclusion={conclusion}
+                clinicInfo={clinicInfo}
                 doctorName={doctorName}
+                conclusion={conclusion}
                 qrCodeDataUrl={qrCodeDataUrl}
                 equipments={equipments}
                 catalogItemEquipments={catalogItemEquipments}
