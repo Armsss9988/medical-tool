@@ -191,20 +191,6 @@ function AllergenCoverPage({
                     </tr>
                   );
                 })}
-
-                {/* Dòng tóm tắt Gói Dị Nguyên */}
-                <tr className="bg-sky-50/60 font-semibold border-t-2 border-sky-200">
-                  <td className="py-1.5 px-2 text-center font-mono text-sky-900 border-r border-slate-200">{regularTests.length + 1}</td>
-                  <td className="py-1.5 px-2.5 text-sky-950 font-bold border-r border-slate-200">
-                    Panel {totalCount} Dị Nguyên {packageName ? `(${packageName})` : ''}
-                  </td>
-                  <td className="py-1.5 px-2 text-center font-bold text-sky-800 italic border-r border-slate-200 text-[11.5px]">
-                    Xem trang sau
-                  </td>
-                  <td className="py-1.5 px-2 text-center font-mono text-slate-500 text-[11px] border-r border-slate-200">---</td>
-                  <td className="py-1.5 px-1.5 text-center font-mono text-slate-700 text-[11px] border-r border-slate-200">Gói</td>
-                  <td className="py-1.5 px-2 text-sky-900 text-[11px]">Máy Đọc Dị Nguyên PROTIA</td>
-                </tr>
               </tbody>
             </table>
           </div>
