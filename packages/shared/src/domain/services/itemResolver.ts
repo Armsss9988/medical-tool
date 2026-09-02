@@ -4,9 +4,12 @@ import {
   ReferenceRangeItem, 
   AllergenGradingScale, 
   TestEquipment, 
-  EvaluationType 
+  EvaluationType,
+  SelectedTest
 } from '../types';
 import { getAllergenScaleById } from '../constants/allergenScales';
+import { evaluateTestIndicator } from '../testResult';
+import { isTIgETest } from '../allergenDetector';
 
 export const DEFAULT_CODE_TO_REFERENCE_RANGE_MAP: Record<string, string> = {
   GLU: 'ref_glucose',
@@ -214,5 +217,114 @@ export function resolveIndicatorReference(
     equipmentId: activeEquipmentId,
     equipmentName: activeEquipmentName,
     isAllergen: false
+  };
+}
+
+/**
+ * Khởi tạo 1 đối tượng SelectedTest hoàn chỉnh từ CatalogItem:
+ * - Tự động phân giải thiết bị, ngưỡng tham chiếu động, đơn vị, thang đo.
+ * - Gán kết quả ban đầu rỗng và ghi chú mặc định ('Bình thường' hoặc 'Âm tính (Độ 0)').
+ */
+export function buildSelectedTest(
+  item: CatalogItem,
+  options: ResolveIndicatorOptions = {}
+): SelectedTest {
+  const resolved = resolveIndicatorReference(item, options);
+  const isTIgE = isTIgETest(item);
+  const defaultNote = isTIgE ? 'Bình thường' : resolved.isAllergen ? 'Âm tính (Độ 0)' : 'Bình thường';
+
+  return {
+    ...item,
+    equipmentId: resolved.equipmentId,
+    equipment: resolved.equipmentName,
+    refMin: resolved.refMin,
+    refMax: resolved.refMax,
+    refText: resolved.refText,
+    unit: resolved.unit,
+    scaleId: resolved.scaleId,
+    result: '',
+    note: defaultNote
+  };
+}
+
+/**
+ * Tính toán giá trị điền nhanh chuẩn bình thường (Quick Demo / Auto Fill Normal Values):
+ * - TIgE: '<15,0', 'Bình thường'
+ * - Dị nguyên (Allergen): '<0.35' (Scale 44) hoặc '<0.34' (Scale 91...), 'Âm tính (Độ 0)'
+ * - Xét nghiệm thường:
+ *   + Có cả min & max: Điểm giữa (min + max) / 2
+ *   + Chỉ có max: max * 0.7
+ *   + Định tính (không có số): 'Âm tính', 'Bình thường'
+ */
+export function computeAutoFillValue(
+  test: SelectedTest,
+  options: ResolveIndicatorOptions = {}
+): { result: string; note: string } {
+  const resolved = resolveIndicatorReference(test, {
+    equipmentId: test.equipmentId,
+    ...options
+  });
+
+  const isTIgE = isTIgETest(test);
+  if (isTIgE) {
+    return {
+      result: '<15,0',
+      note: 'Bình thường'
+    };
+  }
+
+  if (resolved.isAllergen) {
+    const isScale44 = resolved.scaleId === 'scale_allergen_44';
+    return {
+      result: isScale44 ? '<0.35' : '<0.34',
+      note: 'Âm tính (Độ 0)'
+    };
+  }
+
+  let normalVal = '';
+  if (resolved.refMin !== null && resolved.refMin !== undefined && resolved.refMax !== null && resolved.refMax !== undefined) {
+    const mid = (resolved.refMin + resolved.refMax) / 2;
+    normalVal = Number.isInteger(mid) ? String(mid) : mid.toFixed(1);
+  } else if (resolved.refMax !== null && resolved.refMax !== undefined) {
+    normalVal = (resolved.refMax * 0.7).toFixed(1);
+  } else {
+    normalVal = 'Âm tính';
+  }
+
+  return {
+    result: normalVal,
+    note: 'Bình thường'
+  };
+}
+
+/**
+ * Đánh giá kết quả nhập liệu động của chỉ số xét nghiệm:
+ * - Tự động phân giải ngưỡng tham chiếu theo thiết bị hiện thời
+ * - Đánh giá qua evaluateTestIndicator để xác định ghi chú tự động (Bình thường / CAO ↑ / THẤP ↓ / Độ 0-6...)
+ */
+export function evaluateIndicatorChange(
+  test: SelectedTest,
+  rawVal: string,
+  options: ResolveIndicatorOptions = {}
+): { result: string; note: string } {
+  const resolved = resolveIndicatorReference(test, {
+    equipmentId: test.equipmentId,
+    ...options
+  });
+
+  const evalRes = evaluateTestIndicator(
+    test.code,
+    test.category,
+    resolved.unit,
+    rawVal,
+    resolved.refMin,
+    resolved.refMax,
+    resolved.scale
+  );
+  const autoNote = evalRes.label || test.note;
+
+  return {
+    result: rawVal,
+    note: autoNote
   };
 }

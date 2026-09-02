@@ -80,6 +80,11 @@ export default [
           pattern: '**/src/contexts/**'
         },
         {
+          type: 'features',
+          pattern: '**/src/features/*/**',
+          capture: ['featureName']
+        },
+        {
           type: 'components',
           pattern: '**/src/components/**'
         },
@@ -174,8 +179,31 @@ export default [
                 { to: { element: { type: 'contexts' } } }
               ]
             },
+            // Feature Slices: Vertical Slice Architecture.
+            // Can depend on Domain, Infrastructure, Contexts, Data, Shared Schemas, Components, and its OWN slice.
+            // STRICT RULE: Feature slice A CANNOT import Feature slice B (No Cross-Slice Imports).
+            {
+              from: { element: { type: 'features' } },
+              allow: [
+                { to: { element: { type: 'domain' } } },
+                { to: { element: { type: 'usecases' } } },
+                { to: { element: { type: 'infrastructure' } } },
+                { to: { element: { type: 'contexts' } } },
+                { to: { element: { type: 'data' } } },
+                { to: { element: { type: 'shared-schemas' } } },
+                { to: { element: { type: 'components' } } },
+                {
+                  to: {
+                    element: {
+                      type: 'features',
+                      captured: { featureName: '{{from.captured.featureName}}' }
+                    }
+                  }
+                }
+              ]
+            },
             // Hooks layer: React presentation controllers.
-            // Can depend on Domain, UseCases, Infrastructure, Data, Hooks, Contexts.
+            // Can depend on Domain, UseCases, Infrastructure, Data, Hooks, Contexts, Features.
             // CANNOT depend on Components.
             {
               from: { element: { type: 'hooks' } },
@@ -185,7 +213,8 @@ export default [
                 { to: { element: { type: 'infrastructure' } } },
                 { to: { element: { type: 'data' } } },
                 { to: { element: { type: 'hooks' } } },
-                { to: { element: { type: 'contexts' } } }
+                { to: { element: { type: 'contexts' } } },
+                { to: { element: { type: 'features' } } }
               ]
             },
             // Components layer: Presentation UI.
@@ -198,7 +227,8 @@ export default [
                 { to: { element: { type: 'hooks' } } },
                 { to: { element: { type: 'contexts' } } },
                 { to: { element: { type: 'data' } } },
-                { to: { element: { type: 'components' } } }
+                { to: { element: { type: 'components' } } },
+                { to: { element: { type: 'features' } } }
               ]
             },
             // Entry point (App.tsx, main.tsx)
@@ -212,6 +242,7 @@ export default [
                 { to: { element: { type: 'contexts' } } },
                 { to: { element: { type: 'data' } } },
                 { to: { element: { type: 'components' } } },
+                { to: { element: { type: 'features' } } },
                 { to: { element: { type: 'entry' } } }
               ]
             },

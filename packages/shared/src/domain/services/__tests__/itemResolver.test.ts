@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveIndicatorReference } from '../itemResolver';
+import { resolveIndicatorReference, buildSelectedTest, computeAutoFillValue, evaluateIndicatorChange } from '../itemResolver';
 import { CatalogItem, CatalogItemEquipmentLink, ReferenceRangeItem, AllergenGradingScale, TestEquipment } from '../../types';
 
 describe('Unified Reference Resolver (resolveIndicatorReference)', () => {
@@ -167,4 +167,128 @@ describe('Unified Reference Resolver (resolveIndicatorReference)', () => {
     expect(resolved.unit).toBe('mmol/L');
     expect(resolved.evaluationType).toBe('range');
   });
+
+  describe('buildSelectedTest', () => {
+    it('khởi tạo SelectedTest chuẩn cho chỉ số thường với defaultNote là Bình thường', () => {
+      const item: CatalogItem = {
+        code: 'GLU',
+        name: 'Glucose máu',
+        category: 'Sinh Hóa',
+        unit: 'mmol/L',
+        refText: ''
+      };
+
+      const selected = buildSelectedTest(item, { referenceRanges: mockReferenceRanges });
+      expect(selected.code).toBe('GLU');
+      expect(selected.refMin).toBe(3.9);
+      expect(selected.refMax).toBe(6.4);
+      expect(selected.result).toBe('');
+      expect(selected.note).toBe('Bình thường');
+    });
+
+    it('khởi tạo SelectedTest cho chỉ số dị nguyên với defaultNote là Âm tính (Độ 0)', () => {
+      const item: CatalogItem = {
+        code: 'd1',
+        name: 'Mạt bụi nhà',
+        category: 'Dị Nguyên Hô Hấp',
+        unit: 'IU/mL',
+        refText: ''
+      };
+
+      const selected = buildSelectedTest(item, {
+        catalogItemEquipments: mockEquipmentLinks,
+        allergenScales: mockScales
+      });
+      expect(selected.code).toBe('d1');
+      expect(selected.note).toBe('Âm tính (Độ 0)');
+      expect(selected.scaleId).toBe('scale_protia_91');
+    });
+
+    it('khởi tạo SelectedTest cho TIgE với defaultNote là Bình thường', () => {
+      const item: CatalogItem = {
+        code: 'TIgE',
+        name: 'Tổng nồng độ IgE',
+        category: 'Dị Nguyên & Miễn Dịch',
+        unit: 'IU/mL',
+        refText: ''
+      };
+
+      const selected = buildSelectedTest(item);
+      expect(selected.code).toBe('TIgE');
+      expect(selected.note).toBe('Bình thường');
+    });
+  });
+
+  describe('computeAutoFillValue', () => {
+    it('điền giá trị điểm giữa cho chỉ số thường có cả min và max', () => {
+      const test = buildSelectedTest({ code: 'GLU', name: 'Glucose', category: 'Sinh Hóa', unit: 'mmol/L', refText: '' }, { referenceRanges: mockReferenceRanges });
+      const fill = computeAutoFillValue(test, { referenceRanges: mockReferenceRanges });
+      expect(fill.result).toBe('5.2'); // (3.9 + 6.4) / 2 = 5.15 -> 5.2
+      expect(fill.note).toBe('Bình thường');
+    });
+
+    it('điền giá trị âm tính cho dị nguyên Scale 91', () => {
+      const test = buildSelectedTest({ code: 'd1', name: 'Mạt bụi', category: 'Dị Nguyên', unit: 'IU/mL', refText: '' }, {
+        catalogItemEquipments: mockEquipmentLinks,
+        allergenScales: mockScales
+      });
+      const fill = computeAutoFillValue(test, {
+        catalogItemEquipments: mockEquipmentLinks,
+        allergenScales: mockScales
+      });
+      expect(fill.result).toBe('<0.34');
+      expect(fill.note).toBe('Âm tính (Độ 0)');
+    });
+
+    it('điền giá trị âm tính cho dị nguyên Scale 44', () => {
+      const test = buildSelectedTest({ code: 'd1', name: 'Mạt bụi', category: 'Dị Nguyên', unit: 'IU/mL', refText: '' }, {
+        equipmentId: 'eq_mediwiss',
+        catalogItemEquipments: mockEquipmentLinks,
+        allergenScales: mockScales
+      });
+      const fill = computeAutoFillValue(test, {
+        catalogItemEquipments: mockEquipmentLinks,
+        allergenScales: mockScales
+      });
+      expect(fill.result).toBe('<0.35');
+      expect(fill.note).toBe('Âm tính (Độ 0)');
+    });
+
+    it('điền <15,0 cho TIgE', () => {
+      const test = buildSelectedTest({ code: 'TIgE', name: 'Tổng IgE', category: 'Dị Nguyên', unit: 'IU/mL', refText: '' });
+      const fill = computeAutoFillValue(test);
+      expect(fill.result).toBe('<15,0');
+      expect(fill.note).toBe('Bình thường');
+    });
+  });
+
+  describe('evaluateIndicatorChange', () => {
+    it('đánh giá chỉ số thường khi giá trị vượt ngưỡng max thành CAO ↑', () => {
+      const test = buildSelectedTest({ code: 'GLU', name: 'Glucose', category: 'Sinh Hóa', unit: 'mmol/L', refText: '' }, { referenceRanges: mockReferenceRanges });
+      const change = evaluateIndicatorChange(test, '8.5', { referenceRanges: mockReferenceRanges });
+      expect(change.result).toBe('8.5');
+      expect(change.note).toBe('CAO ↑');
+    });
+
+    it('đánh giá chỉ số thường khi trong ngưỡng bình thường', () => {
+      const test = buildSelectedTest({ code: 'GLU', name: 'Glucose', category: 'Sinh Hóa', unit: 'mmol/L', refText: '' }, { referenceRanges: mockReferenceRanges });
+      const change = evaluateIndicatorChange(test, '5.0', { referenceRanges: mockReferenceRanges });
+      expect(change.result).toBe('5.0');
+      expect(change.note).toBe('Bình thường');
+    });
+
+    it('đánh giá chỉ số dị nguyên khi có phản ứng dương tính', () => {
+      const test = buildSelectedTest({ code: 'd1', name: 'Mạt bụi', category: 'Dị Nguyên', unit: 'IU/mL', refText: '' }, {
+        catalogItemEquipments: mockEquipmentLinks,
+        allergenScales: mockScales
+      });
+      const change = evaluateIndicatorChange(test, '1.5', {
+        catalogItemEquipments: mockEquipmentLinks,
+        allergenScales: mockScales
+      });
+      expect(change.result).toBe('1.5');
+      expect(change.note).toBe('Dương tính trung bình (Độ 2)');
+    });
+  });
 });
+

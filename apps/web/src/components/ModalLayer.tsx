@@ -1,15 +1,11 @@
-import SettingsModal from './SettingsModal';
-import PdfPreviewModal from './PdfPreviewModal';
-import CatalogManagerModal from './CatalogManagerModal';
-import InvoiceModal from './InvoiceModal';
-import RevenueManagerModal from './RevenueManagerModal';
-import ReportManagerModal from './ReportManagerModal';
-import SendZaloModal from './SendZaloModal';
-import BatchExportModal from './BatchExportModal';
-import TransactionLoadingModal from './TransactionLoadingModal';
-import UnsavedChangesModal from './UnsavedChangesModal';
-import AiSmartFillModal from './ai/AiSmartFillModal';
-import TemplateBuilderModal from './templateBuilder/TemplateBuilderModal';
+import { SettingsModal, TransactionLoadingModal, UnsavedChangesModal } from '@features/settings-clinic';
+import { PdfPreviewModal } from '@features/report-export';
+import { CatalogManagerModal } from '@features/catalog-management';
+import { InvoiceModal, RevenueManagerModal } from '@features/billing-revenue';
+import { ReportManagerModal } from '@features/report-history';
+import { SendZaloModal } from '@features/zalo-integration';
+import { BatchExportModal, AiSmartFillModal } from '@features/batch-import-export';
+import { TemplateBuilderModal } from '@features/template-builder';
 
 import { useWorkspace } from '../contexts/WorkspaceContext';
 import { useModal } from '../contexts/ModalContext';

@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import PatientForm from './PatientForm';
-import TestTable from './TestTable';
-import ConclusionForm from './ConclusionForm';
+import { PatientForm } from '@features/patient-session';
+import { TestTable, ConclusionForm } from '@features/lab-testing';
 import { useWorkspace } from '../contexts/WorkspaceContext';
 import { useToast } from '../contexts/ToastContext';
 import { User, FlaskConical, FileText, CreditCard, Eye, CloudUpload } from 'lucide-react';

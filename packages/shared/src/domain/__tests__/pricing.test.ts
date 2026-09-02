@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computePricingWithPackages, buildInvoiceItems } from '../pricing';
+import { computePricingWithPackages, buildInvoiceItems, computeReportTotalPrice, computeHybridReportTotalPrice } from '../pricing';
 import { TestPackage } from '../types';
 
 describe('Pricing Domain - computePricingWithPackages & buildInvoiceItems', () => {
@@ -155,4 +155,37 @@ describe('Pricing Domain - computePricingWithPackages & buildInvoiceItems', () =
     ]);
     expect(normalized.codes).toEqual(['AST', 'ALT']);
   });
+
+  describe('computeReportTotalPrice & computeHybridReportTotalPrice', () => {
+    it('computeReportTotalPrice tính đúng tổng giá kèm gói hoặc lẻ', () => {
+      expect(computeReportTotalPrice([])).toBe(0);
+
+      const tests = [
+        { code: 'RBC', price: 20000 },
+        { code: 'HGB', price: 20000 },
+        { code: 'WBC', price: 25000 },
+        { code: 'PLT', price: 25000 }
+      ];
+      expect(computeReportTotalPrice(tests, samplePackages)).toBe(80000);
+
+      const partial = [
+        { code: 'RBC', price: 20000 },
+        { code: 'HGB', price: 20000 }
+      ];
+      expect(computeReportTotalPrice(partial, samplePackages)).toBe(40000);
+    });
+
+    it('computeHybridReportTotalPrice tính đúng phí gói dị nguyên + phí xét nghiệm thường, tự động loại trừ TIgE để không trùng giá', () => {
+      const regularTests = [
+        { code: 'GLU', price: 40000 },
+        { code: 'URE', price: 35000 },
+        { code: 'TIgE', price: 150000 } // TIgE phải được bỏ qua vì đã nằm trong gói dị nguyên
+      ];
+
+      const totalPrice = computeHybridReportTotalPrice(regularTests, 1900000, samplePackages);
+      // 1,900,000 (gói dị nguyên) + 40,000 (GLU) + 35,000 (URE) = 1,975,000đ (không cộng 150k TIgE)
+      expect(totalPrice).toBe(1975000);
+    });
+  });
 });
+

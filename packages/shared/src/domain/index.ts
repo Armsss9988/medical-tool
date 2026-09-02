@@ -8,6 +8,10 @@ export * from './formatters';
 export * from './pricing';
 export * from './reportFactory';
 export * from './services/AllergenReportDomainService';
+export * from './services/AutoConclusionDomainService';
+export * from './services/ReportClassificationDomainService';
+export * from './services/itemResolver';
+export * from './utils/assertNever';
 
 // Value Objects
 export * from './valueObjects/Money';

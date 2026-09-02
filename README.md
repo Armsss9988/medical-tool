@@ -9,7 +9,7 @@ Medical test results & laboratory management web application built with React, V
 - Invoices & Revenue Management
 - 1-Click Sharp A4 PDF Export & Cloud Backup
 - QR Code Generation
-- Local-First + Supabase Cloud DB Auto Sync
+- Supabase Cloud Database Integration & Direct Sync
 
 ## Development
 ```bash

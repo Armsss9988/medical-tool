@@ -34,7 +34,9 @@
       "@components": ["apps/web/src/components"],
       "@components/*": ["apps/web/src/components/*"],
       "@assets": ["apps/web/src/assets"],
-      "@assets/*": ["apps/web/src/assets/*"]
+      "@assets/*": ["apps/web/src/assets/*"],
+      "@features": ["apps/web/src/features"],
+      "@features/*": ["apps/web/src/features/*"]
     }
   },
   "include": ["apps/web/src", "packages/shared/src"]

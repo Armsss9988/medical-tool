@@ -2,21 +2,19 @@ import { useState, useCallback, useMemo } from 'react';
 import Header from './components/Header';
 import { MainWorkspace } from './components/MainWorkspace';
 import { ModalLayer } from './components/ModalLayer';
-import { PrintLayer } from './components/PrintLayer';
-import PasswordGateModal from './components/PasswordGateModal';
+import { PasswordGateModal } from '@features/settings-clinic';
 
 import { ToastProvider, useToast } from './contexts/ToastContext';
 import { ModalProvider, useModal } from './contexts/ModalContext';
 import { WorkspaceProvider, useWorkspace } from './contexts/WorkspaceContext';
 
-import { useCatalogData } from './hooks/useCatalogData';
-import { useReportExport } from './hooks/useReportExport';
-import { useBatchExport } from './hooks/useBatchExport';
+import { useCatalogData } from '@features/catalog-management';
+import { useBatchExport } from '@features/batch-import-export';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useWorkspaceActions } from './hooks/useWorkspaceActions';
 import { useUnsavedGuard } from './hooks/useUnsavedGuard';
-import { useExportActions } from './hooks/useExportActions';
-import { useInvoiceActions } from './hooks/useInvoiceActions';
+import { useInvoiceActions } from '@features/billing-revenue';
+import { PrintLayer, useReportExport, useExportActions } from '@features/report-export';
 
 import { parseExcelCatalog } from '@infra/excelService';
 import { openDataFolder } from '@infra/storage';

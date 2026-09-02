@@ -56,11 +56,11 @@ describe('PasswordGateModal', () => {
     expect(getPassword()).toBe('wrong');
   });
 
-  it('allows continuing in local offline mode', async () => {
+  it('allows dismissing modal without password', async () => {
     render(<PasswordGateModal />);
 
-    const offlineBtn = screen.getByRole('button', { name: /tiếp tục chế độ local/i });
-    fireEvent.click(offlineBtn);
+    const dismissBtn = screen.getByRole('button', { name: /bỏ qua/i });
+    fireEvent.click(dismissBtn);
 
     await waitFor(() =>
       expect(screen.queryByPlaceholderText(/nhập passkey/i)).toBeNull()

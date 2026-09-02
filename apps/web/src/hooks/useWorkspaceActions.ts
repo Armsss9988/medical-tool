@@ -3,7 +3,7 @@ import { useWorkspace } from '../contexts/WorkspaceContext';
 import { useModal } from '../contexts/ModalContext';
 import { useToast } from '../contexts/ToastContext';
 import { PatientCode } from '@domain/valueObjects/PatientCode';
-import { computePricingWithPackages } from '@domain/pricing';
+import { computeReportTotalPrice } from '@domain/pricing';
 import type { MedicalReport, TestPackage, Patient } from '@domain';
 import { resolveDoctorName } from '@domain/reportFactory';
 
@@ -47,11 +47,7 @@ export function useWorkspaceActions(
 
   // 1. COMPUTED: TỔNG PHÍ DỊCH VỤ (ƯU TIÊN GIÁ GÓI)
   const totalFee = useMemo(() => {
-    return computePricingWithPackages(
-      selectedTests.map((t) => t.code),
-      selectedTests,
-      testPackages
-    ).total;
+    return computeReportTotalPrice(selectedTests, testPackages);
   }, [selectedTests, testPackages]);
 
   // 2. COMPUTED: HÓA ĐƠN TƯƠNG ỨNG VỚI PHIẾU ĐANG MỞ

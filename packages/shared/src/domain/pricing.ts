@@ -1,4 +1,5 @@
 import { TestPackage, getPkgCodes } from './types';
+import { isTIgETest } from './allergenDetector';
 
 /**
  * Tính tổng phí dịch vụ ưu tiên giá gói.
@@ -145,4 +146,46 @@ export function buildInvoiceItems(
 
   return resultItems;
 }
+
+/**
+ * Tính tổng phí dịch vụ cho danh sách xét nghiệm thường (ưu tiên giá gói nếu có).
+ */
+export function computeReportTotalPrice(
+  tests: { code: string; price?: number }[],
+  testPackages: TestPackage[] = []
+): number {
+  if (!tests || tests.length === 0) return 0;
+  return computePricingWithPackages(
+    tests.map((t) => t.code),
+    tests,
+    testPackages
+  ).total;
+}
+
+/**
+ * Tính tổng giá dịch vụ toàn bộ phiếu Hỗn Hợp (Hybrid):
+ * Phí gói dị nguyên + Phí các xét nghiệm thường (không tính trùng TIgE vì TIgE đã nằm trong gói dị nguyên).
+ */
+export function computeHybridReportTotalPrice(
+  regularTests: { code: string; price?: number; name?: string }[],
+  allergenPackagePrice: number | string | undefined | null,
+  testPackages: TestPackage[] = []
+): number {
+  const allergenPrice = Number(allergenPackagePrice) || 0;
+  const nonAllergenRegularTests = regularTests.filter((t) => !isTIgETest(t));
+  const regularCodes = nonAllergenRegularTests.map((t) => t.code);
+
+  if (testPackages && testPackages.length > 0 && regularCodes.length > 0) {
+    const regPricing = computePricingWithPackages(
+      regularCodes,
+      nonAllergenRegularTests.map((t) => ({ code: t.code, price: t.price })),
+      testPackages
+    );
+    return allergenPrice + regPricing.total;
+  }
+
+  const regSubtotal = nonAllergenRegularTests.reduce((sum, t) => sum + (Number(t.price) || 0), 0);
+  return allergenPrice + regSubtotal;
+}
+
 
