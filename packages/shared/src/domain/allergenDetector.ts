@@ -17,9 +17,10 @@ export function isTIgETest(test: Pick<CatalogItem, 'code'> & { name?: string }):
 /**
  * Kiểm tra 1 chỉ số có phải dị nguyên (allergen) không.
  * Áp dụng cho cả CatalogItem và SelectedTest.
+ * Bao gồm cả chỉ số Tổng IgE (TIgE) và các dị nguyên đặc hiệu.
  */
 export function isAllergenTest(test: Pick<CatalogItem, 'code' | 'category' | 'unit'> & { name?: string }): boolean {
-  if (isTIgETest(test)) return false;
+  if (isTIgETest(test)) return true;
   return (test.category?.includes('Dị Nguyên') === true) || test.unit === 'IU/mL';
 }
 

@@ -608,7 +608,11 @@ export default function TestPackagesTab({
                                 {availableLinks.length > 1 ? (
                                   <div className="flex items-center gap-1.5">
                                     <select
-                                      value={pkgItem.equipmentId || ''}
+                                      value={
+                                        availableLinks.some((l) => l.equipmentId === pkgItem.equipmentId)
+                                          ? (pkgItem.equipmentId as string)
+                                          : (availableLinks.find((l) => l.isDefault) || availableLinks[0])?.equipmentId || ''
+                                      }
                                       onChange={(e) =>
                                         handleUpdateItemEquipmentInPackage(
                                           currentSelectedPkg.id,
@@ -622,7 +626,6 @@ export default function TestPackagesTab({
                                           : 'bg-amber-50/70 border border-amber-300 focus:border-amber-500'
                                       }`}
                                     >
-                                      <option value="">-- Mặc định ({availableLinks.find((l) => l.isDefault)?.equipmentId || 'Hệ thống'}) --</option>
                                       {availableLinks.map((link) => {
                                         const eq = equipments.find((e) => e.id === link.equipmentId);
                                         const isPackagePrimary = currentSelectedPkg.defaultEquipmentId === link.equipmentId;

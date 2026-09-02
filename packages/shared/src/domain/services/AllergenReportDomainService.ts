@@ -1,4 +1,4 @@
-import { SelectedTest, TestPackage, AllergenDatabaseItem, AllergenGradingScale } from '../types';
+import { SelectedTest, TestPackage, AllergenDatabaseItem, AllergenGradingScale, getPkgCodes } from '../types';
 import { calculateAllergenGrade } from '../allergen';
 import { computePricingWithPackages } from '../pricing';
 import { getAllergenScaleById } from '../constants/allergenScales';
@@ -27,6 +27,7 @@ export interface AllergenReportDTO {
   hasTIgE: boolean;
   totalCount: number;
   packagePrice: number;
+  packageName?: string;
   detailPages: AllergenReportItemDTO[][];
   totalPages: number;
   appliedScales: AllergenGradingScale[];
@@ -156,25 +157,84 @@ export class AllergenReportDomainService {
 
     const totalCount = detailedList.length || 41;
 
-    // Tính giá gói động
-    let finalPackagePrice = AllergenReportDomainService.DEFAULT_PACKAGE_PRICE;
+    // Tập hợp toàn bộ mã xét nghiệm để tính giá (gộp cả tests, allTests và tigeItem nếu có)
+    const pricingTests = allTests && allTests.length > 0 ? allTests : tests;
+    const allCodeList = pricingTests.map((t) => (t.code || '').trim().toLowerCase());
+    if (tigeItem?.code && !allCodeList.includes(tigeItem.code.trim().toLowerCase())) {
+      allCodeList.push(tigeItem.code.trim().toLowerCase());
+    }
+    const codeSet = new Set(allCodeList);
+
+    // Thuật toán nhận diện gói dị nguyên tối ưu nhất
+    let matchedPkg: TestPackage | undefined;
+    if (testPackages && testPackages.length > 0) {
+      const validPackages = testPackages.filter(
+        (p) => getPkgCodes(p).length > 0 && p.price > 0
+      );
+
+      // 1. Tìm các gói khớp toàn bộ chỉ số (cho phép có hoặc thiếu TIgE)
+      const fullMatches = validPackages.filter((pkg) => {
+        const pCodes = getPkgCodes(pkg).map((c) => c.trim().toLowerCase());
+        const nonTIgECodes = pCodes.filter((c) => c !== 'tige');
+        return pCodes.every((c) => codeSet.has(c)) || (nonTIgECodes.length > 0 && nonTIgECodes.every((c) => codeSet.has(c)));
+      });
+
+      if (fullMatches.length > 0) {
+        // Chọn gói có số lượng chỉ số gần nhất với số lượng dị nguyên đang phân tích (tránh gói 91 nuốt gói 44/61)
+        fullMatches.sort((a, b) => {
+          const diffA = Math.abs(getPkgCodes(a).length - totalCount);
+          const diffB = Math.abs(getPkgCodes(b).length - totalCount);
+          return diffA - diffB;
+        });
+        matchedPkg = fullMatches[0];
+      } else {
+        // 2. Nếu không khớp 100%, tìm gói có tỉ lệ bao phủ cao nhất (>= 75%)
+        let maxOverlap = 0;
+        let minDiff = Infinity;
+        for (const pkg of validPackages) {
+          const pCodes = getPkgCodes(pkg).map((c) => c.trim().toLowerCase());
+          const overlap = pCodes.filter((c) => codeSet.has(c)).length;
+          const ratio = overlap / pCodes.length;
+          if (ratio >= 0.75) {
+            const diff = Math.abs(pCodes.length - totalCount);
+            if (overlap > maxOverlap || (overlap === maxOverlap && diff < minDiff)) {
+              maxOverlap = overlap;
+              minDiff = diff;
+              matchedPkg = pkg;
+            }
+          }
+        }
+      }
+    }
+
+    // Tính giá gói
+    let finalPackagePrice = 0;
     if (explicitPackagePrice !== undefined && explicitPackagePrice > 0) {
       finalPackagePrice = explicitPackagePrice;
+    } else if (matchedPkg) {
+      finalPackagePrice = matchedPkg.price;
     } else if (testPackages && testPackages.length > 0) {
       const pricing = computePricingWithPackages(
-        tests.map((t) => t.code),
-        tests,
+        allCodeList,
+        pricingTests,
         testPackages
       );
       if (pricing.total > 0) {
         finalPackagePrice = pricing.total;
-      } else {
-        const sumIndividual = tests.reduce((sum, item) => sum + (item.price || 0), 0);
-        if (sumIndividual > 0) finalPackagePrice = sumIndividual;
       }
-    } else {
+    }
+
+    // Fallback nếu không có cấu hình gói
+    if (!finalPackagePrice || finalPackagePrice <= 0) {
       const sumIndividual = tests.reduce((sum, item) => sum + (item.price || 0), 0);
-      if (sumIndividual > 0) finalPackagePrice = sumIndividual;
+      if (sumIndividual > 0) {
+        finalPackagePrice = sumIndividual;
+      } else {
+        if (totalCount <= 20) finalPackagePrice = 950000;
+        else if (totalCount <= 44) finalPackagePrice = 1400000;
+        else if (totalCount <= 61) finalPackagePrice = 1600000;
+        else finalPackagePrice = 1900000;
+      }
     }
 
     // Phân chia danh sách chi tiết (13 dòng / trang)
@@ -188,11 +248,13 @@ export class AllergenReportDomainService {
 
     const totalPages = detailPages.length + 3; // Trang 1 bìa + Trang 2 tổng hợp + Các trang chi tiết + Trang cuối lưu ý
 
-    // Nếu không có thang đo nào trong chi tiết nhưng có xét nghiệm dị nguyên không phải TIgE, lấy thang đo chuẩn
+    // Nếu không có thang đo nào trong chi tiết nhưng có xét nghiệm dị nguyên không phải TIgE, lấy thang đo đầu tiên từ customScales nếu có
     const nonTIgECount = detailedList.filter((i) => !i.isTIgE).length;
     if (appliedScalesMap.size === 0 && nonTIgECount > 0) {
       const defaultScale = getAllergenScaleById(undefined, customScales);
-      appliedScalesMap.set(defaultScale.id, defaultScale);
+      if (defaultScale) {
+        appliedScalesMap.set(defaultScale.id, defaultScale);
+      }
     }
 
     const appliedScales = Array.from(appliedScalesMap.values());
@@ -204,6 +266,7 @@ export class AllergenReportDomainService {
       hasTIgE,
       totalCount,
       packagePrice: finalPackagePrice,
+      packageName: matchedPkg?.name,
       detailPages,
       totalPages,
       appliedScales

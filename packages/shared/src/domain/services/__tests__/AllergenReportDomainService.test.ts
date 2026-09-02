@@ -212,4 +212,100 @@ describe('AllergenReportDomainService', () => {
     expect(dto.detailPages[2]).toHaveLength(2);
     expect(dto.totalPages).toBe(3 + 3); // 3 detail pages + Cover + Summary + Guidance = 6
   });
+
+  it('should accurately match Gói 44 and Gói 61 and calculate correct package prices', () => {
+    const codes44 = ['TIgE', ...Array.from({ length: 43 }, (_, i) => `dn_${i + 1}`)];
+    const pkg44: TestPackage = {
+      id: 'di_nguyen_44',
+      name: '🔬 Gói 44 Dị Nguyên IgE (MEDIWISS / Hô Hấp & Thực Phẩm)',
+      codes: codes44,
+      items: codes44.map((c) => ({ code: c, equipmentId: null })),
+      price: 1400000
+    };
+
+    const codes61 = ['TIgE', ...Array.from({ length: 60 }, (_, i) => `dn_${i + 1}`)];
+    const pkg61: TestPackage = {
+      id: 'di_nguyen_61',
+      name: '🧬 Gói 61 Dị Nguyên IgE (PROTIA Smart Q-Processor)',
+      codes: codes61,
+      items: codes61.map((c) => ({ code: c, equipmentId: null })),
+      price: 1600000
+    };
+
+    const codes91 = ['TIgE', ...Array.from({ length: 90 }, (_, i) => `dn_${i + 1}`)];
+    const pkg91: TestPackage = {
+      id: 'di_nguyen_90',
+      name: '🩸 Gói Trọn Bộ Dị Nguyên IgE (91 Panel PROTIA)',
+      codes: codes91,
+      items: codes91.map((c) => ({ code: c, equipmentId: null })),
+      price: 1900000
+    };
+
+    const packages = [pkg91, pkg61, pkg44];
+
+    // Case 1: Gói 44 (người dùng chọn 43 dị nguyên + 1 TIgE trong allTests)
+    const tests44: SelectedTest[] = Array.from({ length: 43 }, (_, i) => ({
+      category: 'Dị Nguyên',
+      code: `dn_${i + 1}`,
+      name: `Dị nguyên ${i + 1}`,
+      refMin: 0,
+      refMax: 0.35,
+      unit: 'IU/mL',
+      result: '<0.15',
+      note: 'Âm tính (Độ 0)',
+      refText: '< 0.35'
+    }));
+    const tIgETest: SelectedTest = {
+      category: 'Miễn Dịch',
+      code: 'TIgE',
+      name: 'Tổng nồng độ IgE',
+      refMin: 0,
+      refMax: 15.0,
+      unit: 'IU/mL',
+      result: '10.5',
+      note: 'Bình thường',
+      refText: '< 15,0'
+    };
+
+    const dto44 = AllergenReportDomainService.buildReportDTO({
+      tests: tests44,
+      allTests: [...tests44, tIgETest],
+      testPackages: packages
+    });
+
+    expect(dto44.packagePrice).toBe(1400000);
+    expect(dto44.packageName).toBe(pkg44.name);
+
+    // Case 2: Gói 61 (người dùng chọn 60 dị nguyên + 1 TIgE trong allTests)
+    const tests61: SelectedTest[] = Array.from({ length: 60 }, (_, i) => ({
+      category: 'Dị Nguyên',
+      code: `dn_${i + 1}`,
+      name: `Dị nguyên ${i + 1}`,
+      refMin: 0,
+      refMax: 0.35,
+      unit: 'IU/mL',
+      result: '<0.15',
+      note: 'Âm tính (Độ 0)',
+      refText: '< 0.35'
+    }));
+
+    const dto61 = AllergenReportDomainService.buildReportDTO({
+      tests: tests61,
+      allTests: [...tests61, tIgETest],
+      testPackages: packages
+    });
+
+    expect(dto61.packagePrice).toBe(1600000);
+    expect(dto61.packageName).toBe(pkg61.name);
+
+    // Case 3: Gói 44 nhưng không chọn TIgE (chỉ có 43 dị nguyên)
+    const dto44NoTIgE = AllergenReportDomainService.buildReportDTO({
+      tests: tests44,
+      testPackages: packages
+    });
+
+    expect(dto44NoTIgE.packagePrice).toBe(1400000);
+    expect(dto44NoTIgE.packageName).toBe(pkg44.name);
+  });
 });
+

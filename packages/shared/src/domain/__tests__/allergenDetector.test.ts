@@ -64,39 +64,43 @@ describe('allergenDetector domain helpers', () => {
     expect(isAllergenTest(allergenTest2)).toBe(true);
     expect(isAllergenTest(regularTest1)).toBe(false);
     expect(isAllergenTest(regularTest2)).toBe(false);
-    // TIgE is a special aggregate indicator
-    expect(isAllergenTest(tIgeTest)).toBe(false);
+    // TIgE is part of allergen tests
+    expect(isAllergenTest(tIgeTest)).toBe(true);
   });
 
   it('should detect hasAllergenTests', () => {
     expect(hasAllergenTests([regularTest1, regularTest2])).toBe(false);
     expect(hasAllergenTests([regularTest1, allergenTest1])).toBe(true);
     expect(hasAllergenTests([allergenTest1, allergenTest2])).toBe(true);
+    expect(hasAllergenTests([tIgeTest])).toBe(true);
   });
 
   it('should detect hasRegularTests', () => {
     expect(hasRegularTests([regularTest1, regularTest2])).toBe(true);
     expect(hasRegularTests([regularTest1, allergenTest1])).toBe(true);
     expect(hasRegularTests([allergenTest1, allergenTest2])).toBe(false);
+    expect(hasRegularTests([allergenTest1, tIgeTest])).toBe(false);
   });
 
   it('should detect hasMixedTests correctly', () => {
     expect(hasMixedTests([regularTest1, regularTest2])).toBe(false);
     expect(hasMixedTests([allergenTest1, allergenTest2])).toBe(false);
+    expect(hasMixedTests([allergenTest1, tIgeTest])).toBe(false);
     expect(hasMixedTests([regularTest1, allergenTest1])).toBe(true);
+    expect(hasMixedTests([regularTest1, tIgeTest])).toBe(true);
     expect(hasMixedTests([regularTest1, regularTest2, allergenTest1, allergenTest2])).toBe(true);
   });
 
   it('should classify tests cleanly', () => {
-    const mixed = [regularTest1, regularTest2, allergenTest1, allergenTest2];
+    const mixed = [regularTest1, regularTest2, allergenTest1, allergenTest2, tIgeTest];
     const res = classifyTests(mixed);
 
     expect(res.isMixed).toBe(true);
     expect(res.isAllergenOnly).toBe(false);
     expect(res.isRegularOnly).toBe(false);
     expect(res.regularTests.length).toBe(2);
-    expect(res.allergenTests.length).toBe(2);
+    expect(res.allergenTests.length).toBe(3);
     expect(res.regularTests.map((t) => t.code)).toEqual(['GLU', 'WBC']);
-    expect(res.allergenTests.map((t) => t.code)).toEqual(['d1', 'f1']);
+    expect(res.allergenTests.map((t) => t.code)).toEqual(['d1', 'f1', 'TIgE']);
   });
 });

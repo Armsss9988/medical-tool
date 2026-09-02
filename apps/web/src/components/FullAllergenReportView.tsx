@@ -100,11 +100,12 @@ function FullAllergenReportView({
   const reportDTO = useMemo(() => {
     return AllergenReportDomainService.buildReportDTO({
       tests,
+      allTests: selectedTests && selectedTests.length > 0 ? selectedTests : allergenTests,
       testPackages,
       packagePrice: explicitPackagePrice,
       customScales: allergenScales
     });
-  }, [tests, testPackages, explicitPackagePrice, allergenScales]);
+  }, [tests, selectedTests, allergenTests, testPackages, explicitPackagePrice, allergenScales]);
 
   return (
     <div id={elementId} className="w-[210mm] max-w-[210mm] mx-auto bg-slate-200 print:bg-white print:m-0 print:p-0 font-serif">

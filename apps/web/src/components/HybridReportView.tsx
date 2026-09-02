@@ -11,7 +11,7 @@ import {
   CatalogItemEquipmentLink,
   resolveTestEquipmentName
 } from '@domain/types';
-import { isAllergenTest } from '@domain/allergenDetector';
+import { isAllergenTest, isTIgETest } from '@domain/allergenDetector';
 import { evaluateResult } from '@domain/testResult';
 import { computePricingWithPackages } from '@domain/pricing';
 import { AllergenReportDomainService } from '@domain/services/AllergenReportDomainService';
@@ -147,25 +147,25 @@ function HybridReportView({
   }, [allergenTests, allTests, testPackages, explicitPackagePrice, allergenScales]);
 
   const matchedPackageName = useMemo(() => {
-    const pkg = testPackages.find((p) => p.items?.some((i) => allergenTests.some((at) => at.code === i.code)));
-    return pkg?.name;
-  }, [testPackages, allergenTests]);
+    return reportDTO.packageName;
+  }, [reportDTO.packageName]);
 
-  // Tổng giá dịch vụ toàn bộ phiếu: Phí gói dị nguyên + Phí các xét nghiệm thường
+  // Tổng giá dịch vụ toàn bộ phiếu: Phí gói dị nguyên + Phí các xét nghiệm thường (không tính trùng TIgE vì TIgE đã nằm trong gói dị nguyên)
   const totalPrice = useMemo(() => {
     const allergenPrice = Number(reportDTO.packagePrice) || 0;
-    const regularCodes = regularTests.map((t) => t.code);
+    const nonAllergenRegularTests = regularTests.filter((t) => !isTIgETest(t));
+    const regularCodes = nonAllergenRegularTests.map((t) => t.code);
 
     if (testPackages && testPackages.length > 0 && regularCodes.length > 0) {
       const regPricing = computePricingWithPackages(
         regularCodes,
-        regularTests.map((t) => ({ code: t.code, price: t.price })),
+        nonAllergenRegularTests.map((t) => ({ code: t.code, price: t.price })),
         testPackages
       );
       return allergenPrice + regPricing.total;
     }
 
-    const regSubtotal = regularTests.reduce((sum, t) => sum + (Number(t.price) || 0), 0);
+    const regSubtotal = nonAllergenRegularTests.reduce((sum, t) => sum + (Number(t.price) || 0), 0);
     return allergenPrice + regSubtotal;
   }, [regularTests, reportDTO.packagePrice, testPackages]);
 
@@ -612,7 +612,7 @@ function HybridReportView({
                           {regularTests.length > 0 ? regularTests.length + 1 : 1}
                         </td>
                         <td className="py-2.5 px-4 font-bold text-slate-900 border-r border-slate-300 align-middle leading-snug">
-                          Panel {reportDTO.totalCount} dị nguyên {matchedPackageName ? `(${matchedPackageName})` : ''}
+                           {matchedPackageName ? `${matchedPackageName}` : `Panel ${reportDTO.totalCount} dị nguyên`}
                         </td>
                         <td className="py-2.5 px-3 text-center border-r border-slate-300 text-slate-400 font-mono align-middle leading-snug">---</td>
                         <td className="py-2.5 px-4 text-slate-700 border-r border-slate-300 font-medium align-middle leading-snug">
