@@ -1783,16 +1783,16 @@ export function exportRevenueExcel(
 
   const invoiceRows = invoices.map((inv, idx) => ({
     'STT': idx + 1,
-    'Mã Hóa Đơn': inv.code,
-    'Ngày Lập': new Date(inv.createdAt).toLocaleString('vi-VN'),
-    'Bệnh Nhân': inv.patientName,
-    'Mã Bệnh Nhân': inv.patientCode,
+    'Mã Hóa Đơn': inv.code || '',
+    'Ngày Lập': inv.createdAt ? new Date(inv.createdAt).toLocaleString('vi-VN') : '',
+    'Bệnh Nhân': inv.patientName || '',
+    'Mã Bệnh Nhân': inv.patientCode || '',
     'Bác Sĩ Chỉ Định': inv.doctorName || '---',
     'Gói Xét Nghiệm': inv.packageName || 'Tùy chọn',
-    'Số Dịch Vụ': inv.items.length,
-    'Tổng Tiền Dịch Vụ': inv.totalAmount,
+    'Số Dịch Vụ': inv.items?.length || 0,
+    'Tổng Tiền Dịch Vụ': inv.totalAmount ?? 0,
     'Giảm Giá / Chiết Khấu': inv.discountAmount || 0,
-    'Thực Thu (VNĐ)': inv.finalAmount,
+    'Thực Thu (VNĐ)': inv.finalAmount ?? 0,
     'Hình Thức Thanh Toán': inv.paymentMethod || 'Tiền mặt'
   }));
 

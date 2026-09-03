@@ -44,7 +44,8 @@ function AppContent() {
     cloudDbConfig,
     setCloudDbConfig,
     zaloConfig,
-    setZaloConfig
+    setZaloConfig,
+    saveAllCatalogData
   } = useCatalogData();
 
   // 2. CONTEXT CONSUMPTION
@@ -368,6 +369,7 @@ function AppContent() {
         onUnsavedSaveAndProceed={handleUnsavedSaveAndProceed}
         onUnsavedDiscardAndProceed={handleUnsavedDiscardAndProceed}
         onUnsavedCancel={handleUnsavedCancel}
+        onSaveAllCatalogData={saveAllCatalogData}
       />
 
       {/* PRINT & LOSSLESS CAPTURE TEMPLATES */}

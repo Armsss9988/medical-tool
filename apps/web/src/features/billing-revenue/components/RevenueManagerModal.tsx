@@ -30,7 +30,7 @@ interface RevenueManagerModalProps {
 export default function RevenueManagerModal({
   isOpen,
   onClose,
-  invoices,
+  invoices = [],
   reports = [],
   testPackages = [],
   onDeleteInvoice,
@@ -70,7 +70,8 @@ export default function RevenueManagerModal({
 
     const term = searchTerm.toLowerCase().trim();
 
-    return invoices.filter((inv) => {
+    return (invoices || []).filter((inv) => {
+      if (!inv) return false;
       // Tìm kiếm từ khóa
       if (term) {
         const matchCode = inv.code?.toLowerCase().includes(term);
@@ -99,7 +100,13 @@ export default function RevenueManagerModal({
       }
 
       // Lọc theo Thời gian
+      if (!inv.createdAt) {
+        return dateFilter === DATE_FILTER.ALL;
+      }
       const invDate = new Date(inv.createdAt);
+      if (isNaN(invDate.getTime())) {
+        return dateFilter === DATE_FILTER.ALL;
+      }
       if (dateFilter === DATE_FILTER.TODAY) {
         if (invDate.toDateString() !== todayStr) return false;
       } else if (dateFilter === DATE_FILTER.YESTERDAY) {
@@ -140,9 +147,9 @@ export default function RevenueManagerModal({
       // Lọc theo từ khóa
       if (searchTerm.trim()) {
         const term = searchTerm.toLowerCase().trim();
-        const matchName = rep.patient.name?.toLowerCase().includes(term);
+        const matchName = rep.patient?.name?.toLowerCase().includes(term);
         const matchCode = rep.code?.toLowerCase().includes(term);
-        const matchPhone = rep.patient.phone?.toLowerCase().includes(term);
+        const matchPhone = rep.patient?.phone?.toLowerCase().includes(term);
         const matchDoc = rep.doctorName?.toLowerCase().includes(term);
         if (!matchName && !matchCode && !matchPhone && !matchDoc) return false;
       }
@@ -376,11 +383,11 @@ export default function RevenueManagerModal({
         </div>
 
         {/* THẺ DASHBOARD KPIS */}
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-2.5 p-4 bg-slate-950/40 border-b border-slate-800/80 text-xs shrink-0">
-          <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 flex items-center justify-between">
+        <div className="flex overflow-x-auto no-scrollbar touch-pan-x lg:grid lg:grid-cols-6 gap-2 sm:gap-2.5 p-3 sm:p-4 bg-slate-950/40 border-b border-slate-800/80 text-xs shrink-0">
+          <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 sm:p-3 flex items-center justify-between shrink-0 min-w-[130px] lg:min-w-0">
             <div>
-              <p className="text-slate-400 font-medium text-[11px]">Tổng thực thu</p>
-              <p className="text-sm lg:text-base font-black text-amber-400 font-mono mt-0.5">
+              <p className="text-slate-400 font-medium text-[10.5px] sm:text-[11px]">Tổng thực thu</p>
+              <p className="text-xs sm:text-sm lg:text-base font-black text-amber-400 font-mono mt-0.5">
                 {kpis.totalFinal.toLocaleString('vi-VN')} đ
               </p>
             </div>
@@ -546,7 +553,9 @@ export default function RevenueManagerModal({
                   <p className="text-xs text-slate-500">Hãy thử chọn "Mọi thời gian" hoặc xóa từ khóa tìm kiếm</p>
                 </div>
               ) : (
-                <div className="border border-slate-800 rounded-xl overflow-hidden shadow-inner">
+                <>
+                  {/* ═══ DESKTOP INVOICES TABLE (≥ md) ═══ */}
+                  <div className="hidden md:block border border-slate-800 rounded-xl overflow-hidden shadow-inner">
                   <table className="w-full text-left border-collapse">
                     <thead className="bg-slate-800 text-slate-200 font-bold border-b border-slate-700 text-[11.5px]">
                       <tr>
@@ -569,12 +578,12 @@ export default function RevenueManagerModal({
                           <td className="p-2.5">
                             <span className="font-mono font-bold text-amber-400 block">{inv.code}</span>
                             <span className="text-[10.5px] text-slate-400">
-                              {new Date(inv.createdAt).toLocaleString('vi-VN')}
+                              {inv.createdAt ? new Date(inv.createdAt).toLocaleString('vi-VN') : '---'}
                             </span>
                           </td>
 
                           <td className="p-2.5">
-                            <strong className="text-white uppercase font-bold block">{inv.patientName}</strong>
+                            <strong className="text-white uppercase font-bold block">{inv.patientName || '---'}</strong>
                             <span className="font-mono text-[10.5px] text-slate-400">{inv.patientCode || '---'} • {inv.patientPhone || ''}</span>
                           </td>
 
@@ -586,7 +595,7 @@ export default function RevenueManagerModal({
                           </td>
 
                           <td className="p-2.5 font-mono text-slate-300">
-                            {inv.items.length} dịch vụ
+                            {inv.items?.length || 0} dịch vụ
                           </td>
 
                           <td className="p-2.5">
@@ -613,11 +622,11 @@ export default function RevenueManagerModal({
                           </td>
 
                           <td className="p-2.5 text-right font-mono text-rose-400 font-semibold">
-                            {(inv.discountAmount || 0) > 0 ? `-${inv.discountAmount?.toLocaleString('vi-VN')} đ` : '0 đ'}
+                            {(inv.discountAmount || 0) > 0 ? `-${(inv.discountAmount || 0).toLocaleString('vi-VN')} đ` : '0 đ'}
                           </td>
 
                           <td className="p-2.5 text-right font-mono font-bold text-emerald-400 text-xs">
-                            {inv.finalAmount.toLocaleString('vi-VN')} đ
+                            {(inv.finalAmount ?? 0).toLocaleString('vi-VN')} đ
                           </td>
 
                           <td className="p-2.5 text-right">
@@ -668,7 +677,100 @@ export default function RevenueManagerModal({
                     </tbody>
                   </table>
                 </div>
-              )}
+
+                {/* ═══ MOBILE INVOICES CARDS (< md) ═══ */}
+                <div className="md:hidden space-y-2.5">
+                  {filteredInvoices.map((inv) => (
+                    <div
+                      key={`mob_inv_${inv.id}`}
+                      className="p-3.5 bg-slate-900 border border-slate-800 rounded-2xl shadow-sm space-y-2"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="font-mono font-bold text-amber-400 text-xs">{inv.code}</span>
+                          <h4 className="text-sm font-bold text-white uppercase mt-0.5">{inv.patientName || '---'}</h4>
+                          <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                            {inv.patientCode || '---'} • {inv.patientPhone || ''}
+                          </p>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <span className="text-xs font-mono font-bold text-emerald-400 block">
+                            {(inv.finalAmount ?? 0).toLocaleString('vi-VN')} đ
+                          </span>
+                          <span className="text-[10px] text-slate-400 block mt-0.5">
+                            {inv.createdAt ? new Date(inv.createdAt).toLocaleDateString('vi-VN') : ''}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-1 flex-wrap pt-1 border-t border-slate-800/60">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          inv.paymentMethod === 'Chuyển khoản (VietQR)'
+                            ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                            : inv.paymentMethod === 'Tiền mặt'
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                        }`}>
+                          {inv.paymentMethod}
+                        </span>
+
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
+                          inv.status === 'Đã thanh toán'
+                            ? 'text-emerald-400 bg-emerald-950/40 border border-emerald-500/30'
+                            : 'text-amber-400 bg-amber-950/40 border border-amber-500/30'
+                        }`}>
+                          {inv.status || 'Đã thanh toán'}
+                        </span>
+
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {inv.items?.length || 0} DV
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-1.5 pt-1.5 border-t border-slate-800/60">
+                        <button
+                          type="button"
+                          onClick={() => setViewingInvoice(inv)}
+                          className="flex-1 py-2 px-3 bg-amber-600/30 hover:bg-amber-600/50 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Xem & In Biên Lai</span>
+                        </button>
+
+                        {onCancelInvoice && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(`Hủy hóa đơn ${inv.code} của bệnh nhân ${inv.patientName}?`)) {
+                                onCancelInvoice(inv.id);
+                              }
+                            }}
+                            className="p-2 bg-slate-800 hover:bg-amber-600 text-amber-300 hover:text-white rounded-xl border border-slate-700 transition active:scale-95 cursor-pointer"
+                            title="Hủy hóa đơn"
+                          >
+                            <Undo2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm(`Xóa hoàn toàn hóa đơn ${inv.code}?`)) {
+                              onDeleteInvoice(inv.id);
+                            }
+                          }}
+                          className="p-2 bg-slate-800 hover:bg-rose-600 text-slate-400 hover:text-white rounded-xl border border-slate-700 transition active:scale-95 cursor-pointer"
+                          title="Xóa hóa đơn"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
             </div>
           )}
 
@@ -691,7 +793,9 @@ export default function RevenueManagerModal({
                   <p className="text-xs text-slate-500">Tất cả các ca khám đều đã được thanh toán đầy đủ.</p>
                 </div>
               ) : (
-                <div className="border border-slate-800 rounded-xl overflow-hidden shadow-inner">
+                <>
+                  {/* ═══ DESKTOP PENDING TABLE (≥ md) ═══ */}
+                  <div className="hidden md:block border border-slate-800 rounded-xl overflow-hidden shadow-inner">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead className="bg-slate-800 text-slate-200 font-bold border-b border-slate-700 text-[11.5px]">
                       <tr>
@@ -718,19 +822,19 @@ export default function RevenueManagerModal({
                               <span className="font-mono font-bold text-sky-400 block">{rep.code}</span>
                               <span className="text-[10.5px] text-slate-400 flex items-center gap-1 mt-0.5">
                                 <Calendar className="w-3 h-3 text-slate-500" />
-                                {new Date(rep.createdAt).toLocaleString('vi-VN')}
+                                {rep.createdAt ? new Date(rep.createdAt).toLocaleString('vi-VN') : '---'}
                               </span>
                             </td>
 
                             <td className="p-2.5">
-                              <strong className="text-white uppercase font-bold block">{rep.patient.name}</strong>
-                              <span className="text-[10.5px] text-slate-400">{rep.patient.dob || '---'} • {rep.patient.gender}</span>
+                              <strong className="text-white uppercase font-bold block">{rep.patient?.name || '---'}</strong>
+                              <span className="text-[10.5px] text-slate-400">{rep.patient?.dob || '---'} • {rep.patient?.gender || '---'}</span>
                             </td>
 
                             <td className="p-2.5 max-w-[180px]">
-                              <span className="font-mono text-slate-300 block">{rep.patient.phone || '---'}</span>
-                              <span className="text-[10.5px] text-slate-400 truncate block mt-0.5" title={rep.patient.address}>
-                                {rep.patient.address || 'Quảng Bình'}
+                              <span className="font-mono text-slate-300 block">{rep.patient?.phone || '---'}</span>
+                              <span className="text-[10.5px] text-slate-400 truncate block mt-0.5" title={rep.patient?.address}>
+                                {rep.patient?.address || 'Quảng Bình'}
                               </span>
                             </td>
 
@@ -744,11 +848,11 @@ export default function RevenueManagerModal({
                             </td>
 
                             <td className="p-2.5 text-center font-mono font-bold text-slate-300">
-                              {rep.testCount || rep.selectedTests.length}
+                              {rep.testCount || rep.selectedTests?.length || 0}
                             </td>
 
                             <td className="p-2.5 text-right font-mono font-bold text-rose-400 text-xs">
-                              {estFee.toLocaleString('vi-VN')} đ
+                              {(estFee || 0).toLocaleString('vi-VN')} đ
                             </td>
 
                             <td className="p-2.5 text-right">
@@ -770,7 +874,67 @@ export default function RevenueManagerModal({
                     </tbody>
                   </table>
                 </div>
-              )}
+
+                {/* ═══ MOBILE PENDING CARDS (< md) ═══ */}
+                <div className="md:hidden space-y-2.5">
+                  {pendingReports.map((rep) => {
+                    const estFee = getEstimatedFee(rep);
+                    const isAllergen = rep.isAllergen;
+
+                    return (
+                      <div
+                        key={`mob_pending_${rep.id}`}
+                        className="p-3.5 bg-slate-900 border border-slate-800 rounded-2xl shadow-sm space-y-2"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-mono text-xs font-bold text-sky-400">{rep.code}</span>
+                              <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded ${
+                                isAllergen ? 'bg-purple-500/20 text-purple-300' : 'bg-sky-500/20 text-sky-300'
+                              }`}>
+                                {isAllergen ? 'Dị Nguyên' : 'Xét Nghiệm'}
+                              </span>
+                            </div>
+                            <h4 className="text-sm font-bold text-white uppercase mt-0.5">{rep.patient?.name || '---'}</h4>
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              {rep.patient?.dob || '---'} • {rep.patient?.gender || '---'} • {rep.patient?.phone || ''}
+                            </p>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <span className="text-xs font-mono font-bold text-rose-400 block">
+                              {(estFee || 0).toLocaleString('vi-VN')} đ
+                            </span>
+                            <span className="text-[10px] text-slate-400 block mt-0.5">
+                              {rep.createdAt ? new Date(rep.createdAt).toLocaleDateString('vi-VN') : ''}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-800/60 text-[10.5px]">
+                          <span className="text-slate-400">{rep.doctorName || 'BS. Trần Hoài Long'}</span>
+                          <span className="text-slate-400 font-mono">{rep.testCount || rep.selectedTests?.length || 0} chỉ số</span>
+                        </div>
+
+                        {onOpenInvoiceForReport && (
+                          <div className="pt-2 border-t border-slate-800/60">
+                            <button
+                              type="button"
+                              onClick={() => onOpenInvoiceForReport(rep)}
+                              className="w-full py-2.5 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.98] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow transition cursor-pointer"
+                            >
+                              <CreditCard className="w-3.5 h-3.5" />
+                              <span>Lập Hóa Đơn & Thu Phí Ngay</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
             </div>
           )}
 

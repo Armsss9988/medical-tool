@@ -25,11 +25,11 @@ export const catalogRowSchema = z.object({
   name: z.string().min(1),
   refMin: z.number().nullable().optional(),
   refMax: z.number().nullable().optional(),
-  unit: z.string().optional().default(''),
-  refText: z.string().optional().default(''),
-  price: z.number().optional(),
-  scientific: z.string().optional(),
-  evaluationType: z.string().optional()
+  unit: z.string().nullable().optional().default(''),
+  refText: z.string().nullable().optional().default(''),
+  price: z.number().nullable().optional(),
+  scientific: z.string().nullable().optional(),
+  evaluationType: z.string().nullable().optional()
 });
 
 /** Zod schema cho một PackageItem (chỉ số trong gói kèm máy đo) */
@@ -56,32 +56,32 @@ export const testGroupRowSchema = z.object({
 export const equipmentRowSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
-  code: z.string().optional()
+  code: z.string().nullable().optional()
 });
 
 export const doctorRowSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
-  specialty: z.string().optional(),
-  phone: z.string().optional()
+  specialty: z.string().nullable().optional(),
+  phone: z.string().nullable().optional()
 });
 
 export const clinicInfoRowSchema = z.object({
   name: z.string(),
   address: z.string(),
   phone: z.string(),
-  website: z.string().optional(),
+  website: z.string().nullable().optional(),
   defaultDoctor: z.string(),
-  logoUrl: z.string().optional(),
-  stampUrl: z.string().optional(),
-  bankId: z.string().optional(),
-  bankName: z.string().optional(),
-  bankAccountNo: z.string().optional(),
-  bankAccountName: z.string().optional(),
-  bankBranch: z.string().optional(),
-  bankQrImageUrl: z.string().optional(),
-  cashierName: z.string().optional(),
-  accountantName: z.string().optional()
+  logoUrl: z.string().nullable().optional(),
+  stampUrl: z.string().nullable().optional(),
+  bankId: z.string().nullable().optional(),
+  bankName: z.string().nullable().optional(),
+  bankAccountNo: z.string().nullable().optional(),
+  bankAccountName: z.string().nullable().optional(),
+  bankBranch: z.string().nullable().optional(),
+  bankQrImageUrl: z.string().nullable().optional(),
+  cashierName: z.string().nullable().optional(),
+  accountantName: z.string().nullable().optional()
 });
 
 export const zaloConfigRowSchema = z.object({
@@ -90,10 +90,10 @@ export const zaloConfigRowSchema = z.object({
   secretKey: z.string(),
   oaId: z.string(),
   accessToken: z.string(),
-  refreshToken: z.string().optional(),
+  refreshToken: z.string().nullable().optional(),
   templateId: z.string(),
   autoSendOnExport: z.boolean(),
-  proxyUrl: z.string().optional()
+  proxyUrl: z.string().nullable().optional()
 });
 
 export const referenceRangeRowSchema = z.object({
@@ -101,11 +101,11 @@ export const referenceRangeRowSchema = z.object({
   name: z.string().min(1),
   refMin: z.number().nullable().optional(),
   refMax: z.number().nullable().optional(),
-  unit: z.string().optional().default(''),
-  refText: z.string().optional().default(''),
-  gender: z.string().optional(),
-  ageGroup: z.string().optional(),
-  note: z.string().optional()
+  unit: z.string().nullable().optional().default(''),
+  refText: z.string().nullable().optional().default(''),
+  gender: z.string().nullable().optional(),
+  ageGroup: z.string().nullable().optional(),
+  note: z.string().nullable().optional()
 });
 
 /** Zod schema cho bảng catalog_item_equipments */
@@ -129,13 +129,13 @@ export const allergenScaleLevelSchema = z.object({
   rangeText: z.string(),
   label: z.string(),
   isPositive: z.boolean(),
-  colorKey: z.string().optional()
+  colorKey: z.string().nullable().optional()
 });
 
 export const allergenScaleRowSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
-  equipment: z.string().optional(),
+  equipment: z.string().nullable().optional(),
   unit: z.string().default('IU/ml'),
   levels: z.array(allergenScaleLevelSchema).default([])
 });

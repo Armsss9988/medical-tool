@@ -213,6 +213,8 @@ export async function getTableRows(db: Db, name: TableName): Promise<unknown[]> 
  * Ghi đè toàn bộ dữ liệu bảng theo Transaction quan hệ (Master-Detail)
  */
 export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Promise<number> {
+  const BATCH_SIZE = 100;
+
   return db.transaction(async (tx) => {
     switch (name) {
       case 'medical-reports': {
@@ -220,42 +222,49 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
         await tx.delete(tables.medicalReportTests);
         await tx.delete(tables.medicalReports);
 
-        for (const rep of reportList) {
-          await tx.insert(tables.medicalReports).values({
-            id: rep.id,
-            code: rep.code || rep.patient?.code || 'BN',
-            sampleCode: rep.sampleCode || rep.patient?.sampleCode || null,
-            status: rep.status || 'Chờ xét nghiệm',
-            doctorName: rep.doctorName || null,
-            conclusion: rep.conclusion || null,
-            isAllergen: rep.isAllergen || false,
-            invoiceId: rep.invoiceId || null,
-            cloudPdfUrl: rep.cloudPdfUrl || null,
-            qrCodeDataUrl: rep.qrCodeDataUrl || null,
-            pdfVersion: rep.pdfVersion || 1,
-            isPdfOutdated: rep.isPdfOutdated || false,
-            pdfGeneratedAt: rep.pdfGeneratedAt ? new Date(rep.pdfGeneratedAt) : null,
-            zaloSentAt: rep.zaloSentAt ? new Date(rep.zaloSentAt) : null,
-            zaloMsgId: rep.zaloMsgId || null,
-            patientName: rep.patient?.name || '',
-            patientDob: rep.patient?.dob || null,
-            patientGender: rep.patient?.gender || null,
-            patientPhone: rep.patient?.phone || null,
-            patientAddress: rep.patient?.address || null,
-            patientDiagnosis: rep.patient?.diagnosis || null,
-            patientOrderedAt: rep.patient?.orderedAt || null,
-            patientReceivedAt: rep.patient?.receivedAt || null,
-            patientReturnedAt: rep.patient?.returnedAt || null,
-            patientSecretToken: rep.patient?.secretToken || null,
-            patientSampleStatus: rep.patient?.sampleStatus || null,
-            createdAt: rep.createdAt ? new Date(rep.createdAt) : new Date(),
-            updatedAt: rep.updatedAt ? new Date(rep.updatedAt) : new Date()
-          });
+        if (reportList.length === 0) return 0;
 
+        const reportValues = reportList.map((rep) => ({
+          id: rep.id,
+          code: rep.code || rep.patient?.code || 'BN',
+          sampleCode: rep.sampleCode || rep.patient?.sampleCode || null,
+          status: rep.status || 'Chờ xét nghiệm',
+          doctorName: rep.doctorName || null,
+          conclusion: rep.conclusion || null,
+          isAllergen: rep.isAllergen || false,
+          invoiceId: rep.invoiceId || null,
+          cloudPdfUrl: rep.cloudPdfUrl || null,
+          qrCodeDataUrl: rep.qrCodeDataUrl || null,
+          pdfVersion: rep.pdfVersion || 1,
+          isPdfOutdated: rep.isPdfOutdated || false,
+          pdfGeneratedAt: rep.pdfGeneratedAt ? new Date(rep.pdfGeneratedAt) : null,
+          zaloSentAt: rep.zaloSentAt ? new Date(rep.zaloSentAt) : null,
+          zaloMsgId: rep.zaloMsgId || null,
+          patientName: rep.patient?.name || '',
+          patientDob: rep.patient?.dob || null,
+          patientGender: rep.patient?.gender || null,
+          patientPhone: rep.patient?.phone || null,
+          patientAddress: rep.patient?.address || null,
+          patientDiagnosis: rep.patient?.diagnosis || null,
+          patientOrderedAt: rep.patient?.orderedAt || null,
+          patientReceivedAt: rep.patient?.receivedAt || null,
+          patientReturnedAt: rep.patient?.returnedAt || null,
+          patientSecretToken: rep.patient?.secretToken || null,
+          patientSampleStatus: rep.patient?.sampleStatus || null,
+          createdAt: rep.createdAt ? new Date(rep.createdAt) : new Date(),
+          updatedAt: rep.updatedAt ? new Date(rep.updatedAt) : new Date()
+        }));
+
+        for (let i = 0; i < reportValues.length; i += BATCH_SIZE) {
+          await tx.insert(tables.medicalReports).values(reportValues.slice(i, i + BATCH_SIZE));
+        }
+
+        const allTests: (typeof tables.medicalReportTests.$inferInsert)[] = [];
+        for (const rep of reportList) {
           const tests = Array.isArray(rep.selectedTests) ? rep.selectedTests : [];
           for (let idx = 0; idx < tests.length; idx++) {
             const t = tests[idx];
-            await tx.insert(tables.medicalReportTests).values({
+            allTests.push({
               id: `${rep.id}_${t.code || idx}_${idx}`,
               reportId: rep.id,
               testOrder: idx,
@@ -278,6 +287,11 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
             });
           }
         }
+
+        for (let i = 0; i < allTests.length; i += BATCH_SIZE) {
+          await tx.insert(tables.medicalReportTests).values(allTests.slice(i, i + BATCH_SIZE));
+        }
+
         return reportList.length;
       }
 
@@ -286,9 +300,11 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
         await tx.delete(tables.invoiceItems);
         await tx.delete(tables.invoices);
 
-        for (const inv of invoiceList) {
+        if (invoiceList.length === 0) return 0;
+
+        const invValues = invoiceList.map((inv) => {
           const subtotal = inv.totalAmount || 0;
-          await tx.insert(tables.invoices).values({
+          return {
             id: inv.id,
             code: inv.code,
             reportId: inv.reportId || null,
@@ -310,14 +326,21 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
             notes: inv.notes || null,
             createdAt: inv.createdAt ? new Date(inv.createdAt) : new Date(),
             updatedAt: new Date()
-          });
+          };
+        });
 
+        for (let i = 0; i < invValues.length; i += BATCH_SIZE) {
+          await tx.insert(tables.invoices).values(invValues.slice(i, i + BATCH_SIZE));
+        }
+
+        const allItems: (typeof tables.invoiceItems.$inferInsert)[] = [];
+        for (const inv of invoiceList) {
           const items = Array.isArray(inv.items) ? inv.items : [];
           for (let idx = 0; idx < items.length; idx++) {
             const it = items[idx];
             const price = it.price || 0;
             const quantity = it.quantity || 1;
-            await tx.insert(tables.invoiceItems).values({
+            allItems.push({
               id: `${inv.id}_${it.code || idx}_${idx}`,
               invoiceId: inv.id,
               itemOrder: idx,
@@ -330,6 +353,11 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
             });
           }
         }
+
+        for (let i = 0; i < allItems.length; i += BATCH_SIZE) {
+          await tx.insert(tables.invoiceItems).values(allItems.slice(i, i + BATCH_SIZE));
+        }
+
         return invoiceList.length;
       }
 
@@ -338,19 +366,23 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
         await tx.delete(tables.allergenScaleLevels);
         await tx.delete(tables.allergenScales);
 
-        for (const s of scaleList) {
-          await tx.insert(tables.allergenScales).values({
-            id: s.id,
-            name: s.name,
-            equipment: s.equipment || null,
-            unit: s.unit || 'IU/ml',
-            updatedAt: new Date()
-          });
+        if (scaleList.length === 0) return 0;
 
+        const scaleValues = scaleList.map((s) => ({
+          id: s.id,
+          name: s.name,
+          equipment: s.equipment || null,
+          unit: s.unit || 'IU/ml',
+          updatedAt: new Date()
+        }));
+        await tx.insert(tables.allergenScales).values(scaleValues);
+
+        const allLevels: (typeof tables.allergenScaleLevels.$inferInsert)[] = [];
+        for (const s of scaleList) {
           const levels = Array.isArray(s.levels) ? s.levels : [];
           for (let idx = 0; idx < levels.length; idx++) {
             const l = levels[idx];
-            await tx.insert(tables.allergenScaleLevels).values({
+            allLevels.push({
               id: `${s.id}_grade_${l.grade}`,
               scaleId: s.id,
               grade: l.grade,
@@ -364,6 +396,11 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
             });
           }
         }
+
+        for (let i = 0; i < allLevels.length; i += BATCH_SIZE) {
+          await tx.insert(tables.allergenScaleLevels).values(allLevels.slice(i, i + BATCH_SIZE));
+        }
+
         return scaleList.length;
       }
 
@@ -372,22 +409,29 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
         await tx.delete(tables.packageItems);
         await tx.delete(tables.testPackages);
 
-        for (const p of packageList) {
-          await tx.insert(tables.testPackages).values({
-            id: p.id,
-            name: p.name,
-            defaultEquipmentId: p.defaultEquipmentId || null,
-            price: p.price || 0,
-            updatedAt: new Date()
-          });
+        if (packageList.length === 0) return 0;
 
+        const pkgValues = packageList.map((p) => ({
+          id: p.id,
+          name: p.name,
+          defaultEquipmentId: p.defaultEquipmentId || null,
+          price: p.price || 0,
+          updatedAt: new Date()
+        }));
+
+        for (let i = 0; i < pkgValues.length; i += BATCH_SIZE) {
+          await tx.insert(tables.testPackages).values(pkgValues.slice(i, i + BATCH_SIZE));
+        }
+
+        const allPackageItems: (typeof tables.packageItems.$inferInsert)[] = [];
+        for (const p of packageList) {
           const items = p.items || (p.codes || []).map((c) => ({ code: c, equipmentId: null }));
           for (let idx = 0; idx < items.length; idx++) {
             const it = items[idx] as { code?: string; equipmentId?: string | null } | string;
             const code = typeof it === 'string' ? it : (it.code || '');
             const eqId = typeof it === 'object' ? (it.equipmentId || null) : null;
             if (!code) continue;
-            await tx.insert(tables.packageItems).values({
+            allPackageItems.push({
               id: `${p.id}_${code}_${idx}`,
               packageId: p.id,
               catalogCode: code,
@@ -396,14 +440,60 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
             });
           }
         }
+
+        for (let i = 0; i < allPackageItems.length; i += BATCH_SIZE) {
+          await tx.insert(tables.packageItems).values(allPackageItems.slice(i, i + BATCH_SIZE));
+        }
+
         return packageList.length;
+      }
+
+      case 'test-groups': {
+        const groupList = rows as { id: string; name: string }[];
+        if (groupList.length === 0) return 0;
+
+        // 1. Upsert all incoming groups
+        for (const g of groupList) {
+          await tx
+            .insert(tables.testGroups)
+            .values({
+              id: g.id,
+              name: g.name,
+              updatedAt: new Date()
+            })
+            .onConflictDoUpdate({
+              target: tables.testGroups.id,
+              set: {
+                name: g.name,
+                updatedAt: new Date()
+              }
+            });
+        }
+
+        // 2. Safely delete only groups not present in incoming list AND not referenced in catalog_items
+        const newGroupIds = new Set(groupList.map((g) => g.id));
+        const usedCategories = await tx
+          .selectDistinct({ category: tables.catalogItems.category })
+          .from(tables.catalogItems);
+        const usedSet = new Set(usedCategories.map((c) => c.category));
+
+        const existingGroups = await tx.select().from(tables.testGroups);
+        for (const eg of existingGroups) {
+          if (!newGroupIds.has(eg.id) && !usedSet.has(eg.name)) {
+            await tx.delete(tables.testGroups).where(eq(tables.testGroups.id, eg.id));
+          }
+        }
+
+        return groupList.length;
       }
 
       default: {
         const table = TABLES[name];
         await tx.delete(table);
         if (rows.length > 0) {
-          await tx.insert(table).values(rows as never[]);
+          for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+            await tx.insert(table).values(rows.slice(i, i + BATCH_SIZE) as never[]);
+          }
         }
         return rows.length;
       }

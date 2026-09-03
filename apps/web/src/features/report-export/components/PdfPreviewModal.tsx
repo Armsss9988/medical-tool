@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   X,
   Printer,
@@ -114,6 +114,23 @@ export default function PdfPreviewModal({
     [reportType]
   );
 
+  const computeFitZoom = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      const isMobile = window.innerWidth < 768;
+      const availableWidth = isMobile ? window.innerWidth - 16 : window.innerWidth - 64;
+      return Math.max(0.35, Math.min(1.2, Number((availableWidth / 794).toFixed(2))));
+    }
+    return 0.85;
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (typeof window !== 'undefined' && window.innerWidth < 768) {
+        setZoomScale(computeFitZoom());
+      }
+    }
+  }, [isOpen, computeFitZoom]);
+
   const handleZoomIn = () => {
     setZoomScale((prev) => Math.min(prev + 0.1, 1.5));
   };
@@ -123,7 +140,11 @@ export default function PdfPreviewModal({
   };
 
   const handleResetZoom = () => {
-    setZoomScale(0.85);
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setZoomScale(computeFitZoom());
+    } else {
+      setZoomScale(0.85);
+    }
   };
 
   if (!isOpen) return null;
@@ -404,7 +425,7 @@ export default function PdfPreviewModal({
         )}
 
         {/* Khung Hiển Thị Mẫu In A4 (Với Tỉ Lệ Zoom Linh Hoạt) */}
-        <div className="flex-1 overflow-auto p-4 md:p-8 bg-slate-950 flex justify-center items-start">
+        <div className="flex-1 overflow-auto p-2 sm:p-4 md:p-8 bg-slate-950 flex justify-center items-start">
           <div 
             className="shadow-2xl rounded-sm overflow-hidden bg-white transition-transform duration-150 origin-top"
             style={{ transform: `scale(${zoomScale})` }}

@@ -30,6 +30,8 @@ interface ConclusionFormProps {
   invoiceCode?: string;
   invoiceStatus?: string;
   paidAmount?: number;
+  /** Mobile back navigation callback */
+  onNavigateBack?: () => void;
 }
 
 const QUICK_CONCLUSION_TEMPLATES = [
@@ -61,7 +63,8 @@ export default function ConclusionForm({
   isReportSaved = false,
   invoiceCode,
   invoiceStatus,
-  paidAmount
+  paidAmount,
+  onNavigateBack
 }: ConclusionFormProps) {
   const handleApplyTemplate = (template: string) => {
     if (!conclusion.trim()) {
@@ -142,7 +145,7 @@ export default function ConclusionForm({
           />
 
           {/* Quick template chips */}
-          <div className="mt-2 flex flex-wrap gap-1.5">
+          <div className="mt-2 flex flex-wrap gap-1.5 overflow-x-auto no-scrollbar touch-pan-x py-0.5">
             {QUICK_CONCLUSION_TEMPLATES.map((tmpl, idx) => (
               <button
                 type="button"
@@ -355,6 +358,19 @@ export default function ConclusionForm({
             <span>Làm Mới Toàn Bộ (BN Mới)</span>
             <kbd className="text-[9px] font-mono bg-slate-100 text-slate-500 px-1 py-0.5 rounded ml-1">Ctrl+N</kbd>
           </button>
+
+          {/* Nút Quay Lại Bảng Chỉ Số Trên Mobile */}
+          {onNavigateBack && (
+            <div className="pt-1 lg:hidden">
+              <button
+                type="button"
+                onClick={onNavigateBack}
+                className="w-full py-2.5 px-3 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition active:scale-[0.99] cursor-pointer"
+              >
+                <span>← Quay Lại Bảng Chỉ Số Xét Nghiệm</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

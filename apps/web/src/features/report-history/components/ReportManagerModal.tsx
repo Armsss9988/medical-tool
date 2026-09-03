@@ -287,10 +287,10 @@ export default function ReportManagerModal({
         </div>
 
         {/* THỐNG KÊ KPI CARDS (Bao gồm thẻ PDF Outdated & Thu Phí) */}
-        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5 p-4 bg-slate-950/50 border-b border-slate-800 shrink-0 text-xs">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
+        <div className="flex overflow-x-auto no-scrollbar touch-pan-x sm:grid sm:grid-cols-6 gap-2 sm:gap-2.5 p-3 sm:p-4 bg-slate-950/50 border-b border-slate-800 shrink-0 text-xs">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 sm:p-3 flex items-center justify-between shrink-0 min-w-[130px] sm:min-w-0">
             <div>
-              <span className="text-[11px] text-slate-400 block font-medium">Tổng số phiếu</span>
+              <span className="text-[10.5px] sm:text-[11px] text-slate-400 block font-medium">Tổng số phiếu</span>
               <strong className="text-base font-extrabold text-white font-mono">{stats.total}</strong>
             </div>
             <FileText className="w-5 h-5 text-sky-400/80" />
@@ -500,7 +500,9 @@ export default function ReportManagerModal({
               <p className="text-xs text-slate-500">Hãy thử xóa từ khóa tìm kiếm hoặc chọn "Mọi thời gian"</p>
             </div>
           ) : (
-            <div className="border border-slate-800 rounded-xl overflow-hidden shadow-inner">
+            <>
+              {/* ═══ DESKTOP TABLE VIEW (≥ md) ═══ */}
+              <div className="hidden md:block border border-slate-800 rounded-xl overflow-hidden shadow-inner">
               <table className="w-full text-left border-collapse">
                 <thead className="bg-slate-800 text-slate-200 font-bold border-b border-slate-700">
                   <tr>
@@ -585,7 +587,7 @@ export default function ReportManagerModal({
                             <div className="space-y-0.5">
                               <span className={`inline-flex items-center gap-1 text-[10.5px] font-bold px-2 py-0.5 rounded-md border ${billing.getBadgeStyle().bg} ${billing.getBadgeStyle().text} ${billing.getBadgeStyle().border}`}>
                                 <CreditCard className="w-3 h-3 text-emerald-400" />
-                                <span>{billing.label()} ({inv.finalAmount.toLocaleString('vi-VN')} đ)</span>
+                                <span>{billing.label()} ({(inv.finalAmount ?? 0).toLocaleString('vi-VN')} đ)</span>
                               </span>
                               <span className="block font-mono text-[9.5px] text-slate-400">{inv.code}</span>
                             </div>
@@ -729,7 +731,140 @@ export default function ReportManagerModal({
                 </tbody>
               </table>
             </div>
-          )}
+
+            {/* ═══ MOBILE CARDS VIEW (< md) ═══ */}
+            <div className="md:hidden space-y-2.5">
+              {filteredReports.map((rep) => {
+                const isAllergen = rep.isAllergen;
+                const inv = getInvoiceForReport(rep);
+                const isPaid = Boolean(inv ? inv.status === 'Đã thanh toán' : rep.patient?.paidAt);
+                const { clinical, document, billing } = ReportStateMachine.computeSummary(rep, isPaid);
+                const isOutdated = document.isOutdated();
+                const versionStr = rep.pdfVersion ? `v${rep.pdfVersion}` : 'v1';
+
+                return (
+                  <div
+                    key={`mob_rep_${rep.id}`}
+                    className={`p-3.5 bg-slate-900 border rounded-2xl shadow-sm transition-all ${
+                      isOutdated ? 'border-amber-500/60 bg-amber-950/20' : 'border-slate-800'
+                    }`}
+                  >
+                    {/* Header: Mã phiếu, ngày giờ, loại phiếu */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono text-xs font-bold text-sky-400">{rep.code}</span>
+                          <span
+                            className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded ${
+                              isAllergen
+                                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                            }`}
+                          >
+                            {isAllergen ? 'Dị Nguyên' : 'Xét Nghiệm'}
+                          </span>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${clinical.getBadgeStyle().bg} ${clinical.getBadgeStyle().text} ${clinical.getBadgeStyle().border}`}>
+                            {clinical.label()}
+                          </span>
+                        </div>
+                        <h4 className="text-sm font-bold text-white uppercase mt-1 truncate">
+                          {rep.patient.name || '---'}
+                        </h4>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          {rep.patient.dob || '---'} • {rep.patient.gender} • {rep.patient.phone || 'Không SĐT'}
+                        </p>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <span className="text-[10px] text-slate-400 block font-mono">
+                          {new Date(rep.createdAt).toLocaleDateString('vi-VN')}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono">
+                          {new Date(rep.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Dải trạng thái: Viện phí & PDF */}
+                    <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between gap-1 flex-wrap text-[10.5px]">
+                      <span className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-md border ${billing.getBadgeStyle().bg} ${billing.getBadgeStyle().text} ${billing.getBadgeStyle().border}`}>
+                        <CreditCard className="w-3 h-3" />
+                        <span>{billing.label()} {inv?.finalAmount ? `(${(inv.finalAmount).toLocaleString('vi-VN')} đ)` : ''}</span>
+                      </span>
+
+                      <span className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-md border ${document.getBadgeStyle().bg} ${document.getBadgeStyle().text} ${document.getBadgeStyle().border}`}>
+                        {isOutdated ? <AlertTriangle className="w-3 h-3 text-amber-400" /> : <CheckCircle2 className="w-3 h-3 text-emerald-400" />}
+                        <span>{document.label()} ({versionStr})</span>
+                      </span>
+                    </div>
+
+                    {/* Dải nút hành động cảm ứng trên mobile */}
+                    <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onLoadReport(rep)}
+                        className="flex-1 py-2 px-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 shadow transition active:scale-[0.98] cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Nạp Phiếu</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => onPreviewReport(rep)}
+                        className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1 border border-slate-700 transition active:scale-95 cursor-pointer"
+                        title="Xem trước mẫu in A4"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-sky-400" />
+                        <span>Xem</span>
+                      </button>
+
+                      {onOpenSendZaloModal && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenSendZaloModal(rep)}
+                          className="p-2 bg-[#0068FF]/20 hover:bg-[#0068FF] text-[#0068FF] hover:text-white rounded-xl border border-blue-500/30 transition active:scale-95 cursor-pointer"
+                          title="Gửi Zalo"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                        </button>
+                      )}
+
+                      {isOutdated && onUpdateSingleReportPdf && (
+                        <button
+                          type="button"
+                          onClick={() => onUpdateSingleReportPdf(rep)}
+                          disabled={isUpdatingPdf}
+                          className="p-2 bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 rounded-xl border border-amber-500/40 transition active:scale-95 cursor-pointer"
+                          title="Cập nhật PDF"
+                        >
+                          <RefreshCw className={`w-4 h-4 ${isUpdatingPdf ? 'animate-spin' : ''}`} />
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              `Bạn có chắc chắn muốn xóa phiếu xét nghiệm của bệnh nhân [${rep.patient?.name || rep.code}]?`
+                            )
+                          ) {
+                            onDeleteReport(rep.id);
+                          }
+                        }}
+                        className="p-2 bg-rose-950/40 hover:bg-rose-600 text-rose-400 hover:text-white rounded-xl border border-rose-800/40 transition active:scale-95 cursor-pointer"
+                        title="Xóa phiếu"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
         </div>
 
         {/* FOOTER MODAL */}

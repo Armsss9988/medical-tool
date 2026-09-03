@@ -92,7 +92,8 @@ export default function PrintReceiptView({
   const monthStr = String(dateObj.getMonth() + 1).padStart(2, '0');
   const yearStr = String(dateObj.getFullYear());
 
-  const amountWords = numberToVietnameseWords(invoice.finalAmount);
+  const safeFinalAmount = invoice.finalAmount ?? 0;
+  const amountWords = numberToVietnameseWords(safeFinalAmount);
 
   // Bank Info
   const bankId = clinicInfo.bankId || 'VBA';
@@ -107,7 +108,7 @@ export default function PrintReceiptView({
   // QR Image: custom uploaded or dynamic VietQR Napas 247
   const qrImageSource =
     clinicInfo.bankQrImageUrl ||
-    `https://img.vietqr.io/image/${bankId}-${bankAccountNo}-compact2.png?amount=${invoice.finalAmount}&addInfo=${encodeURIComponent(transferContent)}&accountName=${encodeURIComponent(bankAccountName)}`;
+    `https://img.vietqr.io/image/${bankId}-${bankAccountNo}-compact2.png?amount=${safeFinalAmount}&addInfo=${encodeURIComponent(transferContent)}&accountName=${encodeURIComponent(bankAccountName)}`;
 
   // Table items: guarantee at least 5 rows like in the template
   const MIN_ROWS = 5;
@@ -318,10 +319,10 @@ export default function PrintReceiptView({
                     </td>
                     <td className="py-1 px-2 text-center font-mono border-r border-[#0f3a85]">1</td>
                     <td className="py-1 px-2.5 text-right font-mono border-r border-[#0f3a85]">
-                      {invoice.surchargeAmount.toLocaleString('vi-VN')}
+                      {(invoice.surchargeAmount || 0).toLocaleString('vi-VN')}
                     </td>
                     <td className="py-1 px-2.5 text-right font-mono font-bold text-[#0f3a85]">
-                      {invoice.surchargeAmount.toLocaleString('vi-VN')}
+                      {(invoice.surchargeAmount || 0).toLocaleString('vi-VN')}
                     </td>
                   </tr>
                 ) : null}
@@ -335,10 +336,10 @@ export default function PrintReceiptView({
                     </td>
                     <td className="py-1 px-2 text-center font-mono border-r border-[#0f3a85]">1</td>
                     <td className="py-1 px-2.5 text-right font-mono border-r border-[#0f3a85]">
-                      -{invoice.discountAmount.toLocaleString('vi-VN')}
+                      -{(invoice.discountAmount || 0).toLocaleString('vi-VN')}
                     </td>
                     <td className="py-1 px-2.5 text-right font-mono font-bold text-rose-700">
-                      -{invoice.discountAmount.toLocaleString('vi-VN')}
+                      -{(invoice.discountAmount || 0).toLocaleString('vi-VN')}
                     </td>
                   </tr>
                 ) : null}
@@ -349,7 +350,7 @@ export default function PrintReceiptView({
                     TỔNG CỘNG
                   </td>
                   <td className="py-2 px-3 text-center font-mono font-black text-red-600 text-[15px]">
-                    {invoice.finalAmount.toLocaleString('vi-VN')} VNĐ
+                    {(invoice.finalAmount ?? 0).toLocaleString('vi-VN')} VNĐ
                   </td>
                 </tr>
               </tbody>

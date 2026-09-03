@@ -27,6 +27,9 @@ interface TestTableProps {
   recentTests?: RecentTestItem[];
   onAddToRecent?: (item: RecentTestItem) => void;
   onAddMultipleToRecent?: (items: RecentTestItem[]) => void;
+  /** Navigation callback for mobile flow */
+  onNavigateNext?: () => void;
+  onNavigateBack?: () => void;
 }
 
 export default function TestTable({ 
@@ -43,7 +46,9 @@ export default function TestTable({
   onOpenInvoiceModal,
   recentTests = [],
   onAddToRecent,
-  onAddMultipleToRecent
+  onAddMultipleToRecent,
+  onNavigateNext,
+  onNavigateBack
 }: TestTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -580,8 +585,8 @@ export default function TestTable({
         )}
       </div>
 
-      {/* Main Selected Tests Table */}
-      <div className="border border-slate-200/90 rounded-xl overflow-hidden shadow-2xs">
+      {/* ═══ DESKTOP TABLE VIEW (≥ md) ═══ */}
+      <div className="hidden md:block border border-slate-200/90 rounded-xl overflow-hidden shadow-2xs">
         <div className="max-h-[500px] overflow-y-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-slate-800 text-white font-bold sticky top-0 z-10">
@@ -681,11 +686,12 @@ export default function TestTable({
                         <input
                           ref={(el) => setResultInputRef(t.code, el)}
                           type="text"
+                          inputMode="decimal"
                           value={t.result}
                           onChange={(e) => handleResultChange(t.code, e.target.value)}
                           onKeyDown={(e) => handleResultKeyDown(e, idx)}
                           placeholder="Nhập KQ..."
-                          className={`w-full px-2 py-1.5 min-h-[36px] text-center font-mono font-bold rounded-lg border text-xs sm:text-xs focus:outline-none transition-all shadow-2xs ${
+                          className={`w-full px-2 py-1.5 min-h-[36px] text-center font-mono font-bold rounded-lg border text-xs focus:outline-none transition-all shadow-2xs ${
                             isAbnormal
                               ? 'border-red-400 bg-red-50 text-red-700 focus:ring-2 focus:ring-red-300'
                               : 'border-slate-300 bg-white text-slate-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100'
@@ -724,6 +730,177 @@ export default function TestTable({
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* ═══ MOBILE CARDS VIEW (< md) ═══ */}
+      <div className="md:hidden space-y-2.5">
+        {selectedTests.length === 0 ? (
+          <div className="py-10 px-4 text-center bg-white rounded-2xl border border-dashed border-slate-300 text-slate-400 shadow-2xs">
+            <TestTube className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+            <p className="font-bold text-slate-600 text-sm">Chưa có chỉ số xét nghiệm nào</p>
+            <p className="text-xs text-slate-400 mt-1">
+              Chọn các gói xét nghiệm nhanh ở trên hoặc gõ tìm kiếm chỉ số để thêm vào phiếu
+            </p>
+          </div>
+        ) : (
+          selectedTests.map((t, idx) => {
+            const resolved = resolveIndicatorReference(t, {
+              equipmentId: t.equipmentId,
+              catalogItemEquipments,
+              referenceRanges,
+              allergenScales,
+              equipments
+            });
+            const evalRes = evaluateTestIndicator(
+              t.code,
+              t.category,
+              resolved.unit,
+              t.result,
+              resolved.refMin,
+              resolved.refMax,
+              resolved.scale
+            );
+            const isAbnormal = evalRes.isAbnormal;
+            const displayUnit = resolved.unit || '---';
+            const displayRef = resolved.refText || '---';
+
+            return (
+              <div
+                key={`mob_${t.code || idx}`}
+                className={`p-3.5 bg-white rounded-2xl border shadow-xs transition-all ${
+                  isAbnormal ? 'border-amber-400/90 bg-amber-50/25 ring-1 ring-amber-300/60' : 'border-slate-200/90'
+                }`}
+              >
+                {/* Dòng 1: STT, Mã, Tên chỉ số & Nút sắp xếp / Xóa */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start space-x-2 min-w-0">
+                    <span className="w-6 h-6 rounded-lg bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center font-mono shrink-0 mt-0.5">
+                      {idx + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-slate-900 text-sm leading-snug">
+                        {t.name}
+                      </h4>
+                      <div className="flex items-center space-x-1.5 mt-0.5 flex-wrap gap-y-1">
+                        <span className="font-mono text-[11px] text-slate-400 font-semibold">{t.code}</span>
+                        {t.category && (
+                          <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-md font-medium">
+                            {t.category}
+                          </span>
+                        )}
+                        {isAbnormal && (
+                          <span className="text-[10px] font-black bg-red-100 text-red-700 px-1.5 py-0.5 rounded-md uppercase">
+                            Bất thường
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Nút điều hướng & xóa */}
+                  <div className="flex items-center space-x-1 shrink-0">
+                    <button
+                      type="button"
+                      disabled={idx === 0}
+                      onClick={() => handleMoveTestUp(idx)}
+                      className="w-8 h-8 rounded-lg bg-slate-100 active:bg-slate-200 text-slate-600 disabled:opacity-20 flex items-center justify-center transition cursor-pointer"
+                      title="Lên trên"
+                    >
+                      <ChevronUp className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={idx === selectedTests.length - 1}
+                      onClick={() => handleMoveTestDown(idx)}
+                      className="w-8 h-8 rounded-lg bg-slate-100 active:bg-slate-200 text-slate-600 disabled:opacity-20 flex items-center justify-center transition cursor-pointer"
+                      title="Xuống dưới"
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveTest(t.code)}
+                      className="w-8 h-8 rounded-lg bg-rose-50 active:bg-rose-100 text-rose-600 flex items-center justify-center transition cursor-pointer ml-1"
+                      title="Xóa"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Dòng 2: Dải thông tin tham chiếu & đơn vị */}
+                <div className="mt-2.5 py-1.5 px-3 bg-slate-50/80 rounded-xl flex items-center justify-between text-xs border border-slate-100">
+                  <span className="text-slate-500 font-medium">
+                    Tham chiếu: <strong className="font-mono text-slate-800 font-bold">{displayRef}</strong>
+                  </span>
+                  <span className="font-mono text-slate-500 font-medium">
+                    Đơn vị: <strong className="text-slate-800 font-bold">{displayUnit}</strong>
+                  </span>
+                </div>
+
+                {/* Dòng 3 & 4: Ô Nhập Kết Quả To Rõ & Đánh Giá */}
+                <div className="mt-3 space-y-2">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                      Kết quả xét nghiệm:
+                    </label>
+                    <input
+                      ref={(el) => setResultInputRef(t.code, el)}
+                      type="text"
+                      inputMode="decimal"
+                      value={t.result}
+                      onChange={(e) => handleResultChange(t.code, e.target.value)}
+                      onKeyDown={(e) => handleResultKeyDown(e, idx)}
+                      placeholder="Nhập giá trị kết quả..."
+                      className={`w-full px-3 py-2.5 text-base font-mono font-bold rounded-xl border focus:outline-none transition-all shadow-2xs ${
+                        isAbnormal
+                          ? 'border-red-400 bg-red-50 text-red-800 focus:ring-2 focus:ring-red-200'
+                          : 'border-slate-300 bg-white text-slate-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100'
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                      Đánh giá / Thang độ / Ghi chú:
+                    </label>
+                    <NoteCombobox
+                      value={t.note || ''}
+                      onChange={(val) => handleNoteChange(t.code, val)}
+                      isAllergen={resolved.isAllergen || !!resolved.scale || (t.category?.includes('Dị Nguyên') ?? false)}
+                      isAbnormal={isAbnormal}
+                      placeholder="Chọn đánh giá hoặc nhập ghi chú..."
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Nút Điều Hướng Tiến / Lùi Trên Mobile */}
+      <div className="pt-2 md:hidden flex items-center gap-2">
+        {onNavigateBack && (
+          <button
+            type="button"
+            onClick={onNavigateBack}
+            className="py-3 px-3.5 bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-slate-700 font-bold rounded-xl text-xs flex items-center justify-center space-x-1 transition cursor-pointer shrink-0"
+          >
+            <span>← Bệnh Nhân</span>
+          </button>
+        )}
+
+        {onNavigateNext && selectedTests.length > 0 && (
+          <button
+            type="button"
+            onClick={onNavigateNext}
+            className="flex-1 py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.98] text-white font-bold rounded-xl text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-md shadow-emerald-900/20 transition-all cursor-pointer truncate"
+          >
+            <span>Tiếp Tục: Kết Luận & Xuất Phiếu</span>
+            <span>→</span>
+          </button>
+        )}
       </div>
     </div>
   );

@@ -23,6 +23,30 @@
   }
 }
 
+/* Safe Area & Mobile Ergonomics */
+.pb-safe {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0.75rem));
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Chống phóng to viewport tự động trên iOS Safari khi chạm vào input */
+@media (max-width: 768px) {
+  input[type="text"],
+  input[type="tel"],
+  input[type="number"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* Custom Scrollbar for Clinical Light Theme */
 ::-webkit-scrollbar {
   width: 7px;

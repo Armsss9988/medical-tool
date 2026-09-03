@@ -56,7 +56,8 @@ const DEFAULT_CLINIC_INFO: ClinicInfo = {
 const DEFAULT_CLOUD_DB_CONFIG: CloudDbConfig = {
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL || '',
   supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
-  enabled: true
+  enabled: true,
+  autoSync: true
 };
 
 const DEFAULT_ZALO_CONFIG: ZaloZnsConfig = {
@@ -110,7 +111,13 @@ export function useCatalogData() {
   });
 
   const [cloudDbConfig, setCloudDbConfig] = useState<CloudDbConfig>(() => {
-    return loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
+    const loaded = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
+    return {
+      ...DEFAULT_CLOUD_DB_CONFIG,
+      ...loaded,
+      enabled: loaded?.enabled ?? true,
+      autoSync: loaded?.autoSync ?? true
+    };
   });
 
   const [zaloConfig, setZaloConfig] = useState<ZaloZnsConfig>(() => {
@@ -123,63 +130,81 @@ export function useCatalogData() {
   useEffect(() => {
     saveState(STORAGE_KEYS.CATALOG, catalog);
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
-      syncCatalogToSupabase(catalog, cloudDbConfig).catch(() => {});
+      syncCatalogToSupabase(catalog, cloudDbConfig).catch((err) => {
+        console.warn('[CloudDB] Lỗi đồng bộ danh mục:', err);
+      });
     }
   }, [catalog, cloudDbConfig]);
 
   useEffect(() => {
     saveState(STORAGE_KEYS.TEST_PACKAGES, testPackages);
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
-      syncPackagesToSupabase(testPackages, cloudDbConfig).catch(() => {});
+      syncPackagesToSupabase(testPackages, cloudDbConfig).catch((err) => {
+        console.warn('[CloudDB] Lỗi đồng bộ gói:', err);
+      });
     }
   }, [testPackages, cloudDbConfig]);
 
   useEffect(() => {
     saveState(STORAGE_KEYS.TEST_GROUPS, testGroups);
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
-      syncGroupsToSupabase(testGroups, cloudDbConfig).catch(() => {});
+      syncGroupsToSupabase(testGroups, cloudDbConfig).catch((err) => {
+        console.warn('[CloudDB] Lỗi đồng bộ nhóm:', err);
+      });
     }
   }, [testGroups, cloudDbConfig]);
 
   useEffect(() => {
     saveState(STORAGE_KEYS.EQUIPMENTS, equipments);
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
-      syncEquipmentsToSupabase(equipments, cloudDbConfig).catch(() => {});
+      syncEquipmentsToSupabase(equipments, cloudDbConfig).catch((err) => {
+        console.warn('[CloudDB] Lỗi đồng bộ thiết bị:', err);
+      });
     }
   }, [equipments, cloudDbConfig]);
 
   useEffect(() => {
     saveState(STORAGE_KEYS.DOCTORS, doctorsList);
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
-      syncDoctorsToSupabase(doctorsList, cloudDbConfig).catch(() => {});
+      syncDoctorsToSupabase(doctorsList, cloudDbConfig).catch((err) => {
+        console.warn('[CloudDB] Lỗi đồng bộ bác sĩ:', err);
+      });
     }
   }, [doctorsList, cloudDbConfig]);
 
   useEffect(() => {
     saveState(STORAGE_KEYS.REFERENCE_RANGES, referenceRanges);
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
-      syncReferenceRangesToSupabase(referenceRanges, cloudDbConfig).catch(() => {});
+      syncReferenceRangesToSupabase(referenceRanges, cloudDbConfig).catch((err) => {
+        console.warn('[CloudDB] Lỗi đồng bộ tham chiếu:', err);
+      });
     }
   }, [referenceRanges, cloudDbConfig]);
 
   useEffect(() => {
     saveState(STORAGE_KEYS.CATALOG_ITEM_EQUIPMENTS, catalogItemEquipments);
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
-      syncCatalogItemEquipmentsToSupabase(catalogItemEquipments, cloudDbConfig).catch(() => {});
+      syncCatalogItemEquipmentsToSupabase(catalogItemEquipments, cloudDbConfig).catch((err) => {
+        console.warn('[CloudDB] Lỗi đồng bộ liên kết máy:', err);
+      });
     }
   }, [catalogItemEquipments, cloudDbConfig]);
 
   useEffect(() => {
     saveState(STORAGE_KEYS.ALLERGEN_SCALES, allergenScales);
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
-      syncScalesToSupabase(allergenScales, cloudDbConfig).catch(() => {});
+      syncScalesToSupabase(allergenScales, cloudDbConfig).catch((err) => {
+        console.warn('[CloudDB] Lỗi đồng bộ thang dị ứng:', err);
+      });
     }
   }, [allergenScales, cloudDbConfig]);
 
   useEffect(() => {
     saveState(STORAGE_KEYS.CLINIC_INFO, clinicInfo);
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
-      syncClinicInfoToSupabase(clinicInfo, cloudDbConfig).catch(() => {});
+      syncClinicInfoToSupabase(clinicInfo, cloudDbConfig).catch((err) => {
+        console.warn('[CloudDB] Lỗi đồng bộ phòng khám:', err);
+      });
     }
   }, [clinicInfo, cloudDbConfig]);
 
@@ -190,9 +215,69 @@ export function useCatalogData() {
   useEffect(() => {
     saveState(STORAGE_KEYS.ZALO_CONFIG, zaloConfig);
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
-      syncZaloConfigToSupabase(zaloConfig, cloudDbConfig).catch(() => {});
+      syncZaloConfigToSupabase(zaloConfig, cloudDbConfig).catch((err) => {
+        console.warn('[CloudDB] Lỗi đồng bộ Zalo config:', err);
+      });
     }
   }, [zaloConfig, cloudDbConfig]);
+
+  // Lưu trực tiếp toàn bộ dữ liệu danh mục xuống Cloud DB có thể await
+  const saveAllCatalogData = useCallback(async (data: {
+    catalog?: CatalogItem[];
+    testPackages?: TestPackage[];
+    testGroups?: TestGroup[];
+    equipments?: TestEquipment[];
+    doctorsList?: Doctor[];
+    catalogItemEquipments?: CatalogItemEquipmentLink[];
+    allergenScales?: AllergenGradingScale[];
+    referenceRanges?: ReferenceRangeItem[];
+  }) => {
+    if (data.catalog) {
+      setCatalog(data.catalog);
+      saveState(STORAGE_KEYS.CATALOG, data.catalog);
+    }
+    if (data.testPackages) {
+      setTestPackages(data.testPackages);
+      saveState(STORAGE_KEYS.TEST_PACKAGES, data.testPackages);
+    }
+    if (data.testGroups) {
+      setTestGroups(data.testGroups);
+      saveState(STORAGE_KEYS.TEST_GROUPS, data.testGroups);
+    }
+    if (data.equipments) {
+      setEquipments(data.equipments);
+      saveState(STORAGE_KEYS.EQUIPMENTS, data.equipments);
+    }
+    if (data.doctorsList) {
+      setDoctorsList(data.doctorsList);
+      saveState(STORAGE_KEYS.DOCTORS, data.doctorsList);
+    }
+    if (data.catalogItemEquipments) {
+      setCatalogItemEquipments(data.catalogItemEquipments);
+      saveState(STORAGE_KEYS.CATALOG_ITEM_EQUIPMENTS, data.catalogItemEquipments);
+    }
+    if (data.allergenScales) {
+      setAllergenScales(data.allergenScales);
+      saveState(STORAGE_KEYS.ALLERGEN_SCALES, data.allergenScales);
+    }
+    if (data.referenceRanges) {
+      setReferenceRanges(data.referenceRanges);
+      saveState(STORAGE_KEYS.REFERENCE_RANGES, data.referenceRanges);
+    }
+
+    if (cloudDbConfig?.enabled) {
+      const promises: Promise<unknown>[] = [];
+      if (data.testGroups) promises.push(syncGroupsToSupabase(data.testGroups, cloudDbConfig));
+      if (data.equipments) promises.push(syncEquipmentsToSupabase(data.equipments, cloudDbConfig));
+      if (data.catalog) promises.push(syncCatalogToSupabase(data.catalog, cloudDbConfig));
+      if (data.testPackages) promises.push(syncPackagesToSupabase(data.testPackages, cloudDbConfig));
+      if (data.doctorsList) promises.push(syncDoctorsToSupabase(data.doctorsList, cloudDbConfig));
+      if (data.catalogItemEquipments) promises.push(syncCatalogItemEquipmentsToSupabase(data.catalogItemEquipments, cloudDbConfig));
+      if (data.allergenScales) promises.push(syncScalesToSupabase(data.allergenScales, cloudDbConfig));
+      if (data.referenceRanges) promises.push(syncReferenceRangesToSupabase(data.referenceRanges, cloudDbConfig));
+      await Promise.all(promises);
+    }
+  }, [cloudDbConfig]);
 
   // Tự động tải dữ liệu từ Cloud Database khi khởi động
   const syncCloudData = useCallback(async () => {
@@ -293,6 +378,7 @@ export function useCatalogData() {
     setCloudDbConfig,
     zaloConfig,
     setZaloConfig,
-    isLoading
+    isLoading,
+    saveAllCatalogData
   };
 }

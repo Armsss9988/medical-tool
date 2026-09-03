@@ -83,12 +83,12 @@ export function useInvoiceActions(
 
       if (isPaid) {
         showToast(
-          `Đã xác nhận THU TIỀN và lưu hóa đơn ${saved.code} (${saved.finalAmount.toLocaleString('vi-VN')} đ) cho bệnh nhân ${saved.patientName}!`,
+          `Đã xác nhận THU TIỀN và lưu hóa đơn ${saved.code} (${(saved.finalAmount ?? 0).toLocaleString('vi-VN')} đ) cho bệnh nhân ${saved.patientName}!`,
           'success'
         );
       } else {
         showToast(
-          `Đã tạo hóa đơn ${saved.code} (${saved.finalAmount.toLocaleString('vi-VN')} đ) ở trạng thái CHỜ THU cho bệnh nhân ${saved.patientName}!`,
+          `Đã tạo hóa đơn ${saved.code} (${(saved.finalAmount ?? 0).toLocaleString('vi-VN')} đ) ở trạng thái CHỜ THU cho bệnh nhân ${saved.patientName}!`,
           'info'
         );
       }

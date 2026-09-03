@@ -17,6 +17,8 @@ interface PatientFormProps {
   autoFocusName?: boolean;
   /** Code of the report being edited from Report Manager, if any */
   editingReportCode?: string | null;
+  /** Callback to navigate to next tab on mobile */
+  onNavigateNext?: () => void;
 }
 
 export default function PatientForm({
@@ -30,7 +32,8 @@ export default function PatientForm({
   setDoctorName,
   nameInputRef: externalNameRef,
   autoFocusName = false,
-  editingReportCode = null
+  editingReportCode = null,
+  onNavigateNext
 }: PatientFormProps) {
   const [showMoreTimeFields, setShowMoreTimeFields] = useState(false);
 
@@ -240,6 +243,7 @@ export default function PatientForm({
           <input
             ref={dobRef}
             type="text"
+            inputMode="numeric"
             placeholder="1992 hoặc 22/06/1992"
             value={patient?.dob || ''}
             onChange={(e) => handleChange('dob', e.target.value)}
@@ -284,6 +288,7 @@ export default function PatientForm({
           <input
             ref={phoneRef}
             type="text"
+            inputMode="tel"
             placeholder="098 3633677"
             value={patient?.phone || ''}
             onChange={(e) => handleChange('phone', e.target.value)}
@@ -409,6 +414,20 @@ export default function PatientForm({
                 />
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Nút Chuyển Tiếp Sang Bảng Chỉ Số Trên Mobile */}
+        {onNavigateNext && (
+          <div className="pt-2 lg:hidden">
+            <button
+              type="button"
+              onClick={onNavigateNext}
+              className="w-full py-3 px-4 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 active:scale-[0.98] text-white font-bold rounded-xl text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-md shadow-sky-900/20 transition-all cursor-pointer"
+            >
+              <span>Tiếp Tục: Chọn Chỉ Số Xét Nghiệm</span>
+              <span>→</span>
+            </button>
           </div>
         )}
 

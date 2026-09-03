@@ -1,6 +1,15 @@
 import type { ReactNode } from 'react';
+import type { Viewport } from 'next';
 import { Providers } from './providers';
 import '../src/index.css';
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover'
+};
 
 export const metadata = {
   title: 'GoLab – Phần Mềm Quản Lý Xét Nghiệm',

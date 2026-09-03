@@ -25,6 +25,16 @@ interface CatalogManagerModalProps {
   onSaveCatalogItemEquipments?: (links: CatalogItemEquipmentLink[]) => void;
   allergenScales?: AllergenGradingScale[];
   onSaveScales?: (scales: AllergenGradingScale[]) => void;
+  onSaveAllData?: (data: {
+    catalog?: CatalogItem[];
+    testPackages?: TestPackage[];
+    testGroups?: TestGroup[];
+    equipments?: TestEquipment[];
+    doctorsList?: Doctor[];
+    catalogItemEquipments?: CatalogItemEquipmentLink[];
+    allergenScales?: AllergenGradingScale[];
+  }) => Promise<void>;
+  showToast?: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
 }
 
 export default function CatalogManagerModal({ 
@@ -44,7 +54,9 @@ export default function CatalogManagerModal({
   catalogItemEquipments = [],
   onSaveCatalogItemEquipments,
   allergenScales = [],
-  onSaveScales
+  onSaveScales,
+  onSaveAllData,
+  showToast
 }: CatalogManagerModalProps) {
   const [activeTab, setActiveTab] = useState<CatalogTabType>(targetTab || CATALOG_TAB.INDICATORS);
   const [items, setItems] = useState<CatalogItem[]>(() => catalog.map(autoResolveItemLinks));
@@ -54,6 +66,7 @@ export default function CatalogManagerModal({
   const [docsList, setDocsList] = useState<Doctor[]>(doctorsList);
   const [itemEquipments, setItemEquipments] = useState<CatalogItemEquipmentLink[]>(catalogItemEquipments);
   const [scalesList, setScalesList] = useState<AllergenGradingScale[]>(allergenScales);
+  const [isSaving, setIsSaving] = useState(false);
 
   const prevIsOpenRef = useRef(false);
 
@@ -111,15 +124,48 @@ export default function CatalogManagerModal({
     if (onSaveEquipments) onSaveEquipments(updated);
   };
 
-  const handleSaveAll = () => {
-    onSaveCatalog(items);
-    onSavePackages(packages);
-    if (onSaveTestGroups) onSaveTestGroups(groups);
-    if (onSaveEquipments) onSaveEquipments(eqList);
-    if (onSaveDoctors) onSaveDoctors(docsList);
-    if (onSaveCatalogItemEquipments) onSaveCatalogItemEquipments(itemEquipments);
-    if (onSaveScales) onSaveScales(scalesList);
-    onClose();
+  const handleSaveAll = async () => {
+    try {
+      setIsSaving(true);
+      if (showToast) {
+        showToast('Đang lưu danh mục vào cơ sở dữ liệu...', 'info');
+      }
+
+      onSaveCatalog(items);
+      onSavePackages(packages);
+      if (onSaveTestGroups) onSaveTestGroups(groups);
+      if (onSaveEquipments) onSaveEquipments(eqList);
+      if (onSaveDoctors) onSaveDoctors(docsList);
+      if (onSaveCatalogItemEquipments) onSaveCatalogItemEquipments(itemEquipments);
+      if (onSaveScales) onSaveScales(scalesList);
+
+      if (onSaveAllData) {
+        await onSaveAllData({
+          catalog: items,
+          testPackages: packages,
+          testGroups: groups,
+          equipments: eqList,
+          doctorsList: docsList,
+          catalogItemEquipments: itemEquipments,
+          allergenScales: scalesList
+        });
+      }
+
+      if (showToast) {
+        showToast('Đã lưu toàn bộ danh mục thành công!', 'success');
+      }
+      onClose();
+    } catch (err: unknown) {
+      console.error('[CatalogManager] Lỗi khi lưu danh mục:', err);
+      const msg = err instanceof Error ? err.message : 'Không thể kết nối đến cơ sở dữ liệu';
+      if (showToast) {
+        showToast(`Lỗi khi lưu vào Database: ${msg}`, 'error');
+      } else {
+        alert(`Lỗi khi lưu vào Database: ${msg}`);
+      }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -277,10 +323,15 @@ export default function CatalogManagerModal({
             <button
               type="button"
               onClick={handleSaveAll}
-              className="flex items-center space-x-1.5 px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-700/20 transition active:scale-95 cursor-pointer"
+              disabled={isSaving}
+              className="flex items-center space-x-1.5 px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-700/20 transition active:scale-95 cursor-pointer"
             >
-              <Save className="w-4 h-4" />
-              <span>Lưu Toàn Bộ</span>
+              {isSaving ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              <span>{isSaving ? 'Đang lưu DB...' : 'Lưu Toàn Bộ'}</span>
             </button>
           </div>
         </div>

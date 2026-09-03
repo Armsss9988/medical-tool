@@ -28,7 +28,8 @@ import type {
   ExportErrorDetail,
   BatchExportProgress,
   CatalogItemEquipmentLink,
-  AllergenGradingScale
+  AllergenGradingScale,
+  ReferenceRangeItem
 } from '@domain';
 
 // ─── MODAL LAYER COMPONENT ──────────────────────────────────────────────────
@@ -86,6 +87,16 @@ interface ModalLayerProps {
   onUnsavedSaveAndProceed: () => void;
   onUnsavedDiscardAndProceed: () => void;
   onUnsavedCancel: () => void;
+  onSaveAllCatalogData?: (data: {
+    catalog?: CatalogItem[];
+    testPackages?: TestPackage[];
+    testGroups?: TestGroup[];
+    equipments?: TestEquipment[];
+    doctorsList?: Doctor[];
+    catalogItemEquipments?: CatalogItemEquipmentLink[];
+    allergenScales?: AllergenGradingScale[];
+    referenceRanges?: ReferenceRangeItem[];
+  }) => Promise<void>;
 }
 
 export function ModalLayer({
@@ -135,7 +146,8 @@ export function ModalLayer({
   onZnsSuccess,
   onUnsavedSaveAndProceed,
   onUnsavedDiscardAndProceed,
-  onUnsavedCancel
+  onUnsavedCancel,
+  onSaveAllCatalogData
 }: ModalLayerProps) {
   const {
     patient,
@@ -269,6 +281,8 @@ export function ModalLayer({
         onSaveCatalogItemEquipments={setCatalogItemEquipments}
         allergenScales={allergenScales}
         onSaveScales={setAllergenScales}
+        onSaveAllData={onSaveAllCatalogData}
+        showToast={showToast}
       />
 
       {/* 4. INVOICE MODAL */}
