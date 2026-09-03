@@ -92,3 +92,5 @@ export {
   DEFAULT_CODE_TO_REFERENCE_RANGE_MAP
 } from '../domain/services/itemResolver';
 
+export { DEFAULT_CATALOG } from './backup/defaultCatalog';
+

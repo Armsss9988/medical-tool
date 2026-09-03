@@ -593,8 +593,36 @@ export function parseExcelCatalog(fileOrBuffer: Blob | ArrayBuffer): Promise<Cat
             return resolve([]);
           }
 
+          // Kiểm tra phát hiện nếu người dùng nạp nhầm file Excel khác loại (Bác sĩ, Thiết bị, v.v.)
+          const firstRow = rawRows[0] || {};
+          const keys = Object.keys(firstRow).map((k) => cleanKey(k));
+          const sheetLower = firstSheetName.toLowerCase();
+          const isDoctorFile =
+            keys.some((k) => k.includes('bac_si') || k.includes('chuyen_khoa')) ||
+            sheetLower.includes('bác sĩ') ||
+            sheetLower.includes('bac si');
+          const isEquipmentFile =
+            keys.some((k) => k.includes('thiet_bi') || k.includes('may_do')) ||
+            sheetLower.includes('thiết bị') ||
+            sheetLower.includes('thiet bi');
+
+          if (isDoctorFile) {
+            return reject(
+              new Error(
+                'File Excel bạn vừa chọn là "Danh Sách Bác Sĩ & Chuyên Gia", không phải Danh Mục Chỉ Số Xét Nghiệm! Vui lòng chuyển sang Tab 4 (Bác Sĩ & Chuyên Gia) để nhập file này.'
+              )
+            );
+          }
+          if (isEquipmentFile) {
+            return reject(
+              new Error(
+                'File Excel bạn vừa chọn là "Danh Sách Thiết Bị / Máy Đo", không phải Danh Mục Chỉ Số Xét Nghiệm! Vui lòng chọn đúng file.'
+              )
+            );
+          }
+
           const catalog: CatalogItem[] = rawRows.map((row) => {
-            const category = getRowValue(row, ['nhom_xet_nghiem', 'nhom', 'category', 'chuyen_khoa', 'group']) || 'Xét nghiệm khác';
+            const category = getRowValue(row, ['nhom_xet_nghiem', 'nhom', 'category', 'group']) || 'Xét nghiệm khác';
             const code = getRowValue(row, ['ma_chi_so', 'ma_xet_nghiem', 'ma', 'code', 'symbol', 'ma_code']);
             const name = getRowValue(row, ['ten_chi_so', 'ten_xet_nghiem', 'ten', 'name', 'test_name']) || code;
             const scientific = getRowValue(row, ['ten_khoa_hoc', 'scientific', 'allergen', 'ten_tieng_anh']);
@@ -1903,9 +1931,8 @@ export async function exportScalesTemplate(
 
   ws.columns = [
     { header: 'STT', key: 'stt', width: 6 },
-    { header: 'Mã Thang Đo (ID) [Tự động tạo - K cần nhập]', key: 'id', width: 28 },
     { header: 'Tên Thang Đo (*)', key: 'name', width: 38 },
-    { header: 'Thiết Bị / Máy Đo Áp Dụng', key: 'equipment', width: 36 },
+    { header: 'Thiết Bị / Máy Đo', key: 'equipment', width: 36 },
     { header: 'Đơn Vị Đo (*)', key: 'unit', width: 14 },
     { header: 'Bậc (Grade) (*)', key: 'grade', width: 15 },
     { header: 'Ngưỡng Min (*)', key: 'minVal', width: 15 },
@@ -1926,7 +1953,6 @@ export async function exportScalesTemplate(
     const r = idx + 2;
     const excelRow = ws.addRow({
       stt: idx + 1,
-      id: row.id || `scale_${cleanKey(row.name).slice(0, 15)}`,
       name: row.name,
       equipment: row.equipment,
       unit: row.unit,
@@ -1934,7 +1960,7 @@ export async function exportScalesTemplate(
       minVal: row.minVal,
       maxVal: row.maxVal === null ? '' : row.maxVal,
       rangeText: {
-        formula: `=IF(H${r}="","&gt; " & G${r},IF(G${r}=0,"&lt; " & H${r},G${r} & " - " & H${r}))`,
+        formula: `=IF(G${r}="","&gt; " & F${r},IF(F${r}=0,"&lt; " & G${r},F${r} & " - " & G${r}))`,
         result: row.rangeText || ''
       },
       label: row.label,
@@ -1942,11 +1968,7 @@ export async function exportScalesTemplate(
       colorKey: row.colorKey
     });
 
-    const idCell = excelRow.getCell(2);
-    idCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0FDF4' } };
-    idCell.font = { color: { argb: 'FF047857' }, bold: true };
-
-    const rangeCell = excelRow.getCell(9);
+    const rangeCell = excelRow.getCell(8);
     rangeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0FDF4' } };
     rangeCell.font = { color: { argb: 'FF047857' }, bold: true };
   });
@@ -1954,8 +1976,8 @@ export async function exportScalesTemplate(
   const colorEndRow = colorOptions.length + 1;
   for (let r = 2; r <= 500; r++) {
     const row = ws.getRow(r);
-    // Trạng Thái
-    row.getCell(11).dataValidation = {
+    // Trạng Thái (Cột 10)
+    row.getCell(10).dataValidation = {
       type: 'list',
       allowBlank: true,
       formulae: ['_DataLookup!$B$2:$B$3'],
@@ -1963,8 +1985,8 @@ export async function exportScalesTemplate(
       errorTitle: 'Trạng thái không hợp lệ',
       error: 'Vui lòng chọn Âm tính hoặc Dương tính'
     };
-    // Màu chỉ thị
-    row.getCell(12).dataValidation = {
+    // Màu chỉ thị (Cột 11)
+    row.getCell(11).dataValidation = {
       type: 'list',
       allowBlank: true,
       formulae: [`_DataLookup!$A$2:$A$${colorEndRow}`],
@@ -1974,9 +1996,9 @@ export async function exportScalesTemplate(
     };
 
     if (r > targetRows.length + 1) {
-      const rangeCell = row.getCell(9);
+      const rangeCell = row.getCell(8);
       rangeCell.value = {
-        formula: `=IF(H${r}="","&gt; " & G${r},IF(G${r}=0,"&lt; " & H${r},G${r} & " - " & H${r}))`
+        formula: `=IF(G${r}="","&gt; " & F${r},IF(F${r}=0,"&lt; " & G${r},F${r} & " - " & G${r}))`
       };
       rangeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0FDF4' } };
       rangeCell.font = { color: { argb: 'FF047857' }, bold: true };
@@ -2012,7 +2034,7 @@ export function parseExcelScales(
 
             let scaleId = getRowValue(row, ['ma_thang_do', 'ma_thang', 'id', 'scale_id', 'code']).trim();
             if (!scaleId) {
-              scaleId = `scale_${cleanKey(scaleName).slice(0, 15)}_${Math.random().toString(36).slice(2, 6)}`;
+              scaleId = `scale_${cleanKey(scaleName).toLowerCase().replace(/[^a-z0-9_]/g, '')}`;
             }
 
             const equipment = getRowValue(row, ['thiet_bi_may_do_ap_dung', 'thiet_bi', 'may_do', 'equipment']).trim();

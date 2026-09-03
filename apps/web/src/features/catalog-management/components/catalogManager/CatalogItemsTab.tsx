@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react';
-import { Plus, Trash2, Search, Download, Upload, Dna, FlaskConical, Layers, Settings2, Star, X, FileSpreadsheet, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Search, Download, Upload, Dna, FlaskConical, Layers, Settings2, Star, X, FileSpreadsheet, ChevronDown, RotateCcw } from 'lucide-react';
 import { CatalogItem, CatalogItemEquipmentLink, TestGroup, TestEquipment, AllergenGradingScale } from '@domain/types';
 import { getAllergenScaleById } from '@domain/constants/allergenScales';
+import { DEFAULT_CATALOG, autoResolveItemLinks } from '@data';
+import { fetchCatalogFromSupabase, DEFAULT_CLOUD_DB_CONFIG } from '@infra/cloudDbService';
 import {
   exportCatalogItemsTemplate,
   parseExcelCatalog,
@@ -114,11 +116,12 @@ export default function CatalogItemsTab({
       if (viewFilter === 'general' && isAllergen) return false;
       if (viewFilter === 'allergen' && !isAllergen) return false;
 
+      const term = (searchTerm || '').trim().toLowerCase();
       const matchSearch =
-        i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        i.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (i.scientific && i.scientific.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchGroup = selectedGroup === 'all' || i.category === selectedGroup;
+        String(i?.name || '').toLowerCase().includes(term) ||
+        String(i?.code || '').toLowerCase().includes(term) ||
+        (i?.scientific && String(i.scientific).toLowerCase().includes(term));
+      const matchGroup = selectedGroup === 'all' || i?.category === selectedGroup;
 
       return matchSearch && matchGroup;
     });
@@ -230,44 +233,62 @@ export default function CatalogItemsTab({
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      parseExcelCatalog(file).then((parsed) => {
-        if (parsed.length > 0) {
-          setItems((prev) => {
-            const map = new Map(prev.map((item) => [item.code.toUpperCase(), item]));
-            let updatedCount = 0;
-            let addedCount = 0;
-            parsed.forEach((newItem) => {
-              const codeKey = newItem.code.toUpperCase();
-              const existing = map.get(codeKey);
-              if (existing) {
-                map.set(codeKey, {
-                  ...existing,
-                  ...newItem,
-                  category: newItem.category || existing.category,
-                  name: newItem.name || existing.name,
-                  scientific: newItem.scientific ?? existing.scientific,
-                  unit: newItem.unit || existing.unit,
-                  price: (newItem.price !== undefined && newItem.price > 0) ? newItem.price : existing.price,
-                  refText: newItem.refText || existing.refText,
-                  evaluationType: newItem.evaluationType || existing.evaluationType,
-                  scaleId: newItem.scaleId ?? existing.scaleId,
-                  refMin: newItem.refMin !== null ? newItem.refMin : (newItem.evaluationType === 'scale' ? null : existing.refMin),
-                  refMax: newItem.refMax !== null ? newItem.refMax : (newItem.evaluationType === 'scale' ? null : existing.refMax)
-                });
-                updatedCount++;
-              } else {
-                map.set(codeKey, newItem);
-                addedCount++;
-              }
+      parseExcelCatalog(file)
+        .then((parsed) => {
+          if (parsed.length > 0) {
+            setItems((prev) => {
+              const map = new Map(prev.map((item) => [item.code.toUpperCase(), item]));
+              let updatedCount = 0;
+              let addedCount = 0;
+              parsed.forEach((newItem) => {
+                const codeKey = newItem.code.toUpperCase();
+                const existing = map.get(codeKey);
+                if (existing) {
+                  map.set(codeKey, {
+                    ...existing,
+                    ...newItem,
+                    category: newItem.category || existing.category,
+                    name: newItem.name || existing.name,
+                    scientific: newItem.scientific ?? existing.scientific,
+                    unit: newItem.unit || existing.unit,
+                    price: (newItem.price !== undefined && newItem.price > 0) ? newItem.price : existing.price,
+                    refText: newItem.refText || existing.refText,
+                    evaluationType: newItem.evaluationType || existing.evaluationType,
+                    scaleId: newItem.scaleId ?? existing.scaleId,
+                    refMin: newItem.refMin !== null ? newItem.refMin : (newItem.evaluationType === 'scale' ? null : existing.refMin),
+                    refMax: newItem.refMax !== null ? newItem.refMax : (newItem.evaluationType === 'scale' ? null : existing.refMax)
+                  });
+                  updatedCount++;
+                } else {
+                  map.set(codeKey, newItem);
+                  addedCount++;
+                }
+              });
+              alert(`Đã cập nhật ${updatedCount} chỉ số cũ và thêm mới ${addedCount} chỉ số từ Excel (tổng ${map.size} chỉ số)!`);
+              return Array.from(map.values());
             });
-            alert(`Đã cập nhật ${updatedCount} chỉ số cũ và thêm mới ${addedCount} chỉ số từ Excel (tổng ${map.size} chỉ số)!`);
-            return Array.from(map.values());
-          });
-        } else {
-          alert('Không tìm thấy dữ liệu hợp lệ trong file Excel.');
-        }
-      });
+          } else {
+            alert('Không tìm thấy dữ liệu hợp lệ trong file Excel.');
+          }
+        })
+        .catch((err) => {
+          alert(err instanceof Error ? err.message : 'Lỗi nạp file Excel.');
+        });
       e.target.value = '';
+    }
+  };
+
+  const handleRestoreOriginalCatalog = async () => {
+    if (!window.confirm(`Bạn có chắc muốn khôi phục lại toàn bộ Danh Mục Chỉ Số Gốc chuẩn (${DEFAULT_CATALOG.length} chỉ số)? Dữ liệu sẽ được nạp lại đầy đủ từ Cloud DB.`)) {
+      return;
+    }
+    try {
+      const cloudItems = await fetchCatalogFromSupabase(DEFAULT_CLOUD_DB_CONFIG);
+      const validItems = cloudItems && cloudItems.length > 0 ? cloudItems : DEFAULT_CATALOG;
+      setItems(validItems.map(autoResolveItemLinks));
+      alert(`Đã khôi phục thành công ${validItems.length} chỉ số xét nghiệm chuẩn! Hãy bấm nút "Lưu Toàn Bộ" ở góc dưới để áp dụng.`);
+    } catch (err) {
+      alert(`Lỗi khi khôi phục danh mục: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -569,6 +590,22 @@ export default function CatalogItemsTab({
                       className="hidden"
                     />
                   </label>
+
+                  <div className="px-3 py-1.5 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider border-y border-slate-100 mt-1">
+                    Khôi Phục & Đồng Bộ
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowExcelDropdown(false);
+                      handleRestoreOriginalCatalog();
+                    }}
+                    className="w-full px-3 py-2 text-left text-amber-800 hover:bg-amber-50 flex items-center gap-2 transition cursor-pointer font-semibold"
+                    title="Khôi phục lại toàn bộ danh mục chỉ số chuẩn gốc từ Cloud DB"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Khôi Phục 179 Chỉ Số Gốc</span>
+                  </button>
                 </div>
               </>
             )}

@@ -96,7 +96,10 @@ export const STANDARD_CLINICAL_ITEMS: CatalogItem[] = [
   { category: 'Nước Tiểu', code: 'GLU_U', name: 'Glucose (GLU) nước tiểu', refMin: 0, refMax: 0.8, unit: 'mmol/L', refText: 'Âm tính (< 0.8)', price: 40000, evaluationType: 'text' },
 
   // 3. MIỄN DỊCH & TẦM SOÁT
-  { category: 'Miễn Dịch', code: 'HP', name: 'HP Test (Vi khuẩn dạ dày)', refMin: null, refMax: null, unit: 'Cut-off', refText: 'Âm tính (Negative)', price: 100000, evaluationType: 'text' }
+  { category: 'Miễn Dịch', code: 'HP', name: 'HP Test (Vi khuẩn dạ dày)', refMin: null, refMax: null, unit: 'Cut-off', refText: 'Âm tính (Negative)', price: 100000, evaluationType: 'text' },
+  { category: 'Miễn Dịch', code: 'C3', name: 'Bổ thể C3', refMin: 0.9, refMax: 1.8, unit: 'g/L', refText: '0.9 - 1.8', price: 150000, evaluationType: 'range' },
+  { category: 'Miễn Dịch', code: 'C4', name: 'Bổ thể C4', refMin: 0.1, refMax: 0.4, unit: 'g/L', refText: '0.1 - 0.4', price: 150000, evaluationType: 'range' },
+  { category: 'Miễn Dịch', code: 'ANASCR', name: 'ANA Screening', refMin: 0, refMax: 19.99, unit: 'IU/ml', refText: '<20', price: 600000, scaleId: 'scale_ana_dynex_ds2', evaluationType: 'scale', equipment: 'Dynex DS2' }
 ];
 
 export const DEFAULT_CATALOG: CatalogItem[] = (() => {

@@ -125,34 +125,55 @@ export default function CatalogManagerModal({
   };
 
   const handleSaveAll = async () => {
+    // 1. Kiểm tra dữ liệu hợp lệ: không để trống tên gói xét nghiệm
+    const invalidPkg = packages.find((p) => !p.name || !p.name.trim());
+    if (invalidPkg) {
+      alert('Tên gói xét nghiệm không được để trống! Vui lòng nhập tên cho tất cả các gói trước khi lưu.');
+      return;
+    }
+
     try {
       setIsSaving(true);
       if (showToast) {
         showToast('Đang lưu danh mục vào cơ sở dữ liệu...', 'info');
       }
 
-      onSaveCatalog(items);
-      onSavePackages(packages);
-      if (onSaveTestGroups) onSaveTestGroups(groups);
-      if (onSaveEquipments) onSaveEquipments(eqList);
-      if (onSaveDoctors) onSaveDoctors(docsList);
-      if (onSaveCatalogItemEquipments) onSaveCatalogItemEquipments(itemEquipments);
-      if (onSaveScales) onSaveScales(scalesList);
+      // Xác định chính xác những bảng có dữ liệu thay đổi thực sự
+      const hasCatalogChanged = JSON.stringify(items) !== JSON.stringify(catalog);
+      const hasPackagesChanged = JSON.stringify(packages) !== JSON.stringify(testPackages);
+      const hasGroupsChanged = JSON.stringify(groups) !== JSON.stringify(testGroups);
+      const hasEqChanged = JSON.stringify(eqList) !== JSON.stringify(equipments);
+      const hasDocsChanged = JSON.stringify(docsList) !== JSON.stringify(doctorsList);
+      const hasItemEqChanged = JSON.stringify(itemEquipments) !== JSON.stringify(catalogItemEquipments);
+      const hasScalesChanged = JSON.stringify(scalesList) !== JSON.stringify(allergenScales);
 
+      const changedData: Parameters<NonNullable<typeof onSaveAllData>>[0] = {};
+      if (hasCatalogChanged) changedData.catalog = items;
+      if (hasPackagesChanged) changedData.testPackages = packages;
+      if (hasGroupsChanged) changedData.testGroups = groups;
+      if (hasEqChanged) changedData.equipments = eqList;
+      if (hasDocsChanged) changedData.doctorsList = docsList;
+      if (hasItemEqChanged) changedData.catalogItemEquipments = itemEquipments;
+      if (hasScalesChanged) changedData.allergenScales = scalesList;
+
+      // Cập nhật state ở tầng cha ngay lập tức
+      if (hasCatalogChanged) onSaveCatalog(items);
+      if (hasPackagesChanged) onSavePackages(packages);
+      if (hasGroupsChanged && onSaveTestGroups) onSaveTestGroups(groups);
+      if (hasEqChanged && onSaveEquipments) onSaveEquipments(eqList);
+      if (hasDocsChanged && onSaveDoctors) onSaveDoctors(docsList);
+      if (hasItemEqChanged && onSaveCatalogItemEquipments) onSaveCatalogItemEquipments(itemEquipments);
+      if (hasScalesChanged && onSaveScales) onSaveScales(scalesList);
+
+      // Nếu có dữ liệu thay đổi và có onSaveAllData, đồng bộ đúng các bảng thay đổi
       if (onSaveAllData) {
-        await onSaveAllData({
-          catalog: items,
-          testPackages: packages,
-          testGroups: groups,
-          equipments: eqList,
-          doctorsList: docsList,
-          catalogItemEquipments: itemEquipments,
-          allergenScales: scalesList
-        });
+        if (Object.keys(changedData).length > 0) {
+          await onSaveAllData(changedData);
+        }
       }
 
       if (showToast) {
-        showToast('Đã lưu toàn bộ danh mục thành công!', 'success');
+        showToast('Đã lưu danh mục thành công!', 'success');
       }
       onClose();
     } catch (err: unknown) {

@@ -227,6 +227,36 @@ export const DEFAULT_REFERENCE_RANGES: ReferenceRangeItem[] = [
     refText: '11 - 18',
     gender: 'Tất cả',
     ageGroup: 'Người lớn'
+  },
+  {
+    id: 'ref_c3',
+    name: 'Bổ thể C3',
+    refMin: 0.9,
+    refMax: 1.8,
+    unit: 'g/L',
+    refText: '0.9 - 1.8',
+    gender: 'Tất cả',
+    ageGroup: 'Người lớn'
+  },
+  {
+    id: 'ref_c4',
+    name: 'Bổ thể C4',
+    refMin: 0.1,
+    refMax: 0.4,
+    unit: 'g/L',
+    refText: '0.1 - 0.4',
+    gender: 'Tất cả',
+    ageGroup: 'Người lớn'
+  },
+  {
+    id: 'ref_anascr',
+    name: 'ANA Screen',
+    refMin: null,
+    refMax: 20,
+    unit: 'IU/mL',
+    refText: 'Âm tính <20 IU/ml',
+    gender: 'Tất cả',
+    ageGroup: 'Người lớn'
   }
 ];
 
@@ -253,12 +283,15 @@ export const CODE_TO_REFERENCE_RANGE_MAP: Record<string, string> = {
   CALCI: 'ref_calci',
   CAT: 'ref_calci',
   ICA: 'ref_calci_ion',
-  TIGE: 'ref_tige'
+  TIGE: 'ref_tige',
+  C3: 'ref_c3',
+  C4: 'ref_c4',
+  ANASCR: 'ref_anascr'
 };
 
 export function autoResolveItemLinks<T extends { code: string; referenceRangeId?: string; scaleId?: string; evaluationType?: string; category?: string; unit?: string }>(item: T): T {
-  const isTIgE = item.code.toUpperCase() === 'TIGE';
-  const isAllergen = !isTIgE && ((item.category && item.category.includes('Dị Nguyên')) || item.unit === 'IU/mL' || item.scaleId);
+  const isExcluded = ['TIGE', 'ANASCR', 'C3', 'C4'].includes(item.code.toUpperCase());
+  const isAllergen = !isExcluded && ((item.category && item.category.includes('Dị Nguyên')) || item.unit === 'IU/mL' || item.scaleId);
 
   if (isAllergen) {
     if (!item.scaleId) {

@@ -1083,11 +1083,11 @@ export function DynamicReportView({
                 {p.title || 'PHỤ TRÁCH CHUYÊN MÔN'}
               </p>
               {p.showStamp !== false ? (
-                <div className="h-22 flex items-center justify-center my-0.5">
-                  <img src={currentStamp} alt="Con Dấu & Chữ Ký" className="h-22 w-auto object-contain max-w-[130px]" />
+                <div className="h-[68px] flex items-center justify-center my-0.5">
+                  <img src={currentStamp} alt="Con Dấu & Chữ Ký" className="h-[68px] w-auto object-contain max-w-[120px]" />
                 </div>
               ) : (
-                <div className="h-20" />
+                <div className="h-16" />
               )}
               {p.showDoctorName !== false && (
                 <p className="text-[13.5px] font-bold text-slate-900 uppercase">

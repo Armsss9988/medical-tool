@@ -288,9 +288,21 @@ export async function generateHighQualityPdf(
       if (i > 0) {
         pdf.addPage('a4', 'portrait');
       }
-      const imgWidth = pdfWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight, undefined, 'FAST');
+      let renderWidth = pdfWidth;
+      let renderHeight = (canvas.height * renderWidth) / canvas.width;
+      let renderX = 0;
+      let renderY = 0;
+
+      // Bảo vệ chống tràn mép dưới: Nếu chiều cao trang vượt quá 297mm (do khác biệt font hệ điều hành hoặc độ phân giải),
+      // tự động co giãn tỷ lệ (scale-to-fit) để toàn bộ nội dung, bảng xét nghiệm và khối chữ ký luôn trọn vẹn 100% trong khung A4
+      if (renderHeight > pdfHeight) {
+        const scale = pdfHeight / renderHeight;
+        renderHeight = pdfHeight;
+        renderWidth = renderWidth * scale;
+        renderX = (pdfWidth - renderWidth) / 2;
+      }
+
+      pdf.addImage(imgData, 'PNG', renderX, renderY, renderWidth, renderHeight, undefined, 'FAST');
     }
   } else {
     // -------------------------------------------------------------
@@ -302,9 +314,14 @@ export async function generateHighQualityPdf(
     const pageHeightInMm = pdfHeight;
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-    if (imgHeight <= pageHeightInMm) {
+    // Nếu chiều cao chỉ vượt trang chút ít (<= 5%), tự động co giãn vừa vặn 1 trang thay vì cắt sang trang 2
+    if (imgHeight <= pageHeightInMm * 1.05) {
+      const scale = imgHeight > pageHeightInMm ? pageHeightInMm / imgHeight : 1;
+      const finalHeight = imgHeight * scale;
+      const finalWidth = imgWidth * scale;
+      const offsetX = (pdfWidth - finalWidth) / 2;
       const imgData = canvas.toDataURL('image/png', 1.0);
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight, undefined, 'FAST');
+      pdf.addImage(imgData, 'PNG', offsetX, 0, finalWidth, finalHeight, undefined, 'FAST');
     } else {
       // Phân trang tự động thông minh
       const pageCanvasHeight = (canvas.width * pageHeightInMm) / imgWidth;

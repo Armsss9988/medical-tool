@@ -18,10 +18,12 @@ export default function DoctorSelectCombobox({
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const filteredDoctors = doctorsList.filter(
+  const safeTerm = (searchTerm || '').trim().toLowerCase();
+  const filteredDoctors = (doctorsList || []).filter(
     (doc) =>
-      doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (doc.specialty && doc.specialty.toLowerCase().includes(searchTerm.toLowerCase()))
+      doc &&
+      (String(doc.name || '').toLowerCase().includes(safeTerm) ||
+        (doc.specialty && String(doc.specialty).toLowerCase().includes(safeTerm)))
   );
 
   return (

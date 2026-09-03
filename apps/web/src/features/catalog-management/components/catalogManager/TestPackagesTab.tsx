@@ -251,13 +251,14 @@ export default function TestPackagesTab({
 
   const handleSelectAllFiltered = () => {
     if (!currentSelectedPkg) return;
+    const safeTestSearch = (testSearch || '').trim().toLowerCase();
     const filteredCodes = items
       .filter(
         (i) =>
-          (selectedCategoryFilter === 'all' || i.category === selectedCategoryFilter) &&
-          (i.name.toLowerCase().includes(testSearch.toLowerCase()) ||
-            i.code.toLowerCase().includes(testSearch.toLowerCase()) ||
-            (i.category && i.category.toLowerCase().includes(testSearch.toLowerCase())))
+          (selectedCategoryFilter === 'all' || i?.category === selectedCategoryFilter) &&
+          (String(i?.name || '').toLowerCase().includes(safeTestSearch) ||
+            String(i?.code || '').toLowerCase().includes(safeTestSearch) ||
+            (i?.category && String(i.category).toLowerCase().includes(safeTestSearch)))
       )
       .map((i) => i.code);
 
@@ -279,14 +280,15 @@ export default function TestPackagesTab({
 
   const handleDeselectAllFiltered = () => {
     if (!currentSelectedPkg) return;
+    const safeTestSearch = (testSearch || '').trim().toLowerCase();
     const filteredCodesSet = new Set(
       items
         .filter(
           (i) =>
-            (selectedCategoryFilter === 'all' || i.category === selectedCategoryFilter) &&
-            (i.name.toLowerCase().includes(testSearch.toLowerCase()) ||
-              i.code.toLowerCase().includes(testSearch.toLowerCase()) ||
-              (i.category && i.category.toLowerCase().includes(testSearch.toLowerCase())))
+            (selectedCategoryFilter === 'all' || i?.category === selectedCategoryFilter) &&
+            (String(i?.name || '').toLowerCase().includes(safeTestSearch) ||
+              String(i?.code || '').toLowerCase().includes(safeTestSearch) ||
+              (i?.category && String(i.category).toLowerCase().includes(safeTestSearch)))
         )
         .map((i) => i.code.trim().toUpperCase())
     );
@@ -739,13 +741,15 @@ export default function TestPackagesTab({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 max-h-[400px] overflow-y-auto p-1.5 border border-slate-200 rounded-xl bg-slate-50/50 flex-grow">
                   {items
-                    .filter(
-                      (i) =>
-                        (selectedCategoryFilter === 'all' || i.category === selectedCategoryFilter) &&
-                        (i.name.toLowerCase().includes(testSearch.toLowerCase()) ||
-                          i.code.toLowerCase().includes(testSearch.toLowerCase()) ||
-                          (i.category && i.category.toLowerCase().includes(testSearch.toLowerCase())))
-                    )
+                    .filter((i) => {
+                      const safeTestSearch = (testSearch || '').trim().toLowerCase();
+                      const matchCat = selectedCategoryFilter === 'all' || i?.category === selectedCategoryFilter;
+                      const matchTxt =
+                        String(i?.name || '').toLowerCase().includes(safeTestSearch) ||
+                        String(i?.code || '').toLowerCase().includes(safeTestSearch) ||
+                        (i?.category && String(i.category).toLowerCase().includes(safeTestSearch));
+                      return matchCat && matchTxt;
+                    })
                     .sort((a, b) => {
                       const isCurAllergen = isAllergenPkg(currentSelectedPkg);
                       if (isCurAllergen) {

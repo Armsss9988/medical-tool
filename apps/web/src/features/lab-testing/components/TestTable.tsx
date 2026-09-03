@@ -177,8 +177,8 @@ export default function TestTable({
     if (!pkg) return;
 
     const rawCodes = getPkgCodes(pkg);
-    const targetCodes = new Set(rawCodes.map((c) => c.trim().toLowerCase()));
-    const itemsToAdd = catalog.filter((item) => item.code && targetCodes.has(item.code.trim().toLowerCase()));
+    const targetCodes = new Set(rawCodes.map((c) => String(c || '').trim().toLowerCase()));
+    const itemsToAdd = (catalog || []).filter((item) => item && item.code && targetCodes.has(String(item.code).trim().toLowerCase()));
 
     if (itemsToAdd.length === 0) {
       if (showToast) {
@@ -188,11 +188,11 @@ export default function TestTable({
     }
 
     setSelectedTests((prev) => {
-      const existingCodes = new Set(prev.map((t) => (t.code || '').trim().toLowerCase()));
+      const existingCodes = new Set(prev.map((t) => String(t.code || '').trim().toLowerCase()));
       const newOnes = itemsToAdd
-        .filter((item) => !existingCodes.has(item.code.trim().toLowerCase()))
+        .filter((item) => item && item.code && !existingCodes.has(String(item.code).trim().toLowerCase()))
         .map((item) => {
-          const pkgItem = (pkg.items || []).find((pi) => pi.code?.trim().toLowerCase() === item.code.trim().toLowerCase());
+          const pkgItem = (pkg.items || []).find((pi) => pi && String(pi.code || '').trim().toLowerCase() === String(item.code).trim().toLowerCase());
           let targetEquipmentId: string | undefined = pkgItem?.equipmentId || undefined;
           if (!targetEquipmentId && pkg.defaultEquipmentId) {
             const hasLink = catalogItemEquipments.some((l) => l.catalogCode.toUpperCase() === item.code.toUpperCase() && l.equipmentId === pkg.defaultEquipmentId);
@@ -213,7 +213,7 @@ export default function TestTable({
     // Track in recent tests
     if (onAddMultipleToRecent) {
       onAddMultipleToRecent(
-        itemsToAdd.map((item) => ({ code: item.code, name: item.name, category: item.category || '' }))
+        itemsToAdd.map((item) => ({ code: item.code, name: item?.name || item?.code || '', category: item?.category || '' }))
       );
     }
 
@@ -222,18 +222,32 @@ export default function TestTable({
     }
   };
 
-  const filteredCatalog = catalog.filter(
-    (item) =>
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.category && item.category.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const safeSearch = (searchTerm || '').trim().toLowerCase();
+  const filteredCatalog = useMemo(() => {
+    if (!Array.isArray(catalog)) return [];
+    if (!safeSearch) {
+      return catalog.filter((item) => item && typeof item === 'object' && item.code);
+    }
+    return catalog.filter((item) => {
+      if (!item || typeof item !== 'object' || !item.code) return false;
+      const name = String(item.name || '').toLowerCase();
+      const code = String(item.code || '').toLowerCase();
+      const category = String(item.category || '').toLowerCase();
+      const scientific = String(item.scientific || '').toLowerCase();
+      return (
+        name.includes(safeSearch) ||
+        code.includes(safeSearch) ||
+        category.includes(safeSearch) ||
+        scientific.includes(safeSearch)
+      );
+    });
+  }, [catalog, safeSearch]);
 
   // ─── KEYBOARD: Search dropdown navigation ─────────────────────────
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!searchTerm) return;
 
-    const available = filteredCatalog.filter((item) => !selectedTests.some((t) => t.code === item.code));
+    const available = filteredCatalog.filter((item) => item && item.code && !selectedTests.some((t) => t && t.code === item.code));
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();

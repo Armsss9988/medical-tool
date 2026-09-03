@@ -72,6 +72,7 @@ export async function PUT(
   const rowSchema = ROW_SCHEMAS[name];
   const rowsParse = rowSchema.array().safeParse(wrap.data.rows);
   if (!rowsParse.success) {
+    console.error(`[API PUT /api/tables/${name}] Validation error:`, JSON.stringify(rowsParse.error.issues.slice(0, 5), null, 2));
     return NextResponse.json({ error: 'invalid rows', issues: rowsParse.error.issues }, { status: 400 });
   }
 

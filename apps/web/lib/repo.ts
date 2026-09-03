@@ -1,5 +1,5 @@
 import { AnyPgTable } from 'drizzle-orm/pg-core';
-import { asc, desc, eq } from 'drizzle-orm';
+import { asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { TableName } from '@golab/shared/schemas/tables';
 import * as tables from './schema';
 import type { Db } from './db';
@@ -413,7 +413,7 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
 
         const pkgValues = packageList.map((p) => ({
           id: p.id,
-          name: p.name,
+          name: (p.name && p.name.trim()) || 'Gói xét nghiệm mới',
           defaultEquipmentId: p.defaultEquipmentId || null,
           price: p.price || 0,
           updatedAt: new Date()
@@ -452,20 +452,22 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
         const groupList = rows as { id: string; name: string }[];
         if (groupList.length === 0) return 0;
 
-        // 1. Upsert all incoming groups
-        for (const g of groupList) {
+        // 1. Batch upsert all incoming groups in ONE query
+        const groupValues = groupList.map((g) => ({
+          id: g.id,
+          name: g.name,
+          updatedAt: new Date()
+        }));
+
+        for (let i = 0; i < groupValues.length; i += BATCH_SIZE) {
           await tx
             .insert(tables.testGroups)
-            .values({
-              id: g.id,
-              name: g.name,
-              updatedAt: new Date()
-            })
+            .values(groupValues.slice(i, i + BATCH_SIZE))
             .onConflictDoUpdate({
               target: tables.testGroups.id,
               set: {
-                name: g.name,
-                updatedAt: new Date()
+                name: sql`excluded.name`,
+                updatedAt: sql`excluded.updated_at`
               }
             });
         }
@@ -478,10 +480,12 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
         const usedSet = new Set(usedCategories.map((c) => c.category));
 
         const existingGroups = await tx.select().from(tables.testGroups);
-        for (const eg of existingGroups) {
-          if (!newGroupIds.has(eg.id) && !usedSet.has(eg.name)) {
-            await tx.delete(tables.testGroups).where(eq(tables.testGroups.id, eg.id));
-          }
+        const idsToDelete = existingGroups
+          .filter((eg) => !newGroupIds.has(eg.id) && !usedSet.has(eg.name))
+          .map((eg) => eg.id);
+
+        if (idsToDelete.length > 0) {
+          await tx.delete(tables.testGroups).where(inArray(tables.testGroups.id, idsToDelete));
         }
 
         return groupList.length;

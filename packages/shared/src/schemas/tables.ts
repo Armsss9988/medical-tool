@@ -19,15 +19,21 @@ export type TableName = (typeof TABLE_NAMES)[number];
 
 export const tableNameSchema = z.enum(TABLE_NAMES);
 
+const flexibleNumber = z.preprocess((val) => {
+  if (val === '' || val === null || val === undefined) return null;
+  const n = Number(val);
+  return isNaN(n) ? null : n;
+}, z.number().nullable().optional());
+
 export const catalogRowSchema = z.object({
   code: z.string().min(1),
   category: z.string().min(1),
   name: z.string().min(1),
-  refMin: z.number().nullable().optional(),
-  refMax: z.number().nullable().optional(),
+  refMin: flexibleNumber,
+  refMax: flexibleNumber,
   unit: z.string().nullable().optional().default(''),
   refText: z.string().nullable().optional().default(''),
-  price: z.number().nullable().optional(),
+  price: flexibleNumber,
   scientific: z.string().nullable().optional(),
   evaluationType: z.string().nullable().optional()
 });
@@ -40,12 +46,12 @@ export const packageItemSchema = z.object({
 
 export const testPackageRowSchema = z.object({
   id: z.string().min(1),
-  name: z.string().min(1),
+  name: z.preprocess((val) => (typeof val === 'string' && val.trim() ? val.trim() : 'Gói xét nghiệm mới'), z.string().default('Gói xét nghiệm mới')),
   defaultEquipmentId: z.string().nullable().optional(),
   items: z.array(packageItemSchema).default([]),
   /** @deprecated backward compat — sẽ bị bỏ sau migration hoàn tất */
   codes: z.array(z.string()).optional(),
-  price: z.number().default(0)
+  price: flexibleNumber.transform((v) => v ?? 0).default(0)
 });
 
 export const testGroupRowSchema = z.object({
@@ -67,11 +73,11 @@ export const doctorRowSchema = z.object({
 });
 
 export const clinicInfoRowSchema = z.object({
-  name: z.string(),
-  address: z.string(),
-  phone: z.string(),
+  name: z.string().optional().default(''),
+  address: z.string().optional().default(''),
+  phone: z.string().optional().default(''),
   website: z.string().nullable().optional(),
-  defaultDoctor: z.string(),
+  defaultDoctor: z.string().nullable().optional().default(''),
   logoUrl: z.string().nullable().optional(),
   stampUrl: z.string().nullable().optional(),
   bankId: z.string().nullable().optional(),
@@ -99,8 +105,8 @@ export const zaloConfigRowSchema = z.object({
 export const referenceRangeRowSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
-  refMin: z.number().nullable().optional(),
-  refMax: z.number().nullable().optional(),
+  refMin: flexibleNumber,
+  refMax: flexibleNumber,
   unit: z.string().nullable().optional().default(''),
   refText: z.string().nullable().optional().default(''),
   gender: z.string().nullable().optional(),

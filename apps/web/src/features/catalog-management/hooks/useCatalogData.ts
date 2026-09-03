@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   CatalogItem, 
   CatalogItemEquipmentLink,
@@ -125,10 +125,12 @@ export function useCatalogData() {
   });
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const isManualSavingRef = useRef<boolean>(false);
 
   // Tự động lưu Local Storage và đồng bộ Cloud khi state thay đổi
   useEffect(() => {
     saveState(STORAGE_KEYS.CATALOG, catalog);
+    if (isManualSavingRef.current) return;
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncCatalogToSupabase(catalog, cloudDbConfig).catch((err) => {
         console.warn('[CloudDB] Lỗi đồng bộ danh mục:', err);
@@ -138,6 +140,7 @@ export function useCatalogData() {
 
   useEffect(() => {
     saveState(STORAGE_KEYS.TEST_PACKAGES, testPackages);
+    if (isManualSavingRef.current) return;
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncPackagesToSupabase(testPackages, cloudDbConfig).catch((err) => {
         console.warn('[CloudDB] Lỗi đồng bộ gói:', err);
@@ -147,6 +150,7 @@ export function useCatalogData() {
 
   useEffect(() => {
     saveState(STORAGE_KEYS.TEST_GROUPS, testGroups);
+    if (isManualSavingRef.current) return;
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncGroupsToSupabase(testGroups, cloudDbConfig).catch((err) => {
         console.warn('[CloudDB] Lỗi đồng bộ nhóm:', err);
@@ -156,6 +160,7 @@ export function useCatalogData() {
 
   useEffect(() => {
     saveState(STORAGE_KEYS.EQUIPMENTS, equipments);
+    if (isManualSavingRef.current) return;
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncEquipmentsToSupabase(equipments, cloudDbConfig).catch((err) => {
         console.warn('[CloudDB] Lỗi đồng bộ thiết bị:', err);
@@ -165,6 +170,7 @@ export function useCatalogData() {
 
   useEffect(() => {
     saveState(STORAGE_KEYS.DOCTORS, doctorsList);
+    if (isManualSavingRef.current) return;
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncDoctorsToSupabase(doctorsList, cloudDbConfig).catch((err) => {
         console.warn('[CloudDB] Lỗi đồng bộ bác sĩ:', err);
@@ -174,6 +180,7 @@ export function useCatalogData() {
 
   useEffect(() => {
     saveState(STORAGE_KEYS.REFERENCE_RANGES, referenceRanges);
+    if (isManualSavingRef.current) return;
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncReferenceRangesToSupabase(referenceRanges, cloudDbConfig).catch((err) => {
         console.warn('[CloudDB] Lỗi đồng bộ tham chiếu:', err);
@@ -183,6 +190,7 @@ export function useCatalogData() {
 
   useEffect(() => {
     saveState(STORAGE_KEYS.CATALOG_ITEM_EQUIPMENTS, catalogItemEquipments);
+    if (isManualSavingRef.current) return;
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncCatalogItemEquipmentsToSupabase(catalogItemEquipments, cloudDbConfig).catch((err) => {
         console.warn('[CloudDB] Lỗi đồng bộ liên kết máy:', err);
@@ -192,6 +200,7 @@ export function useCatalogData() {
 
   useEffect(() => {
     saveState(STORAGE_KEYS.ALLERGEN_SCALES, allergenScales);
+    if (isManualSavingRef.current) return;
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncScalesToSupabase(allergenScales, cloudDbConfig).catch((err) => {
         console.warn('[CloudDB] Lỗi đồng bộ thang dị ứng:', err);
@@ -201,6 +210,7 @@ export function useCatalogData() {
 
   useEffect(() => {
     saveState(STORAGE_KEYS.CLINIC_INFO, clinicInfo);
+    if (isManualSavingRef.current) return;
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncClinicInfoToSupabase(clinicInfo, cloudDbConfig).catch((err) => {
         console.warn('[CloudDB] Lỗi đồng bộ phòng khám:', err);
@@ -214,6 +224,7 @@ export function useCatalogData() {
 
   useEffect(() => {
     saveState(STORAGE_KEYS.ZALO_CONFIG, zaloConfig);
+    if (isManualSavingRef.current) return;
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncZaloConfigToSupabase(zaloConfig, cloudDbConfig).catch((err) => {
         console.warn('[CloudDB] Lỗi đồng bộ Zalo config:', err);
@@ -232,50 +243,63 @@ export function useCatalogData() {
     allergenScales?: AllergenGradingScale[];
     referenceRanges?: ReferenceRangeItem[];
   }) => {
-    if (data.catalog) {
-      setCatalog(data.catalog);
-      saveState(STORAGE_KEYS.CATALOG, data.catalog);
-    }
-    if (data.testPackages) {
-      setTestPackages(data.testPackages);
-      saveState(STORAGE_KEYS.TEST_PACKAGES, data.testPackages);
-    }
-    if (data.testGroups) {
-      setTestGroups(data.testGroups);
-      saveState(STORAGE_KEYS.TEST_GROUPS, data.testGroups);
-    }
-    if (data.equipments) {
-      setEquipments(data.equipments);
-      saveState(STORAGE_KEYS.EQUIPMENTS, data.equipments);
-    }
-    if (data.doctorsList) {
-      setDoctorsList(data.doctorsList);
-      saveState(STORAGE_KEYS.DOCTORS, data.doctorsList);
-    }
-    if (data.catalogItemEquipments) {
-      setCatalogItemEquipments(data.catalogItemEquipments);
-      saveState(STORAGE_KEYS.CATALOG_ITEM_EQUIPMENTS, data.catalogItemEquipments);
-    }
-    if (data.allergenScales) {
-      setAllergenScales(data.allergenScales);
-      saveState(STORAGE_KEYS.ALLERGEN_SCALES, data.allergenScales);
-    }
-    if (data.referenceRanges) {
-      setReferenceRanges(data.referenceRanges);
-      saveState(STORAGE_KEYS.REFERENCE_RANGES, data.referenceRanges);
-    }
+    isManualSavingRef.current = true;
+    try {
+      if (data.catalog) {
+        setCatalog(data.catalog);
+        saveState(STORAGE_KEYS.CATALOG, data.catalog);
+      }
+      if (data.testPackages) {
+        setTestPackages(data.testPackages);
+        saveState(STORAGE_KEYS.TEST_PACKAGES, data.testPackages);
+      }
+      if (data.testGroups) {
+        setTestGroups(data.testGroups);
+        saveState(STORAGE_KEYS.TEST_GROUPS, data.testGroups);
+      }
+      if (data.equipments) {
+        setEquipments(data.equipments);
+        saveState(STORAGE_KEYS.EQUIPMENTS, data.equipments);
+      }
+      if (data.doctorsList) {
+        setDoctorsList(data.doctorsList);
+        saveState(STORAGE_KEYS.DOCTORS, data.doctorsList);
+      }
+      if (data.catalogItemEquipments) {
+        setCatalogItemEquipments(data.catalogItemEquipments);
+        saveState(STORAGE_KEYS.CATALOG_ITEM_EQUIPMENTS, data.catalogItemEquipments);
+      }
+      if (data.allergenScales) {
+        setAllergenScales(data.allergenScales);
+        saveState(STORAGE_KEYS.ALLERGEN_SCALES, data.allergenScales);
+      }
+      if (data.referenceRanges) {
+        setReferenceRanges(data.referenceRanges);
+        saveState(STORAGE_KEYS.REFERENCE_RANGES, data.referenceRanges);
+      }
 
-    if (cloudDbConfig?.enabled) {
-      const promises: Promise<unknown>[] = [];
-      if (data.testGroups) promises.push(syncGroupsToSupabase(data.testGroups, cloudDbConfig));
-      if (data.equipments) promises.push(syncEquipmentsToSupabase(data.equipments, cloudDbConfig));
-      if (data.catalog) promises.push(syncCatalogToSupabase(data.catalog, cloudDbConfig));
-      if (data.testPackages) promises.push(syncPackagesToSupabase(data.testPackages, cloudDbConfig));
-      if (data.doctorsList) promises.push(syncDoctorsToSupabase(data.doctorsList, cloudDbConfig));
-      if (data.catalogItemEquipments) promises.push(syncCatalogItemEquipmentsToSupabase(data.catalogItemEquipments, cloudDbConfig));
-      if (data.allergenScales) promises.push(syncScalesToSupabase(data.allergenScales, cloudDbConfig));
-      if (data.referenceRanges) promises.push(syncReferenceRangesToSupabase(data.referenceRanges, cloudDbConfig));
-      await Promise.all(promises);
+      if (cloudDbConfig?.enabled) {
+        // Thực thi tuần tự các bảng cần đồng bộ để tránh tràn transaction pooler / khóa hàng Postgres
+        const tasks: (() => Promise<unknown>)[] = [];
+        if (data.testGroups) tasks.push(() => syncGroupsToSupabase(data.testGroups!, cloudDbConfig));
+        if (data.equipments) tasks.push(() => syncEquipmentsToSupabase(data.equipments!, cloudDbConfig));
+        if (data.catalog) tasks.push(() => syncCatalogToSupabase(data.catalog!, cloudDbConfig));
+        if (data.testPackages) tasks.push(() => syncPackagesToSupabase(data.testPackages!, cloudDbConfig));
+        if (data.doctorsList) tasks.push(() => syncDoctorsToSupabase(data.doctorsList!, cloudDbConfig));
+        if (data.catalogItemEquipments) tasks.push(() => syncCatalogItemEquipmentsToSupabase(data.catalogItemEquipments!, cloudDbConfig));
+        if (data.allergenScales) tasks.push(() => syncScalesToSupabase(data.allergenScales!, cloudDbConfig));
+        if (data.referenceRanges) tasks.push(() => syncReferenceRangesToSupabase(data.referenceRanges!, cloudDbConfig));
+
+        for (const task of tasks) {
+          await task().catch((err) => {
+            console.warn('[CloudDB] Lỗi đồng bộ thành phần danh mục:', err);
+          });
+        }
+      }
+    } finally {
+      setTimeout(() => {
+        isManualSavingRef.current = false;
+      }, 500);
     }
   }, [cloudDbConfig]);
 
