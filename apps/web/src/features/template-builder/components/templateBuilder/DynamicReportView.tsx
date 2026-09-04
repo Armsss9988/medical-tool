@@ -442,8 +442,8 @@ export function DynamicReportView({
                   <td className="py-1.5 px-3 font-medium text-slate-800 border-b border-slate-300 align-middle">{patient.receivedAt || new Date().toLocaleDateString('vi-VN')}</td>
                 </tr>
                 <tr>
-                  <td className="w-32 py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle">Bác sĩ chỉ định</td>
-                  <td className="py-1.5 px-3 font-bold text-slate-800 border-r border-slate-300 align-middle">{patient.doctor || doctorName || 'BS. Chỉ định'}</td>
+                  <td className="w-32 py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-slate-300 align-middle">Bác sĩ chỉ định</td>
+                  <td className="py-1.5 px-3 font-bold text-slate-800 border-r border-slate-300 align-middle">{patient.doctor || doctorName || 'BS. Trần Hoài Long'}</td>
                   <td className="w-32 py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-slate-300 align-middle">T/G trả kết quả</td>
                   <td className="py-1.5 px-3 font-medium text-slate-800 align-middle">{patient.returnedAt || new Date().toLocaleDateString('vi-VN')}</td>
                 </tr>
@@ -1088,7 +1088,9 @@ export function DynamicReportView({
               )}
               {p.showDoctorName !== false && (
                 <p className="text-[13.5px] font-bold text-slate-900 uppercase">
-                  {doctorName || clinicInfo?.defaultDoctor || 'Nguyễn Thị Thành Trung'}
+                  {p.title?.toUpperCase().includes('CHỈ ĐỊNH')
+                    ? (patient.doctor || doctorName || 'BS. Trần Hoài Long')
+                    : (clinicInfo?.defaultDoctor || 'Nguyễn Thị Thành Trung')}
                 </p>
               )}
             </div>

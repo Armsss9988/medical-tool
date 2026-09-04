@@ -57,6 +57,17 @@ export default function PatientForm({
     return undefined;
   }, [autoFocusName, nameRef]);
 
+  // Đảm bảo Bác sĩ chỉ định luôn có giá trị hợp lệ ưu tiên từ danh sách
+  useEffect(() => {
+    const defaultDoc = (doctorsList && doctorsList.length > 0 && doctorsList[0]?.name) || 'BS. Trần Hoài Long';
+    if (!patient.doctor) {
+      handleChange('doctor', defaultDoc);
+    }
+    if (!doctorName && setDoctorName) {
+      setDoctorName(patient.doctor || defaultDoc);
+    }
+  }, [doctorsList, patient.doctor, doctorName, setDoctorName]);
+
   const handleChange = <K extends keyof Patient>(field: K, value: Patient[K]) => {
     if (onPatientChange) {
       onPatientChange(field, value);
@@ -316,7 +327,7 @@ export default function PatientForm({
             )}
           </div>
           <select
-            value={doctorName || patient.doctor || (doctorsList[0]?.name || 'BS. Trần Hoài Long')}
+            value={patient.doctor || doctorName || (doctorsList[0]?.name || 'BS. Trần Hoài Long')}
             onChange={(e) => {
               const val = e.target.value;
               if (setDoctorName) setDoctorName(val);
@@ -330,6 +341,13 @@ export default function PatientForm({
                 {doc.name} {doc.specialty ? `— ${doc.specialty}` : ''} {doc.phone ? `(${doc.phone})` : ''}
               </option>
             ))}
+            {(() => {
+              const activeDoc = patient.doctor || doctorName;
+              if (activeDoc && !doctorsList.some((d) => d.name === activeDoc)) {
+                return <option value={activeDoc}>{activeDoc}</option>;
+              }
+              return null;
+            })()}
           </select>
         </div>
 

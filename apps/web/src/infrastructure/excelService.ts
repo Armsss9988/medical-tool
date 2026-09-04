@@ -1392,7 +1392,7 @@ export async function exportBatchTemplateExcel(
 
   const doctorNames = doctors.length > 0
     ? doctors.map(d => d.name)
-    : ['BS. Nguyễn Thị Thành Trung', 'BS. Lê Phan Anh'];
+    : ['BS. Trần Hoài Long', 'BS. Lê Phan Anh'];
 
   wsLookup.columns = [
     { header: 'Giới Tính Khả Dụng', key: 'gender', width: 20 },
@@ -1453,7 +1453,7 @@ export async function exportBatchTemplateExcel(
       gender: 'Nam',
       phone: '0987654321',
       address: 'Công Ty Cổ Phần GoLab - Đồng Hới',
-      doctor: doctorNames[0] || 'BS. Nguyễn Thị Thành Trung',
+      doctor: doctorNames[0] || 'BS. Trần Hoài Long',
       diagnosis: selectedPackage ? `Khám theo gói: ${selectedPackage.name}` : 'Khám sức khỏe định kỳ',
       conclusion: 'Các chỉ số xét nghiệm trong giới hạn bình thường'
     },
@@ -1465,7 +1465,7 @@ export async function exportBatchTemplateExcel(
       gender: 'Nữ',
       phone: '0912345678',
       address: 'Công Ty Cổ Phần GoLab - Đồng Hới',
-      doctor: doctorNames[0] || 'BS. Nguyễn Thị Thành Trung',
+      doctor: doctorNames[0] || 'BS. Trần Hoài Long',
       diagnosis: selectedPackage ? `Khám theo gói: ${selectedPackage.name}` : 'Theo dõi đường huyết',
       conclusion: 'Chỉ số trong giới hạn tốt, tái khám định kỳ sau 6 tháng'
     },
@@ -1602,7 +1602,7 @@ export function parseExcelBatchPatients(
                 diagnosis: getRowValue(pRow, ['chan_doan', 'diagnosis', 'ly_do_kham', 'benh_su']) || 'Khám sức khỏe định kỳ'
               };
 
-              const doctorName = getRowValue(pRow, ['bs_chi_dinh', 'bac_si', 'doctor', 'bs']) || 'BS. Nguyễn Thị Thành Trung';
+              const doctorName = getRowValue(pRow, ['bs_chi_dinh', 'bac_si', 'doctor', 'bs']) || 'BS. Trần Hoài Long';
               const conclusion = getRowValue(pRow, ['ket_luan', 'conclusion', 'loi_dan', 'nhan_xet']);
 
               const selectedTests: SelectedTest[] = [];
@@ -1681,7 +1681,7 @@ export function parseExcelBatchPatients(
                 diagnosis: getRowValue(pRow, ['chan_doan', 'diagnosis']) || 'Khám sức khỏe'
               };
 
-              const doctorName = getRowValue(pRow, ['bs_chi_dinh', 'bac_si', 'doctor']) || 'BS. Nguyễn Thị Thành Trung';
+              const doctorName = getRowValue(pRow, ['bs_chi_dinh', 'bac_si', 'doctor']) || 'BS. Trần Hoài Long';
               const conclusion = getRowValue(pRow, ['ket_luan', 'conclusion']);
 
               const selectedTests: SelectedTest[] = [];

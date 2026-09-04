@@ -29,7 +29,7 @@ export function buildCurrentReport(params: BuildCurrentReportParams): MedicalRep
   const code = patient.code || `BN-${Date.now()}`;
   const isAllergen = hasAllergenTests(selectedTests);
 
-  const resolvedDoctorName = doctorName || patient.doctor || DEFAULTS.DOCTOR_NAME;
+  const resolvedDoctorName = (patient.doctor && patient.doctor.trim()) || (doctorName && doctorName.trim()) || DEFAULTS.DOCTOR_NAME;
 
   return {
     id: params.id || code,
@@ -37,7 +37,7 @@ export function buildCurrentReport(params: BuildCurrentReportParams): MedicalRep
     sampleCode: patient.sampleCode || code,
     createdAt: now,
     updatedAt: now,
-    patient: { ...patient },
+    patient: { ...patient, doctor: resolvedDoctorName },
     doctorName: resolvedDoctorName,
     selectedTests: [...selectedTests],
     conclusion: conclusion || '',
@@ -51,8 +51,8 @@ export function buildCurrentReport(params: BuildCurrentReportParams): MedicalRep
 
 /**
  * Resolve doctor name với fallback chain chuẩn.
- * Thay thế pattern `doctorName || patient.doctor || 'BS. Trần Hoài Long'` lặp lại 6+ lần.
+ * Ưu tiên Bác sĩ được chỉ định/chọn trước, sau đó tới fallback, cuối cùng là mặc định.
  */
-export function resolveDoctorName(doctorName?: string, patientDoctor?: string): string {
-  return doctorName || patientDoctor || DEFAULTS.DOCTOR_NAME;
+export function resolveDoctorName(primary?: string, fallback?: string): string {
+  return (primary && primary.trim()) || (fallback && fallback.trim()) || DEFAULTS.DOCTOR_NAME;
 }

@@ -175,22 +175,30 @@ function AllergenCoverPage({
           </table>
         </div>
 
-        {/* Chữ Ký & Con Dấu Phụ Trách Chuyên Môn */}
-        <div className="flex justify-end pt-2">
+        {/* Chữ Ký: Bác sĩ chỉ định & Phụ trách chuyên môn */}
+        <div className="flex items-start justify-between text-center pt-2 border-t border-slate-200/60 mt-1">
+          {/* Bên trái: Chú thích & Lưu ý */}
+          <div className="text-left text-[11.5px] text-slate-600 space-y-0.5 max-w-[50%] leading-snug pt-1">
+            <p className="font-bold text-slate-800 uppercase text-[12px]">Lưu ý đối với bệnh nhân:</p>
+            <p>- Phiếu kết quả này chỉ có giá trị tại thời điểm xét nghiệm.</p>
+            <p>- Vui lòng mang phiếu này khi đến tái khám hoặc tư vấn bác sĩ chuyên khoa.</p>
+          </div>
+
+          {/* Bên phải: Chữ ký & Đóng dấu Phụ trách chuyên môn */}
           <div className="text-center min-w-[220px] flex flex-col items-center">
-            <p className="text-[13px] text-slate-700 italic leading-normal pb-0.5">Ngày {currentDateStr}</p>
-            <p className="text-[14px] font-bold uppercase text-slate-900 tracking-wide my-1 leading-normal pb-0.5">
+            <p className="text-[12.5px] text-slate-700 italic leading-normal pb-0.5">Ngày {currentDateStr}</p>
+            <p className="text-[13px] font-bold uppercase text-slate-900 my-0.5 tracking-wide leading-normal pb-0.5">
               PHỤ TRÁCH CHUYÊN MÔN
             </p>
             <div 
-              className="h-26 w-[135px] flex items-center justify-center my-0.5 overflow-hidden mx-auto"
+              className="h-24 w-[135px] flex items-center justify-center my-0.5 overflow-hidden mx-auto"
               style={{ margin: '2px auto' }}
             >
               <img
                 src={currentStamp}
                 alt="Con Dấu & Chữ Ký"
-                style={{ maxHeight: '104px', maxWidth: '135px', height: '104px', width: 'auto', objectFit: 'contain' }}
-                className="h-26 w-auto object-contain max-w-[135px]"
+                style={{ maxHeight: '96px', maxWidth: '135px', height: '96px', width: 'auto', objectFit: 'contain' }}
+                className="h-24 w-auto object-contain max-w-[135px]"
                 loading="eager"
                 decoding="sync"
                 onError={(e) => {
@@ -200,7 +208,7 @@ function AllergenCoverPage({
                 }}
               />
             </div>
-            <p className="text-[14.5px] font-bold text-slate-900 uppercase leading-normal pt-1 pb-0.5">
+            <p className="text-[13.5px] font-bold text-slate-900 uppercase leading-normal pt-1 pb-0.5">
               {clinicInfo?.defaultDoctor || 'Nguyễn Thị Thành Trung'}
             </p>
           </div>

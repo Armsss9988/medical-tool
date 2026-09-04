@@ -561,9 +561,13 @@ export default function PdfPreviewModal({
                   <span className="text-slate-500 font-medium">Tổng số chỉ số:</span>
                   <span className="font-bold text-slate-900">{safeSelectedTests.length} chỉ số</span>
                 </div>
+                <div className="flex justify-between items-center py-0.5 border-b border-slate-200/60">
+                  <span className="text-slate-500 font-medium">Bác sĩ chỉ định:</span>
+                  <span className="font-bold text-slate-900">{safePatient.doctor || doctorName || 'BS. Trần Hoài Long'}</span>
+                </div>
                 <div className="flex justify-between items-center py-0.5">
-                  <span className="text-slate-500 font-medium">Bác sĩ phụ trách:</span>
-                  <span className="font-bold text-slate-900">{doctorName || clinicInfo.defaultDoctor || '---'}</span>
+                  <span className="text-slate-500 font-medium">Phụ trách chuyên môn:</span>
+                  <span className="font-bold text-slate-900">{clinicInfo.defaultDoctor || 'Nguyễn Thị Thành Trung'}</span>
                 </div>
               </div>
 

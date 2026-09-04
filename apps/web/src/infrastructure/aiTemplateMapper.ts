@@ -269,7 +269,7 @@ export function convertAiRowsToBatchImportRows(
           address: String(d.address || ''),
           diagnosis: String(d.diagnosis || 'Khám sức khỏe định kỳ')
         },
-        doctorName: String(d.doctor || 'BS. Nguyễn Thị Thành Trung'),
+        doctorName: String(d.doctor || 'BS. Trần Hoài Long'),
         conclusion: String(d.conclusion || ''),
         selectedTests,
         hasError: false

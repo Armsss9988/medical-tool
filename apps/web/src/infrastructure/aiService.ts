@@ -210,7 +210,7 @@ function fallbackRuleBasedParser(request: AiFillRequest): AiFillResult {
           gender,
           phone,
           address: 'GoLab Clinic',
-          doctor: 'BS. Nguyễn Thị Thành Trung',
+          doctor: 'BS. Trần Hoài Long',
           diagnosis: 'Khám sức khỏe tổng quát',
           conclusion: 'Các chỉ số trong giới hạn bình thường',
           testResults

@@ -491,6 +491,18 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
         return groupList.length;
       }
 
+      case 'doctors': {
+        const docList = rows as (typeof tables.doctors.$inferInsert)[];
+        const uniqueDocs = Array.from(new Map(docList.map((d) => [d.id, d])).values());
+        await tx.delete(tables.doctors);
+        if (uniqueDocs.length > 0) {
+          for (let i = 0; i < uniqueDocs.length; i += BATCH_SIZE) {
+            await tx.insert(tables.doctors).values(uniqueDocs.slice(i, i + BATCH_SIZE));
+          }
+        }
+        return uniqueDocs.length;
+      }
+
       default: {
         const table = TABLES[name];
         await tx.delete(table);

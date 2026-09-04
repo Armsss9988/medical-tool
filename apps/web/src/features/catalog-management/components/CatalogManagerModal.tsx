@@ -125,11 +125,14 @@ export default function CatalogManagerModal({
   };
 
   const handleSaveAll = async () => {
-    // 1. Kiểm tra dữ liệu hợp lệ: không để trống tên gói xét nghiệm
-    const invalidPkg = packages.find((p) => !p.name || !p.name.trim());
-    if (invalidPkg) {
-      alert('Tên gói xét nghiệm không được để trống! Vui lòng nhập tên cho tất cả các gói trước khi lưu.');
-      return;
+    // 1. Kiểm tra dữ liệu hợp lệ: chỉ kiểm tra gói xét nghiệm nếu người dùng có thay đổi gói
+    const hasPackagesChanged = JSON.stringify(packages) !== JSON.stringify(testPackages);
+    if (hasPackagesChanged) {
+      const invalidPkg = packages.find((p) => !p.name || !p.name.trim());
+      if (invalidPkg) {
+        alert('Tên gói xét nghiệm không được để trống! Vui lòng nhập tên cho tất cả các gói trước khi lưu.');
+        return;
+      }
     }
 
     try {
@@ -325,7 +328,13 @@ export default function CatalogManagerModal({
 
         {/* TAB 4: DANH SÁCH BÁC SĨ */}
         {activeTab === 'DOCTORS' && (
-          <DoctorsTab docsList={docsList} setDocsList={setDocsList} />
+          <DoctorsTab 
+            docsList={docsList} 
+            setDocsList={setDocsList} 
+            onSaveDoctors={onSaveDoctors}
+            onSaveAllData={onSaveAllData}
+            showToast={showToast}
+          />
         )}
 
         {/* FOOTER MODAL */}

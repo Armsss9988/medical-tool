@@ -59,7 +59,7 @@ function HybridReportView({
   patient,
   selectedTests = [],
   currentDateStr = new Date().toLocaleDateString('vi-VN'),
-  doctorName: _doctorName,
+  doctorName,
   conclusion,
   qrCodeDataUrl,
   qrCodeUrl,
@@ -476,7 +476,7 @@ function HybridReportView({
                       </tr>
                       <tr>
                         <td className="py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle leading-snug" style={{ borderRight: '1px solid #cbd5e1', borderBottom: '1px solid #cbd5e1' }}>Bác sĩ chỉ định:</td>
-                        <td className="py-1.5 px-3 font-medium text-slate-800 border-r border-slate-300 align-middle leading-snug" style={{ borderRight: '1px solid #cbd5e1', borderBottom: '1px solid #cbd5e1' }}>{patient.doctor || 'BS. Phòng khám'}</td>
+                        <td className="py-1.5 px-3 font-medium text-slate-800 border-r border-b border-slate-300 align-middle leading-snug" style={{ borderRight: '1px solid #cbd5e1', borderBottom: '1px solid #cbd5e1' }}>{patient.doctor || doctorName || 'BS. Trần Hoài Long'}</td>
                         <td className="py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle leading-snug" style={{ borderRight: '1px solid #cbd5e1', borderBottom: '1px solid #cbd5e1' }}>Chất lượng mẫu:</td>
                         <td className="py-1.5 px-3 font-medium text-slate-800 border-b border-slate-300 align-middle leading-snug" style={{ borderBottom: '1px solid #cbd5e1' }}>{patient.sampleStatus || 'Đạt'}</td>
                       </tr>
@@ -629,11 +629,19 @@ function HybridReportView({
                   </div>
                 </div>
 
-                {/* Chữ Ký & Con Dấu Phụ Trách Chuyên Môn */}
-                <div className="flex justify-end pt-1">
+                {/* Chữ Ký: Bác sĩ chỉ định & Phụ trách chuyên môn */}
+                <div className="flex items-start justify-between text-center pt-1 border-t border-slate-200/60 mt-1">
+                  {/* Bên trái: Chú thích & Lưu ý */}
+                  <div className="text-left text-[11.5px] text-slate-600 space-y-0.5 max-w-[50%] leading-snug pt-1">
+                    <p className="font-bold text-slate-800 uppercase text-[12px]">Lưu ý đối với bệnh nhân:</p>
+                    <p>- Phiếu kết quả này chỉ có giá trị tại thời điểm xét nghiệm.</p>
+                    <p>- Vui lòng mang phiếu này khi đến tái khám hoặc tư vấn bác sĩ chuyên khoa.</p>
+                  </div>
+
+                  {/* Bên phải: Chữ ký & Đóng dấu Phụ trách chuyên môn */}
                   <div className="text-center min-w-[220px] flex flex-col items-center">
-                    <p className="text-[13px] text-slate-700 italic leading-normal pb-0.5">Ngày {currentDateStr}</p>
-                    <p className="text-[13.5px] font-bold uppercase text-slate-900 tracking-wide my-1 leading-normal pb-0.5">
+                    <p className="text-[12.5px] text-slate-700 italic leading-normal pb-0.5">Ngày {currentDateStr}</p>
+                    <p className="text-[13px] font-bold uppercase text-slate-900 my-0.5 tracking-wide leading-normal pb-0.5">
                       PHỤ TRÁCH CHUYÊN MÔN
                     </p>
                     <div 
@@ -654,7 +662,7 @@ function HybridReportView({
                         }}
                       />
                     </div>
-                    <p className="text-[14px] font-bold text-slate-900 uppercase leading-normal pt-1 pb-0.5">
+                    <p className="text-[13.5px] font-bold text-slate-900 uppercase leading-normal pt-1 pb-0.5">
                       {clinicInfo?.defaultDoctor || 'Nguyễn Thị Thành Trung'}
                     </p>
                   </div>
