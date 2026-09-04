@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import golabLogo from '@assets/golabLogoDataUrl';
 import doctorStamp from '@assets/doctorStampDataUrl';
-import { Patient, ClinicInfo } from '@domain/types';
+import { Patient, ClinicInfo, getSafeClinicInfo } from '@domain/types';
 
 interface AllergenCoverPageProps {
   patient: Patient;
@@ -28,6 +28,7 @@ function AllergenCoverPage({
   packagePrice,
   totalPages
 }: AllergenCoverPageProps) {
+  const safeClinic = getSafeClinicInfo(clinicInfo);
   return (
     <div 
       data-page="true"
@@ -65,13 +66,13 @@ function AllergenCoverPage({
                 HỆ THỐNG XÉT NGHIỆM GOLAB
               </p>
               <h1 className="text-[18px] font-black text-sky-950 uppercase tracking-tight">
-                {clinicInfo?.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'}
+                {safeClinic.name}
               </h1>
               <p className="text-[13px] text-slate-700 font-medium">
-                Địa chỉ: {clinicInfo?.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị'}
+                Địa chỉ: {safeClinic.address}
               </p>
               <p className="text-[12.5px] text-slate-700 font-medium">
-                Website: <strong className="text-sky-800">{clinicInfo?.website || 'golab.com.vn'}</strong> – Hotline: <strong className="text-sky-800">{clinicInfo?.phone || '032.855.3773'}</strong>
+                Website: <strong className="text-sky-800">{safeClinic.website}</strong> – Hotline: <strong className="text-sky-800">{safeClinic.phone}</strong>
               </p>
             </div>
           </div>
@@ -209,7 +210,7 @@ function AllergenCoverPage({
       {/* Footer Page 1 */}
       <div className="mt-auto pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500 uppercase font-mono">
         <span>
-          HỆ THỐNG XÉT NGHIỆM GOLAB • {clinicInfo?.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'} • HOTLINE: {clinicInfo?.phone || '032.855.3773'}
+          HỆ THỐNG XÉT NGHIỆM GOLAB • {safeClinic.name} • HOTLINE: {safeClinic.phone}
         </span>
         <span className="font-bold text-sky-800">
           Trang 1/{totalPages}

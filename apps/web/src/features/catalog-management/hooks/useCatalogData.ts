@@ -12,7 +12,10 @@ import {
   ReferenceRangeItem,
   AllergenGradingScale,
   STORAGE_KEYS,
-  normalizeTestPackage
+  normalizeTestPackage,
+  DEFAULT_CLINIC_INFO,
+  getSafeClinicInfo,
+  isCorruptedClinicInfo
 } from '@domain';
 import { autoResolveItemLinks } from '@data';
 import { loadState, saveState } from '@infra/storage';
@@ -38,20 +41,6 @@ import {
   syncZaloConfigToSupabase
 } from '@infra/cloudDbService';
 
-const DEFAULT_CLINIC_INFO: ClinicInfo = {
-  name: 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH',
-  address: 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị',
-  phone: '032.855.3773',
-  website: 'golab.com.vn',
-  defaultDoctor: 'Nguyễn Thị Thành Trung',
-  bankId: 'VBA',
-  bankName: 'Agribank',
-  bankAccountNo: '8888876781225',
-  bankAccountName: 'LE PHAN ANH',
-  bankBranch: 'Agribank - Chi nhánh Lý Thái Tổ - Quảng Bình',
-  cashierName: 'Lê Phan Anh',
-  accountantName: 'Trần Thị Thanh Hương'
-};
 
 const DEFAULT_CLOUD_DB_CONFIG: CloudDbConfig = {
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL || '',
@@ -107,7 +96,7 @@ export function useCatalogData() {
   });
 
   const [clinicInfo, setClinicInfo] = useState<ClinicInfo>(() => {
-    return loadState<ClinicInfo>(STORAGE_KEYS.CLINIC_INFO, DEFAULT_CLINIC_INFO);
+    return getSafeClinicInfo(loadState<ClinicInfo>(STORAGE_KEYS.CLINIC_INFO, DEFAULT_CLINIC_INFO));
   });
 
   const [cloudDbConfig, setCloudDbConfig] = useState<CloudDbConfig>(() => {
@@ -349,8 +338,8 @@ export function useCatalogData() {
       if (cloudDocs && cloudDocs.length > 0) {
         setDoctorsList(cloudDocs);
       }
-      if (cloudClinic && cloudClinic.name) {
-        setClinicInfo(cloudClinic);
+      if (cloudClinic && cloudClinic.name && !isCorruptedClinicInfo(cloudClinic)) {
+        setClinicInfo(getSafeClinicInfo(cloudClinic));
       }
       if (cloudRefRanges && cloudRefRanges.length > 0) {
         setReferenceRanges(cloudRefRanges);

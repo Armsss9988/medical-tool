@@ -39,7 +39,9 @@ import {
   Invoice,
   MedicalReport,
   CatalogItemEquipmentLink,
-  AllergenGradingScale
+  AllergenGradingScale,
+  DEFAULT_CLINIC_INFO,
+  getSafeClinicInfo
 } from '@domain/types';
 import {
   testSupabaseConnection,
@@ -269,9 +271,27 @@ export default function SettingsModal({
         <div className="p-5 overflow-y-auto space-y-5 text-xs">
           {/* PHÒNG KHÁM */}
           <div className="space-y-3 border-b border-slate-100 pb-4">
-            <h4 className="font-bold text-slate-800 text-sm flex items-center space-x-1.5">
-              <span>Thông Tin Phòng Khám (In phiếu A4)</span>
-            </h4>
+            <div className="flex items-center justify-between">
+              <h4 className="font-bold text-slate-800 text-sm flex items-center space-x-1.5">
+                <span>Thông Tin Phòng Khám (In phiếu A4)</span>
+              </h4>
+              <button
+                type="button"
+                onClick={() => {
+                  setClinicInfo((prev) => ({
+                    ...DEFAULT_CLINIC_INFO,
+                    logoUrl: prev.logoUrl,
+                    stampUrl: prev.stampUrl
+                  }));
+                  showToast('Đã khôi phục thông tin phòng khám GoLab chuẩn!', 'info');
+                }}
+                className="text-xs font-semibold text-sky-700 hover:text-sky-900 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-2.5 py-1 rounded-md flex items-center gap-1 transition active:scale-95 cursor-pointer"
+                title="Khôi phục tên phòng khám, địa chỉ, hotline, website mặc định"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Khôi phục mặc định</span>
+              </button>
+            </div>
             <div>
               <label className="block font-semibold text-slate-700 mb-1">Tên Phòng Khám</label>
               <input
@@ -705,7 +725,7 @@ export default function SettingsModal({
                     if (data.doctorsList && setDoctorsList) setDoctorsList(data.doctorsList);
                     if (data.catalogItemEquipments && setCatalogItemEquipments) setCatalogItemEquipments(data.catalogItemEquipments);
                     if (data.allergenScales && setAllergenScales) setAllergenScales(data.allergenScales);
-                    if (data.clinicInfo) setClinicInfo(data.clinicInfo);
+                    if (data.clinicInfo) setClinicInfo(getSafeClinicInfo(data.clinicInfo));
                     if (data.reports && setReports) setReports(data.reports);
                     if (data.invoices && setInvoices) setInvoices(data.invoices);
                     if (data.zaloConfig) { setZaloConfig(data.zaloConfig); setLocalZaloConfig(data.zaloConfig); }

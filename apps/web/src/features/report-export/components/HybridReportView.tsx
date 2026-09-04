@@ -9,7 +9,9 @@ import {
   AllergenGradingScale,
   TestEquipment,
   CatalogItemEquipmentLink,
-  resolveTestEquipmentName
+  resolveTestEquipmentName,
+  DEFAULT_CLINIC_INFO,
+  getSafeClinicInfo
 } from '@domain/types';
 import { isAllergenTest } from '@domain/allergenDetector';
 import { evaluateResult } from '@domain/testResult';
@@ -61,19 +63,14 @@ function HybridReportView({
   conclusion,
   qrCodeDataUrl,
   qrCodeUrl,
-  clinicInfo = {
-    name: 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH',
-    address: 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị',
-    phone: '032.855.3773',
-    website: 'golab.com.vn',
-    defaultDoctor: 'Nguyễn Thị Thành Trung'
-  },
+  clinicInfo = DEFAULT_CLINIC_INFO,
   testPackages = [],
   packagePrice: explicitPackagePrice,
   allergenScales = [],
   equipments = [],
   catalogItemEquipments = []
 }: HybridReportViewProps) {
+  const safeClinic = getSafeClinicInfo(clinicInfo);
   const allTests = useMemo(() => selectedTests || [], [selectedTests]);
 
   // Phân loại: Chỉ số thường vs Chỉ số dị nguyên
@@ -405,13 +402,13 @@ function HybridReportView({
                         HỆ THỐNG XÉT NGHIỆM GOLAB
                       </p>
                       <h1 className="text-[18px] font-black text-sky-950 uppercase tracking-tight">
-                        {clinicInfo?.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'}
+                        {safeClinic.name}
                       </h1>
                       <p className="text-[13px] text-slate-700 font-medium">
-                        Địa chỉ: {clinicInfo?.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị'}
+                        Địa chỉ: {safeClinic.address}
                       </p>
                       <p className="text-[12.5px] text-slate-700 font-medium">
-                        Website: <strong className="text-sky-800">{clinicInfo?.website || 'golab.com.vn'}</strong> – Hotline: <strong className="text-sky-800">{clinicInfo?.phone || '032.855.3773'}</strong>
+                        Website: <strong className="text-sky-800">{safeClinic.website}</strong> – Hotline: <strong className="text-sky-800">{safeClinic.phone}</strong>
                       </p>
                     </div>
                   </div>
@@ -511,9 +508,9 @@ function HybridReportView({
                   </div>
                   <div>
                     <span className="text-[13px] font-black text-sky-950 uppercase tracking-tight block leading-tight" style={{ fontWeight: 800, fontSize: '13px', color: '#082f49', textTransform: 'uppercase', lineHeight: '1.2' }}>
-                      {clinicInfo?.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'}
+                      {safeClinic.name}
                     </span>
-                    <span className="text-[10.5px] text-slate-500 font-medium leading-none" style={{ fontSize: '10.5px', color: '#64748b' }}>Hotline: {clinicInfo?.phone || '032.855.3773'}</span>
+                    <span className="text-[10.5px] text-slate-500 font-medium leading-none" style={{ fontSize: '10.5px', color: '#64748b' }}>Hotline: {safeClinic.phone}</span>
                   </div>
                 </div>
                 <div className="text-right shrink-0 leading-tight" style={{ textAlign: 'right', flexShrink: 0, lineHeight: '1.25' }}>
@@ -672,7 +669,7 @@ function HybridReportView({
             style={{ marginTop: 'auto', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', width: '100%' }}
           >
             <span>
-              HỆ THỐNG XÉT NGHIỆM GOLAB • {clinicInfo?.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'} • HOTLINE: {clinicInfo?.phone || '032.855.3773'}
+              HỆ THỐNG XÉT NGHIỆM GOLAB • {safeClinic.name} • HOTLINE: {safeClinic.phone}
             </span>
             <span className="font-bold text-sky-800" style={{ fontWeight: 'bold', color: '#075985' }}>
               Trang {pIdx + 1}/{totalPages}

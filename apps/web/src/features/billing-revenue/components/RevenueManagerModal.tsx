@@ -6,7 +6,8 @@ import {
 } from 'lucide-react';
 import { 
   Invoice, Doctor, ClinicInfo, MedicalReport, TestPackage, ToastType,
-  BILLING_STATUS, PAYMENT_METHOD, DATE_FILTER, DateFilterType, REVENUE_TAB, RevenueTabType 
+  BILLING_STATUS, PAYMENT_METHOD, DATE_FILTER, DateFilterType, REVENUE_TAB, RevenueTabType,
+  getSafeClinicInfo
 } from '@domain';
 import { computePricingWithPackages } from '@domain/pricing';
 import { exportRevenueExcel } from '@infra/excelService';
@@ -41,6 +42,7 @@ export default function RevenueManagerModal({
   clinicInfo,
   showToast
 }: RevenueManagerModalProps) {
+  const safeClinic = getSafeClinicInfo(clinicInfo);
   const [activeTab, setActiveTab] = useState<RevenueTabType>(REVENUE_TAB.INVOICES);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [dateFilter, setDateFilter] = useState<DateFilterType>(DATE_FILTER.ALL);
@@ -1041,9 +1043,9 @@ export default function RevenueManagerModal({
               <div className="bg-white text-slate-900 rounded-xl p-8 border border-slate-300 shadow-xl max-w-4xl mx-auto font-serif text-[13px] space-y-4">
                 <div className="flex justify-between items-start border-b-2 border-slate-400 pb-3">
                   <div>
-                    <h1 className="text-[16px] font-black uppercase text-sky-950">{clinicInfo?.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'}</h1>
-                    <p className="text-[12px] text-slate-600">ĐC: {clinicInfo?.address}</p>
-                    <p className="text-[12px] text-slate-600">Hotline: {clinicInfo?.phone}</p>
+                    <h1 className="text-[16px] font-black uppercase text-sky-950">{safeClinic.name}</h1>
+                    <p className="text-[12px] text-slate-600">ĐC: {safeClinic.address}</p>
+                    <p className="text-[12px] text-slate-600">Hotline: {safeClinic.phone}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-[11px] text-slate-500 italic">Mẫu: <strong>BC-TC/GOLAB</strong></p>

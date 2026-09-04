@@ -12,6 +12,8 @@ import {
   ReportTemplate,
   TemplateBlock,
   resolveTestEquipmentName,
+  DEFAULT_CLINIC_INFO,
+  getSafeClinicInfo,
   HeaderBlockProps,
   TitleBlockProps,
   PatientInfoBlockProps,
@@ -201,13 +203,7 @@ export function DynamicReportView({
   template,
   patient,
   selectedTests = [],
-  clinicInfo = {
-    name: 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH',
-    address: 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị',
-    phone: '032.855.3773',
-    website: 'golab.com.vn',
-    defaultDoctor: 'Nguyễn Thị Thành Trung'
-  },
+  clinicInfo = DEFAULT_CLINIC_INFO,
   doctorName,
   conclusion,
   qrCodeDataUrl,
@@ -223,6 +219,7 @@ export function DynamicReportView({
   onReorderBlock,
   onDropBlock
 }: DynamicReportViewProps) {
+  const safeClinic = getSafeClinicInfo(clinicInfo);
   const currentLogo = clinicInfo?.logoUrl || golabLogo;
   const currentStamp = clinicInfo?.stampUrl || doctorStamp;
 
@@ -347,17 +344,17 @@ export function DynamicReportView({
                 </p>
                 {p.showClinicName !== false && (
                   <h1 className={`${p.clinicNameSize === 'lg' ? 'text-[18px]' : p.clinicNameSize === 'sm' ? 'text-[14px]' : 'text-[16px]'} font-black text-sky-950 uppercase tracking-tight`}>
-                    {clinicInfo?.name}
+                    {safeClinic.name}
                   </h1>
                 )}
                 {p.showAddress !== false && (
                   <p className="text-[12px] text-slate-700 font-medium">
-                    Địa chỉ: {clinicInfo?.address}
+                    Địa chỉ: {safeClinic.address}
                   </p>
                 )}
                 {p.showContact !== false && (
                   <p className="text-[11.5px] text-slate-700 font-medium">
-                    Website: <strong className="text-sky-800">{clinicInfo?.website}</strong> – Hotline: <strong className="text-sky-800">{clinicInfo?.phone}</strong>
+                    Website: <strong className="text-sky-800">{safeClinic.website}</strong> – Hotline: <strong className="text-sky-800">{safeClinic.phone}</strong>
                   </p>
                 )}
               </div>
@@ -1333,7 +1330,7 @@ export function DynamicReportView({
           {/* Footer Mặc Định */}
           <div className="mt-auto pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500 uppercase font-mono">
             <span>
-              HỆ THỐNG XÉT NGHIỆM GOLAB • {clinicInfo?.name} • HOTLINE: {clinicInfo?.phone}
+              HỆ THỐNG XÉT NGHIỆM GOLAB • {safeClinic.name} • HOTLINE: {safeClinic.phone}
             </span>
             <span className="font-bold text-sky-800">
               Trang {pageIdx + 1}/{pages.length}

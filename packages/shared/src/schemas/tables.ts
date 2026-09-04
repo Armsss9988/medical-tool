@@ -73,6 +73,7 @@ export const doctorRowSchema = z.object({
 });
 
 export const clinicInfoRowSchema = z.object({
+  id: z.string().optional().default('default'),
   name: z.string().optional().default(''),
   address: z.string().optional().default(''),
   phone: z.string().optional().default(''),
@@ -88,7 +89,22 @@ export const clinicInfoRowSchema = z.object({
   bankQrImageUrl: z.string().nullable().optional(),
   cashierName: z.string().nullable().optional(),
   accountantName: z.string().nullable().optional()
-});
+}).refine(
+  (data) => {
+    if (!data.name) return true;
+    const lowerName = data.name.toLowerCase();
+    const lowerAddr = (data.address || '').toLowerCase();
+    return (
+      !lowerName.includes('diễn giải') &&
+      !lowerName.includes('thang đo') &&
+      !lowerName.includes('mediwiss') &&
+      !lowerName.includes('protia') &&
+      !lowerAddr.includes('alleisascreen') &&
+      !lowerAddr.includes('blotrix')
+    );
+  },
+  { message: 'Tên phòng khám hoặc địa chỉ không hợp lệ (phát hiện nội dung thang đo hoặc máy đo)' }
+);
 
 export const zaloConfigRowSchema = z.object({
   enabled: z.boolean(),

@@ -1,4 +1,4 @@
-import { Invoice, ClinicInfo } from '@domain/types';
+import { Invoice, ClinicInfo, DEFAULT_CLINIC_INFO, getSafeClinicInfo } from '@domain/types';
 import golabLogo from '@assets/golabLogoDataUrl';
 import doctorStamp from '@assets/doctorStampDataUrl';
 
@@ -69,21 +69,9 @@ function numberToVietnameseWords(num: number): string {
 export default function PrintReceiptView({
   elementId = 'receipt-print-element',
   invoice,
-  clinicInfo = {
-    name: 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH',
-    address: 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị',
-    phone: '032.855.3773',
-    website: 'golab.com.vn',
-    defaultDoctor: 'Nguyễn Thị Thành Trung',
-    bankId: 'VBA',
-    bankName: 'Agribank',
-    bankAccountNo: '8888876781225',
-    bankAccountName: 'LE PHAN ANH',
-    bankBranch: 'Agribank - Chi nhánh Lý Thái Tổ - Quảng Bình',
-    cashierName: 'Lê Phan Anh',
-    accountantName: 'Trần Thị Thanh Hương'
-  }
+  clinicInfo = DEFAULT_CLINIC_INFO
 }: PrintReceiptViewProps) {
+  const safeClinic = getSafeClinicInfo(clinicInfo);
   const currentLogo = clinicInfo.logoUrl || golabLogo;
   const currentStamp = clinicInfo.stampUrl || doctorStamp;
 
@@ -145,13 +133,13 @@ export default function PrintReceiptView({
                   HỆ THỐNG XÉT NGHIỆM GOLAB
                 </p>
                 <h1 className="text-[15.5px] font-black text-[#0f3a85] uppercase tracking-tight leading-tight">
-                  {clinicInfo.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'}
+                  {safeClinic.name}
                 </h1>
                 <p className="text-[11.5px] text-slate-700 font-medium leading-snug">
-                  Địa chỉ: {clinicInfo.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị'}
+                  Địa chỉ: {safeClinic.address}
                 </p>
                 <p className="text-[11px] text-slate-700 font-medium leading-snug">
-                  Website: <strong className="text-slate-800">{clinicInfo.website || 'golab.com.vn'}</strong> &nbsp;|&nbsp; Hotline: <strong className="text-slate-900 font-bold">{clinicInfo.phone || '032.855.3773'}</strong>
+                  Website: <strong className="text-slate-800">{safeClinic.website}</strong> &nbsp;|&nbsp; Hotline: <strong className="text-slate-900 font-bold">{safeClinic.phone}</strong>
                 </p>
               </div>
             </div>

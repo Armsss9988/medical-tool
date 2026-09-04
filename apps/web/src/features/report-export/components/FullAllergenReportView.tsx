@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, memo } from 'react';
 import golabLogo from '@assets/golabLogoDataUrl';
 import doctorStamp from '@assets/doctorStampDataUrl';
-import { Patient, SelectedTest, ClinicInfo, TestPackage, AllergenGradingScale, TestEquipment, CatalogItemEquipmentLink } from '@domain/types';
+import { Patient, SelectedTest, ClinicInfo, TestPackage, AllergenGradingScale, TestEquipment, CatalogItemEquipmentLink, DEFAULT_CLINIC_INFO } from '@domain/types';
 import { AllergenReportDomainService } from '@domain/services/AllergenReportDomainService';
 import { generateQrCodeDataUrl } from '@infra/qrService';
 import AllergenCoverPage from './allergenReport/AllergenCoverPage';
@@ -36,13 +36,7 @@ function FullAllergenReportView({
   doctorName,
   qrCodeDataUrl,
   qrCodeUrl,
-  clinicInfo = {
-    name: 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH',
-    address: 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị',
-    phone: '032.855.3773',
-    website: 'golab.com.vn',
-    defaultDoctor: 'Nguyễn Thị Thành Trung'
-  },
+  clinicInfo = DEFAULT_CLINIC_INFO,
   testPackages = [],
   packagePrice: explicitPackagePrice,
   allergenScales = [],

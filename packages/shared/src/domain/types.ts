@@ -371,6 +371,50 @@ export interface ClinicInfo {
   accountantName?: string;  // Tên kế toán xác nhận (VD: Trần Thị Thanh Hương)
 }
 
+export const DEFAULT_CLINIC_INFO: ClinicInfo = {
+  name: 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH',
+  address: 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị',
+  phone: '032.855.3773',
+  website: 'golab.com.vn',
+  defaultDoctor: 'Nguyễn Thị Thành Trung',
+  bankId: 'VBA',
+  bankName: 'Agribank',
+  bankAccountNo: '8888876781225',
+  bankAccountName: 'LE PHAN ANH',
+  bankBranch: 'Agribank - Chi nhánh Lý Thái Tổ - Quảng Bình',
+  cashierName: 'Lê Phan Anh',
+  accountantName: 'Trần Thị Thanh Hương'
+};
+
+export function isCorruptedClinicInfo(info?: Partial<ClinicInfo> | null): boolean {
+  if (!info || !info.name) return false;
+  const lowerName = info.name.toLowerCase();
+  const lowerAddr = (info.address || '').toLowerCase();
+  return (
+    lowerName.includes('diễn giải') ||
+    lowerName.includes('thang đo') ||
+    lowerName.includes('mediwiss') ||
+    lowerName.includes('protia') ||
+    lowerAddr.includes('alleisascreen') ||
+    lowerAddr.includes('blotrix') ||
+    lowerAddr.includes('processor')
+  );
+}
+
+export function getSafeClinicInfo(info?: ClinicInfo | null): ClinicInfo {
+  if (!info || isCorruptedClinicInfo(info)) {
+    return DEFAULT_CLINIC_INFO;
+  }
+  return {
+    ...DEFAULT_CLINIC_INFO,
+    ...info,
+    name: info.name && !isCorruptedClinicInfo(info) ? info.name : DEFAULT_CLINIC_INFO.name,
+    address: info.address && !isCorruptedClinicInfo(info) ? info.address : DEFAULT_CLINIC_INFO.address,
+    phone: info.phone && info.phone !== 'IU/ml' ? info.phone : DEFAULT_CLINIC_INFO.phone,
+    website: info.website && !info.website.includes('+00') && !info.website.includes('T') ? info.website : DEFAULT_CLINIC_INFO.website,
+  };
+}
+
 export interface AllergenGradeResult {
   grade: AllergenGrade;
   iuValue: string;

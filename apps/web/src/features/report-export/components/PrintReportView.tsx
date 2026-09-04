@@ -3,7 +3,7 @@ import { evaluateResult } from '@domain/testResult';
 import { generateQrCodeDataUrl } from '@infra/qrService';
 import golabLogo from '@assets/golabLogoDataUrl';
 import doctorStamp from '@assets/doctorStampDataUrl';
-import { Patient, SelectedTest, ClinicInfo, TestEquipment, CatalogItemEquipmentLink, resolveTestEquipmentName } from '@domain/types';
+import { Patient, SelectedTest, ClinicInfo, TestEquipment, CatalogItemEquipmentLink, resolveTestEquipmentName, DEFAULT_CLINIC_INFO, getSafeClinicInfo } from '@domain/types';
 
 interface PrintReportViewProps {
   elementId?: string;
@@ -36,16 +36,11 @@ function PrintReportView({
   conclusion,
   qrCodeDataUrl,
   qrCodeUrl,
-  clinicInfo = {
-    name: 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH',
-    address: 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị',
-    phone: '032.855.3773',
-    website: 'golab.com.vn',
-    defaultDoctor: 'Nguyễn Thị Thành Trung'
-  },
+  clinicInfo = DEFAULT_CLINIC_INFO,
   equipments = [],
   catalogItemEquipments = []
 }: PrintReportViewProps) {
+  const safeClinic = getSafeClinicInfo(clinicInfo);
   const tests = selectedTests || [];
   const [autoQrCode, setAutoQrCode] = useState<string>(qrCodeDataUrl || '');
 
@@ -61,7 +56,7 @@ function PrintReportView({
       return;
     }
     // Tự động tạo mã QR tra cứu trực tuyến thời gian thực
-    const rawWebsite = typeof clinicInfo?.website === 'string' ? clinicInfo.website.trim() : '';
+    const rawWebsite = typeof safeClinic.website === 'string' ? safeClinic.website.trim() : '';
     const baseUrl = rawWebsite
       ? (rawWebsite.startsWith('http') ? rawWebsite : `https://${rawWebsite}`)
       : 'https://golab.com.vn';
@@ -72,26 +67,26 @@ function PrintReportView({
     generateQrCodeDataUrl(lookupUrl).then((res) => {
       if (res) setAutoQrCode(res);
     });
-  }, [qrCodeDataUrl, qrCodeUrl, patient.code, patient.sampleCode, clinicInfo?.website]);
+  }, [qrCodeDataUrl, qrCodeUrl, patient.code, patient.sampleCode, safeClinic.website]);
 
   const finalQrCode = qrCodeDataUrl || autoQrCode;
 
   const currentLogo =
-    clinicInfo?.logoUrl &&
-    typeof clinicInfo.logoUrl === 'string' &&
-    clinicInfo.logoUrl.trim() !== '' &&
-    clinicInfo.logoUrl !== 'null' &&
-    clinicInfo.logoUrl !== 'undefined'
-      ? clinicInfo.logoUrl
+    safeClinic.logoUrl &&
+    typeof safeClinic.logoUrl === 'string' &&
+    safeClinic.logoUrl.trim() !== '' &&
+    safeClinic.logoUrl !== 'null' &&
+    safeClinic.logoUrl !== 'undefined'
+      ? safeClinic.logoUrl
       : golabLogo;
 
   const currentStamp =
-    clinicInfo?.stampUrl &&
-    typeof clinicInfo.stampUrl === 'string' &&
-    clinicInfo.stampUrl.trim() !== '' &&
-    clinicInfo.stampUrl !== 'null' &&
-    clinicInfo.stampUrl !== 'undefined'
-      ? clinicInfo.stampUrl
+    safeClinic.stampUrl &&
+    typeof safeClinic.stampUrl === 'string' &&
+    safeClinic.stampUrl.trim() !== '' &&
+    safeClinic.stampUrl !== 'null' &&
+    safeClinic.stampUrl !== 'undefined'
+      ? safeClinic.stampUrl
       : doctorStamp;
 
   // 1. Gom nhóm các chỉ số theo danh mục
@@ -306,13 +301,13 @@ function PrintReportView({
                       HỆ THỐNG XÉT NGHIỆM GOLAB
                     </p>
                     <h1 className="text-[17px] font-black text-sky-950 uppercase tracking-tight leading-tight">
-                      {clinicInfo.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'}
+                      {safeClinic.name}
                     </h1>
                     <p className="text-[12.5px] text-slate-700 font-medium leading-normal mt-0.5">
-                      ĐC: {clinicInfo.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị'}
+                      ĐC: {safeClinic.address}
                     </p>
                     <p className="text-[12px] text-slate-700 font-medium leading-normal">
-                      Website: <strong className="text-sky-800">{clinicInfo.website || 'golab.com.vn'}</strong> • Hotline: <strong className="text-sky-800">{clinicInfo.phone || '032.855.3773'}</strong>
+                      Website: <strong className="text-sky-800">{safeClinic.website}</strong> • Hotline: <strong className="text-sky-800">{safeClinic.phone}</strong>
                     </p>
                   </div>
                 </div>
@@ -567,7 +562,7 @@ function PrintReportView({
                       />
                     </div>
                     <p className="text-[13.5px] font-bold text-slate-900 uppercase tracking-tight leading-normal pt-0.5 pb-0.5">
-                      {clinicInfo.defaultDoctor || 'Nguyễn Thị Thành Trung'}
+                      {safeClinic.defaultDoctor || 'Nguyễn Thị Thành Trung'}
                     </p>
                   </div>
 
@@ -579,7 +574,7 @@ function PrintReportView({
           {/* 7. DÒNG PHÂN TRANG & BẢN QUYỀN CHÂN TRANG */}
           <div className="mt-auto pt-1 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500 uppercase font-mono tracking-tight">
             <span>
-              HỆ THỐNG XÉT NGHIỆM GOLAB • {clinicInfo.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'} • HOTLINE: {clinicInfo.phone || '032.855.3773'}
+              HỆ THỐNG XÉT NGHIỆM GOLAB • {safeClinic.name} • HOTLINE: {safeClinic.phone}
             </span>
             <span className="font-bold text-sky-800">
               Trang {pIdx + 1}/{totalPages}

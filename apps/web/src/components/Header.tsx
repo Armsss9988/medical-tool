@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Activity, ListChecks, TrendingUp, FolderOpen, Clock, Phone, ShieldCheck, ClipboardList, Package, Menu, X, Sparkles, Palette } from 'lucide-react';
-import { ClinicInfo, CatalogItem } from '@domain/types';
+import { ClinicInfo, CatalogItem, getSafeClinicInfo } from '@domain/types';
 
 interface HeaderProps {
   clinicInfo: ClinicInfo;
@@ -32,6 +32,7 @@ export default function Header({
   invoiceCount = 0,
   reportCount = 0
 }: HeaderProps) {
+  const safeClinic = getSafeClinicInfo(clinicInfo);
   const [currentTime, setCurrentTime] = useState<string>('');
   const [currentDate, setCurrentDate] = useState<string>('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
@@ -68,7 +69,7 @@ export default function Header({
           <div className="min-w-0">
             <div className="flex items-center space-x-1.5 sm:space-x-2">
               <h1 className="text-xs sm:text-sm lg:text-base font-extrabold text-white tracking-tight truncate">
-                {clinicInfo.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'}
+                {safeClinic.name}
               </h1>
               <span className="hidden md:inline-flex items-center gap-1 text-[10px] uppercase font-extrabold bg-sky-500/15 text-sky-300 border border-sky-400/30 px-2 py-0.5 rounded-md shadow-xs">
                 <ShieldCheck className="w-3 h-3 text-sky-400" />
@@ -76,11 +77,11 @@ export default function Header({
               </span>
             </div>
             <p className="text-[10px] sm:text-[11px] text-slate-400 flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 font-medium">
-              <span className="truncate max-w-[200px] sm:max-w-[320px] lg:max-w-none">{clinicInfo.address || 'Quảng Trị'}</span>
+              <span className="truncate max-w-[200px] sm:max-w-[320px] lg:max-w-none">{safeClinic.address || 'Quảng Trị'}</span>
               <span className="text-slate-600 hidden sm:inline">•</span>
               <span className="hidden sm:inline-flex items-center gap-1 text-slate-300">
                 <Phone className="w-3 h-3 text-emerald-400" />
-                <strong className="text-emerald-400 font-mono font-bold">{clinicInfo.phone || '032.855.3773'}</strong>
+                <strong className="text-emerald-400 font-mono font-bold">{safeClinic.phone}</strong>
               </span>
             </p>
           </div>
