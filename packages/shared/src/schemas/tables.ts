@@ -12,7 +12,8 @@ export const TABLE_NAMES = [
   'catalog-item-equipments',
   'allergen-scales',
   'medical-reports',
-  'invoices'
+  'invoices',
+  'report-templates'
 ] as const;
 
 export type TableName = (typeof TABLE_NAMES)[number];
@@ -162,6 +163,25 @@ export const allergenScaleRowSchema = z.object({
   levels: z.array(allergenScaleLevelSchema).default([])
 });
 
+export const reportTemplateRowSchema = z.object({
+  id: z.string().min(1),
+  name: z.preprocess((val) => (typeof val === 'string' && val.trim() ? val.trim() : 'Mẫu In Mới'), z.string().default('Mẫu In Mới')),
+  description: z.string().nullable().optional(),
+  category: z.string().default('custom'),
+  targetType: z.string().default('clinical'),
+  isDefault: z.boolean().default(false),
+  paperSize: z.string().default('A4'),
+  orientation: z.string().default('portrait'),
+  fontFamily: z.string().default('Times New Roman'),
+  primaryColor: z.string().default('#0284c7'),
+  paddingMm: flexibleNumber.transform((v) => v ?? 15).default(15),
+  blocks: z.array(z.record(z.unknown())).default([]),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional()
+});
+
+export type ReportTemplateRow = z.infer<typeof reportTemplateRowSchema>;
+
 export const documentRowSchema = z.object({ id: z.string().min(1) }).passthrough();
 
 export const ROW_SCHEMAS: Record<TableName, z.ZodTypeAny> = {
@@ -176,5 +196,6 @@ export const ROW_SCHEMAS: Record<TableName, z.ZodTypeAny> = {
   'catalog-item-equipments': catalogItemEquipmentRowSchema,
   'allergen-scales': allergenScaleRowSchema,
   'medical-reports': documentRowSchema,
-  invoices: documentRowSchema
+  invoices: documentRowSchema,
+  'report-templates': reportTemplateRowSchema
 };

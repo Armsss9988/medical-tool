@@ -34,6 +34,7 @@ interface WorkspaceContextValue {
   reports: MedicalReport[];
   setReports: Dispatch<SetStateAction<MedicalReport[]>>;
   saveOrUpdateReport: ReturnType<typeof useReportManager>['saveOrUpdateReport'];
+  bulkSaveOrUpdateReports: ReturnType<typeof useReportManager>['bulkSaveOrUpdateReports'];
   deleteReport: (id: string) => void;
   clearAllReports: () => void;
 
@@ -83,7 +84,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { recentTests, addToRecent, addMultipleToRecent, clearRecent: _clearRecent } = useRecentTests();
 
   // Reports
-  const { reports, setReports, saveOrUpdateReport, deleteReport, clearAllReports } = useReportManager();
+  const { reports, setReports, saveOrUpdateReport, bulkSaveOrUpdateReports, deleteReport, clearAllReports } = useReportManager();
 
   // Invoices
   const { invoices, setInvoices, saveOrUpdateInvoice, deleteInvoice, clearAllInvoices } = useInvoiceManager();
@@ -109,17 +110,38 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     return reports.find((r) => r.id === currentReportId) || null;
   }, [currentReportId, reports]);
 
-  // Cảnh báo trình duyệt nếu đóng tab khi có dữ liệu chưa lưu
+  // Cảnh báo trình duyệt nếu đóng tab khi có dữ liệu chưa lưu (so sánh sâu chống mất dữ liệu)
   const hasUnsavedData = useMemo(() => {
     if (!currentReportId) {
-      return !!patient.name.trim() || selectedTests.length > 0 || !!conclusion.trim();
+      return Boolean(patient.name.trim()) || selectedTests.length > 0 || Boolean(conclusion.trim());
     }
     const orig = reports.find((r) => r.id === currentReportId);
     if (!orig) return false;
-    return patient.name !== orig.patient.name ||
-           selectedTests.length !== orig.selectedTests.length ||
-           (conclusion || '') !== (orig.conclusion || '');
-  }, [currentReportId, patient, selectedTests, conclusion, reports]);
+
+    const patientChanged =
+      patient.name !== orig.patient.name ||
+      patient.dob !== orig.patient.dob ||
+      patient.gender !== orig.patient.gender ||
+      patient.phone !== orig.patient.phone ||
+      patient.address !== orig.patient.address ||
+      patient.diagnosis !== orig.patient.diagnosis ||
+      patient.sampleCode !== orig.patient.sampleCode;
+    if (patientChanged) return true;
+
+    if ((conclusion || '') !== (orig.conclusion || '')) return true;
+    if (doctorName && doctorName !== orig.doctorName) return true;
+
+    if (selectedTests.length !== orig.selectedTests.length) return true;
+    for (let i = 0; i < selectedTests.length; i++) {
+      const cur = selectedTests[i];
+      const o = orig.selectedTests[i];
+      if (!o || cur.code !== o.code || cur.result !== o.result || cur.note !== o.note || cur.equipmentId !== o.equipmentId) {
+        return true;
+      }
+    }
+
+    return false;
+  }, [currentReportId, patient, selectedTests, conclusion, doctorName, reports]);
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -144,7 +166,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     doctorName, setDoctorName,
     currentReportId, setCurrentReportId,
     currentLoadedReport,
-    reports, setReports, saveOrUpdateReport, deleteReport, clearAllReports,
+    reports, setReports, saveOrUpdateReport, bulkSaveOrUpdateReports, deleteReport, clearAllReports,
     invoices, setInvoices, saveOrUpdateInvoice, deleteInvoice, clearAllInvoices,
     recentTests, addToRecent, addMultipleToRecent,
     nameInputRef, autoFocusName, setAutoFocusName,

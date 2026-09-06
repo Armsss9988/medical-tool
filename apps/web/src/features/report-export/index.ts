@@ -8,3 +8,4 @@ export { default as FullAllergenReportView } from './components/FullAllergenRepo
 export { default as HybridReportView } from './components/HybridReportView';
 export { useExportActions } from './hooks/useExportActions';
 export { useReportExport } from './hooks/useReportExport';
+export * from './types';

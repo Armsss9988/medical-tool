@@ -1,5 +1,5 @@
 import { Invoice, PaymentMethod } from '@domain/types';
-import { InvoiceStateMachine } from '@domain/stateMachine/InvoiceStateMachine';
+import { InvoiceAggregate } from '@domain/aggregates/InvoiceAggregate';
 
 export interface CollectPaymentParams {
   invoice: Invoice;
@@ -10,14 +10,15 @@ export interface CollectPaymentParams {
 
 export class CollectPaymentUseCase {
   public execute(params: CollectPaymentParams): Invoice {
-    const { invoice, paymentMethod, paidAt, reportId: _reportId } = params;
+    const { invoice, paymentMethod, paidAt } = params;
 
-    // 1. Áp dụng State Machine chuyển trạng thái sang Đã thanh toán
-    const paidInvoice = InvoiceStateMachine.markPaid(invoice, paymentMethod, paidAt);
+    // 1. Áp dụng InvoiceAggregate để chuyển trạng thái sang Đã thanh toán
+    const aggregate = InvoiceAggregate.fromSnapshot(invoice);
+    aggregate.markAsPaid(paymentMethod, paidAt);
 
     // DESIGN DECISION: UseCase KHÔNG phát Domain Events.
     // Hooks (useInvoiceManager) là owner duy nhất phát events để tránh double-emit.
 
-    return paidInvoice;
+    return aggregate.toSnapshot();
   }
 }

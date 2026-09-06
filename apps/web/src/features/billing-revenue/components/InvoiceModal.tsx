@@ -5,7 +5,8 @@ import {
 } from 'lucide-react';
 import { 
   Patient, SelectedTest, TestPackage, Doctor, Invoice, InvoiceItem, ClinicInfo, 
-  PaymentMethod, BillingStatus, BILLING_STATUS, PAYMENT_METHOD, PAYMENT_METHOD_LIST 
+  PaymentMethod, BillingStatus, BILLING_STATUS, PAYMENT_METHOD, PAYMENT_METHOD_LIST,
+  InvoiceCode
 } from '@domain';
 import { buildInvoiceItems } from '@domain/pricing';
 import { generateHighQualityPdf, downloadPdfDirectly } from '@infra/pdfService';
@@ -104,12 +105,9 @@ export default function InvoiceModal({
     return Math.max(0, totalWithSurcharge - calculatedDiscount);
   }, [totalWithSurcharge, calculatedDiscount]);
 
-  // Sinh mã hóa đơn chuẩn
+  // Sinh mã hóa đơn chuẩn qua Value Object InvoiceCode
   const invoiceCode = useMemo(() => {
-    const d = new Date();
-    const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-    const cleanPatientCode = (patient.code || 'BN001').replace(/^BN-?/, '');
-    return `HD-${dateStr}-${cleanPatientCode}`;
+    return InvoiceCode.fromPatient(patient.code || 'BN001').value;
   }, [patient.code]);
 
   // Cập nhật số lượng hoặc giá từng dòng

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, memo } from 'react';
+import { useState, useCallback, useEffect, useRef, memo } from 'react';
 import {
   Palette,
   Eye,
@@ -13,7 +13,12 @@ import {
   Upload,
   Check,
   Star,
-  X
+  Printer,
+  Cloud,
+  X,
+  Undo2,
+  Redo2,
+  Ruler
 } from 'lucide-react';
 import {
   Patient,
@@ -77,17 +82,78 @@ export function TemplateBuilderModal({
     updateBlockInTemplate,
     exportTemplateJson,
     importTemplateJson,
-    resetToPresets
+    resetToPresets,
+    cloudStatus,
+    isCloudSyncing,
+    syncWithCloud,
+    undo,
+    redo,
+    canUndo,
+    canRedo
   } = useTemplateManager();
 
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [zoomScale, setZoomScale] = useState<number>(0.75);
   const [isDesignMode, setIsDesignMode] = useState<boolean>(true);
+  const [showRuler, setShowRuler] = useState<boolean>(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleZoomIn = () => setZoomScale((prev) => Math.min(prev + 0.1, 1.4));
   const handleZoomOut = () => setZoomScale((prev) => Math.max(prev - 0.1, 0.4));
   const handleResetZoom = () => setZoomScale(0.75);
+
+  // Global Keyboard Shortcuts (Undo/Redo/Delete/Escape)
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInput =
+        activeEl instanceof HTMLInputElement ||
+        activeEl instanceof HTMLTextAreaElement ||
+        (activeEl as HTMLElement)?.isContentEditable;
+
+      // Deselect block on Escape
+      if (e.key === 'Escape') {
+        setSelectedBlockId(null);
+        return;
+      }
+
+      // Undo: Ctrl+Z (or Meta+Z on macOS) without Shift
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        if (!isInput && canUndo) {
+          e.preventDefault();
+          undo();
+          onShowToast?.('Đã hoàn tác thao tác trước (Undo)', 'info');
+        }
+        return;
+      }
+
+      // Redo: Ctrl+Y or Ctrl+Shift+Z (or Meta+Shift+Z)
+      if (
+        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') ||
+        ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z')
+      ) {
+        if (!isInput && canRedo) {
+          e.preventDefault();
+          redo();
+          onShowToast?.('Đã làm lại thao tác (Redo)', 'info');
+        }
+        return;
+      }
+
+      // Delete / Backspace: delete selected block if not typing in input
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !isInput && selectedBlockId) {
+        e.preventDefault();
+        removeBlockFromTemplate(activeTemplate.id, selectedBlockId);
+        setSelectedBlockId(null);
+        onShowToast?.('Đã xóa khối được chọn', 'info');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, canUndo, canRedo, undo, redo, selectedBlockId, activeTemplate.id, removeBlockFromTemplate, onShowToast]);
 
   const handleAddBlock = useCallback(
     (type: TemplateBlockType) => {
@@ -152,14 +218,22 @@ export function TemplateBuilderModal({
     e.target.value = '';
   };
 
+  const handlePrintTest = useCallback(() => {
+    setIsDesignMode(false);
+    setSelectedBlockId(null);
+    setTimeout(() => {
+      window.print();
+    }, 150);
+  }, []);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-0 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-slate-700/80 shadow-2xl flex flex-col w-full h-full overflow-hidden text-slate-100">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-0 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200 print:static print:bg-transparent print:backdrop-blur-none print:p-0 print:block">
+      <div className="bg-slate-900 border border-slate-700/80 shadow-2xl flex flex-col w-full h-full overflow-hidden text-slate-100 print:bg-transparent print:border-none print:shadow-none print:overflow-visible">
         
         {/* ─── TOP TOOLBAR ─── */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-800 bg-slate-900/95 shrink-0 gap-3">
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-800 bg-slate-900/95 shrink-0 gap-3 print:hidden">
           {/* Left: Title & Preset Selector */}
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center font-bold text-sm border border-sky-500/30">
@@ -174,6 +248,22 @@ export function TemplateBuilderModal({
                     <span>Mặc Định</span>
                   </span>
                 )}
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
+                  activeTemplate.paperSize === 'A5'
+                    ? 'bg-purple-950/60 text-purple-300 border-purple-600/50'
+                    : 'bg-slate-800 text-slate-300 border-slate-700'
+                }`}>
+                  Khổ {activeTemplate.paperSize || 'A4'}
+                </span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
+                  activeTemplate.targetType === 'allergen'
+                    ? 'bg-purple-950/70 text-purple-300 border-purple-600/60'
+                    : activeTemplate.targetType === 'hybrid'
+                    ? 'bg-indigo-950/70 text-indigo-300 border-indigo-600/60'
+                    : 'bg-emerald-950/70 text-emerald-300 border-emerald-600/60'
+                }`}>
+                  {activeTemplate.targetType === 'allergen' ? '🛡️ Dị Nguyên' : activeTemplate.targetType === 'hybrid' ? '📑 Hỗn Hợp' : '🧪 Thường'}
+                </span>
               </div>
               <div className="flex items-center space-x-2 mt-0.5">
                 <select
@@ -229,6 +319,44 @@ export function TemplateBuilderModal({
                     <Star className="w-3.5 h-3.5" />
                   </button>
                 )}
+
+                <div className="h-4 w-px bg-slate-700 mx-0.5" />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    undo();
+                    onShowToast?.('Đã hoàn tác (Undo)', 'info');
+                  }}
+                  disabled={!canUndo}
+                  title="Hoàn tác (Ctrl+Z)"
+                  className={`p-1 rounded transition cursor-pointer ${
+                    canUndo
+                      ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white'
+                      : 'bg-slate-800/40 text-slate-600 cursor-not-allowed'
+                  }`}
+                >
+                  <Undo2 className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    redo();
+                    onShowToast?.('Đã làm lại (Redo)', 'info');
+                  }}
+                  disabled={!canRedo}
+                  title="Làm lại (Ctrl+Y / Ctrl+Shift+Z)"
+                  className={`p-1 rounded transition cursor-pointer ${
+                    canRedo
+                      ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white'
+                      : 'bg-slate-800/40 text-slate-600 cursor-not-allowed'
+                  }`}
+                >
+                  <Redo2 className="w-3.5 h-3.5" />
+                </button>
+
+                <div className="h-4 w-px bg-slate-700 mx-0.5" />
 
                 <button
                   type="button"
@@ -358,6 +486,19 @@ export function TemplateBuilderModal({
             >
               <RotateCcw className="w-3 h-3" />
             </button>
+
+            <div className="h-4 w-px bg-slate-700 mx-1" />
+
+            <button
+              type="button"
+              onClick={() => setShowRuler((prev) => !prev)}
+              className={`p-1 rounded transition cursor-pointer ${
+                showRuler ? 'bg-sky-600/30 text-sky-400 border border-sky-500/40' : 'text-slate-400 hover:text-white'
+              }`}
+              title={showRuler ? 'Ẩn thước đo mm' : 'Hiện thước đo mm'}
+            >
+              <Ruler className="w-3.5 h-3.5" />
+            </button>
           </div>
 
           {/* Right: Actions */}
@@ -391,6 +532,40 @@ export function TemplateBuilderModal({
 
             <button
               type="button"
+              onClick={handlePrintTest}
+              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-600/90 hover:bg-emerald-500 text-white text-xs font-bold shadow border border-emerald-500/40 transition active:scale-95 cursor-pointer"
+              title="In thử mẫu phiếu hiện tại"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>In Thử</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={async () => {
+                const ok = await syncWithCloud();
+                if (ok) {
+                  onShowToast?.('Đã đồng bộ toàn bộ mẫu in lên Cloud!', 'success');
+                } else {
+                  onShowToast?.('Không thể đồng bộ lên Cloud, vui lòng kiểm tra kết nối API!', 'error');
+                }
+              }}
+              disabled={isCloudSyncing}
+              className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                cloudStatus === 'synced'
+                  ? 'bg-sky-950/70 text-sky-300 border-sky-600/50 hover:bg-sky-900/60'
+                  : cloudStatus === 'error'
+                  ? 'bg-rose-950/70 text-rose-300 border-rose-600/50 hover:bg-rose-900/60'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+              }`}
+              title="Đồng bộ tất cả mẫu in lên Cloud (Supabase / Postgres)"
+            >
+              <Cloud className={`w-3.5 h-3.5 ${isCloudSyncing ? 'animate-spin' : ''}`} />
+              <span>{isCloudSyncing ? 'Đang lưu...' : cloudStatus === 'synced' ? 'Đã lên Cloud' : 'Đồng bộ Cloud'}</span>
+            </button>
+
+            <button
+              type="button"
               onClick={onClose}
               className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow transition active:scale-95 cursor-pointer ml-2"
             >
@@ -409,12 +584,13 @@ export function TemplateBuilderModal({
         </div>
 
         {/* ─── MAIN 3-PANEL WORKSPACE ─── */}
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex overflow-hidden print:overflow-visible print:block">
           {/* Left: Component Palette */}
           {isDesignMode && (
             <TemplatePalette
               onAddBlock={handleAddBlock}
               existingBlocks={activeTemplate.blocks}
+              targetType={activeTemplate.targetType || 'clinical'}
             />
           )}
 
@@ -433,6 +609,7 @@ export function TemplateBuilderModal({
             allergenScales={allergenScales}
             zoomScale={zoomScale}
             isDesignMode={isDesignMode}
+            showRuler={showRuler}
             selectedBlockId={selectedBlockId}
             onSelectBlock={(id) => setSelectedBlockId(id)}
             onRemoveBlock={handleRemoveBlock}

@@ -1,8 +1,8 @@
 import JSZip from 'jszip';
 import { MedicalReport, ClinicInfo, BatchExportProgress } from '@domain/types';
-import { hasAllergenTests } from '@domain/allergenDetector';
+import { ReportKindResolver } from '@domain/valueObjects/ReportKind';
 import { generateHighQualityPdf } from './pdfService';
-import { uploadPdfToCloud } from './cloudService';
+import { uploadPdfToCloud, getPredictedCloudUrl } from './cloudService';
 import { generateQrCodeDataUrl } from './qrService';
 import { addLedgerRecord, getNextVersionForReport } from './pdfLedger';
 import { PdfFileRecord } from '@domain/exportTransaction';
@@ -62,25 +62,33 @@ export async function batchExportPdfs(
       // 2. Chờ DOM re-render hoàn tất
       await waitForDomRender(400);
 
-      // 3. Xác định element ID
-      const isAllergen = report.isAllergen || hasAllergenTests(report.selectedTests);
-      const elementId = isAllergen ? 'batch-allergen-report' : 'batch-medical-report';
+      // 3. Phân giải loại báo cáo chính xác bằng ADT ReportKind (hỗ trợ cả Hỗn Hợp, Dị Nguyên và Tiêu Chuẩn)
+      const reportKind = ReportKindResolver.resolve(report.selectedTests, { isBatch: true });
+      const elementId = reportKind.elementId;
 
-      // 4. Render PDF
+      // 4. Chuẩn bị định danh phiên bản & sinh mã QR Cloud đích thực trước khi Render
       const safeName = patientName.replace(/\s+/g, '_');
       const filename = `PhieuXN_${safeName}_${report.code}.pdf`;
-      const pdfRes = await generateHighQualityPdf(elementId, filename);
-
-      // 5. Upload lên Cloud
       const version = await getNextVersionForReport(report.code);
       const versionedFilename = filename.replace(/\.pdf$/i, `_v${version}.pdf`);
-      const uploadRes = await uploadPdfToCloud(pdfRes.blob, versionedFilename);
 
-      // 6. Generate QR Code
-      let qrDataUrl = '';
-      if (uploadRes.url && !uploadRes.url.startsWith('data:')) {
-        qrDataUrl = await generateQrCodeDataUrl(uploadRes.url);
+      const predictedCloudUrl = getPredictedCloudUrl(versionedFilename);
+      const qrDataUrl = await generateQrCodeDataUrl(predictedCloudUrl);
+
+      // Bơm trực tiếp mã QR Cloud vào DOM trước khi chụp PDF để bản in chứa đúng 100% QR Cloud
+      const container = document.getElementById(elementId);
+      if (container && qrDataUrl) {
+        const qrImgs = container.querySelectorAll<HTMLImageElement>('img[alt*="QR"], img[data-qr="true"]');
+        qrImgs.forEach((img) => {
+          img.src = qrDataUrl;
+        });
       }
+
+      // 5. Render PDF chất lượng cao (đã chứa mã QR Cloud chuẩn)
+      const pdfRes = await generateHighQualityPdf(elementId, filename);
+
+      // 6. Upload lên Cloud Storage
+      const uploadRes = await uploadPdfToCloud(pdfRes.blob, versionedFilename);
 
       // 7. Save to Ledger
       const ledgerRecord: PdfFileRecord = {

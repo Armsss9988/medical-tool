@@ -14,12 +14,16 @@ import {
   Loader2,
   FileText,
   History,
-  ExternalLink
+  ExternalLink,
+  Palette,
+  Settings2
 } from 'lucide-react';
 import PrintReportView from './PrintReportView';
 import FullAllergenReportView from './FullAllergenReportView';
 import HybridReportView from './HybridReportView';
-import { ClinicInfo, Patient, SelectedTest, ToastType, TestPackage, TestEquipment, CatalogItemEquipmentLink, AllergenGradingScale, ReportClassificationDomainService } from '@domain';
+import { PRINT_ELEMENT_ID } from '@domain/constants';
+import { ClinicInfo, Patient, SelectedTest, ToastType, TestPackage, TestEquipment, CatalogItemEquipmentLink, AllergenGradingScale, ReportClassificationDomainService, ReportTemplate, TemplateCompatibilityDomainService } from '@domain';
+import type { DynamicReportRenderProps } from '../types';
 import {
   ExportStepName,
   ExportErrorDetail,
@@ -42,11 +46,15 @@ interface PdfPreviewModalProps {
   currentStep?: ExportStepName | null;
   lastError?: ExportErrorDetail | null;
   showToast: (msg: string, type?: ToastType) => void;
-  onExportPdfAndUpload: () => void;
+  onExportPdfAndUpload: (customElementId?: string) => void;
   onDownloadPdf?: (elementId: string, filename: string) => void;
   onRetryExport?: () => void;
   onPrintDirect: () => void;
   onDownloadQrCode: () => void;
+  onOpenTemplateBuilder?: () => void;
+  templates?: ReportTemplate[];
+  activeTemplate?: ReportTemplate;
+  renderDynamicReport?: (props: DynamicReportRenderProps) => React.ReactNode;
   testPackages?: TestPackage[];
   equipments?: TestEquipment[];
   catalogItemEquipments?: CatalogItemEquipmentLink[];
@@ -72,11 +80,18 @@ export default function PdfPreviewModal({
   onRetryExport,
   onPrintDirect,
   onDownloadQrCode,
+  onOpenTemplateBuilder,
+  templates = [],
+  activeTemplate,
+  renderDynamicReport,
   testPackages = [],
   equipments = [],
   catalogItemEquipments = [],
   allergenScales = []
 }: PdfPreviewModalProps) {
+  // Quản lý Template Mẫu In: nạp các mẫu có sẵn và mẫu tùy biến
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('auto');
+
   // State điều khiển độ thu phóng
   const [zoomScale, setZoomScale] = useState<number>(0.85);
   // State xem lịch sử phiên bản PDF trên cloud
@@ -113,6 +128,51 @@ export default function PdfPreviewModal({
     () => ReportClassificationDomainService.getReportTypeBadge(reportType),
     [reportType]
   );
+
+  // Phân loại danh sách mẫu in theo độ tương thích với dữ liệu bệnh nhân hiện tại
+  const templateCompatibilityMap = useMemo(() => {
+    const map = new Map<string, { isCompatible: boolean; matchScore: number; reason?: string }>();
+    templates.forEach((t) => {
+      map.set(t.id, TemplateCompatibilityDomainService.isTemplateCompatibleWithData(t, safeSelectedTests));
+    });
+    return map;
+  }, [templates, safeSelectedTests]);
+
+  const { compatibleTemplates, otherTemplates } = useMemo(() => {
+    const comp: ReportTemplate[] = [];
+    const other: ReportTemplate[] = [];
+    templates.forEach((t) => {
+      const match = templateCompatibilityMap.get(t.id);
+      if (match && match.isCompatible && match.matchScore >= 50) {
+        comp.push(t);
+      } else {
+        other.push(t);
+      }
+    });
+    return { compatibleTemplates: comp, otherTemplates: other };
+  }, [templates, templateCompatibilityMap]);
+
+  // Phân giải Template được chọn (nếu 'auto' -> dùng bộ render cổ điển theo reportType)
+  const chosenTemplate = useMemo(() => {
+    if (selectedTemplateId === 'auto') return null;
+    return templates.find((t: ReportTemplate) => t.id === selectedTemplateId) || activeTemplate;
+  }, [selectedTemplateId, templates, activeTemplate]);
+
+  // Kiểm tra cảnh báo tương thích của template đang chọn
+  const chosenTemplateCompatibility = useMemo(() => {
+    if (!chosenTemplate) return null;
+    return templateCompatibilityMap.get(chosenTemplate.id);
+  }, [chosenTemplate, templateCompatibilityMap]);
+
+  // Phân giải ID phần tử DOM để in ấn và xuất PDF chất lượng cao
+  const activeElementId = useMemo(() => {
+    if (chosenTemplate) {
+      return 'preview-dynamic-element';
+    }
+    if (reportType === 'hybrid') return 'preview-hybrid-element';
+    if (reportType === 'allergen') return 'preview-allergen-element';
+    return 'preview-print-element';
+  }, [chosenTemplate, reportType]);
 
   const computeFitZoom = useCallback(() => {
     if (typeof window !== 'undefined') {
@@ -191,6 +251,50 @@ export default function PdfPreviewModal({
               </button>
             )}
 
+            {/* Bộ Chọn Mẫu In (Template Selector) */}
+            <div className="flex items-center space-x-1.5 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 mr-1">
+              <Palette className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+              <label className="text-[11px] font-semibold text-slate-400 shrink-0 hidden md:inline">Mẫu:</label>
+              <select
+                value={selectedTemplateId}
+                onChange={(e) => setSelectedTemplateId(e.target.value)}
+                className="bg-transparent text-sky-300 text-xs font-bold outline-none cursor-pointer max-w-[170px] sm:max-w-[210px] truncate"
+                title="Chọn mẫu phiếu in (hoặc mẫu thiết kế tùy chỉnh)"
+              >
+                <option value="auto" className="bg-slate-900 text-slate-200">
+                  ⚡ Tự động ({reportBadge.label})
+                </option>
+                {compatibleTemplates.length > 0 && (
+                  <optgroup label="── ✨ Mẫu Phù Hợp Kết Quả ──" className="bg-slate-900 text-emerald-400 font-bold">
+                    {compatibleTemplates.map((t: ReportTemplate) => (
+                      <option key={t.id} value={t.id} className="bg-slate-900 text-slate-200 font-normal">
+                        {t.name} {t.isDefault ? '★' : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {otherTemplates.length > 0 && (
+                  <optgroup label="── ⚠️ Mẫu Khác (Khác Loại) ──" className="bg-slate-900 text-amber-400 font-bold">
+                    {otherTemplates.map((t: ReportTemplate) => (
+                      <option key={t.id} value={t.id} className="bg-slate-900 text-slate-400 font-normal">
+                        {t.name} (Khác loại dữ liệu)
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+              {onOpenTemplateBuilder && (
+                <button
+                  type="button"
+                  onClick={onOpenTemplateBuilder}
+                  title="Mở Trình Thiết Kế Mẫu In (F8)"
+                  className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-sky-300 transition cursor-pointer"
+                >
+                  <Settings2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
             {/* Bộ Điều Chỉnh Zoom Tỉ Lệ */}
             <div className="flex items-center space-x-1 bg-slate-800 border border-slate-700 rounded-lg p-1 mr-1">
               <button
@@ -223,7 +327,7 @@ export default function PdfPreviewModal({
             <button
               onClick={onPrintDirect}
               disabled={isExporting}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-bold shadow transition-all active:scale-95"
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-bold shadow transition-all active:scale-95 cursor-pointer"
             >
               <Printer className="w-4 h-4" />
               <span>In Phiếu A4</span>
@@ -233,13 +337,8 @@ export default function PdfPreviewModal({
             {onDownloadPdf && (
               <button
                 onClick={() => {
-                  const elemId = reportType === 'hybrid'
-                    ? 'preview-hybrid-element'
-                    : reportType === 'allergen'
-                    ? 'preview-allergen-element'
-                    : 'preview-print-element';
                   const fname = `PhieuXN_${(safePatient.name || 'BenhNhan').replace(/\s+/g, '_')}_${safePatient.code}.pdf`;
-                  onDownloadPdf(elemId, fname);
+                  onDownloadPdf(activeElementId, fname);
                 }}
                 disabled={!cloudLink || isExporting}
                 className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold shadow transition-all active:scale-95 ${
@@ -424,13 +523,47 @@ export default function PdfPreviewModal({
           </div>
         )}
 
+        {/* Banner Cảnh Báo Không Khớp Dữ Liệu */}
+        {chosenTemplateCompatibility && !chosenTemplateCompatibility.isCompatible && (
+          <div className="bg-amber-950/80 border-b border-amber-600/50 px-6 py-2.5 flex items-center justify-between text-xs text-amber-200 shrink-0 animate-in slide-in-from-top duration-150">
+            <div className="flex items-center space-x-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>
+                <strong>Lưu ý dữ liệu:</strong> {chosenTemplateCompatibility.reason || 'Mẫu in này được thiết kế cho loại dữ liệu khác với kết quả của bệnh nhân.'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedTemplateId('auto')}
+              className="px-2.5 py-1 rounded bg-amber-600/40 hover:bg-amber-600/60 text-amber-200 text-xs font-bold border border-amber-500/50 transition cursor-pointer"
+            >
+              Chuyển Về Tự Động
+            </button>
+          </div>
+        )}
+
         {/* Khung Hiển Thị Mẫu In A4 (Với Tỉ Lệ Zoom Linh Hoạt) */}
         <div className="flex-1 overflow-auto p-2 sm:p-4 md:p-8 bg-slate-950 flex justify-center items-start">
           <div 
             className="shadow-2xl rounded-sm overflow-hidden bg-white transition-transform duration-150 origin-top"
             style={{ transform: `scale(${zoomScale})` }}
           >
-            {reportType === 'hybrid' ? (
+            {chosenTemplate && renderDynamicReport ? (
+              renderDynamicReport({
+                elementId: 'preview-dynamic-element',
+                template: chosenTemplate,
+                patient: safePatient,
+                selectedTests: safeSelectedTests,
+                clinicInfo,
+                doctorName,
+                conclusion,
+                qrCodeDataUrl,
+                testPackages,
+                equipments,
+                catalogItemEquipments,
+                allergenScales
+              })
+            ) : reportType === 'hybrid' ? (
               <HybridReportView
                 elementId="preview-hybrid-element"
                 patient={safePatient}
@@ -587,7 +720,7 @@ export default function PdfPreviewModal({
                   type="button"
                   onClick={() => {
                     setShowConfirmExport(false);
-                    onExportPdfAndUpload();
+                    onExportPdfAndUpload(chosenTemplate ? PRINT_ELEMENT_ID.DYNAMIC_REPORT : undefined);
                   }}
                   className="px-4 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer active:scale-95"
                 >

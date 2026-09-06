@@ -1,4 +1,4 @@
-﻿import { memo } from "react";
+import { memo, useState } from "react";
 import {
   Building2,
   Heading,
@@ -20,9 +20,12 @@ import {
   BookOpen,
   PackageSearch,
   Scissors,
-  GripVertical
+  GripVertical,
+  Filter,
+  Check
 } from "lucide-react";
-import { TemplateBlock, TemplateBlockType } from "@domain/templateTypes";
+import { TemplateBlock, TemplateBlockType, TemplateTargetType } from "@domain/templateTypes";
+import { TemplateCompatibilityDomainService } from "@domain";
 
 interface PaletteItem {
   type: TemplateBlockType;
@@ -58,9 +61,16 @@ const PALETTE_ITEMS: PaletteItem[] = [
 interface TemplatePaletteProps {
   onAddBlock: (type: TemplateBlockType) => void;
   existingBlocks?: TemplateBlock[];
+  targetType?: TemplateTargetType;
 }
 
-function TemplatePalette({ onAddBlock, existingBlocks = [] }: TemplatePaletteProps) {
+function TemplatePalette({ 
+  onAddBlock, 
+  existingBlocks = [], 
+  targetType = 'clinical' 
+}: TemplatePaletteProps) {
+  const [filterCompatibleOnly, setFilterCompatibleOnly] = useState<boolean>(true);
+  
   const getCount = (type: TemplateBlockType) => existingBlocks.filter((b) => b.type === type).length;
 
   const handleDragStart = (e: React.DragEvent, type: TemplateBlockType) => {
@@ -71,12 +81,20 @@ function TemplatePalette({ onAddBlock, existingBlocks = [] }: TemplatePalettePro
   const renderItem = (item: PaletteItem, accentClass: string) => {
     const Icon = item.icon;
     const count = getCount(item.type);
+    const isCompatible = TemplateCompatibilityDomainService.isBlockCompatibleWithTargetType(item.type, targetType);
+
+    if (filterCompatibleOnly && !isCompatible) {
+      return null;
+    }
+
     return (
       <div
         key={item.type}
         draggable
         onDragStart={(e) => handleDragStart(e, item.type)}
-        className={`group w-full flex items-start space-x-2 p-2 rounded-xl ${accentClass} border border-slate-700/80 text-left transition-all active:scale-[0.98] cursor-grab active:cursor-grabbing`}
+        className={`group w-full flex items-start space-x-2 p-2 rounded-xl ${accentClass} border ${
+          isCompatible ? 'border-slate-700/80' : 'border-amber-700/40 opacity-50 hover:opacity-90'
+        } text-left transition-all active:scale-[0.98] cursor-grab active:cursor-grabbing`}
       >
         <GripVertical className="w-3 h-3 text-slate-600 group-hover:text-slate-400 shrink-0 mt-1 transition-colors" />
         <div className="p-1 rounded-lg bg-slate-700/50 text-slate-400 shrink-0">
@@ -85,11 +103,18 @@ function TemplatePalette({ onAddBlock, existingBlocks = [] }: TemplatePalettePro
         <div className="flex-1 min-w-0" onClick={() => onAddBlock(item.type)}>
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-200 group-hover:text-sky-300 truncate">{item.title}</span>
-            {count > 0 ? (
-              <span className="text-[9px] font-mono font-bold px-1.5 bg-sky-950 border border-sky-600 text-sky-400 rounded-full shrink-0 ml-1">x{count}</span>
-            ) : (
-              <Plus className="w-3.5 h-3.5 text-slate-400 group-hover:text-sky-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-            )}
+            <div className="flex items-center space-x-1 shrink-0 ml-1">
+              {!isCompatible && (
+                <span className="text-[9px] px-1 bg-amber-950 text-amber-400 border border-amber-600/40 rounded font-semibold" title="Khối không thuộc nhóm mẫu hiện tại">
+                  Khác loại
+                </span>
+              )}
+              {count > 0 ? (
+                <span className="text-[9px] font-mono font-bold px-1.5 bg-sky-950 border border-sky-600 text-sky-400 rounded-full">x{count}</span>
+              ) : (
+                <Plus className="w-3.5 h-3.5 text-slate-400 group-hover:text-sky-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+              )}
+            </div>
           </div>
           <p className="text-[10px] text-slate-400 line-clamp-1 mt-0.5 leading-tight">{item.desc}</p>
         </div>
@@ -97,29 +122,69 @@ function TemplatePalette({ onAddBlock, existingBlocks = [] }: TemplatePalettePro
     );
   };
 
+  const coreItems = PALETTE_ITEMS.filter((i) => i.category === "core");
+  const allergenItems = PALETTE_ITEMS.filter((i) => i.category === "allergen");
+  const formattingItems = PALETTE_ITEMS.filter((i) => i.category === "formatting");
+
+  const visibleCore = coreItems.filter((i) => !filterCompatibleOnly || TemplateCompatibilityDomainService.isBlockCompatibleWithTargetType(i.type, targetType));
+  const visibleAllergen = allergenItems.filter((i) => !filterCompatibleOnly || TemplateCompatibilityDomainService.isBlockCompatibleWithTargetType(i.type, targetType));
+
   return (
     <div className="w-64 bg-slate-900 border-r border-slate-800 p-3 flex flex-col h-full overflow-y-auto shrink-0 select-none">
       <div className="mb-3">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
-          <span>📦</span>
-          <span>Khối Y Khoa</span>
-        </h4>
-        <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
-          <GripVertical className="w-3 h-3 shrink-0" />
-          <span>Kéo thả hoặc bấm để thêm</span>
-        </p>
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
+            <span>📦</span>
+            <span>Khối Y Khoa</span>
+          </h4>
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+            targetType === 'allergen'
+              ? 'bg-purple-950/60 text-purple-300 border-purple-600/50'
+              : targetType === 'hybrid'
+              ? 'bg-indigo-950/60 text-indigo-300 border-indigo-600/50'
+              : 'bg-emerald-950/60 text-emerald-300 border-emerald-600/50'
+          }`}>
+            {targetType === 'allergen' ? 'Dị Nguyên' : targetType === 'hybrid' ? 'Hỗn Hợp' : 'Thường'}
+          </span>
+        </div>
+
+        {/* Toggle filter compatible only */}
+        {(targetType === 'clinical' || targetType === 'allergen') && (
+          <button
+            type="button"
+            onClick={() => setFilterCompatibleOnly((prev) => !prev)}
+            className={`w-full mt-2 flex items-center justify-between px-2 py-1 rounded-lg text-[11px] font-semibold border transition cursor-pointer ${
+              filterCompatibleOnly
+                ? 'bg-sky-950/70 border-sky-600/50 text-sky-300'
+                : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <div className="flex items-center space-x-1">
+              <Filter className="w-3 h-3" />
+              <span>Chỉ khối tương thích</span>
+            </div>
+            {filterCompatibleOnly && <Check className="w-3 h-3 text-sky-400" />}
+          </button>
+        )}
       </div>
-      <div className="space-y-1.5 mb-4">
-        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-1 block">Khối Cơ Bản</span>
-        {PALETTE_ITEMS.filter((i) => i.category === "core").map((item) => renderItem(item, "bg-slate-800/80 hover:bg-sky-950/60 hover:border-sky-500/60"))}
-      </div>
-      <div className="space-y-1.5 mb-4">
-        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-1 block">Khối Dị Nguyên</span>
-        {PALETTE_ITEMS.filter((i) => i.category === "allergen").map((item) => renderItem(item, "bg-slate-800/80 hover:bg-purple-950/60 hover:border-purple-500/60"))}
-      </div>
+
+      {visibleCore.length > 0 && (
+        <div className="space-y-1.5 mb-4">
+          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-1 block">Khối Cơ Bản</span>
+          {coreItems.map((item) => renderItem(item, "bg-slate-800/80 hover:bg-sky-950/60 hover:border-sky-500/60"))}
+        </div>
+      )}
+
+      {visibleAllergen.length > 0 && (
+        <div className="space-y-1.5 mb-4">
+          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-1 block">Khối Dị Nguyên</span>
+          {allergenItems.map((item) => renderItem(item, "bg-slate-800/80 hover:bg-purple-950/60 hover:border-purple-500/60"))}
+        </div>
+      )}
+
       <div className="space-y-1.5">
         <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-1 block">Định Dạng &amp; Bổ Trợ</span>
-        {PALETTE_ITEMS.filter((i) => i.category === "formatting").map((item) => renderItem(item, "bg-slate-800/80 hover:bg-slate-700 hover:border-slate-500"))}
+        {formattingItems.map((item) => renderItem(item, "bg-slate-800/80 hover:bg-slate-700 hover:border-slate-500"))}
       </div>
     </div>
   );

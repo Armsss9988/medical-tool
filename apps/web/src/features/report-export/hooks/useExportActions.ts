@@ -39,12 +39,14 @@ export function useExportActions(
   } = exportHook;
 
   // 1. ACTION: XUẤT PDF & TẢI LÊN CLOUD (TRANSACTION PIPELINE)
-  const handleExportPdfAndUpload = useCallback(async () => {
+  const handleExportPdfAndUpload = useCallback(async (customElementId?: string) => {
     const reportId = onSaveCurrentReport();
     if (!reportId) return;
 
     const reportType = ReportClassificationDomainService.classify(selectedTests);
-    const elementId = ReportClassificationDomainService.resolvePrintElementId(reportType);
+    const elementId = (customElementId && typeof customElementId === 'string')
+      ? customElementId
+      : ReportClassificationDomainService.resolvePrintElementId(reportType);
     const filename = `PhieuXN_${(patient.name || 'BenhNhan').replace(/\s+/g, '_')}_${patient.code}.pdf`;
 
     const result = await handleExportPdfAndUploadCloud(

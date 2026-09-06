@@ -33,12 +33,23 @@ When generating or modifying code, you must **NEVER**:
 3. **NO Side-Effects or UI in Domain Core**: Domain files must NEVER import `react`, `react-dom`, DOM globals (`document`, `window`), `@infra/*`, `@components/*`, or HTTP/SDK clients.
 4. **NO Premature Extraction**: Do not harvest code into `common/` or `utils/` for structural or superficial similarities. Only place logic into `domain/` when it represents a true medical business invariant or is required across 3+ slices.
 5. **NO Unexported Private Slice Internals**: Outer application code (`App.tsx`, `MainWorkspace.tsx`) must only import from the slice's public barrel: `@features/<feature-name>`.
+6. **NO Split ADT or External StateMachine Folders**: NEVER create `domain/adt/` or `domain/stateMachine/`. All Sum Types / Closed Hierarchies are Value Objects in `packages/shared/src/domain/valueObjects/`. All State Transitions and FSM lifecycles are mediated exclusively by Aggregate Roots in `packages/shared/src/domain/aggregates/`.
+7. **NO Direct Entity Snapshot Mutation**: Never mutate domain entity snapshots directly in slices or UI hooks (`report.status = ...`). Always instantiate the Aggregate Root (`LabReportAggregate.fromSnapshot(...)`), invoke domain methods, and export clean immutable snapshots.
 
 ---
 
 ## 4. Code Implementation Standards
 
-### A. "Make Illegal States Unrepresentable" (Discriminated Unions)
+### A. Aggregate Roots as Invariant & Lifecycle Guardians
+All business state transitions must be methods on Aggregate Roots (`LabReportAggregate`, `InvoiceAggregate`):
+```typescript
+// ✅ RIGHT: Use cases and hooks interact via Aggregate Root methods
+const aggregate = LabReportAggregate.fromSnapshot(currentReport);
+const statusSummary = aggregate.computeStatusSummary(isInvoicePaid);
+const invoice = InvoiceAggregate.fromSnapshot(rawInvoice).markPaid('TIỀN MẶT', 'Thu ngân A').toSnapshot();
+```
+
+### B. "Make Illegal States Unrepresentable" (Discriminated Unions)
 Always model domain entities and reports with an explicit `kind` or `status` tag:
 ```typescript
 // ❌ WRONG: Boolean flag explosion (Fragile & prone to impossible combinations)
@@ -57,7 +68,7 @@ export type ClassifiedReport =
   | { readonly kind: 'hybrid'; readonly elementId: PrintElementId; readonly badge: ReportTypeBadge };
 ```
 
-### B. Exhaustive Pattern Matching (`assertNever`)
+### C. Exhaustive Pattern Matching (`assertNever`)
 All state transitions and domain matchers must use exhaustive checking so that adding a new variant causes a compile-time error if unhandled:
 ```typescript
 import { assertNever } from '@domain/utils/assertNever';

@@ -92,5 +92,7 @@ export {
   DEFAULT_CODE_TO_REFERENCE_RANGE_MAP
 } from '../domain/services/itemResolver';
 
+// CHÚ Ý: DEFAULT_CATALOG & DEFAULT_DOCTORS chỉ dùng cho scripts seed/audit cơ sở dữ liệu ban đầu.
+// Toàn bộ dữ liệu trong ứng dụng runtime phải được nạp trực tiếp từ PostgreSQL Database.
 export { DEFAULT_CATALOG, DEFAULT_DOCTORS } from './backup/defaultCatalog';
 

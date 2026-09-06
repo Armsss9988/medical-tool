@@ -8,7 +8,7 @@ import {
 import {
   MedicalReport, CatalogItem, ClinicInfo, BatchImportRow, BatchExportProgress, ToastType,
   TestGroup, TestEquipment, TestPackage, Doctor, CatalogItemEquipmentLink, Invoice, getPkgCodes,
-  AllergenGradingScale, AiTemplateTarget
+  AllergenGradingScale, AiTemplateTarget, ReportKindResolver
 } from '@domain';
 import {
   exportBatchTemplateExcel,
@@ -270,9 +270,8 @@ export default function BatchExportModal({
           const key = newPkg.name.toLowerCase();
           const existing = map.get(key);
           if (existing) {
-            // Hợp nhất các chỉ số trong gói: không xóa các chỉ số cũ của gói
-            const existingItemMap = new Map((existing.items || []).map((i) => [i.code.toUpperCase(), i]));
-            (newPkg.items || []).forEach((i) => existingItemMap.set(i.code.toUpperCase(), i));
+            // Cập nhật cấu hình gói: áp dụng danh sách chỉ số thực tế từ Excel
+            const finalItems = (newPkg.items && newPkg.items.length > 0) ? newPkg.items : existing.items;
             map.set(key, {
               ...existing,
               ...newPkg,
@@ -280,7 +279,7 @@ export default function BatchExportModal({
               name: newPkg.name || existing.name,
               defaultEquipmentId: newPkg.defaultEquipmentId ?? existing.defaultEquipmentId,
               price: newPkg.price > 0 ? newPkg.price : existing.price,
-              items: Array.from(existingItemMap.values())
+              items: finalItems
             });
             updatedCount++;
           } else {
@@ -1483,15 +1482,23 @@ export default function BatchExportModal({
                                 {new Date(r.createdAt).toLocaleString('vi-VN')}
                               </td>
                               <td className="p-2.5 text-center">
-                                {r.isAllergen ? (
-                                  <span className="text-[10px] bg-red-950/80 text-red-300 px-2 py-0.5 rounded-full font-bold border border-red-800/60">
-                                    Panel 91
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] bg-emerald-950/80 text-emerald-300 px-2 py-0.5 rounded-full font-bold border border-emerald-800/60">
-                                    Chuẩn A4
-                                  </span>
-                                )}
+                                {ReportKindResolver.match(ReportKindResolver.resolve(r.selectedTests), {
+                                  allergen: () => (
+                                    <span className="text-[10px] bg-red-950/80 text-red-300 px-2 py-0.5 rounded-full font-bold border border-red-800/60">
+                                      Panel 91
+                                    </span>
+                                  ),
+                                  hybrid: () => (
+                                    <span className="text-[10px] bg-purple-950/80 text-purple-300 px-2 py-0.5 rounded-full font-bold border border-purple-800/60">
+                                      Hybrid
+                                    </span>
+                                  ),
+                                  clinical: () => (
+                                    <span className="text-[10px] bg-emerald-950/80 text-emerald-300 px-2 py-0.5 rounded-full font-bold border border-emerald-800/60">
+                                      Chuẩn A4
+                                    </span>
+                                  ),
+                                })}
                               </td>
                               <td className="p-2.5 text-center font-mono font-bold text-slate-300">
                                 {r.selectedTests?.length || r.testCount || 0}

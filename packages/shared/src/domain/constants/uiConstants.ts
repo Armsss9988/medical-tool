@@ -37,9 +37,11 @@ export const PRINT_ELEMENT_ID = {
   MEDICAL_REPORT: 'printable-medical-report',
   ALLERGEN_REPORT: 'printable-allergen-report',
   HYBRID_REPORT: 'printable-hybrid-report',
+  DYNAMIC_REPORT: 'printable-dynamic-report',
   BATCH_MEDICAL: 'batch-medical-report',
   BATCH_ALLERGEN: 'batch-allergen-report',
-  BATCH_HYBRID: 'batch-hybrid-report'
+  BATCH_HYBRID: 'batch-hybrid-report',
+  BATCH_DYNAMIC: 'batch-dynamic-report'
 } as const;
 
 export type PrintElementId = typeof PRINT_ELEMENT_ID[keyof typeof PRINT_ELEMENT_ID];

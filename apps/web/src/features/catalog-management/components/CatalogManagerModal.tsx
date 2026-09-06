@@ -197,37 +197,38 @@ export default function CatalogManagerModal({
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-7xl max-h-[95vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         
         {/* HEADER MODAL */}
-        <div className="bg-slate-900 text-white px-6 py-3.5 flex items-center justify-between border-b border-slate-800 shrink-0">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 rounded-xl bg-sky-500/20 border border-sky-500/30 text-sky-400">
-              <Layers className="w-5 h-5" />
+        <div className="bg-slate-900 text-white px-4 sm:px-6 py-3 sm:py-3.5 flex items-center justify-between border-b border-slate-800 shrink-0">
+          <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
+            <div className="p-2 rounded-xl bg-sky-500/20 border border-sky-500/30 text-sky-400 shrink-0">
+              <Layers className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h3 className="font-extrabold text-base tracking-wide flex items-center gap-2">
-                Quản Lý Danh Mục Xét Nghiệm & Bác Sĩ
+            <div className="min-w-0">
+              <h3 className="font-extrabold text-sm sm:text-base tracking-wide flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <span>Quản Lý Danh Mục</span>
                 <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-400/30 px-2 py-0.5 rounded">
-                  {items.length} Chỉ Số • {packages.length} Gói • {scalesList.length} Thang Đo • {eqList.length} Máy
+                  {items.length} Chỉ Số • {packages.length} Gói
                 </span>
               </h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-400 hidden sm:block">
                 Tùy biến chỉ số, gói xét nghiệm, thiết bị đo, khoảng tham chiếu, thang đo độ dương tính và bác sĩ chỉ định
               </p>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
             <button
               type="button"
               onClick={handleSaveAll}
-              className="flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-700/20 transition-all active:scale-95 cursor-pointer"
+              className="flex items-center space-x-1.5 px-3 sm:px-4 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-700/20 transition-all active:scale-95 cursor-pointer"
             >
               <Save className="w-4 h-4" />
-              <span>Lưu Toàn Bộ Thay Đổi</span>
+              <span className="hidden sm:inline">Lưu Toàn Bộ Thay Đổi</span>
+              <span className="sm:hidden">Lưu Dữ Liệu</span>
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition cursor-pointer"
+              className="p-1.5 sm:p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -235,24 +236,24 @@ export default function CatalogManagerModal({
         </div>
 
         {/* 4 MAIN TABS NAVIGATION */}
-        <div className="flex border-b border-slate-200 bg-slate-100/80 px-4 pt-2 gap-1 text-xs font-bold shrink-0 overflow-x-auto">
+        <div className="flex border-b border-slate-200 bg-slate-100/80 px-2 sm:px-4 pt-2 gap-1 text-xs font-bold shrink-0 overflow-x-auto no-scrollbar touch-pan-x">
           <button
             type="button"
             onClick={() => setActiveTab('INDICATORS')}
-            className={`px-4 py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-2 cursor-pointer ${
+            className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs ${
               activeTab === 'INDICATORS' || activeTab === 'ALLERGENS'
                 ? 'bg-white border-slate-200 text-sky-700 shadow-xs'
                 : 'bg-transparent border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
             }`}
           >
             <FlaskConical className="w-3.5 h-3.5" />
-            <span>1. Chỉ Số Xét Nghiệm ({items.length})</span>
+            <span>1. Chỉ Số ({items.length})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('PACKAGES')}
-            className={`px-4 py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-2 cursor-pointer ${
+            className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs ${
               activeTab === 'PACKAGES' || activeTab === 'PACKAGES_INDICATOR' || activeTab === 'PACKAGES_ALLERGEN'
                 ? 'bg-white border-slate-200 text-sky-700 shadow-xs'
                 : 'bg-transparent border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -265,27 +266,27 @@ export default function CatalogManagerModal({
           <button
             type="button"
             onClick={() => setActiveTab('SCALES')}
-            className={`px-4 py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-2 cursor-pointer ${
+            className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs ${
               activeTab === 'SCALES'
                 ? 'bg-white border-slate-200 text-amber-700 shadow-xs'
                 : 'bg-transparent border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
             }`}
           >
             <Activity className="w-3.5 h-3.5" />
-            <span>3. Thang Đo &amp; Phân Độ ({scalesList.length})</span>
+            <span>3. Thang Đo ({scalesList.length})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('DOCTORS')}
-            className={`px-4 py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-2 cursor-pointer ${
+            className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs ${
               activeTab === 'DOCTORS'
                 ? 'bg-white border-slate-200 text-emerald-700 shadow-xs'
                 : 'bg-transparent border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
             }`}
           >
             <Stethoscope className="w-3.5 h-3.5" />
-            <span>4. Bác Sĩ &amp; Chuyên Gia ({docsList.length})</span>
+            <span>4. Bác Sĩ ({docsList.length})</span>
           </button>
         </div>
 
@@ -338,11 +339,11 @@ export default function CatalogManagerModal({
         )}
 
         {/* FOOTER MODAL */}
-        <div className="bg-slate-50 px-6 py-3 border-t border-slate-200 flex items-center justify-between shrink-0">
-          <span className="text-xs text-slate-500 font-medium">
+        <div className="bg-slate-50 px-4 sm:px-6 py-2.5 sm:py-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-0 shrink-0">
+          <span className="text-[11px] sm:text-xs text-slate-500 font-medium text-center sm:text-left">
             Mẹo: Nhấn <strong>"Lưu Toàn Bộ Thay Đổi"</strong> để áp dụng dữ liệu mới ngay lập tức.
           </span>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
             <button
               type="button"
               onClick={onClose}
@@ -354,7 +355,7 @@ export default function CatalogManagerModal({
               type="button"
               onClick={handleSaveAll}
               disabled={isSaving}
-              className="flex items-center space-x-1.5 px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-700/20 transition active:scale-95 cursor-pointer"
+              className="flex items-center space-x-1.5 px-4 sm:px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-700/20 transition active:scale-95 cursor-pointer"
             >
               {isSaving ? (
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

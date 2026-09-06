@@ -12,7 +12,8 @@ export const TABLE_API_NAMES: Record<string, string> = {
   [STORAGE_KEYS.CATALOG_ITEM_EQUIPMENTS]: 'catalog-item-equipments',
   [STORAGE_KEYS.ALLERGEN_SCALES]: 'allergen-scales',
   [STORAGE_KEYS.REPORTS]: 'medical-reports',
-  [STORAGE_KEYS.INVOICES]: 'invoices'
+  [STORAGE_KEYS.INVOICES]: 'invoices',
+  [STORAGE_KEYS.REPORT_TEMPLATES]: 'report-templates'
 };
 
 let apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) || '/api';

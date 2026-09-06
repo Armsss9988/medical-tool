@@ -34,7 +34,9 @@ import {
   SignatureBlockProps,
   CustomTextBlockProps,
   DividerBlockProps,
-  SpacerBlockProps
+  SpacerBlockProps,
+  ReportPaginationDomainService,
+  ReportPaginationEntry
 } from '@domain';
 import { evaluateResult } from '@domain/testResult';
 import { AllergenReportDomainService } from '@domain/services/AllergenReportDomainService';
@@ -326,7 +328,10 @@ export function DynamicReportView({
     [regularTests.length, allergenTests.length, allergenDTO, conclusion, hasDataForBlock]
   );
 
-  const renderBlockContent = (block: TemplateBlock) => {
+  const renderBlockContent = (
+    block: TemplateBlock,
+    tableChunkEntries?: ReadonlyArray<ReportPaginationEntry>
+  ) => {
     switch (block.type) {
       case 'header': {
         const p = block.props as HeaderBlockProps;
@@ -477,7 +482,49 @@ export function DynamicReportView({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {p.groupByCategory !== false ? (
+                {tableChunkEntries ? (
+                  tableChunkEntries.map((entry, entryIdx) => {
+                    if (entry.type === 'category') {
+                      return (
+                        <tr key={`cat-${entry.category}-${entryIdx}`} className="bg-sky-50 font-bold text-sky-950">
+                          <td colSpan={10} className="py-1 px-2.5 uppercase tracking-wide text-[11.5px] border-y border-slate-300">
+                            • {entry.category}
+                          </td>
+                        </tr>
+                      );
+                    }
+                    const t = entry.test;
+                    const evaluation = evaluateResult(t.result, t.refMin, t.refMax);
+                    const isAbnormal = evaluation.status === 'high' || evaluation.status === 'low';
+                    const resolvedEquipment = resolveTestEquipmentName(t, equipments, catalogItemEquipments);
+
+                    return (
+                      <tr key={`${t.code}-${entry.idx}`} className={`hover:bg-slate-50 ${isAbnormal && p.highlightAbnormal !== false ? 'bg-red-50/40' : ''}`}>
+                        {cols.stt && <td className={`${densityClass} text-center font-mono text-slate-500 border-r border-slate-200`}>{entry.idx}</td>}
+                        {cols.name && (
+                          <td className={`${densityClass} font-bold text-slate-900 border-r border-slate-200`}>
+                            {t.name}
+                            {t.scientific && <span className="text-[10px] text-slate-500 italic block font-normal">{t.scientific}</span>}
+                          </td>
+                        )}
+                        {cols.result && (
+                          <td className={`${densityClass} text-center font-mono text-[13px] border-r border-slate-200 ${isAbnormal && p.highlightAbnormal !== false ? 'text-red-600 font-black' : 'text-slate-900 font-bold'}`}>
+                            {t.result || '---'}
+                          </td>
+                        )}
+                        {cols.unit && <td className={`${densityClass} text-center font-mono text-slate-700 text-[11.5px] border-r border-slate-200`}>{t.unit || '---'}</td>}
+                        {cols.refRange && (
+                          <td className={`${densityClass} text-center font-mono text-slate-700 text-[11.5px] border-r border-slate-200`}>
+                            {t.refText || (t.refMin !== undefined && t.refMax !== undefined ? `${t.refMin} - ${t.refMax}` : '---')}
+                          </td>
+                        )}
+                        {cols.equipment && <td className={`${densityClass} text-center text-slate-600 text-[11px] truncate max-w-[150px] border-r border-slate-200`}>{resolvedEquipment || '---'}</td>}
+                        {cols.price && <td className={`${densityClass} text-right font-mono text-slate-800 text-[11.5px] border-r border-slate-200`}>{t.price ? `${t.price.toLocaleString('vi-VN')} đ` : '---'}</td>}
+                        {cols.note && <td className={`${densityClass} text-slate-700 font-semibold text-[11px]`}>{t.note || (isAbnormal ? evaluation.label : 'Bình thường')}</td>}
+                      </tr>
+                    );
+                  })
+                ) : p.groupByCategory !== false ? (
                   groupedRegularTests.map(([category, items]) => (
                     <Fragment key={category}>
                       <tr className="bg-sky-50 font-bold text-sky-950">
@@ -1133,8 +1180,8 @@ export function DynamicReportView({
     }
   };
 
-  // Chia các block thành các trang dựa trên `page_break`
-  const pages = useMemo(() => {
+  // Chia các block thành các trang cơ sở dựa trên `page_break` thủ công
+  const baseTemplatePages = useMemo(() => {
     const pageList: TemplateBlock[][] = [[]];
     for (const b of sortedBlocks) {
       if (b.type === 'page_break') {
@@ -1155,10 +1202,131 @@ export function DynamicReportView({
     });
   }, [sortedBlocks, isDesignMode, isBlockVisible]);
 
+  // Phân trang thông minh: Tự động ngắt trang chuẩn A4 khi danh sách xét nghiệm dài
+  const renderedPages = useMemo(() => {
+    if (isDesignMode) {
+      return baseTemplatePages.map((blocks, idx) => ({
+        pageNumber: idx + 1,
+        blocks,
+        isContinuation: false,
+        tableChunkEntries: undefined,
+        showConclusionOverride: undefined,
+        showSignatureOverride: undefined
+      }));
+    }
+
+    const result: Array<{
+      pageNumber: number;
+      blocks: TemplateBlock[];
+      isContinuation?: boolean;
+      tableChunkEntries?: ReadonlyArray<ReportPaginationEntry>;
+      showConclusionOverride?: boolean;
+      showSignatureOverride?: boolean;
+    }> = [];
+
+    let currentPageNum = 1;
+
+    for (const templatePageBlocks of baseTemplatePages) {
+      const hasTestTable = templatePageBlocks.some((b) => b.type === 'test_table');
+
+      if (!hasTestTable || regularTests.length === 0) {
+        result.push({
+          pageNumber: currentPageNum++,
+          blocks: templatePageBlocks
+        });
+        continue;
+      }
+
+      // Có khối test_table: dùng ReportPaginationDomainService để phân trang thông minh
+      const hasHeader = templatePageBlocks.some((b) => b.type === 'header' || b.type === 'patient_info');
+      const paginatedChunks = ReportPaginationDomainService.paginate(
+        regularTests,
+        conclusion,
+        {
+          page1StaticHeight: hasHeader ? 328 : 90
+        }
+      );
+
+      if (paginatedChunks.length <= 1) {
+        // Vừa vặn trên 1 trang duy nhất
+        result.push({
+          pageNumber: currentPageNum++,
+          blocks: templatePageBlocks,
+          tableChunkEntries: paginatedChunks[0]?.entries
+        });
+      } else {
+        // Cần ngắt thành nhiều trang
+        const tableIdx = templatePageBlocks.findIndex((b) => b.type === 'test_table');
+        const blocksBeforeTable = templatePageBlocks.slice(0, tableIdx);
+        const testTableBlock = templatePageBlocks[tableIdx];
+        const blocksAfterTable = templatePageBlocks.slice(tableIdx + 1);
+
+        for (let chunkIdx = 0; chunkIdx < paginatedChunks.length; chunkIdx++) {
+          const chunk = paginatedChunks[chunkIdx];
+          const isFirstChunk = chunkIdx === 0;
+          const isLastChunk = chunk.isLastPage;
+
+          if (isFirstChunk) {
+            // Trang đầu tiên: Các block trước bảng + Bảng (chunk 1)
+            const firstPageBlocks = [...blocksBeforeTable, testTableBlock];
+            if (isLastChunk) {
+              firstPageBlocks.push(...blocksAfterTable);
+            }
+            result.push({
+              pageNumber: currentPageNum++,
+              blocks: firstPageBlocks,
+              isContinuation: false,
+              tableChunkEntries: chunk.entries,
+              showConclusionOverride: chunk.showConclusion,
+              showSignatureOverride: chunk.showSignature
+            });
+          } else {
+            // Các trang tiếp theo: Mini Header + Bảng (chunk tiếp theo)
+            const continuationBlocks = [testTableBlock];
+            if (isLastChunk) {
+              continuationBlocks.push(...blocksAfterTable);
+            }
+            result.push({
+              pageNumber: currentPageNum++,
+              blocks: continuationBlocks,
+              isContinuation: true,
+              tableChunkEntries: chunk.entries,
+              showConclusionOverride: chunk.showConclusion,
+              showSignatureOverride: chunk.showSignature
+            });
+          }
+        }
+      }
+    }
+
+    return result;
+  }, [baseTemplatePages, isDesignMode, regularTests, conclusion]);
+
+  const isA5 = template.paperSize === 'A5';
+  const isLandscape = template.orientation === 'landscape';
+
+  const pageWidth = isA5
+    ? (isLandscape ? '210mm' : '148mm')
+    : (isLandscape ? '297mm' : '210mm');
+
+  const pageMinHeight = isA5
+    ? (isLandscape ? '148mm' : '210mm')
+    : (isLandscape ? '210mm' : '297mm');
+
+  const resolvedFontFamily =
+    template.fontFamily === 'Arial'
+      ? 'Arial, Helvetica, sans-serif'
+      : template.fontFamily === 'Roboto'
+      ? 'Roboto, sans-serif'
+      : template.fontFamily === 'Inter'
+      ? 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+      : '"Times New Roman", Times, "Liberation Serif", serif';
+
   return (
     <div
       id={elementId}
-      className="w-[210mm] max-w-[210mm] mx-auto bg-slate-200 print:bg-white print:m-0 print:p-0 space-y-4 print:space-y-0"
+      className="mx-auto bg-slate-200 print:bg-white print:m-0 print:p-0 space-y-4 print:space-y-0"
+      style={{ width: pageWidth, maxWidth: pageWidth }}
       onDragOver={isDesignMode ? (e) => e.preventDefault() : undefined}
       onDrop={isDesignMode && onDropBlock ? (e) => {
         e.preventDefault();
@@ -1166,27 +1334,38 @@ export function DynamicReportView({
         if (blockType) onDropBlock(blockType, undefined);
       } : undefined}
     >
-      {pages.map((pageBlocks, pageIdx) => (
-        <div
-          key={pageIdx}
-          data-page="true"
-          className="report-page mx-auto bg-white text-slate-900 shadow-xl print:shadow-none print:m-0 print:mb-0 flex flex-col justify-between"
-          style={{
-            fontFamily:
-              template.fontFamily === 'Arial'
-                ? 'Arial, Helvetica, sans-serif'
-                : template.fontFamily === 'Roboto'
-                ? 'Roboto, sans-serif'
-                : '"Times New Roman", Times, "Liberation Serif", serif',
-            width: '210mm',
-            minWidth: '210mm',
-            maxWidth: '210mm',
-            minHeight: '297mm',
-            boxSizing: 'border-box',
-            padding: `${template.paddingMm || 15}mm`
-          }}
-        >
-          <div>
+      {renderedPages.map((renderedPage, pageIdx) => {
+        const pageBlocks = renderedPage.blocks;
+        return (
+          <div
+            key={pageIdx}
+            data-page="true"
+            className="report-page mx-auto bg-white text-slate-900 shadow-xl print:shadow-none print:m-0 print:mb-0 flex flex-col justify-between"
+            style={{
+              fontFamily: resolvedFontFamily,
+              width: pageWidth,
+              minWidth: pageWidth,
+              maxWidth: pageWidth,
+              minHeight: pageMinHeight,
+              boxSizing: 'border-box',
+              padding: `${template.paddingMm ?? (isA5 ? 8 : 15)}mm`
+            }}
+          >
+            <div>
+              {/* Mini Patient Header cho các trang kế tiếp (từ trang 2 trở đi của bảng dài) */}
+              {renderedPage.isContinuation && (
+                <div className="flex items-center justify-between pb-1.5 mb-2.5 border-b border-slate-300 text-[11px] font-semibold text-slate-700 font-sans">
+                  <div className="flex items-center space-x-3">
+                    <span>Bệnh nhân: <strong className="text-slate-900 font-bold uppercase">{patient.name || '---'}</strong></span>
+                    <span>Mã BN: <strong className="font-mono text-slate-900 font-bold">{patient.code || '---'}</strong></span>
+                    {patient.dob && <span>Năm sinh: <strong>{patient.dob}</strong></span>}
+                    {patient.gender && <span>Giới tính: <strong>{patient.gender}</strong></span>}
+                  </div>
+                  <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                    {safeClinic.name || 'HỆ THỐNG XÉT NGHIỆM GOLAB'}
+                  </div>
+                </div>
+              )}
             {pageBlocks.map((block, blockIdx) => {
               const globalIdx = sortedBlocks.findIndex((b) => b.id === block.id);
               const isSelected = isDesignMode && selectedBlockId === block.id;
@@ -1194,6 +1373,14 @@ export function DynamicReportView({
               // Điều kiện hiển thị thực tế
               const isVisibleOutside = isBlockVisible(block);
               if (!isDesignMode && !isVisibleOutside) {
+                return null;
+              }
+
+              // Ẩn conclusion hoặc signature nếu trang hiện tại chưa cho phép hiển thị khi phân trang
+              if (block.type === 'conclusion' && renderedPage.showConclusionOverride === false) {
+                return null;
+              }
+              if (block.type === 'signature' && renderedPage.showSignatureOverride === false) {
                 return null;
               }
 
@@ -1298,7 +1485,7 @@ export function DynamicReportView({
                         )}
                       </div>
                     )}
-                    {renderBlockContent(block)}
+                    {renderBlockContent(block, renderedPage.tableChunkEntries)}
                   </div>
                 </div>
               );
@@ -1335,13 +1522,14 @@ export function DynamicReportView({
               HỆ THỐNG XÉT NGHIỆM GOLAB • {safeClinic.name} • HOTLINE: {safeClinic.phone}
             </span>
             <span className="font-bold text-sky-800">
-              Trang {pageIdx + 1}/{pages.length}
+              Trang {pageIdx + 1}/{renderedPages.length}
             </span>
           </div>
         </div>
-      ))}
-    </div>
-  );
+      );
+    })}
+  </div>
+);
 }
 
 export default memo(DynamicReportView);

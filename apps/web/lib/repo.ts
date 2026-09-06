@@ -3,7 +3,7 @@ import { asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { TableName } from '@golab/shared/schemas/tables';
 import * as tables from './schema';
 import type { Db } from './db';
-import type { MedicalReport, Invoice, AllergenGradingScale, TestPackage, Gender } from '@domain/types';
+import type { MedicalReport, Invoice, AllergenGradingScale, TestPackage, Gender, ReportTemplate } from '@domain/index';
 
 export const TABLES: Record<TableName, AnyPgTable> = {
   catalog: tables.catalogItems,
@@ -17,7 +17,8 @@ export const TABLES: Record<TableName, AnyPgTable> = {
   'catalog-item-equipments': tables.catalogItemEquipments,
   'allergen-scales': tables.allergenScales,
   'medical-reports': tables.medicalReports,
-  invoices: tables.invoices
+  invoices: tables.invoices,
+  'report-templates': tables.reportTemplates
 };
 
 /**
@@ -200,6 +201,25 @@ export async function getTableRows(db: Db, name: TableName): Promise<unknown[]> 
           codes: packageItems.map((pi) => pi.code)
         };
       });
+    }
+
+    case 'report-templates': {
+      const rows = await db.select().from(tables.reportTemplates).orderBy(asc(tables.reportTemplates.name));
+      return rows.map((r): ReportTemplate => ({
+        id: r.id,
+        name: r.name,
+        description: r.description || undefined,
+        category: (r.category || 'custom') as ReportTemplate['category'],
+        isDefault: r.isDefault,
+        paperSize: (r.paperSize || 'A4') as ReportTemplate['paperSize'],
+        orientation: (r.orientation || 'portrait') as ReportTemplate['orientation'],
+        fontFamily: (r.fontFamily || 'Times New Roman') as ReportTemplate['fontFamily'],
+        primaryColor: r.primaryColor || '#0284c7',
+        paddingMm: r.paddingMm ?? 15,
+        blocks: (r.blocks || []) as ReportTemplate['blocks'],
+        createdAt: r.createdAt ? r.createdAt.toISOString() : new Date().toISOString(),
+        updatedAt: r.updatedAt ? r.updatedAt.toISOString() : new Date().toISOString()
+      }));
     }
 
     default: {
@@ -501,6 +521,31 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
           }
         }
         return uniqueDocs.length;
+      }
+
+      case 'report-templates': {
+        const tplList = rows as ReportTemplate[];
+        await tx.delete(tables.reportTemplates);
+        if (tplList.length === 0) return 0;
+        const values = tplList.map((t) => ({
+          id: t.id,
+          name: t.name,
+          description: t.description || null,
+          category: t.category || 'custom',
+          isDefault: t.isDefault || false,
+          paperSize: t.paperSize || 'A4',
+          orientation: t.orientation || 'portrait',
+          fontFamily: t.fontFamily || 'Times New Roman',
+          primaryColor: t.primaryColor || '#0284c7',
+          paddingMm: t.paddingMm || 15,
+          blocks: t.blocks || [],
+          createdAt: t.createdAt ? new Date(t.createdAt) : new Date(),
+          updatedAt: new Date()
+        }));
+        for (let i = 0; i < values.length; i += BATCH_SIZE) {
+          await tx.insert(tables.reportTemplates).values(values.slice(i, i + BATCH_SIZE));
+        }
+        return tplList.length;
       }
 
       default: {

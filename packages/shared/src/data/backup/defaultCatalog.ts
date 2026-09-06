@@ -112,13 +112,6 @@ export const DEFAULT_CATALOG: CatalogItem[] = (() => {
 
 export const TEST_PACKAGES: TestPackage[] = [
   {
-    id: 'all',
-    name: '--- Chọn Gói Xét Nghiệm ---',
-    items: [],
-    codes: [],
-    price: 0
-  },
-  {
     id: 'huyet_hoc',
     name: 'Gói Công Thức Máu (6 chỉ số)',
     items: ['RBC', 'HGB', 'HCT', 'MCV', 'WBC', 'PLT'].map((c) => ({ code: c, equipmentId: null })),

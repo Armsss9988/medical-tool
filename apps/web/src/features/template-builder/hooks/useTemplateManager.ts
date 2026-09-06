@@ -5,6 +5,10 @@ import {
   TemplateBlockType,
   PRESET_TEMPLATES
 } from '@domain/templateTypes';
+import {
+  fetchReportTemplatesFromSupabase,
+  syncReportTemplatesToSupabase
+} from '@infra/cloudDbService';
 
 const STORAGE_KEY_TEMPLATES = 'golab_report_templates_v2';
 const STORAGE_KEY_ACTIVE = 'golab_active_template_id_v2';
@@ -38,6 +42,55 @@ export function useTemplateManager() {
     return PRESET_TEMPLATES[0]?.id || 'tpl_standard_clinical';
   });
 
+  const [cloudStatus, setCloudStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+
+  // Undo / Redo History Stacks (tối đa 30 bước)
+  const [undoStack, setUndoStack] = useState<ReportTemplate[]>([]);
+  const [redoStack, setRedoStack] = useState<ReportTemplate[]>([]);
+
+  const pushHistory = useCallback((currentTpl: ReportTemplate) => {
+    setUndoStack((prev) => [...prev.slice(-29), JSON.parse(JSON.stringify(currentTpl))]);
+    setRedoStack([]);
+  }, []);
+
+  // Initial load: Fetch custom templates from Cloud and merge with Presets/Local
+  useEffect(() => {
+    let isMounted = true;
+    async function loadFromCloud() {
+      try {
+        const cloudTemplates = await fetchReportTemplatesFromSupabase();
+        if (!isMounted || !cloudTemplates || cloudTemplates.length === 0) return;
+
+        setTemplates((prev) => {
+          const cloudCustom = cloudTemplates.filter((ct) => !PRESET_TEMPLATES.some((p) => p.id === ct.id));
+          const localCustom = prev.filter((lt) => !PRESET_TEMPLATES.some((p) => p.id === lt.id));
+
+          const mergedMap = new Map<string, ReportTemplate>();
+          PRESET_TEMPLATES.forEach((p) => mergedMap.set(p.id, p));
+          cloudCustom.forEach((c) => mergedMap.set(c.id, c));
+          localCustom.forEach((l) => {
+            const existing = mergedMap.get(l.id);
+            if (!existing || new Date(l.updatedAt).getTime() >= new Date(existing.updatedAt).getTime()) {
+              mergedMap.set(l.id, l);
+            }
+          });
+          return Array.from(mergedMap.values());
+        });
+        if (isMounted) {
+          setCloudStatus('synced');
+          setLastSyncedAt(new Date().toISOString());
+        }
+      } catch (err) {
+        console.warn('[useTemplateManager] Không thể tải templates từ Cloud:', err);
+      }
+    }
+    loadFromCloud();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Sync to localStorage
   useEffect(() => {
     try {
@@ -61,6 +114,8 @@ export function useTemplateManager() {
 
   const selectActiveTemplate = useCallback((id: string) => {
     setActiveTemplateId(id);
+    setUndoStack([]);
+    setRedoStack([]);
   }, []);
 
   const createTemplate = useCallback((base?: Partial<ReportTemplate>): ReportTemplate => {
@@ -70,6 +125,7 @@ export function useTemplateManager() {
       name: base?.name || 'Mẫu Phiếu Xét Nghiệm Mới',
       description: base?.description || 'Mẫu phiếu tùy chỉnh',
       category: base?.category || 'custom',
+      targetType: base?.targetType || 'clinical',
       isDefault: false,
       paperSize: base?.paperSize || 'A4',
       orientation: base?.orientation || 'portrait',
@@ -83,14 +139,18 @@ export function useTemplateManager() {
 
     setTemplates((prev) => [...prev, newTemplate]);
     setActiveTemplateId(newId);
+    setUndoStack([]);
+    setRedoStack([]);
     return newTemplate;
   }, []);
 
   const updateTemplate = useCallback((template: ReportTemplate) => {
+    const target = templates.find((t) => t.id === template.id);
+    if (target) pushHistory(target);
     setTemplates((prev) =>
       prev.map((t) => (t.id === template.id ? { ...template, updatedAt: new Date().toISOString() } : t))
     );
-  }, []);
+  }, [templates, pushHistory]);
 
   const deleteTemplate = useCallback((id: string) => {
     setTemplates((prev) => {
@@ -130,6 +190,8 @@ export function useTemplateManager() {
   }, []);
 
   const addBlockToTemplate = useCallback((templateId: string, blockType: TemplateBlockType, afterBlockId?: string) => {
+    const target = templates.find((t) => t.id === templateId);
+    if (target) pushHistory(target);
     setTemplates((prev) =>
       prev.map((t) => {
         if (t.id !== templateId) return t;
@@ -269,6 +331,8 @@ export function useTemplateManager() {
   }, []);
 
   const removeBlockFromTemplate = useCallback((templateId: string, blockId: string) => {
+    const target = templates.find((t) => t.id === templateId);
+    if (target) pushHistory(target);
     setTemplates((prev) =>
       prev.map((t) => {
         if (t.id !== templateId) return t;
@@ -279,10 +343,12 @@ export function useTemplateManager() {
         };
       })
     );
-  }, []);
+  }, [templates, pushHistory]);
 
   const reorderBlockInTemplate = useCallback(
     (templateId: string, blockId: string, direction: 'up' | 'down') => {
+      const target = templates.find((t) => t.id === templateId);
+      if (target) pushHistory(target);
       setTemplates((prev) =>
         prev.map((t) => {
           if (t.id !== templateId) return t;
@@ -306,11 +372,13 @@ export function useTemplateManager() {
         })
       );
     },
-    []
+    [templates, pushHistory]
   );
 
   const updateBlockInTemplate = useCallback(
     (templateId: string, blockId: string, updates: Partial<TemplateBlock>) => {
+      const target = templates.find((t) => t.id === templateId);
+      if (target) pushHistory(target);
       setTemplates((prev) =>
         prev.map((t) => {
           if (t.id !== templateId) return t;
@@ -322,7 +390,7 @@ export function useTemplateManager() {
         })
       );
     },
-    []
+    [templates, pushHistory]
   );
 
   const exportTemplateJson = useCallback((template: ReportTemplate) => {
@@ -367,10 +435,59 @@ export function useTemplateManager() {
     setActiveTemplateId(PRESET_TEMPLATES[0].id);
   }, []);
 
+  const syncWithCloud = useCallback(async (): Promise<boolean> => {
+    try {
+      setCloudStatus('syncing');
+      const success = await syncReportTemplatesToSupabase(templates);
+      if (success) {
+        setCloudStatus('synced');
+        setLastSyncedAt(new Date().toISOString());
+        return true;
+      } else {
+        setCloudStatus('error');
+        return false;
+      }
+    } catch (err) {
+      console.warn('[useTemplateManager] Lỗi đồng bộ template lên Cloud:', err);
+      setCloudStatus('error');
+      return false;
+    }
+  }, [templates]);
+
+  const undo = useCallback(() => {
+    if (undoStack.length === 0) return;
+    const previous = undoStack[undoStack.length - 1];
+    const newUndo = undoStack.slice(0, -1);
+    const current = templates.find((t) => t.id === previous.id) || activeTemplate;
+
+    setRedoStack((prev) => [...prev, JSON.parse(JSON.stringify(current))]);
+    setUndoStack(newUndo);
+    setTemplates((prev) => prev.map((t) => (t.id === previous.id ? previous : t)));
+  }, [undoStack, templates, activeTemplate]);
+
+  const redo = useCallback(() => {
+    if (redoStack.length === 0) return;
+    const next = redoStack[redoStack.length - 1];
+    const newRedo = redoStack.slice(0, -1);
+    const current = templates.find((t) => t.id === next.id) || activeTemplate;
+
+    setUndoStack((prev) => [...prev, JSON.parse(JSON.stringify(current))]);
+    setRedoStack(newRedo);
+    setTemplates((prev) => prev.map((t) => (t.id === next.id ? next : t)));
+  }, [redoStack, templates, activeTemplate]);
+
   return {
     templates,
     activeTemplateId,
     activeTemplate,
+    cloudStatus,
+    isCloudSyncing: cloudStatus === 'syncing',
+    lastSyncedAt,
+    syncWithCloud,
+    undo,
+    redo,
+    canUndo: undoStack.length > 0,
+    canRedo: redoStack.length > 0,
     selectActiveTemplate,
     createTemplate,
     updateTemplate,

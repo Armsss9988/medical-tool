@@ -88,3 +88,36 @@ describe('ROW_SCHEMAS', () => {
     }
   });
 });
+
+describe('reportTemplateRowSchema', () => {
+  it('accepts valid report template row', () => {
+    const row = {
+      id: 'tpl_custom_1',
+      name: 'Mẫu Khám Tổng Quát',
+      category: 'clinical',
+      isDefault: true,
+      paperSize: 'A4',
+      orientation: 'portrait',
+      fontFamily: 'Inter',
+      primaryColor: '#2563eb',
+      paddingMm: 14,
+      blocks: [{ id: 'b1', type: 'header', order: 1 }]
+    };
+    const result = ROW_SCHEMAS['report-templates'].safeParse(row);
+    expect(result.success).toBe(true);
+  });
+
+  it('applies defaults for optional fields in report template', () => {
+    const row = {
+      id: 'tpl_min'
+    };
+    const result = ROW_SCHEMAS['report-templates'].safeParse(row);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.name).toBe('Mẫu In Mới');
+      expect(result.data.paperSize).toBe('A4');
+      expect(result.data.paddingMm).toBe(15);
+      expect(result.data.blocks).toEqual([]);
+    }
+  });
+});

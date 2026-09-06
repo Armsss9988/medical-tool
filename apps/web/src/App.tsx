@@ -14,7 +14,9 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useWorkspaceActions } from './hooks/useWorkspaceActions';
 import { useUnsavedGuard } from './hooks/useUnsavedGuard';
 import { useInvoiceActions } from '@features/billing-revenue';
-import { PrintLayer, useReportExport, useExportActions } from '@features/report-export';
+import { PrintLayer, useReportExport, useExportActions, type DynamicReportRenderProps } from '@features/report-export';
+import DynamicReportView from '@features/template-builder/components/templateBuilder/DynamicReportView';
+import { useTemplateManager } from '@features/template-builder/hooks/useTemplateManager';
 
 import { parseExcelCatalog } from '@infra/excelService';
 import { openDataFolder } from '@infra/storage';
@@ -53,7 +55,8 @@ function AppContent() {
   const {
     reports,
     invoices,
-    saveOrUpdateReport
+    saveOrUpdateReport,
+    bulkSaveOrUpdateReports
   } = useWorkspace();
 
   const {
@@ -152,6 +155,11 @@ function AppContent() {
     handleDownloadQrCodeDirect
   } = useExportActions(clinicInfo, reportExportHook, handleSaveCurrentReport);
 
+  const { activeTemplate } = useTemplateManager();
+  const renderDynamicReport = useCallback((props: DynamicReportRenderProps) => (
+    <DynamicReportView {...props} />
+  ), []);
+
   // Invoice Actions
   const {
     handleSaveInvoice,
@@ -215,14 +223,7 @@ function AppContent() {
   };
 
   const handleBatchImport = (rows: BatchImportRow[]) => {
-    for (const row of rows) {
-      saveOrUpdateReport({
-        patient: row.patient,
-        selectedTests: row.selectedTests,
-        conclusion: row.conclusion,
-        doctorName: row.doctorName
-      });
-    }
+    bulkSaveOrUpdateReports(rows);
   };
 
   const handleUpdateSingleReportPdf = async (rep: MedicalReport) => {
@@ -381,6 +382,8 @@ function AppContent() {
         equipments={equipments}
         catalogItemEquipments={catalogItemEquipments}
         allergenScales={allergenScales}
+        activeTemplate={activeTemplate}
+        renderDynamicReport={renderDynamicReport}
       />
 
       {/* PASSWORD GATE OVERLAY */}

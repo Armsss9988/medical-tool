@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { Plus, Trash2, Search, Download, Upload, Dna, FlaskConical, Layers, Settings2, Star, X, FileSpreadsheet, ChevronDown, RotateCcw } from 'lucide-react';
 import { CatalogItem, CatalogItemEquipmentLink, TestGroup, TestEquipment, AllergenGradingScale } from '@domain/types';
 import { getAllergenScaleById } from '@domain/constants/allergenScales';
-import { DEFAULT_CATALOG, autoResolveItemLinks } from '@data';
+import { autoResolveItemLinks } from '@data';
 import { fetchCatalogFromSupabase, DEFAULT_CLOUD_DB_CONFIG } from '@infra/cloudDbService';
 import {
   exportCatalogItemsTemplate,
@@ -279,16 +279,19 @@ export default function CatalogItemsTab({
   };
 
   const handleRestoreOriginalCatalog = async () => {
-    if (!window.confirm(`Bạn có chắc muốn khôi phục lại toàn bộ Danh Mục Chỉ Số Gốc chuẩn (${DEFAULT_CATALOG.length} chỉ số)? Dữ liệu sẽ được nạp lại đầy đủ từ Cloud DB.`)) {
+    if (!window.confirm('Bạn có chắc muốn đồng bộ lại toàn bộ Danh Mục Chỉ Số Gốc từ Cloud DB? Dữ liệu sẽ được nạp lại đầy đủ từ PostgreSQL Cloud.')) {
       return;
     }
     try {
       const cloudItems = await fetchCatalogFromSupabase(DEFAULT_CLOUD_DB_CONFIG);
-      const validItems = cloudItems && cloudItems.length > 0 ? cloudItems : DEFAULT_CATALOG;
-      setItems(validItems.map(autoResolveItemLinks));
-      alert(`Đã khôi phục thành công ${validItems.length} chỉ số xét nghiệm chuẩn! Hãy bấm nút "Lưu Toàn Bộ" ở góc dưới để áp dụng.`);
+      if (cloudItems && cloudItems.length > 0) {
+        setItems(cloudItems.map(autoResolveItemLinks));
+        alert(`Đã nạp thành công ${cloudItems.length} chỉ số xét nghiệm từ Cloud DB! Hãy bấm nút "Lưu Toàn Bộ" ở góc dưới để áp dụng.`);
+      } else {
+        alert('Không tìm thấy dữ liệu danh mục trên Cloud DB hoặc dữ liệu rỗng.');
+      }
     } catch (err) {
-      alert(`Lỗi khi khôi phục danh mục: ${err instanceof Error ? err.message : String(err)}`);
+      alert(`Lỗi khi khôi phục danh mục từ Cloud DB: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 

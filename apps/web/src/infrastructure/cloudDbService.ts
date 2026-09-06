@@ -11,8 +11,9 @@ import {
   MedicalReport,
   ZaloZnsConfig,
   ReferenceRangeItem,
-  AllergenGradingScale
-} from '@domain/types';
+  AllergenGradingScale,
+  ReportTemplate
+} from '@domain/index';
 import { getTable, putTable, ApiAuthError } from './apiClient';
 
 const LEGACY_KEY_TO_API: Record<string, string> = {
@@ -28,7 +29,8 @@ const LEGACY_KEY_TO_API: Record<string, string> = {
   'recent_tests': 'recent_tests',
   'reference_ranges': 'reference-ranges',
   'catalog_item_equipments': 'catalog-item-equipments',
-  'allergen_scales': 'allergen-scales'
+  'allergen_scales': 'allergen-scales',
+  'report_templates': 'report-templates'
 };
 const DOC_TABLES = new Set(['medical-reports', 'invoices']);
 const SINGLE_OBJECT_TABLES = new Set(['clinic-info', 'zalo-config']);
@@ -53,6 +55,7 @@ export interface DatabaseBackupFile {
   medical_reports?: MedicalReport[];
   invoices_data: Invoice[];
   zalo_config?: ZaloZnsConfig | null;
+  report_templates?: ReportTemplate[];
 }
 
 export interface AllLocalDataPayload {
@@ -68,6 +71,7 @@ export interface AllLocalDataPayload {
   reports: MedicalReport[];
   invoices: Invoice[];
   zaloConfig?: ZaloZnsConfig | null;
+  reportTemplates?: ReportTemplate[];
 }
 
 export interface AllCloudDataResult {
@@ -83,6 +87,7 @@ export interface AllCloudDataResult {
   reports: MedicalReport[] | null;
   invoices: Invoice[] | null;
   zaloConfig: ZaloZnsConfig | null;
+  reportTemplates?: ReportTemplate[] | null;
 }
 
 export const DEFAULT_CLOUD_DB_CONFIG: CloudDbConfig = {
@@ -236,6 +241,14 @@ export async function syncReportsToSupabase(reports: MedicalReport[], config: Cl
 
 export async function syncInvoicesToSupabase(invoices: Invoice[], config: CloudDbConfig): Promise<boolean> {
   return syncTableToCloud('invoices_data', invoices, config);
+}
+
+export async function fetchReportTemplatesFromSupabase(config: CloudDbConfig = DEFAULT_CLOUD_DB_CONFIG): Promise<ReportTemplate[] | null> {
+  return fetchTableFromCloud<ReportTemplate[]>('report_templates', config);
+}
+
+export async function syncReportTemplatesToSupabase(templates: ReportTemplate[], config: CloudDbConfig = DEFAULT_CLOUD_DB_CONFIG): Promise<boolean> {
+  return syncTableToCloud('report_templates', templates, config);
 }
 
 export async function syncCatalogToSupabase(catalog: CatalogItem[], config: CloudDbConfig): Promise<boolean> {
@@ -508,7 +521,7 @@ export async function backupAllDataFromSupabase(
   }
 
   try {
-    const [catalog, packages, groups, equipments, doctors, clinic, referenceRanges, catalogItemEquipments, allergenScales, reports, invoices, zaloConfig] = await Promise.all([
+    const [catalog, packages, groups, equipments, doctors, clinic, referenceRanges, catalogItemEquipments, allergenScales, reports, invoices, zaloConfig, reportTemplates] = await Promise.all([
       fetchTableFromCloud<CatalogItem[]>('catalog_data', config),
       fetchTableFromCloud<TestPackage[]>('test_packages', config),
       fetchTableFromCloud<TestGroup[]>('test_groups', config),
@@ -521,6 +534,7 @@ export async function backupAllDataFromSupabase(
       fetchTableFromCloud<MedicalReport[]>('medical_reports', config),
       fetchTableFromCloud<Invoice[]>('invoices_data', config),
       fetchTableFromCloud<ZaloZnsConfig>('zalo_config', config),
+      fetchTableFromCloud<ReportTemplate[]>('report_templates', config),
     ]);
 
     const backup: DatabaseBackupFile = {
@@ -528,7 +542,7 @@ export async function backupAllDataFromSupabase(
         backup_at: new Date().toISOString(),
         supabase_url: config.supabaseUrl,
         version: '2.0',
-        tables: ['catalog_data', 'test_packages', 'test_groups', 'equipments_catalog', 'doctors_list', 'clinic_info', 'reference_ranges', 'catalog_item_equipments', 'allergen_scales', 'medical_reports', 'invoices_data', 'zalo_config']
+        tables: ['catalog_data', 'test_packages', 'test_groups', 'equipments_catalog', 'doctors_list', 'clinic_info', 'reference_ranges', 'catalog_item_equipments', 'allergen_scales', 'medical_reports', 'invoices_data', 'zalo_config', 'report_templates']
       },
       catalog_data: catalog ?? [],
       test_packages: packages ?? [],
@@ -542,6 +556,7 @@ export async function backupAllDataFromSupabase(
       medical_reports: reports ?? [],
       invoices_data: invoices ?? [],
       zalo_config: zaloConfig ?? null,
+      report_templates: reportTemplates ?? [],
     };
 
     const stats = {
@@ -611,6 +626,7 @@ export async function restoreAllDataToSupabase(
       backup.medical_reports?.length           ? syncTableToCloud('medical_reports',           backup.medical_reports,           config) : Promise.resolve(true),
       backup.invoices_data?.length             ? syncTableToCloud('invoices_data',             backup.invoices_data,             config) : Promise.resolve(true),
       backup.zalo_config                       ? syncTableToCloud('zalo_config',               backup.zalo_config,               config) : Promise.resolve(true),
+      backup.report_templates?.length          ? syncTableToCloud('report_templates',          backup.report_templates,          config) : Promise.resolve(true),
     ]);
 
     const allOk = results.every(Boolean);

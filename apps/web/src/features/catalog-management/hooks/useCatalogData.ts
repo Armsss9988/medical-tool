@@ -11,14 +11,12 @@ import {
   ZaloZnsConfig,
   ReferenceRangeItem,
   AllergenGradingScale,
-  STORAGE_KEYS,
   normalizeTestPackage,
   DEFAULT_CLINIC_INFO,
   getSafeClinicInfo,
   isCorruptedClinicInfo
 } from '@domain';
-import { autoResolveItemLinks, DEFAULT_DOCTORS } from '@data';
-import { loadState, saveState } from '@infra/storage';
+import { autoResolveItemLinks } from '@data';
 import { 
   fetchCatalogFromSupabase, 
   fetchPackagesFromSupabase, 
@@ -60,67 +58,24 @@ const DEFAULT_ZALO_CONFIG: ZaloZnsConfig = {
 };
 
 export function useCatalogData() {
-  const [catalog, setCatalog] = useState<CatalogItem[]>(() => {
-    const loaded = loadState<CatalogItem[]>(STORAGE_KEYS.CATALOG, []);
-    return Array.isArray(loaded) ? loaded.map(autoResolveItemLinks) : [];
-  });
-
-  const [testPackages, setTestPackages] = useState<TestPackage[]>(() => {
-    const loaded = loadState<TestPackage[]>(STORAGE_KEYS.TEST_PACKAGES, []);
-    return Array.isArray(loaded) ? loaded.map(normalizeTestPackage) : [];
-  });
-
-  const [testGroups, setTestGroups] = useState<TestGroup[]>(() => {
-    return loadState<TestGroup[]>(STORAGE_KEYS.TEST_GROUPS, []);
-  });
-
-  const [equipments, setEquipments] = useState<TestEquipment[]>(() => {
-    return loadState<TestEquipment[]>(STORAGE_KEYS.EQUIPMENTS, []);
-  });
-
-  const [doctorsList, setDoctorsList] = useState<Doctor[]>(() => {
-    const loaded = loadState<Doctor[]>(STORAGE_KEYS.DOCTORS, []);
-    return Array.isArray(loaded) && loaded.length > 0 ? loaded : DEFAULT_DOCTORS;
-  });
-
-  const [referenceRanges, setReferenceRanges] = useState<ReferenceRangeItem[]>(() => {
-    return loadState<ReferenceRangeItem[]>(STORAGE_KEYS.REFERENCE_RANGES, []);
-  });
-
-  const [catalogItemEquipments, setCatalogItemEquipments] = useState<CatalogItemEquipmentLink[]>(() => {
-    return loadState<CatalogItemEquipmentLink[]>(STORAGE_KEYS.CATALOG_ITEM_EQUIPMENTS, []);
-  });
-
-  const [allergenScales, setAllergenScales] = useState<AllergenGradingScale[]>(() => {
-    const loaded = loadState<AllergenGradingScale[]>(STORAGE_KEYS.ALLERGEN_SCALES, []);
-    return Array.isArray(loaded) ? loaded : [];
-  });
-
-  const [clinicInfo, setClinicInfo] = useState<ClinicInfo>(() => {
-    return getSafeClinicInfo(loadState<ClinicInfo>(STORAGE_KEYS.CLINIC_INFO, DEFAULT_CLINIC_INFO));
-  });
-
-  const [cloudDbConfig, setCloudDbConfig] = useState<CloudDbConfig>(() => {
-    const loaded = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
-    return {
-      ...DEFAULT_CLOUD_DB_CONFIG,
-      ...loaded,
-      enabled: loaded?.enabled ?? true,
-      autoSync: loaded?.autoSync ?? true
-    };
-  });
-
-  const [zaloConfig, setZaloConfig] = useState<ZaloZnsConfig>(() => {
-    return loadState<ZaloZnsConfig>(STORAGE_KEYS.ZALO_CONFIG, DEFAULT_ZALO_CONFIG);
-  });
+  const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+  const [testPackages, setTestPackages] = useState<TestPackage[]>([]);
+  const [testGroups, setTestGroups] = useState<TestGroup[]>([]);
+  const [equipments, setEquipments] = useState<TestEquipment[]>([]);
+  const [doctorsList, setDoctorsList] = useState<Doctor[]>([]);
+  const [referenceRanges, setReferenceRanges] = useState<ReferenceRangeItem[]>([]);
+  const [catalogItemEquipments, setCatalogItemEquipments] = useState<CatalogItemEquipmentLink[]>([]);
+  const [allergenScales, setAllergenScales] = useState<AllergenGradingScale[]>([]);
+  const [clinicInfo, setClinicInfo] = useState<ClinicInfo>(DEFAULT_CLINIC_INFO);
+  const [cloudDbConfig, setCloudDbConfig] = useState<CloudDbConfig>(DEFAULT_CLOUD_DB_CONFIG);
+  const [zaloConfig, setZaloConfig] = useState<ZaloZnsConfig>(DEFAULT_ZALO_CONFIG);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const isManualSavingRef = useRef<boolean>(false);
   const isInitialSyncDoneRef = useRef<boolean>(false);
 
-  // Tự động lưu Local Storage và đồng bộ Cloud khi state thay đổi (CHỈ sau khi đã nạp xong từ Cloud)
+  // Tự động đồng bộ Cloud Database khi state thay đổi (CHỈ sau khi đã nạp xong từ Cloud)
   useEffect(() => {
-    saveState(STORAGE_KEYS.CATALOG, catalog);
     if (!isInitialSyncDoneRef.current || isManualSavingRef.current) return;
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncCatalogToSupabase(catalog, cloudDbConfig).catch((err) => {
@@ -130,7 +85,6 @@ export function useCatalogData() {
   }, [catalog, cloudDbConfig]);
 
   useEffect(() => {
-    saveState(STORAGE_KEYS.TEST_PACKAGES, testPackages);
     if (!isInitialSyncDoneRef.current || isManualSavingRef.current) return;
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncPackagesToSupabase(testPackages, cloudDbConfig).catch((err) => {
@@ -140,7 +94,6 @@ export function useCatalogData() {
   }, [testPackages, cloudDbConfig]);
 
   useEffect(() => {
-    saveState(STORAGE_KEYS.TEST_GROUPS, testGroups);
     if (!isInitialSyncDoneRef.current || isManualSavingRef.current) return;
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncGroupsToSupabase(testGroups, cloudDbConfig).catch((err) => {
@@ -150,7 +103,6 @@ export function useCatalogData() {
   }, [testGroups, cloudDbConfig]);
 
   useEffect(() => {
-    saveState(STORAGE_KEYS.EQUIPMENTS, equipments);
     if (!isInitialSyncDoneRef.current || isManualSavingRef.current) return;
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncEquipmentsToSupabase(equipments, cloudDbConfig).catch((err) => {
@@ -160,7 +112,6 @@ export function useCatalogData() {
   }, [equipments, cloudDbConfig]);
 
   useEffect(() => {
-    saveState(STORAGE_KEYS.DOCTORS, doctorsList);
     if (!isInitialSyncDoneRef.current || isManualSavingRef.current) return;
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncDoctorsToSupabase(doctorsList, cloudDbConfig).catch((err) => {
@@ -170,7 +121,6 @@ export function useCatalogData() {
   }, [doctorsList, cloudDbConfig]);
 
   useEffect(() => {
-    saveState(STORAGE_KEYS.REFERENCE_RANGES, referenceRanges);
     if (!isInitialSyncDoneRef.current || isManualSavingRef.current) return;
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncReferenceRangesToSupabase(referenceRanges, cloudDbConfig).catch((err) => {
@@ -180,7 +130,6 @@ export function useCatalogData() {
   }, [referenceRanges, cloudDbConfig]);
 
   useEffect(() => {
-    saveState(STORAGE_KEYS.CATALOG_ITEM_EQUIPMENTS, catalogItemEquipments);
     if (!isInitialSyncDoneRef.current || isManualSavingRef.current) return;
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncCatalogItemEquipmentsToSupabase(catalogItemEquipments, cloudDbConfig).catch((err) => {
@@ -190,7 +139,6 @@ export function useCatalogData() {
   }, [catalogItemEquipments, cloudDbConfig]);
 
   useEffect(() => {
-    saveState(STORAGE_KEYS.ALLERGEN_SCALES, allergenScales);
     if (!isInitialSyncDoneRef.current || isManualSavingRef.current) return;
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncScalesToSupabase(allergenScales, cloudDbConfig).catch((err) => {
@@ -200,7 +148,6 @@ export function useCatalogData() {
   }, [allergenScales, cloudDbConfig]);
 
   useEffect(() => {
-    saveState(STORAGE_KEYS.CLINIC_INFO, clinicInfo);
     if (!isInitialSyncDoneRef.current || isManualSavingRef.current) return;
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncClinicInfoToSupabase(clinicInfo, cloudDbConfig).catch((err) => {
@@ -210,11 +157,6 @@ export function useCatalogData() {
   }, [clinicInfo, cloudDbConfig]);
 
   useEffect(() => {
-    saveState(STORAGE_KEYS.CLOUD_DB, cloudDbConfig);
-  }, [cloudDbConfig]);
-
-  useEffect(() => {
-    saveState(STORAGE_KEYS.ZALO_CONFIG, zaloConfig);
     if (!isInitialSyncDoneRef.current || isManualSavingRef.current) return;
     if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
       syncZaloConfigToSupabase(zaloConfig, cloudDbConfig).catch((err) => {
@@ -238,35 +180,27 @@ export function useCatalogData() {
     try {
       if (data.catalog) {
         setCatalog(data.catalog);
-        saveState(STORAGE_KEYS.CATALOG, data.catalog);
       }
       if (data.testPackages) {
         setTestPackages(data.testPackages);
-        saveState(STORAGE_KEYS.TEST_PACKAGES, data.testPackages);
       }
       if (data.testGroups) {
         setTestGroups(data.testGroups);
-        saveState(STORAGE_KEYS.TEST_GROUPS, data.testGroups);
       }
       if (data.equipments) {
         setEquipments(data.equipments);
-        saveState(STORAGE_KEYS.EQUIPMENTS, data.equipments);
       }
       if (data.doctorsList) {
         setDoctorsList(data.doctorsList);
-        saveState(STORAGE_KEYS.DOCTORS, data.doctorsList);
       }
       if (data.catalogItemEquipments) {
         setCatalogItemEquipments(data.catalogItemEquipments);
-        saveState(STORAGE_KEYS.CATALOG_ITEM_EQUIPMENTS, data.catalogItemEquipments);
       }
       if (data.allergenScales) {
         setAllergenScales(data.allergenScales);
-        saveState(STORAGE_KEYS.ALLERGEN_SCALES, data.allergenScales);
       }
       if (data.referenceRanges) {
         setReferenceRanges(data.referenceRanges);
-        saveState(STORAGE_KEYS.REFERENCE_RANGES, data.referenceRanges);
       }
 
       if (cloudDbConfig?.enabled) {
@@ -328,48 +262,32 @@ export function useCatalogData() {
       if (cloudCatalog && cloudCatalog.length > 0) {
         const resolved = cloudCatalog.map(autoResolveItemLinks);
         setCatalog(resolved);
-        saveState(STORAGE_KEYS.CATALOG, resolved);
       }
       if (cloudPackages && cloudPackages.length > 0) {
         const normalized = cloudPackages.map(normalizeTestPackage);
         setTestPackages(normalized);
-        saveState(STORAGE_KEYS.TEST_PACKAGES, normalized);
       }
       if (cloudGroups && cloudGroups.length > 0) {
         setTestGroups(cloudGroups);
-        saveState(STORAGE_KEYS.TEST_GROUPS, cloudGroups);
       }
       if (cloudEquip && cloudEquip.length > 0) {
         setEquipments(cloudEquip);
-        saveState(STORAGE_KEYS.EQUIPMENTS, cloudEquip);
       }
       if (cloudDocs && cloudDocs.length > 0) {
         setDoctorsList(cloudDocs);
-        saveState(STORAGE_KEYS.DOCTORS, cloudDocs);
-      } else if (!cloudDocs || cloudDocs.length === 0) {
-        const defaultDocs = DEFAULT_DOCTORS;
-        setDoctorsList(defaultDocs);
-        saveState(STORAGE_KEYS.DOCTORS, defaultDocs);
-        if (cloudDbConfig?.enabled) {
-          syncDoctorsToSupabase(defaultDocs, cloudDbConfig).catch(console.warn);
-        }
       }
       if (cloudClinic && cloudClinic.name && !isCorruptedClinicInfo(cloudClinic)) {
         const safeClinic = getSafeClinicInfo(cloudClinic);
         setClinicInfo(safeClinic);
-        saveState(STORAGE_KEYS.CLINIC_INFO, safeClinic);
       }
       if (cloudRefRanges && cloudRefRanges.length > 0) {
         setReferenceRanges(cloudRefRanges);
-        saveState(STORAGE_KEYS.REFERENCE_RANGES, cloudRefRanges);
       }
       if (cloudItemEquipLinks && cloudItemEquipLinks.length > 0) {
         setCatalogItemEquipments(cloudItemEquipLinks);
-        saveState(STORAGE_KEYS.CATALOG_ITEM_EQUIPMENTS, cloudItemEquipLinks);
       }
       if (cloudScales && cloudScales.length > 0) {
         setAllergenScales(cloudScales);
-        saveState(STORAGE_KEYS.ALLERGEN_SCALES, cloudScales);
       }
     } catch (err) {
       console.warn('[CloudDB] Không thể tải dữ liệu từ Cloud:', err);

@@ -485,6 +485,7 @@ export interface BatchImportRow {
   selectedTests: SelectedTest[];
   conclusion: string;
   doctorName: string;
+  hasExplicitCode?: boolean;
 }
 
 export interface BatchExportProgress {

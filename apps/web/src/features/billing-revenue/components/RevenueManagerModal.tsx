@@ -2,13 +2,14 @@ import { useState, useMemo, useCallback } from 'react';
 import {
   X, CreditCard, Trash2, Search, Calendar, FileSpreadsheet, Printer,
   TrendingUp, Users, DollarSign, Eye, AlertCircle, CheckCircle, Percent,
-  Clock, Undo2, AlertTriangle
+  Clock, Undo2, AlertTriangle, SlidersHorizontal, RotateCcw
 } from 'lucide-react';
 import { 
   Invoice, Doctor, ClinicInfo, MedicalReport, TestPackage, ToastType,
   BILLING_STATUS, PAYMENT_METHOD, DATE_FILTER, DateFilterType, REVENUE_TAB, RevenueTabType,
   getSafeClinicInfo
 } from '@domain';
+import { ReportKindResolver } from '@domain/valueObjects/ReportKind';
 import { computePricingWithPackages } from '@domain/pricing';
 import { exportRevenueExcel } from '@infra/excelService';
 import PrintReceiptView from './PrintReceiptView';
@@ -51,6 +52,24 @@ export default function RevenueManagerModal({
   const [selectedDoctor, setSelectedDoctor] = useState<string>(DATE_FILTER.ALL);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>(DATE_FILTER.ALL);
   const [selectedStatus] = useState<string>(DATE_FILTER.ALL);
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState<boolean>(false);
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (dateFilter !== DATE_FILTER.ALL) count++;
+    if (selectedDoctor !== DATE_FILTER.ALL) count++;
+    if (selectedPaymentMethod !== DATE_FILTER.ALL) count++;
+    return count;
+  }, [dateFilter, selectedDoctor, selectedPaymentMethod]);
+
+  const handleResetFilters = useCallback(() => {
+    setSearchTerm('');
+    setDateFilter(DATE_FILTER.ALL);
+    setCustomStartDate('');
+    setCustomEndDate('');
+    setSelectedDoctor(DATE_FILTER.ALL);
+    setSelectedPaymentMethod(DATE_FILTER.ALL);
+  }, []);
 
   // Hoa hồng bác sĩ (% mặc định = 10%)
   const [doctorCommissionRates, setDoctorCommissionRates] = useState<Record<string, number>>({});
@@ -295,32 +314,32 @@ export default function RevenueManagerModal({
       <div className="bg-slate-900 border border-slate-700/80 sm:rounded-2xl shadow-2xl w-full h-full sm:h-auto sm:max-w-6xl sm:max-h-[92vh] flex flex-col overflow-hidden text-white animate-in fade-in zoom-in-95 duration-200">
         
         {/* HEADER MODAL */}
-        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/95 shrink-0">
-          <div className="flex items-center space-x-3">
-            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
-              <TrendingUp className="w-5 h-5" />
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90 shrink-0">
+          <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
+            <div className="p-2 sm:p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 shrink-0">
+              <TrendingUp className="w-4 h-4 sm:w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
-                Sổ Sách Doanh Thu & Báo Cáo Tài Chính
-                <span className="text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded-full font-mono">
+            <div className="min-w-0">
+              <h3 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <span>Sổ Sách Doanh Thu</span>
+                <span className="text-[10px] sm:text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded-full font-mono">
                   {filteredInvoices.length} Hóa Đơn
                 </span>
               </h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-[11px] sm:text-xs text-slate-400 hidden sm:block">
                 Theo dõi viện phí, đối soát doanh số bác sĩ, in phiếu thu & xuất báo cáo tài chính
               </p>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
             <button
               type="button"
               onClick={handleExportExcel}
-              className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition active:scale-95"
+              className="flex items-center space-x-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition active:scale-95"
             >
               <FileSpreadsheet className="w-4 h-4" />
-              <span>Xuất Sổ Excel</span>
+              <span className="hidden sm:inline">Xuất Sổ Excel</span>
             </button>
 
             <button
@@ -334,71 +353,71 @@ export default function RevenueManagerModal({
         </div>
 
         {/* TABS NAVIGATION */}
-        <div className="flex border-b border-slate-800 bg-slate-950/60 shrink-0 text-xs font-bold uppercase tracking-wider overflow-x-auto no-scrollbar">
+        <div className="flex border-b border-slate-800 bg-slate-950/60 shrink-0 text-xs font-bold uppercase tracking-wider overflow-x-auto no-scrollbar touch-pan-x">
           <button
             onClick={() => setActiveTab('INVOICES')}
-            className={`flex-1 min-w-[160px] py-3 flex items-center justify-center gap-2 transition border-b-2 ${
+            className={`flex-1 min-w-[140px] sm:min-w-[160px] py-2.5 sm:py-3 flex items-center justify-center gap-1.5 sm:gap-2 transition border-b-2 text-[11px] sm:text-xs ${
               activeTab === 'INVOICES'
                 ? 'text-amber-400 border-amber-500 bg-amber-500/5'
                 : 'text-slate-400 border-transparent hover:text-slate-200'
             }`}
           >
-            <CreditCard className="w-4 h-4" />
-            <span>Sổ Hóa Đơn Đã Thu ({filteredInvoices.length})</span>
+            <CreditCard className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span>Sổ Hóa Đơn ({filteredInvoices.length})</span>
           </button>
 
           <button
             onClick={() => setActiveTab('PENDING_PAYMENT')}
-            className={`flex-1 min-w-[160px] py-3 flex items-center justify-center gap-2 transition border-b-2 ${
+            className={`flex-1 min-w-[140px] sm:min-w-[160px] py-2.5 sm:py-3 flex items-center justify-center gap-1.5 sm:gap-2 transition border-b-2 text-[11px] sm:text-xs ${
               activeTab === 'PENDING_PAYMENT'
                 ? 'text-rose-400 border-rose-500 bg-rose-500/5'
                 : 'text-slate-400 border-transparent hover:text-slate-200'
             }`}
           >
-            <Clock className="w-4 h-4" />
-            <span>Chờ Thu & Công Nợ ({pendingReports.length})</span>
+            <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span>Chờ Thu ({pendingReports.length})</span>
           </button>
 
           <button
             onClick={() => setActiveTab('DOCTORS')}
-            className={`flex-1 min-w-[160px] py-3 flex items-center justify-center gap-2 transition border-b-2 ${
+            className={`flex-1 min-w-[140px] sm:min-w-[160px] py-2.5 sm:py-3 flex items-center justify-center gap-1.5 sm:gap-2 transition border-b-2 text-[11px] sm:text-xs ${
               activeTab === 'DOCTORS'
                 ? 'text-sky-400 border-sky-500 bg-sky-500/5'
                 : 'text-slate-400 border-transparent hover:text-slate-200'
             }`}
           >
-            <Users className="w-4 h-4" />
-            <span>Báo Cáo Bác Sĩ ({doctorStats.length})</span>
+            <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span>Bác Sĩ ({doctorStats.length})</span>
           </button>
 
           <button
             onClick={() => setActiveTab('DAILY_REPORT')}
-            className={`flex-1 min-w-[160px] py-3 flex items-center justify-center gap-2 transition border-b-2 ${
+            className={`flex-1 min-w-[140px] sm:min-w-[160px] py-2.5 sm:py-3 flex items-center justify-center gap-1.5 sm:gap-2 transition border-b-2 text-[11px] sm:text-xs ${
               activeTab === 'DAILY_REPORT'
                 ? 'text-emerald-400 border-emerald-500 bg-emerald-500/5'
                 : 'text-slate-400 border-transparent hover:text-slate-200'
             }`}
           >
-            <Printer className="w-4 h-4" />
-            <span>Báo Cáo Tổng Kết Ca</span>
+            <Printer className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span>Báo Cáo Ca</span>
           </button>
         </div>
 
         {/* THẺ DASHBOARD KPIS */}
-        <div className="flex overflow-x-auto no-scrollbar touch-pan-x lg:grid lg:grid-cols-6 gap-2 sm:gap-2.5 p-3 sm:p-4 bg-slate-950/40 border-b border-slate-800/80 text-xs shrink-0">
-          <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 sm:p-3 flex items-center justify-between shrink-0 min-w-[130px] lg:min-w-0">
+        <div className="flex overflow-x-auto no-scrollbar touch-pan-x lg:grid lg:grid-cols-6 gap-2 sm:gap-2.5 p-2.5 sm:p-4 bg-slate-950/40 border-b border-slate-800/80 text-xs shrink-0">
+          <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 sm:p-3 flex items-center justify-between shrink-0 min-w-[125px] lg:min-w-0">
             <div>
-              <p className="text-slate-400 font-medium text-[10.5px] sm:text-[11px]">Tổng thực thu</p>
+              <p className="text-slate-400 font-medium text-[10px] sm:text-[11px]">Tổng thực thu</p>
               <p className="text-xs sm:text-sm lg:text-base font-black text-amber-400 font-mono mt-0.5">
                 {kpis.totalFinal.toLocaleString('vi-VN')} đ
               </p>
             </div>
-            <DollarSign className="w-5 h-5 text-amber-400/80" />
+            <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400/80" />
           </div>
 
           <div
             onClick={() => setActiveTab('PENDING_PAYMENT')}
-            className={`border rounded-xl p-3 flex items-center justify-between cursor-pointer transition ${
+            className={`border rounded-xl p-2.5 sm:p-3 flex items-center justify-between cursor-pointer transition shrink-0 min-w-[125px] lg:min-w-0 ${
               totalPendingAmount > 0
                 ? 'bg-rose-950/20 border-rose-500/40 hover:bg-rose-950/40'
                 : 'bg-slate-800/60 border-slate-700/60'
@@ -406,52 +425,52 @@ export default function RevenueManagerModal({
             title="Click để xem danh sách phiếu chờ thu tiền"
           >
             <div>
-              <p className="text-rose-300 font-medium text-[11px] flex items-center gap-1">
-                <span>Chờ thu (Công nợ)</span>
+              <p className="text-rose-300 font-medium text-[10px] sm:text-[11px] flex items-center gap-1">
+                <span>Chờ thu</span>
                 {pendingReports.length > 0 && (
                   <span className="text-[9px] bg-rose-500 text-white px-1 rounded font-bold">{pendingReports.length}</span>
                 )}
               </p>
-              <p className="text-sm lg:text-base font-black text-rose-400 font-mono mt-0.5">
+              <p className="text-xs sm:text-sm lg:text-base font-black text-rose-400 font-mono mt-0.5">
                 {totalPendingAmount.toLocaleString('vi-VN')} đ
               </p>
             </div>
-            <Clock className="w-5 h-5 text-rose-400/80" />
+            <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-rose-400/80" />
           </div>
 
-          <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 flex items-center justify-between">
+          <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 sm:p-3 flex items-center justify-between shrink-0 min-w-[125px] lg:min-w-0">
             <div>
-              <p className="text-slate-400 font-medium text-[11px]">Tổng giảm giá</p>
-              <p className="text-sm lg:text-base font-black text-rose-300 font-mono mt-0.5">
+              <p className="text-slate-400 font-medium text-[10px] sm:text-[11px]">Tổng giảm giá</p>
+              <p className="text-xs sm:text-sm lg:text-base font-black text-rose-300 font-mono mt-0.5">
                 {kpis.totalDiscount.toLocaleString('vi-VN')} đ
               </p>
             </div>
-            <Percent className="w-5 h-5 text-rose-300/80" />
+            <Percent className="w-4 h-4 sm:w-5 sm:h-5 text-rose-300/80" />
           </div>
 
-          <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 flex items-center justify-between">
+          <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 sm:p-3 flex items-center justify-between shrink-0 min-w-[125px] lg:min-w-0">
             <div>
-              <p className="text-slate-400 font-medium text-[11px]">Số ca đã thu</p>
-              <p className="text-sm lg:text-base font-black text-white font-mono mt-0.5">
+              <p className="text-slate-400 font-medium text-[10px] sm:text-[11px]">Số ca đã thu</p>
+              <p className="text-xs sm:text-sm lg:text-base font-black text-white font-mono mt-0.5">
                 {kpis.count} lượt
               </p>
             </div>
-            <Users className="w-5 h-5 text-sky-400/80" />
+            <Users className="w-4 h-4 sm:w-5 sm:h-5 text-sky-400/80" />
           </div>
 
-          <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 flex items-center justify-between">
+          <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 sm:p-3 flex items-center justify-between shrink-0 min-w-[125px] lg:min-w-0">
             <div>
-              <p className="text-slate-400 font-medium text-[11px]">TB / Lượt (AOV)</p>
-              <p className="text-sm lg:text-base font-black text-emerald-400 font-mono mt-0.5">
+              <p className="text-slate-400 font-medium text-[10px] sm:text-[11px]">TB / Lượt (AOV)</p>
+              <p className="text-xs sm:text-sm lg:text-base font-black text-emerald-400 font-mono mt-0.5">
                 {kpis.aov.toLocaleString('vi-VN')} đ
               </p>
             </div>
-            <TrendingUp className="w-5 h-5 text-emerald-400/80" />
+            <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400/80" />
           </div>
 
-          <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 flex flex-col justify-between col-span-2 lg:col-span-1">
-            <span className="text-[10.5px] font-bold text-slate-400">Cơ cấu thanh toán:</span>
-            <div className="flex flex-col space-y-0.5 font-mono text-[10.5px]">
+          <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 flex flex-col justify-between shrink-0 min-w-[125px] lg:min-w-0">
+            <span className="text-[10px] sm:text-[10.5px] font-bold text-slate-400">Cơ cấu:</span>
+            <div className="flex flex-col space-y-0.5 font-mono text-[10px] sm:text-[10.5px]">
               <span className="text-slate-300">TM: <strong className="text-white">{kpis.cashTotal.toLocaleString('vi-VN')}</strong></span>
               <span className="text-indigo-300">QR: <strong className="text-white">{kpis.vietQrTotal.toLocaleString('vi-VN')}</strong></span>
             </div>
@@ -459,10 +478,52 @@ export default function RevenueManagerModal({
         </div>
 
         {/* BỘ LỌC ĐA NĂNG (DÙNG CHUNG CHO CÁC TAB) */}
-        <div className="p-3.5 bg-slate-900 border-b border-slate-800 space-y-2 shrink-0 text-xs">
-          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
-            {/* Tìm kiếm */}
-            <div className="sm:col-span-4 relative">
+        <div className="p-3 sm:p-3.5 bg-slate-900 border-b border-slate-800 space-y-2 shrink-0 text-xs">
+          {/* Mobile Search Bar + Filter Toggle */}
+          <div className="flex sm:hidden items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                placeholder="Tìm mã HĐ, tên BN, SĐT..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 shrink-0 ${
+                isMobileFilterOpen || activeFilterCount > 0
+                  ? 'bg-amber-600/30 text-amber-200 border-amber-500/50'
+                  : 'bg-slate-800 text-slate-300 border-slate-700'
+              }`}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>Lọc</span>
+              {activeFilterCount > 0 && (
+                <span className="w-4 h-4 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black flex items-center justify-center">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+            {(activeFilterCount > 0 || searchTerm) && (
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="p-1.5 text-rose-400 hover:text-rose-300 hover:bg-slate-800 rounded-xl text-xs font-bold shrink-0 transition"
+                title="Xóa bộ lọc"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Desktop Search + Filter controls (collapsible on mobile) */}
+          <div className={`${isMobileFilterOpen ? 'grid' : 'hidden'} sm:grid grid-cols-1 sm:grid-cols-12 gap-2 pt-1 sm:pt-0`}>
+            {/* Desktop search input */}
+            <div className="hidden sm:block sm:col-span-4 relative">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
               <input
                 type="text"
@@ -814,7 +875,7 @@ export default function RevenueManagerModal({
                     <tbody className="divide-y divide-slate-800 bg-slate-900/40">
                       {pendingReports.map((rep, idx) => {
                         const estFee = getEstimatedFee(rep);
-                        const isAllergen = rep.isAllergen;
+                        const kind = ReportKindResolver.resolve(rep.selectedTests);
 
                         return (
                           <tr key={rep.id} className="hover:bg-slate-800/40 transition">
@@ -843,9 +904,13 @@ export default function RevenueManagerModal({
                             <td className="p-2.5">
                               <span className="font-semibold text-slate-200 block">{rep.doctorName || 'BS. Trần Hoài Long'}</span>
                               <span className={`inline-block text-[10px] font-extrabold px-1.5 py-0.5 rounded mt-0.5 ${
-                                isAllergen ? 'bg-purple-500/20 text-purple-300' : 'bg-sky-500/20 text-sky-300'
+                                kind.type === 'hybrid'
+                                  ? 'bg-purple-500/20 text-purple-300'
+                                  : kind.type === 'allergen'
+                                    ? 'bg-amber-500/20 text-amber-300'
+                                    : 'bg-sky-500/20 text-sky-300'
                               }`}>
-                                {isAllergen ? 'Dị Nguyên' : 'Xét Nghiệm'}
+                                {kind.type === 'hybrid' ? 'Hỗn Hợp' : kind.type === 'allergen' ? 'Dị Nguyên' : 'Xét Nghiệm'}
                               </span>
                             </td>
 
@@ -881,7 +946,7 @@ export default function RevenueManagerModal({
                 <div className="md:hidden space-y-2.5">
                   {pendingReports.map((rep) => {
                     const estFee = getEstimatedFee(rep);
-                    const isAllergen = rep.isAllergen;
+                    const kind = ReportKindResolver.resolve(rep.selectedTests);
 
                     return (
                       <div
@@ -893,9 +958,13 @@ export default function RevenueManagerModal({
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="font-mono text-xs font-bold text-sky-400">{rep.code}</span>
                               <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded ${
-                                isAllergen ? 'bg-purple-500/20 text-purple-300' : 'bg-sky-500/20 text-sky-300'
+                                kind.type === 'hybrid'
+                                  ? 'bg-purple-500/20 text-purple-300'
+                                  : kind.type === 'allergen'
+                                    ? 'bg-amber-500/20 text-amber-300'
+                                    : 'bg-sky-500/20 text-sky-300'
                               }`}>
-                                {isAllergen ? 'Dị Nguyên' : 'Xét Nghiệm'}
+                                {kind.type === 'hybrid' ? 'Hỗn Hợp' : kind.type === 'allergen' ? 'Dị Nguyên' : 'Xét Nghiệm'}
                               </span>
                             </div>
                             <h4 className="text-sm font-bold text-white uppercase mt-0.5">{rep.patient?.name || '---'}</h4>

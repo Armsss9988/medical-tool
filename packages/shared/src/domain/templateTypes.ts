@@ -268,11 +268,23 @@ export interface TemplateBlock<T extends TemplateBlockType = TemplateBlockType> 
   props: TemplateBlockPropsMap[T];
 }
 
+export type TemplateTargetType = 'clinical' | 'allergen' | 'hybrid' | 'general';
+
+export interface TemplateDataRequirement {
+  targetType: TemplateTargetType;
+  requiredBlockTypes?: TemplateBlockType[];
+  minTestsCount?: number;
+  requireAllergens?: boolean;
+  description?: string;
+}
+
 export interface ReportTemplate {
   id: string;
   name: string;
   description?: string;
   category: 'clinical' | 'allergen' | 'hybrid' | 'general' | 'custom';
+  targetType?: TemplateTargetType;
+  dataRequirement?: TemplateDataRequirement;
   isDefault: boolean;
   paperSize: 'A4' | 'A5';
   orientation: 'portrait' | 'landscape';
@@ -284,7 +296,7 @@ export interface ReportTemplate {
   blocks: TemplateBlock[];
 }
 
-// ─── 4 PRESET TEMPLATES ──────────────────────────────────────────────────────
+// ─── PRESET TEMPLATES ────────────────────────────────────────────────────────
 
 export const PRESET_TEMPLATES: ReportTemplate[] = [
   // 1. MẪU XÉT NGHIỆM KẾT HỢP SINH HÓA & DỊ NGUYÊN (TIÊU CHUẨN GOLAB)
@@ -293,6 +305,7 @@ export const PRESET_TEMPLATES: ReportTemplate[] = [
     name: 'Mẫu Kết Hợp Sinh Hóa & Dị Nguyên Chuẩn (Tiêu chuẩn GoLab)',
     description: 'Trang 1: Bảng 12 trường, Bảng chỉ số thường, Bảng tổng hợp dị nguyên dương tính & Chữ ký; Trang 2: Hướng dẫn phòng ngừa dị ứng; Trang 3+: Bảng chi tiết nồng độ IU/ml & Thang đo.',
     category: 'hybrid',
+    targetType: 'hybrid',
     isDefault: true,
     paperSize: 'A4',
     orientation: 'portrait',
@@ -559,6 +572,7 @@ export const PRESET_TEMPLATES: ReportTemplate[] = [
     name: 'Mẫu Báo Cáo Dị Nguyên Chuyên Sâu (IgE Panel Booklet)',
     description: 'Bao gồm Bìa xét nghiệm (Trang 1), Bảng tổng hợp dị nguyên dương tính & Thang đo (Trang 2), Bảng chi tiết nồng độ IU/ml (Trang 3) và Hướng dẫn phòng ngừa dị ứng (Trang 4).',
     category: 'allergen',
+    targetType: 'allergen',
     isDefault: false,
     paperSize: 'A4',
     orientation: 'portrait',
@@ -850,6 +864,7 @@ export const PRESET_TEMPLATES: ReportTemplate[] = [
     name: 'Mẫu Phiếu Sinh Hóa - Huyết Học Gọn (Tiết kiệm diện tích)',
     description: 'Bố cục tinh gọn, mật độ dòng cao, bảng bệnh nhân 2 cột cho các phòng khám vừa và nhỏ.',
     category: 'clinical',
+    targetType: 'clinical',
     isDefault: false,
     paperSize: 'A4',
     orientation: 'portrait',
@@ -964,6 +979,7 @@ export const PRESET_TEMPLATES: ReportTemplate[] = [
     name: 'Mẫu Tối Giản Tiết Kiệm Mực (Đen Trắng)',
     description: 'Không màu nền, nét viền thanh mảnh, phù hợp cho máy in laser đen trắng tiết kiệm mực.',
     category: 'general',
+    targetType: 'clinical',
     isDefault: false,
     paperSize: 'A4',
     orientation: 'portrait',
@@ -1052,6 +1068,237 @@ export const PRESET_TEMPLATES: ReportTemplate[] = [
           showDate: true,
           title: 'PHỤ TRÁCH CHUYÊN MÔN',
           showStamp: false,
+          showDoctorName: true,
+          align: 'right'
+        }
+      }
+    ]
+  },
+
+  // 5. MẪU XÉT NGHIỆM RÚT GỌN KHỔ A5 (IN NHANH / CẤP CỨU)
+  {
+    id: 'tpl_a5_quick',
+    name: 'Mẫu Xét Nghiệm Rút Gọn Khổ A5 (In Nhanh / Cấp Cứu)',
+    description: 'Bố cục nhỏ gọn khổ A5 (148×210mm), lề 8mm, thích hợp cho máy in nhiệt hoặc in nhanh ít chỉ số xét nghiệm.',
+    category: 'clinical',
+    targetType: 'clinical',
+    isDefault: false,
+    paperSize: 'A5',
+    orientation: 'portrait',
+    fontFamily: 'Arial',
+    primaryColor: '#0284c7',
+    paddingMm: 8,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    blocks: [
+      {
+        id: 'block_header_a5',
+        type: 'header',
+        title: 'Header Mini A5',
+        visible: true,
+        order: 1,
+        props: {
+          showLogo: true,
+          showClinicName: true,
+          showAddress: true,
+          showContact: true,
+          showQr: true,
+          clinicNameSize: 'sm',
+          borderBottom: true
+        }
+      },
+      {
+        id: 'block_title_a5',
+        type: 'title',
+        title: 'Tiêu Đề A5',
+        visible: true,
+        order: 2,
+        props: {
+          text: 'PHIẾU KẾT QUẢ XÉT NGHIỆM',
+          fontSize: 'md',
+          textColor: '#0284c7',
+          uppercase: true,
+          align: 'center'
+        }
+      },
+      {
+        id: 'block_patient_a5',
+        type: 'patient_info',
+        title: 'Thông Tin Bệnh Nhân Gọn',
+        visible: true,
+        order: 3,
+        props: {
+          layout: 'compact',
+          highlightName: true,
+          highlightSampleCode: true,
+          showSampleStatus: true,
+          showDoctor: true,
+          showReceivedAt: false,
+          showReturnedAt: true
+        }
+      },
+      {
+        id: 'block_table_a5',
+        type: 'test_table',
+        title: 'Bảng Chỉ Số Rút Gọn',
+        visible: true,
+        order: 4,
+        props: {
+          columns: {
+            stt: true,
+            name: true,
+            result: true,
+            refRange: true,
+            unit: true,
+            equipment: false,
+            price: false,
+            note: false
+          },
+          groupByCategory: true,
+          highlightAbnormal: true,
+          fontSize: 'xs',
+          density: 'compact'
+        }
+      },
+      {
+        id: 'block_conclusion_a5',
+        type: 'conclusion',
+        title: 'Lời Dặn Bác Sĩ',
+        visible: true,
+        order: 5,
+        props: {
+          title: 'KẾT LUẬN & LỜI DẶN:',
+          showBorder: true,
+          bgColor: 'slate',
+          fontSize: 'xs'
+        }
+      },
+      {
+        id: 'block_signature_a5',
+        type: 'signature',
+        title: 'Chữ Ký A5',
+        visible: true,
+        order: 6,
+        props: {
+          showDate: true,
+          title: 'BÁC SĨ XÉT NGHIỆM',
+          showStamp: true,
+          showDoctorName: true,
+          align: 'right'
+        }
+      }
+    ]
+  },
+
+  // 6. MẪU PHÒNG KHÁM TƯ NHÂN & ĐA KHOA QUỐC TẾ (THƯƠNG HIỆU & QR CODE)
+  {
+    id: 'tpl_private_clinic_premium',
+    name: 'Mẫu Phòng Khám Tư Nhân & Quốc Tế (Thương Hiệu & QR)',
+    description: 'Thiết kế cao cấp, font Inter hiện đại, màu xanh Hoàng Gia (#2563eb), tích hợp mã QR tra cứu kết quả bảo mật và bảng thông tin chuẩn 12 trường.',
+    category: 'general',
+    targetType: 'clinical',
+    isDefault: false,
+    paperSize: 'A4',
+    orientation: 'portrait',
+    fontFamily: 'Inter',
+    primaryColor: '#2563eb',
+    paddingMm: 14,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    blocks: [
+      {
+        id: 'block_header_premium',
+        type: 'header',
+        title: 'Header Quốc Tế & QR Code',
+        visible: true,
+        order: 1,
+        props: {
+          showLogo: true,
+          showClinicName: true,
+          showAddress: true,
+          showContact: true,
+          showQr: true,
+          clinicNameSize: 'lg',
+          borderBottom: true
+        }
+      },
+      {
+        id: 'block_title_premium',
+        type: 'title',
+        title: 'Tiêu Đề Phiếu Sang Trọng',
+        visible: true,
+        order: 2,
+        props: {
+          text: 'PHIẾU KẾT QUẢ XÉT NGHIỆM Y KHOA',
+          subtitle: 'Hệ Thống Tiêu Chuẩn Quản Lý Chất Lượng Xét Nghiệm',
+          fontSize: 'xl',
+          textColor: '#2563eb',
+          uppercase: true,
+          align: 'center'
+        }
+      },
+      {
+        id: 'block_patient_premium',
+        type: 'patient_info',
+        title: 'Thông Tin Bệnh Nhân Chuẩn 12 Trường',
+        visible: true,
+        order: 3,
+        props: {
+          layout: 'table_12_fields',
+          highlightName: true,
+          highlightSampleCode: true,
+          showSampleStatus: true,
+          showDoctor: true,
+          showReceivedAt: true,
+          showReturnedAt: true
+        }
+      },
+      {
+        id: 'block_table_premium',
+        type: 'test_table',
+        title: 'Bảng Kết Quả Xét Nghiệm',
+        visible: true,
+        order: 4,
+        props: {
+          columns: {
+            stt: true,
+            name: true,
+            result: true,
+            refRange: true,
+            unit: true,
+            equipment: true,
+            price: false,
+            note: false
+          },
+          groupByCategory: true,
+          highlightAbnormal: true,
+          fontSize: 'sm',
+          density: 'normal'
+        }
+      },
+      {
+        id: 'block_conclusion_premium',
+        type: 'conclusion',
+        title: 'Kết Luận Chuyên Môn',
+        visible: true,
+        order: 5,
+        props: {
+          title: 'KẾT LUẬN & ĐỀ NGHỊ ĐIỀU TRỊ:',
+          showBorder: true,
+          bgColor: 'slate',
+          fontSize: 'sm'
+        }
+      },
+      {
+        id: 'block_signature_premium',
+        type: 'signature',
+        title: 'Chữ Ký Trưởng Khoa',
+        visible: true,
+        order: 6,
+        props: {
+          showDate: true,
+          title: 'TRƯỞNG KHOA XÉT NGHIỆM',
+          showStamp: true,
           showDoctorName: true,
           align: 'right'
         }

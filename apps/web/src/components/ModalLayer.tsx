@@ -1,17 +1,19 @@
 import { SettingsModal, TransactionLoadingModal, UnsavedChangesModal } from '@features/settings-clinic';
-import { PdfPreviewModal } from '@features/report-export';
+import { PdfPreviewModal, type DynamicReportRenderProps } from '@features/report-export';
 import { CatalogManagerModal } from '@features/catalog-management';
 import { InvoiceModal, RevenueManagerModal } from '@features/billing-revenue';
 import { ReportManagerModal } from '@features/report-history';
 import { SendZaloModal } from '@features/zalo-integration';
 import { BatchExportModal, AiSmartFillModal } from '@features/batch-import-export';
 import { TemplateBuilderModal } from '@features/template-builder';
+import DynamicReportView from '@features/template-builder/components/templateBuilder/DynamicReportView';
+import { useTemplateManager } from '@features/template-builder/hooks/useTemplateManager';
 
 import { useWorkspace } from '../contexts/WorkspaceContext';
 import { useModal } from '../contexts/ModalContext';
 import { useToast } from '../contexts/ToastContext';
 
-import type { Dispatch, SetStateAction } from 'react';
+import { useCallback, type Dispatch, type SetStateAction } from 'react';
 import type {
   ClinicInfo,
   CatalogItem,
@@ -67,7 +69,7 @@ interface ModalLayerProps {
   lastError: ExportErrorDetail | null;
   batchProgress: BatchExportProgress;
   isBatchExportRunning: boolean;
-  onExportPdfAndUpload: () => void;
+  onExportPdfAndUpload: (customElementId?: string) => void;
   onDownloadPdf: (elementId: string, filename: string) => void;
   onPrintDirect: () => void;
   onDownloadQrCode: (name: string, code: string) => void;
@@ -193,12 +195,18 @@ export function ModalLayer({
     openAiSmartFillModal,
     closeAiSmartFillModal,
     isTemplateBuilderOpen,
+    openTemplateBuilder,
     closeTemplateBuilder,
     isUnsavedModalOpen,
     pendingAction
   } = useModal();
 
   const { showToast } = useToast();
+  const { templates, activeTemplate } = useTemplateManager();
+
+  const renderDynamicReport = useCallback((props: DynamicReportRenderProps) => (
+    <DynamicReportView {...props} />
+  ), []);
 
   return (
     <>
@@ -256,6 +264,10 @@ export function ModalLayer({
           const target = previewTargetReport?.patient || patient;
           onDownloadQrCode(target?.name || '', target?.code || '');
         }}
+        onOpenTemplateBuilder={openTemplateBuilder}
+        templates={templates}
+        activeTemplate={activeTemplate}
+        renderDynamicReport={renderDynamicReport}
         testPackages={testPackages}
         equipments={equipments}
         catalogItemEquipments={catalogItemEquipments}

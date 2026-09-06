@@ -10,10 +10,12 @@ export * from './reportFactory';
 export * from './services/AllergenReportDomainService';
 export * from './services/AutoConclusionDomainService';
 export * from './services/ReportClassificationDomainService';
+export * from './services/ReportPaginationDomainService';
+export * from './services/TemplateCompatibilityDomainService';
 export * from './services/itemResolver';
 export * from './utils/assertNever';
 
-// Value Objects
+// Value Objects (Product Types & Functional ADTs)
 export * from './valueObjects/Money';
 export * from './valueObjects/PatientCode';
 export * from './valueObjects/SecretToken';
@@ -22,10 +24,17 @@ export * from './valueObjects/ClinicalStatusVO';
 export * from './valueObjects/DocumentStatusVO';
 export * from './valueObjects/BillingStatusVO';
 export * from './valueObjects/SampleStatusVO';
+export * from './valueObjects/PatientProfile';
+export * from './valueObjects/InvoiceCode';
+export * from './valueObjects/ReportKind';
+export * from './valueObjects/ReportDocumentState';
+export * from './valueObjects/InvoicePaymentState';
+export * from './valueObjects/TestResultValue';
+export * from './valueObjects/TestEvaluation';
 
-// State Machines
-export * from './stateMachine/ReportStateMachine';
-export * from './stateMachine/InvoiceStateMachine';
+// Aggregate Roots
+export * from './aggregates/LabReportAggregate';
+export * from './aggregates/InvoiceAggregate';
 
 // Domain Events & Event Bus
 export * from './events/DomainEvent';

@@ -2,18 +2,24 @@ import { describe, it, expect } from 'vitest';
 import { PRESET_TEMPLATES } from '../templateTypes';
 
 describe('ReportTemplate Domain & Presets', () => {
-  it('should include 4 standard preset templates', () => {
-    expect(PRESET_TEMPLATES.length).toBe(4);
+  it('should include 6 standard preset templates', () => {
+    expect(PRESET_TEMPLATES.length).toBe(6);
     const standard = PRESET_TEMPLATES.find((t) => t.id === 'tpl_standard_clinical');
     const allergen = PRESET_TEMPLATES.find((t) => t.id === 'tpl_allergen_specialized');
     const compact = PRESET_TEMPLATES.find((t) => t.id === 'tpl_compact_lab');
     const minimalist = PRESET_TEMPLATES.find((t) => t.id === 'tpl_minimalist');
+    const a5 = PRESET_TEMPLATES.find((t) => t.id === 'tpl_a5_quick');
+    const premium = PRESET_TEMPLATES.find((t) => t.id === 'tpl_private_clinic_premium');
 
     expect(standard).toBeDefined();
     expect(standard?.isDefault).toBe(true);
     expect(allergen).toBeDefined();
     expect(compact).toBeDefined();
     expect(minimalist).toBeDefined();
+    expect(a5).toBeDefined();
+    expect(a5?.paperSize).toBe('A5');
+    expect(premium).toBeDefined();
+    expect(premium?.fontFamily).toBe('Inter');
   });
 
   it('should have properly structured blocks in standard clinical template', () => {

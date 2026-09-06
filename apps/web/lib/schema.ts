@@ -239,3 +239,20 @@ export const databaseSnapshots = pgTable('database_snapshots', {
   createdBy: text('created_by'),
   createdAt: timestamp('created_at').notNull().defaultNow()
 });
+
+/** Bảng Lưu Trữ Mẫu Phiếu Xét Nghiệm (Report Templates) */
+export const reportTemplates = pgTable('report_templates', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description'),
+  category: text('category').notNull().default('custom'),
+  isDefault: boolean('is_default').notNull().default(false),
+  paperSize: text('paper_size').notNull().default('A4'),
+  orientation: text('orientation').notNull().default('portrait'),
+  fontFamily: text('font_family').notNull().default('Times New Roman'),
+  primaryColor: text('primary_color').notNull().default('#0284c7'),
+  paddingMm: integer('padding_mm').notNull().default(15),
+  blocks: jsonb('blocks').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow()
+});

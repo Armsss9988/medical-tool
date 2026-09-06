@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Invoice, InvoiceStatus, STORAGE_KEYS, BILLING_STATUS, CloudDbConfig } from '@domain';
-import { loadData, saveData, loadState } from '@infra/storage';
+import { loadState } from '@infra/storage';
 import { syncInvoicesToSupabase, fetchInvoicesFromSupabase, DEFAULT_CLOUD_DB_CONFIG } from '@infra/cloudDbService';
 import { domainEventBus } from '@domain/events/DomainEventBus';
 import {
@@ -10,49 +10,23 @@ import {
 } from '@domain/events/DomainEvent';
 
 export function useInvoiceManager() {
-  // 1. Tải danh sách hóa đơn từ storage ngay render đầu tiên
-  const [invoices, setInvoices] = useState<Invoice[]>(() => {
-    return loadState<Invoice[]>(STORAGE_KEYS.INVOICES, []);
-  });
+  // 1. Khởi tạo danh sách hóa đơn
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const isLoadedRef = useRef(false);
 
-  // 2. Tải thêm từ storage và Cloud-First từ Supabase
+  // 2. Nạp trực tiếp từ Cloud Database (PostgreSQL)
   useEffect(() => {
     async function initInvoices() {
       try {
-        const saved = await loadData<Invoice[]>(STORAGE_KEYS.INVOICES, []);
-        if (Array.isArray(saved) && saved.length > 0) {
-          setInvoices((prev) => {
-            const map = new Map<string, Invoice>();
-            saved.forEach((i) => { if (i?.id) map.set(i.id, i); });
-            prev.forEach((i) => {
-              if (i?.id && !map.has(i.id)) {
-                map.set(i.id, i);
-              }
-            });
-            return Array.from(map.values());
-          });
-        }
-
-        // Tải từ Cloud DB nếu có kết nối
         const cloudConfig = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
         if (cloudConfig?.enabled !== false && cloudConfig?.supabaseUrl) {
           const cloudInvoices = await fetchInvoicesFromSupabase(cloudConfig).catch(() => null);
-          if (Array.isArray(cloudInvoices) && cloudInvoices.length > 0) {
-            setInvoices((prev) => {
-              const map = new Map<string, Invoice>();
-              cloudInvoices.forEach((i) => { if (i?.id) map.set(i.id, i); });
-              prev.forEach((i) => {
-                if (i?.id && !map.has(i.id)) {
-                  map.set(i.id, i);
-                }
-              });
-              return Array.from(map.values());
-            });
+          if (Array.isArray(cloudInvoices)) {
+            setInvoices(cloudInvoices);
           }
         }
       } catch (err) {
-        console.error('Lỗi khi nạp danh sách hóa đơn từ storage:', err);
+        console.error('Lỗi khi nạp danh sách hóa đơn từ Cloud DB:', err);
       } finally {
         isLoadedRef.current = true;
       }
@@ -60,16 +34,15 @@ export function useInvoiceManager() {
     initInvoices();
   }, []);
 
-  // 3. Tự động lưu khi invoices thay đổi sau khi storage đã ready
+  // 3. Tự động đồng bộ khi invoices thay đổi sau khi ready
   useEffect(() => {
     if (!isLoadedRef.current) return;
-    saveData(STORAGE_KEYS.INVOICES, invoices);
 
-    // Tự động đồng bộ ngầm lên Supabase Cloud DB
+    // Tự động đồng bộ lên Supabase Cloud DB
     const cloudConfig = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
-    if (cloudConfig?.enabled && cloudConfig?.autoSync && cloudConfig?.supabaseUrl) {
+    if (cloudConfig?.enabled !== false && cloudConfig?.supabaseUrl) {
       syncInvoicesToSupabase(invoices, cloudConfig).catch((e) =>
-        console.warn('[AutoSync] Lỗi đồng bộ invoices lên Cloud:', e)
+        console.warn('[CloudDB] Lỗi đồng bộ invoices lên Cloud:', e)
       );
     }
   }, [invoices]);
@@ -98,7 +71,6 @@ export function useInvoiceManager() {
 
   // Helper: Đồng bộ ngay lập tức và trực tiếp lên Cloud DB
   const syncInvoicesDirectly = (nextList: Invoice[]) => {
-    saveData(STORAGE_KEYS.INVOICES, nextList);
     const cloudConfig = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
     if (cloudConfig?.enabled !== false && cloudConfig?.supabaseUrl) {
       syncInvoicesToSupabase(nextList, cloudConfig).catch((err) =>

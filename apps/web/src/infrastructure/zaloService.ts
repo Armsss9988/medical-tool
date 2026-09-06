@@ -1,4 +1,5 @@
 import { ZaloZnsConfig, ZaloSendResult, MedicalReport, ClinicInfo } from '@domain/types';
+import { ReportKindResolver } from '@domain/valueObjects/ReportKind';
 
 export const DEFAULT_ZALO_CONFIG: ZaloZnsConfig = {
   enabled: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_ZALO_ENABLED === 'true') || false,
@@ -64,7 +65,13 @@ export function generateZaloTextMessage(
   }
   msg += `• Thời gian trả KQ: ${timeStr} ngày ${dateStr}\n`;
   msg += `• Bác sĩ chỉ định: ${doctor}\n`;
-  msg += `• Loại phiếu: ${report.isAllergen ? 'Panel Dị Nguyên 91 Chỉ Số' : `${report.testCount || report.selectedTests.length} Chỉ số xét nghiệm`}\n`;
+  const reportKind = ReportKindResolver.resolve(report.selectedTests);
+  const kindDesc = ReportKindResolver.match(reportKind, {
+    allergen: () => 'Panel Dị Nguyên 91 Chỉ Số',
+    hybrid: () => `Kết Hợp Chuẩn A4 + Dị Nguyên (${report.testCount || report.selectedTests.length} Chỉ số)`,
+    clinical: () => `${report.testCount || report.selectedTests.length} Chỉ số xét nghiệm`,
+  });
+  msg += `• Loại phiếu: ${kindDesc}\n`;
 
   if (report.conclusion) {
     msg += `• *Kết luận của Bác sĩ:* ${report.conclusion}\n`;

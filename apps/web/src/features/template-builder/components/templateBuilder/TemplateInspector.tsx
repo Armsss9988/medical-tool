@@ -7,8 +7,12 @@ import {
   ChevronDown,
   Layers,
   Sliders,
-  RotateCcw
+  RotateCcw,
+  CheckCircle2,
+  AlertCircle,
+  AlertTriangle
 } from 'lucide-react';
+import { TemplateCompatibilityDomainService } from '@domain';
 import {
   ReportTemplate,
   TemplateBlock,
@@ -1043,6 +1047,64 @@ function TemplateInspector({
             </div>
 
             <div>
+              <label className="text-[11px] text-slate-400 block mb-1">Loại Dữ Liệu Áp Dụng (Data Requirement):</label>
+              <select
+                value={template.targetType || 'clinical'}
+                onChange={(e) => handleGlobalChange('targetType', e.target.value as ReportTemplate['targetType'])}
+                className="w-full px-2.5 py-1.5 rounded-lg bg-slate-800 border border-sky-600/60 text-sky-300 font-bold text-xs outline-none cursor-pointer"
+              >
+                <option value="clinical">🧪 Xét Nghiệm Thường (Sinh Hóa, Huyết Học...)</option>
+                <option value="allergen">🛡️ Báo Cáo Dị Nguyên (IgE Booklet)</option>
+                <option value="hybrid">📑 Hỗn Hợp (Sinh Hóa + Dị Nguyên)</option>
+                <option value="general">📋 Đa Năng / Dùng Chung</option>
+              </select>
+              <p className="text-[10px] text-slate-400 mt-1">
+                Quyết định component được phép dùng và bộ lọc tự động khi in.
+              </p>
+            </div>
+
+            {/* Template Structure Validation Card */}
+            {(() => {
+              const val = TemplateCompatibilityDomainService.validateTemplateStructure(template);
+              if (!val.isValid) {
+                return (
+                  <div className="p-2.5 rounded-xl bg-red-950/50 border border-red-800/80 text-red-300 text-xs space-y-1">
+                    <div className="flex items-center space-x-1.5 font-bold text-red-400">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>Cấu trúc mẫu chưa đạt chuẩn y khoa:</span>
+                    </div>
+                    <ul className="list-disc list-inside space-y-0.5 text-[11px] pl-1 text-red-300/90">
+                      {val.errors.map((err, idx) => (
+                        <li key={idx}>{err}</li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              }
+              if (val.warnings.length > 0) {
+                return (
+                  <div className="p-2.5 rounded-xl bg-amber-950/40 border border-amber-800/60 text-amber-300 text-xs space-y-1">
+                    <div className="flex items-center space-x-1.5 font-bold text-amber-400">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      <span>Lưu ý thành phần mẫu in:</span>
+                    </div>
+                    <ul className="list-disc list-inside space-y-0.5 text-[11px] pl-1 text-amber-300/90">
+                      {val.warnings.map((warn, idx) => (
+                        <li key={idx}>{warn}</li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              }
+              return (
+                <div className="p-2 rounded-xl bg-emerald-950/40 border border-emerald-800/60 text-emerald-300 text-xs flex items-center space-x-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span className="text-[11px]">Cấu trúc đạt chuẩn yêu cầu dữ liệu y khoa</span>
+                </div>
+              );
+            })()}
+
+            <div>
               <label className="text-[11px] text-slate-400 block mb-1">Phông Chữ (Font Family):</label>
               <select
                 value={template.fontFamily}
@@ -1052,6 +1114,7 @@ function TemplateInspector({
                 <option value="Times New Roman">Times New Roman (Chuẩn Y Tế)</option>
                 <option value="Arial">Arial (Hiện Đại Không Chân)</option>
                 <option value="Roboto">Roboto (Chuẩn Web)</option>
+                <option value="Inter">Inter (Cao Cấp / Quốc Tế)</option>
               </select>
             </div>
 

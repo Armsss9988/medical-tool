@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { MedicalReport, Patient, SelectedTest, ReportStatus, STORAGE_KEYS, CloudDbConfig } from '@domain';
-import { hasAllergenTests } from '@domain/allergenDetector';
-import { ReportStateMachine } from '@domain/stateMachine/ReportStateMachine';
-import { loadData, saveData, loadState } from '@infra/storage';
+import { LabReportAggregate } from '@domain/aggregates/LabReportAggregate';
+import { loadState } from '@infra/storage';
 import { syncReportsToSupabase, fetchReportsFromSupabase, DEFAULT_CLOUD_DB_CONFIG } from '@infra/cloudDbService';
 import { domainEventBus } from '@domain/events/DomainEventBus';
 import {
@@ -16,49 +15,23 @@ import {
 } from '@domain/events/DomainEvent';
 
 export function useReportManager() {
-  // 1. Tải danh sách phiếu đã lưu đồng bộ từ Storage ngay từ render đầu tiên
-  const [reports, setReports] = useState<MedicalReport[]>(() => {
-    return loadState<MedicalReport[]>(STORAGE_KEYS.REPORTS, []);
-  });
+  // 1. Khởi tạo danh sách phiếu xét nghiệm
+  const [reports, setReports] = useState<MedicalReport[]>([]);
   const isLoadedRef = useRef(false);
 
-  // 2. Tải bổ sung từ Storage và Cloud-First từ Supabase
+  // 2. Nạp trực tiếp từ Cloud Database (PostgreSQL)
   useEffect(() => {
     async function initReports() {
       try {
-        const savedReports = await loadData<MedicalReport[]>(STORAGE_KEYS.REPORTS, []);
-        if (Array.isArray(savedReports) && savedReports.length > 0) {
-          setReports((prev) => {
-            const reportMap = new Map<string, MedicalReport>();
-            savedReports.forEach((r) => { if (r?.id) reportMap.set(r.id, r); });
-            prev.forEach((r) => {
-              if (r?.id && !reportMap.has(r.id)) {
-                reportMap.set(r.id, r);
-              }
-            });
-            return Array.from(reportMap.values());
-          });
-        }
-
-        // Tải từ Cloud DB nếu có kết nối
         const cloudConfig = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
         if (cloudConfig?.enabled !== false && cloudConfig?.supabaseUrl) {
           const cloudReports = await fetchReportsFromSupabase(cloudConfig).catch(() => null);
-          if (Array.isArray(cloudReports) && cloudReports.length > 0) {
-            setReports((prev) => {
-              const reportMap = new Map<string, MedicalReport>();
-              cloudReports.forEach((r) => { if (r?.id) reportMap.set(r.id, r); });
-              prev.forEach((r) => {
-                if (r?.id && !reportMap.has(r.id)) {
-                  reportMap.set(r.id, r);
-                }
-              });
-              return Array.from(reportMap.values());
-            });
+          if (Array.isArray(cloudReports)) {
+            setReports(cloudReports);
           }
         }
       } catch (err) {
-        console.error('Lỗi khi tải danh sách phiếu xét nghiệm:', err);
+        console.error('Lỗi khi tải danh sách phiếu xét nghiệm từ Cloud DB:', err);
       } finally {
         isLoadedRef.current = true;
       }
@@ -66,16 +39,15 @@ export function useReportManager() {
     initReports();
   }, []);
 
-  // 3. Tự động lưu khi danh sách reports thay đổi sau khi đã ready
+  // 3. Tự động đồng bộ khi danh sách reports thay đổi sau khi đã ready
   useEffect(() => {
     if (!isLoadedRef.current) return;
-    saveData(STORAGE_KEYS.REPORTS, reports);
 
-    // Tự động đồng bộ ngầm lên Supabase Cloud DB
+    // Tự động đồng bộ lên Supabase Cloud DB
     const cloudConfig = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
-    if (cloudConfig?.enabled && cloudConfig?.autoSync && cloudConfig?.supabaseUrl) {
+    if (cloudConfig?.enabled !== false && cloudConfig?.supabaseUrl) {
       syncReportsToSupabase(reports, cloudConfig).catch((e) =>
-        console.warn('[AutoSync] Lỗi đồng bộ reports lên Cloud:', e)
+        console.warn('[CloudDB] Lỗi đồng bộ reports lên Cloud:', e)
       );
     }
   }, [reports]);
@@ -96,11 +68,9 @@ export function useReportManager() {
           if (targetIndex < 0) return prev;
 
           const target = prev[targetIndex];
-          const updated = ReportStateMachine.onPaymentCollected(
-            target,
-            payload.invoice.id,
-            payload.paidAt
-          );
+          const agg = LabReportAggregate.fromSnapshot(target);
+          agg.markPaymentCollected(payload.invoice.id, payload.paidAt);
+          const updated = agg.toSnapshot();
 
           const next = [...prev];
           next[targetIndex] = updated;
@@ -122,7 +92,9 @@ export function useReportManager() {
           if (targetIndex < 0) return prev;
 
           const target = prev[targetIndex];
-          const updated = ReportStateMachine.onPaymentVoided(target);
+          const agg = LabReportAggregate.fromSnapshot(target);
+          agg.markPaymentVoided();
+          const updated = agg.toSnapshot();
 
           const next = [...prev];
           next[targetIndex] = updated;
@@ -144,7 +116,9 @@ export function useReportManager() {
           if (targetIndex < 0) return prev;
 
           const target = prev[targetIndex];
-          const updated = ReportStateMachine.onPaymentVoided(target);
+          const agg = LabReportAggregate.fromSnapshot(target);
+          agg.markPaymentVoided();
+          const updated = agg.toSnapshot();
 
           const next = [...prev];
           next[targetIndex] = updated;
@@ -161,11 +135,9 @@ export function useReportManager() {
           const idx = prev.findIndex((r) => r.id === payload.reportId);
           if (idx < 0) return prev;
 
-          const updated = ReportStateMachine.onExportCloud(
-            prev[idx],
-            payload.cloudPdfUrl,
-            payload.qrCodeDataUrl
-          );
+          const agg = LabReportAggregate.fromSnapshot(prev[idx]);
+          agg.recordCloudExport(payload.cloudPdfUrl, payload.qrCodeDataUrl);
+          const updated = agg.toSnapshot();
           const next = [...prev];
           next[idx] = updated;
           return next;
@@ -181,7 +153,9 @@ export function useReportManager() {
           const idx = prev.findIndex((r) => r.id === payload.reportId);
           if (idx < 0) return prev;
 
-          const updated = ReportStateMachine.onSendZalo(prev[idx], payload.msgId);
+          const agg = LabReportAggregate.fromSnapshot(prev[idx]);
+          agg.recordZaloSent(payload.msgId);
+          const updated = agg.toSnapshot();
           const next = [...prev];
           next[idx] = updated;
           return next;
@@ -200,7 +174,6 @@ export function useReportManager() {
 
   // Helper: Đồng bộ ngay lập tức và trực tiếp lên Cloud DB
   const syncReportsDirectly = (nextList: MedicalReport[]) => {
-    saveData(STORAGE_KEYS.REPORTS, nextList);
     const cloudConfig = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
     if (cloudConfig?.enabled !== false && cloudConfig?.supabaseUrl) {
       syncReportsToSupabase(nextList, cloudConfig).catch((err) =>
@@ -212,6 +185,78 @@ export function useReportManager() {
   // 5. Thêm mới hoặc cập nhật phiếu thông qua Domain State Machine & Phát Event
   const reportsRef = useRef(reports);
   reportsRef.current = reports;
+
+  // Chuẩn hóa tên và ngày sinh phục vụ nhận diện định danh bệnh nhân
+  const normalizeIdentityName = (str: string): string => {
+    return str
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '');
+  };
+
+  const normalizeIdentityDob = (raw: string | undefined): string => {
+    if (!raw) return '';
+    return raw.trim().replace(/[^\d]/g, '');
+  };
+
+  interface MatchCriteria {
+    id?: string;
+    code?: string;
+    patient?: Patient;
+    hasExplicitCode?: boolean;
+  }
+
+  const findMatchingReportIndex = (
+    list: MedicalReport[],
+    criteria: MatchCriteria
+  ): number => {
+    // 1. Đối soát theo ID nếu có
+    if (criteria.id) {
+      const idx = list.findIndex((r) => r.id === criteria.id);
+      if (idx >= 0) return idx;
+    }
+
+    // 2. Đối soát theo Mã BN cụ thể (người dùng tự nhập hoặc file có cột mã BN)
+    const code = criteria.code || criteria.patient?.code;
+    if (criteria.hasExplicitCode && code) {
+      const cleanTargetCode = code.trim().toLowerCase();
+      const idx = list.findIndex(
+        (r) =>
+          (r.code && r.code.trim().toLowerCase() === cleanTargetCode) ||
+          (r.patient?.code && r.patient.code.trim().toLowerCase() === cleanTargetCode)
+      );
+      if (idx >= 0) return idx;
+    }
+
+    // 3. Đối soát theo Bộ Ba Định Danh: Tên chuẩn hóa + Ngày/Năm sinh + Giới tính
+    if (criteria.patient?.name && criteria.patient?.dob) {
+      const targetName = normalizeIdentityName(criteria.patient.name);
+      const targetDob = normalizeIdentityDob(criteria.patient.dob);
+      const targetGender = criteria.patient.gender;
+
+      if (targetName && targetDob) {
+        const idx = list.findIndex((r) => {
+          if (!r.patient?.name || !r.patient?.dob) return false;
+          const nameMatch = normalizeIdentityName(r.patient.name) === targetName;
+          if (!nameMatch) return false;
+
+          const dobMatch = normalizeIdentityDob(r.patient.dob) === targetDob;
+          if (!dobMatch) return false;
+
+          if (targetGender && r.patient.gender && targetGender !== r.patient.gender) {
+            return false;
+          }
+
+          return true;
+        });
+
+        if (idx >= 0) return idx;
+      }
+    }
+
+    return -1;
+  };
 
   const saveOrUpdateReport = (params: {
     id?: string;
@@ -228,15 +273,17 @@ export function useReportManager() {
     pdfGeneratedAt?: string;
     pdfVersion?: number;
     isPdfOutdated?: boolean;
+    hasExplicitCode?: boolean;
   }): MedicalReport => {
     const prev = reportsRef.current;
 
-    // Tìm phiếu hiện có (theo ID hoặc mã bệnh nhân)
-    const idx = params.id
-      ? prev.findIndex((r) => r.id === params.id)
-      : prev.findIndex(
-          (r) => params.patient.code && (r.code === params.patient.code || r.patient?.code === params.patient.code)
-        );
+    // Tìm phiếu hiện có qua Identity Resolution
+    const idx = findMatchingReportIndex(prev, {
+      id: params.id,
+      code: params.patient?.code,
+      patient: params.patient,
+      hasExplicitCode: params.hasExplicitCode ?? Boolean(params.patient?.code && !params.patient.code.startsWith('BN-'))
+    });
 
     const existingItem = idx >= 0 ? prev[idx] : null;
     const isNewReport = !existingItem;
@@ -244,8 +291,8 @@ export function useReportManager() {
     let updatedReport: MedicalReport;
 
     if (!existingItem) {
-      // Tạo mới thông qua State Machine
-      updatedReport = ReportStateMachine.createInitialReport({
+      // Tạo mới thông qua Aggregate Root
+      const agg = LabReportAggregate.create({
         id: params.id,
         code: params.patient.code || `BN-${Date.now()}`,
         sampleCode: params.patient.sampleCode || params.patient.code || `BN-${Date.now()}`,
@@ -253,17 +300,21 @@ export function useReportManager() {
         doctorName: params.doctorName,
         selectedTests: params.selectedTests,
         conclusion: params.conclusion,
-        isAllergen: hasAllergenTests(params.selectedTests),
         invoiceId: params.invoiceId
       });
 
       if (params.cloudPdfUrl) {
-        updatedReport = ReportStateMachine.onExportCloud(updatedReport, params.cloudPdfUrl, params.qrCodeDataUrl);
+        agg.recordCloudExport(params.cloudPdfUrl, params.qrCodeDataUrl);
       }
+      updatedReport = agg.toSnapshot();
     } else {
-      // Cập nhật thông qua State Machine
-      updatedReport = ReportStateMachine.onUpdateReport(existingItem, {
-        patient: params.patient,
+      // Cập nhật thông qua Aggregate Root, bảo toàn Mã BN gốc nếu phiếu cũ đã có
+      const agg = LabReportAggregate.fromSnapshot(existingItem);
+      agg.updateReport({
+        patient: {
+          ...params.patient,
+          code: existingItem.patient?.code || existingItem.code || params.patient.code
+        },
         selectedTests: params.selectedTests,
         conclusion: params.conclusion,
         doctorName: params.doctorName,
@@ -272,13 +323,13 @@ export function useReportManager() {
         invoiceId: params.invoiceId ?? existingItem.invoiceId,
         zaloSentAt: params.zaloSentAt ?? existingItem.zaloSentAt,
         zaloMsgId: params.zaloMsgId ?? existingItem.zaloMsgId,
-        isPdfOutdated: params.isPdfOutdated,
         status: params.status
       });
 
       if (params.cloudPdfUrl && params.cloudPdfUrl !== existingItem.cloudPdfUrl) {
-        updatedReport = ReportStateMachine.onExportCloud(updatedReport, params.cloudPdfUrl, params.qrCodeDataUrl);
+        agg.recordCloudExport(params.cloudPdfUrl, params.qrCodeDataUrl);
       }
+      updatedReport = agg.toSnapshot();
     }
 
     let nextReports: MedicalReport[];
@@ -289,6 +340,7 @@ export function useReportManager() {
       nextReports = [updatedReport, ...prev];
     }
 
+    reportsRef.current = nextReports; // Cập nhật ngay ref đồng bộ
     setReports(nextReports);
     syncReportsDirectly(nextReports);
 
@@ -301,17 +353,85 @@ export function useReportManager() {
     return updatedReport;
   };
 
-  // 6. Cập nhật hàng loạt phiếu (Dùng sau khi chạy batch re-export)
+  // 6. Lưu / Cập nhật hàng loạt phiếu an toàn (Dùng cho Batch Import Excel)
+  const bulkSaveOrUpdateReports = (
+    rows: Array<{
+      patient: Patient;
+      selectedTests: SelectedTest[];
+      conclusion: string;
+      doctorName: string;
+      hasExplicitCode?: boolean;
+    }>
+  ): MedicalReport[] => {
+    if (rows.length === 0) return [];
+
+    let currentList = [...reportsRef.current];
+    const savedList: MedicalReport[] = [];
+
+    for (const row of rows) {
+      const idx = findMatchingReportIndex(currentList, {
+        code: row.patient.code,
+        patient: row.patient,
+        hasExplicitCode: row.hasExplicitCode ?? Boolean(row.patient.code && !row.patient.code.startsWith('BN-'))
+      });
+
+      const existingItem = idx >= 0 ? currentList[idx] : null;
+      let updatedReport: MedicalReport;
+
+      if (!existingItem) {
+        const agg = LabReportAggregate.create({
+          code: row.patient.code || `BN-${Date.now()}`,
+          sampleCode: row.patient.sampleCode || row.patient.code || `BN-${Date.now()}`,
+          patient: row.patient,
+          doctorName: row.doctorName,
+          selectedTests: row.selectedTests,
+          conclusion: row.conclusion
+        });
+        updatedReport = agg.toSnapshot();
+        currentList = [updatedReport, ...currentList];
+      } else {
+        const agg = LabReportAggregate.fromSnapshot(existingItem);
+        agg.updateReport({
+          patient: {
+            ...row.patient,
+            code: existingItem.patient?.code || existingItem.code || row.patient.code
+          },
+          selectedTests: row.selectedTests,
+          conclusion: row.conclusion,
+          doctorName: row.doctorName
+        });
+        updatedReport = agg.toSnapshot();
+        currentList[idx] = updatedReport;
+      }
+
+      savedList.push(updatedReport);
+
+      domainEventBus.emit(REPORT_EVENT_TYPES.SAVED, {
+        report: updatedReport,
+        isNew: !existingItem
+      });
+    }
+
+    // Cập nhật State và đồng bộ Cloud đúng 1 lần duy nhất sau khi xử lý xong batch
+    reportsRef.current = currentList;
+    setReports(currentList);
+    syncReportsDirectly(currentList);
+
+    return savedList;
+  };
+
+  // 7. Cập nhật hàng loạt phiếu (Dùng sau khi chạy batch re-export)
   const bulkUpdateReports = (updatedList: MedicalReport[]) => {
     setReports((prev) => {
       const updatedMap = new Map(updatedList.map((r) => [r.id, r]));
       const next = prev.map((r) => updatedMap.get(r.id) || r);
+      reportsRef.current = next;
       syncReportsDirectly(next);
       return next;
     });
   };
 
-  // 7. Xóa 1 phiếu & Phát Event
+  // 8. Xóa 1 phiếu & Phát Event
   const deleteReport = (id: string) => {
     let deletedReportCode: string | undefined;
 
@@ -319,6 +439,7 @@ export function useReportManager() {
       const target = prev.find((r) => r.id === id);
       if (target) deletedReportCode = target.code;
       const next = prev.filter((r) => r.id !== id);
+      reportsRef.current = next;
       syncReportsDirectly(next);
       return next;
     });
@@ -330,18 +451,23 @@ export function useReportManager() {
     });
   };
 
-  // 8. Xóa toàn bộ phiếu
+  // 9. Xóa toàn bộ phiếu
   const clearAllReports = () => {
+    reportsRef.current = [];
     setReports([]);
     syncReportsDirectly([]);
   };
 
-  // 9. Cập nhật trạng thái phiếu
+  // 10. Cập nhật trạng thái phiếu thông qua State Machine & Aggregate
   const updateReportStatus = (id: string, newStatus: ReportStatus) => {
     setReports((prev) => {
-      const next = prev.map((r) =>
-        r.id === id ? { ...r, status: newStatus, updatedAt: new Date().toISOString() } : r
-      );
+      const next = prev.map((r) => {
+        if (r.id !== id) return r;
+        const agg = LabReportAggregate.fromSnapshot(r);
+        agg.updateLegacyStatus(newStatus);
+        return agg.toSnapshot();
+      });
+      reportsRef.current = next;
       syncReportsDirectly(next);
       return next;
     });
@@ -351,6 +477,7 @@ export function useReportManager() {
     reports,
     setReports,
     saveOrUpdateReport,
+    bulkSaveOrUpdateReports,
     bulkUpdateReports,
     deleteReport,
     clearAllReports,

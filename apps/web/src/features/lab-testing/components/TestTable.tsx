@@ -172,8 +172,19 @@ export default function TestTable({
     );
   };
 
+  // Lọc bỏ bất kỳ gói dummy hoặc rỗng nào (như 'all' hoặc '--- Chọn Gói ---')
+  const validPackages = useMemo(() => {
+    return (testPackages || []).filter(
+      (pkg) =>
+        pkg &&
+        pkg.id !== 'all' &&
+        !pkg.name.includes('--- Chọn') &&
+        (getPkgCodes(pkg).length > 0 || (pkg.items && pkg.items.length > 0))
+    );
+  }, [testPackages]);
+
   const handleSelectPackage = (pkgId: string) => {
-    const pkg = testPackages.find((p) => p.id === pkgId);
+    const pkg = validPackages.find((p) => p.id === pkgId) || testPackages.find((p) => p.id === pkgId);
     if (!pkg) return;
 
     const rawCodes = getPkgCodes(pkg);
@@ -187,38 +198,44 @@ export default function TestTable({
       return;
     }
 
-    setSelectedTests((prev) => {
-      const existingCodes = new Set(prev.map((t) => String(t.code || '').trim().toLowerCase()));
-      const newOnes = itemsToAdd
-        .filter((item) => item && item.code && !existingCodes.has(String(item.code).trim().toLowerCase()))
-        .map((item) => {
-          const pkgItem = (pkg.items || []).find((pi) => pi && String(pi.code || '').trim().toLowerCase() === String(item.code).trim().toLowerCase());
-          let targetEquipmentId: string | undefined = pkgItem?.equipmentId || undefined;
-          if (!targetEquipmentId && pkg.defaultEquipmentId) {
-            const hasLink = catalogItemEquipments.some((l) => l.catalogCode.toUpperCase() === item.code.toUpperCase() && l.equipmentId === pkg.defaultEquipmentId);
-            if (hasLink) targetEquipmentId = pkg.defaultEquipmentId;
-          }
+    const existingCodes = new Set(selectedTests.map((t) => String(t.code || '').trim().toLowerCase()));
+    const newOnes = itemsToAdd
+      .filter((item) => item && item.code && !existingCodes.has(String(item.code).trim().toLowerCase()))
+      .map((item) => {
+        const pkgItem = (pkg.items || []).find((pi) => pi && String(pi.code || '').trim().toLowerCase() === String(item.code).trim().toLowerCase());
+        let targetEquipmentId: string | undefined = pkgItem?.equipmentId || undefined;
+        if (!targetEquipmentId && pkg.defaultEquipmentId) {
+          const hasLink = catalogItemEquipments.some((l) => l.catalogCode.toUpperCase() === item.code.toUpperCase() && l.equipmentId === pkg.defaultEquipmentId);
+          if (hasLink) targetEquipmentId = pkg.defaultEquipmentId;
+        }
 
-          return buildSelectedTest(item, {
-            equipmentId: targetEquipmentId,
-            catalogItemEquipments,
-            referenceRanges,
-            allergenScales,
-            equipments
-          });
+        return buildSelectedTest(item, {
+          equipmentId: targetEquipmentId,
+          catalogItemEquipments,
+          referenceRanges,
+          allergenScales,
+          equipments
         });
-      return [...prev, ...newOnes];
-    });
+      });
+
+    if (newOnes.length === 0) {
+      if (showToast) {
+        showToast(`Tất cả ${itemsToAdd.length} chỉ số trong gói [${pkg.name}] đã có trong bảng xét nghiệm!`, 'info');
+      }
+      return;
+    }
+
+    setSelectedTests((prev) => [...prev, ...newOnes]);
 
     // Track in recent tests
     if (onAddMultipleToRecent) {
       onAddMultipleToRecent(
-        itemsToAdd.map((item) => ({ code: item.code, name: item?.name || item?.code || '', category: item?.category || '' }))
+        newOnes.map((t) => ({ code: t.code, name: t.name || t.code, category: t.category || '' }))
       );
     }
 
     if (showToast) {
-      showToast(`Đã thêm ${itemsToAdd.length} chỉ số từ [${pkg.name}]`, 'success');
+      showToast(`Đã thêm ${newOnes.length} chỉ số từ gói [${pkg.name}]!`, 'success');
     }
   };
 
@@ -504,22 +521,49 @@ export default function TestTable({
         </div>
       )}
 
-      {/* Package Quick Chips (Swipeable Horizontal Scroll on Mobile) */}
-      {testPackages.length > 0 && (
-        <div className="flex items-center gap-1.5 p-2 bg-slate-50 border border-slate-200/80 rounded-xl overflow-x-auto no-scrollbar">
-          <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1 px-1 shrink-0">
-            <Layers className="w-3.5 h-3.5 text-slate-400" /> Gói nhanh:
-          </span>
-          {testPackages.map((pkg) => (
-            <button
-              key={pkg.id}
-              type="button"
-              onClick={() => handleSelectPackage(pkg.id)}
-              className="text-[11px] font-bold bg-white hover:bg-emerald-600 text-slate-700 hover:text-white px-2.5 py-1 rounded-lg border border-slate-200 hover:border-emerald-600 transition-all shadow-2xs active:scale-95 shrink-0"
+      {/* Package Quick Selector & Chips (Swipeable Horizontal Scroll on Mobile) */}
+      {validPackages.length > 0 && (
+        <div className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200/80 rounded-xl overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1 px-1">
+              <Layers className="w-3.5 h-3.5 text-sky-600" /> Gói nhanh:
+            </span>
+            <select
+              value=""
+              onChange={(e) => {
+                if (e.target.value) {
+                  handleSelectPackage(e.target.value);
+                  e.target.value = '';
+                }
+              }}
+              className="text-[11.5px] font-bold bg-white text-slate-800 border border-slate-300 hover:border-emerald-500 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs cursor-pointer"
+              title="Chọn một gói xét nghiệm để tự động thêm toàn bộ chỉ số"
             >
-              + {pkg.name} ({getPkgCodes(pkg).length})
-            </button>
-          ))}
+              <option value="">+ Chọn Gói Xét Nghiệm ({validPackages.length} gói)...</option>
+              {validPackages.map((pkg) => (
+                <option key={pkg.id} value={pkg.id}>
+                  {pkg.name} ({getPkgCodes(pkg).length} chỉ số)
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="h-4 w-px bg-slate-300 shrink-0 hidden sm:block" />
+
+          {/* Quick Package Chips */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {validPackages.map((pkg) => (
+              <button
+                key={pkg.id}
+                type="button"
+                onClick={() => handleSelectPackage(pkg.id)}
+                className="text-[11px] font-bold bg-white hover:bg-emerald-600 text-slate-700 hover:text-white px-2.5 py-1 rounded-lg border border-slate-200 hover:border-emerald-600 transition-all shadow-2xs active:scale-95 shrink-0 whitespace-nowrap cursor-pointer"
+                title={`Thêm ${getPkgCodes(pkg).length} chỉ số từ gói [${pkg.name}]`}
+              >
+                + {pkg.name} ({getPkgCodes(pkg).length})
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

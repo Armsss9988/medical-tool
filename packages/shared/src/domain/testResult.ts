@@ -1,5 +1,6 @@
 import { TestResultEvaluation, AllergenGradingScale, ReferenceRangeItem } from './types';
 import { calculateAllergenGrade } from './allergen';
+import { TestResultValueParser } from './valueObjects/TestResultValue';
 
 export function evaluateResult(
   val: string | number | null | undefined,
@@ -7,30 +8,52 @@ export function evaluateResult(
   max: number | null | undefined
 ): TestResultEvaluation {
   if (val === null || val === undefined || val === '') return { status: 'normal', label: '' };
-  
-  const cleanStr = String(val).trim().replace(',', '.');
 
-  // Xử lý các giá trị định tính hoặc dạng so sánh < 15, < 0.35, Âm tính
-  if (cleanStr.startsWith('<')) {
-    return { status: 'normal', label: 'Bình thường' };
-  }
-  if (cleanStr.toLowerCase().includes('âm') || cleanStr.toLowerCase().includes('bình thường') || cleanStr.toLowerCase().includes('không')) {
-    return { status: 'normal', label: 'Bình thường' };
-  }
-  if (cleanStr.toLowerCase().includes('dương')) {
-    return { status: 'high', label: 'Dương tính' };
-  }
+  const parsed = TestResultValueParser.parse(val);
 
-  const num = parseFloat(cleanStr);
-  if (isNaN(num)) return { status: 'normal', label: '' };
+  return TestResultValueParser.match(parsed, {
+    empty: () => ({ status: 'normal', label: '' }),
+    qualitative: (q) => {
+      if (q.normalized === 'Âm tính') return { status: 'normal', label: 'Bình thường' };
+      if (q.normalized === 'Vết') return { status: 'normal', label: 'Vết' };
+      if (q.normalized === 'Dương tính') return { status: 'high', label: 'Dương tính' };
+      return { status: 'high', label: 'Nghi ngờ' };
+    },
+    quantitative: (q) => {
+      // Nếu có tiền tố so sánh: VD: "< 15.0", "< 0.35"
+      if (q.comparator === '<' || q.comparator === '<=') {
+        return { status: 'normal', label: 'Bình thường' };
+      }
+      if (q.comparator === '>' || q.comparator === '>=') {
+        if (max !== null && max !== undefined && !isNaN(max) && q.numericValue >= max) {
+          return { status: 'high', label: 'CAO ↑' };
+        }
+      }
 
-  if (min !== null && min !== undefined && !isNaN(min) && num < min) {
-    return { status: 'low', label: 'THẤP ↓' };
-  }
-  if (max !== null && max !== undefined && !isNaN(max) && num > max) {
-    return { status: 'high', label: 'CAO ↑' };
-  }
-  return { status: 'normal', label: 'Bình thường' };
+      const num = q.numericValue;
+      if (min !== null && min !== undefined && !isNaN(min) && num < min) {
+        return { status: 'low', label: 'THẤP ↓' };
+      }
+      if (max !== null && max !== undefined && !isNaN(max) && num > max) {
+        return { status: 'high', label: 'CAO ↑' };
+      }
+      return { status: 'normal', label: 'Bình thường' };
+    },
+    allergen: (a) => {
+      if (a.grade >= 1) return { status: 'high', label: a.classLabel };
+      return { status: 'normal', label: 'Bình thường' };
+    },
+    textual: (t) => {
+      const lower = t.text.toLowerCase();
+      if (lower.includes('âm') || lower.includes('bình thường') || lower.includes('không')) {
+        return { status: 'normal', label: 'Bình thường' };
+      }
+      if (lower.includes('dương')) {
+        return { status: 'high', label: 'Dương tính' };
+      }
+      return { status: 'normal', label: '' };
+    }
+  });
 }
 
 export interface IndicatorEvaluationResult {
@@ -88,4 +111,3 @@ export function evaluateTestIndicator(
     isAbnormal: evalRes.status !== 'normal'
   };
 }
-

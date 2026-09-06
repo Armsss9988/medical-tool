@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Plus, Trash2, Copy, Layers, FlaskConical, Dna, Search, ListChecks, PlusCircle, Download, Upload, X, Cpu, CheckSquare, Square } from 'lucide-react';
 import { CatalogItem, CatalogItemEquipmentLink, TestEquipment, TestPackage, PackageItem, getPkgCodes, getPkgItems, normalizeTestPackage } from '@domain/types';
+import { isAllergenTest } from '@domain/allergenDetector';
 import { exportTestPackagesTemplate, parseExcelTestPackages } from '@infra/excelService';
 
 function parseAllergenOrder(code: string): number {
@@ -46,8 +47,7 @@ export default function TestPackagesTab({
               const key = newPkg.name.toLowerCase();
               const existing = map.get(key);
               if (existing) {
-                const existingItemMap = new Map((existing.items || []).map((i) => [i.code.toUpperCase(), i]));
-                (newPkg.items || []).forEach((i) => existingItemMap.set(i.code.toUpperCase(), i));
+                const finalItems = (newPkg.items && newPkg.items.length > 0) ? newPkg.items : existing.items;
                 map.set(key, {
                   ...existing,
                   ...newPkg,
@@ -55,7 +55,7 @@ export default function TestPackagesTab({
                   name: newPkg.name || existing.name,
                   defaultEquipmentId: newPkg.defaultEquipmentId ?? existing.defaultEquipmentId,
                   price: newPkg.price > 0 ? newPkg.price : existing.price,
-                  items: Array.from(existingItemMap.values())
+                  items: finalItems
                 });
                 updatedCount++;
               } else {
@@ -74,8 +74,14 @@ export default function TestPackagesTab({
     }
   };
 
-  const isAllergenPkg = (pkg: TestPackage) =>
-    pkg.id.includes('di_nguyen') || pkg.name.toLowerCase().includes('dị nguyên');
+  const isAllergenPkg = (pkg: TestPackage) => {
+    if (pkg.id.includes('di_nguyen') || pkg.name.toLowerCase().includes('dị nguyên')) return true;
+    const codes = getPkgCodes(pkg);
+    return codes.some((c) => {
+      const matched = items.find((i) => i.code.toLowerCase() === c.toLowerCase());
+      return matched ? isAllergenTest(matched) : false;
+    });
+  };
 
   const validPackages = useMemo(() => {
     return packages

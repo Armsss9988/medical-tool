@@ -7,6 +7,7 @@ import {
 } from '@domain/types';
 import { evaluateTestIndicator } from '@domain/testResult';
 import { generatePatientCode, generateSecretToken } from '@domain/patient';
+import { ReportKindResolver } from '@domain/valueObjects/ReportKind';
 
 /**
  * Lưu Workbook từ ExcelJS thành file tải về trình duyệt
@@ -1563,7 +1564,20 @@ export function parseExcelBatchPatients(
             return undefined;
           };
 
-          const firstWs = workbook.Sheets[workbook.SheetNames[0]];
+          // Lọc bỏ các sheet lookup / trợ giúp hệ thống (ví dụ _DataLookup trong template GoLab)
+          const dataSheetNames = workbook.SheetNames.filter((name) => {
+            const clean = cleanKey(name);
+            return (
+              !name.startsWith('_') &&
+              !clean.includes('datalookup') &&
+              !clean.includes('lookup') &&
+              !clean.includes('huongdan') &&
+              !clean.includes('instruction')
+            );
+          });
+          const effectiveSheetNames = dataSheetNames.length > 0 ? dataSheetNames : workbook.SheetNames;
+
+          const firstWs = workbook.Sheets[effectiveSheetNames[0]];
           const firstRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstWs, { defval: '' });
 
           if (firstRows.length === 0) {
@@ -1571,14 +1585,33 @@ export function parseExcelBatchPatients(
           }
 
           // Kiểm tra xem sheet 1 có phải là Ma trận gộp 1 Sheet không
+          const patientColKeys = [
+            'mabn', 'code', 'hovaten', 'hoten', 'name', 'fullname', 'tenbenhnhan',
+            'namsinh', 'ngaysinh', 'dob', 'gioitinh', 'gender', 'phai',
+            'sdt', 'sodienthoai', 'phone', 'dienthoai', 'diachi', 'address',
+            'diachicongty', 'congty', 'donvi', 'bschidinh', 'bacsi', 'doctor', 'bs',
+            'chandoan', 'diagnosis', 'lydokham', 'benhsu', 'ketluan', 'conclusion',
+            'loidan', 'nhanxet', 'stt'
+          ];
+
           const sampleRow = firstRows[0];
-          const testColsInSheet1 = Object.keys(sampleRow).filter((col) => {
+          const nonPatientColsInSheet1 = Object.keys(sampleRow).filter((col) => {
             const cleaned = cleanKey(col);
-            const isPatientCol = ['mabn', 'code', 'hovaten', 'hoten', 'name', 'namsinh', 'ngaysinh', 'dob', 'gioitinh', 'gender', 'sdt', 'sodienthoai', 'phone', 'diachi', 'address', 'diachicongty', 'congty', 'bschidinh', 'bacsi', 'doctor', 'chandoan', 'diagnosis', 'ketluan', 'conclusion', 'stt'].includes(cleaned);
-            return !isPatientCol && matchCatalogItem(col) !== undefined;
+            return !patientColKeys.includes(cleaned);
           });
 
-          const isSingleSheetMatrix = testColsInSheet1.length > 0 || workbook.SheetNames.length === 1;
+          // Kiểm tra xem sheet 2 (nếu có) có thực sự là sheet kết quả hay không (phải có cột định danh mã BN)
+          let hasValidResultSheet2 = false;
+          if (effectiveSheetNames.length > 1) {
+            const secondWs = workbook.Sheets[effectiveSheetNames[1]];
+            const secondRowsSample = XLSX.utils.sheet_to_json<unknown[]>(secondWs, { defval: '', header: 1 });
+            if (secondRowsSample.length > 0) {
+              const headers = (secondRowsSample[0] || []).map((h) => cleanKey(String(h ?? '')));
+              hasValidResultSheet2 = headers.some((h) => ['mabn', 'code', 'ma', 'mabenhnhan'].includes(h));
+            }
+          }
+
+          const isSingleSheetMatrix = nonPatientColsInSheet1.length > 0 || !hasValidResultSheet2 || effectiveSheetNames.length === 1;
 
           const results: BatchImportRow[] = [];
 
@@ -1589,6 +1622,7 @@ export function parseExcelBatchPatients(
               if (!name) continue; // Bỏ qua hàng trống
 
               const rawCode = getRowValue(pRow, ['ma_bn', 'ma_benh_nhan', 'code', 'ma']);
+              const hasExplicitCode = Boolean(rawCode && rawCode.trim().length > 0);
               const code = rawCode || generatePatientCode();
 
               const patient: Patient = {
@@ -1605,12 +1639,12 @@ export function parseExcelBatchPatients(
               const doctorName = getRowValue(pRow, ['bs_chi_dinh', 'bac_si', 'doctor', 'bs']) || 'BS. Trần Hoài Long';
               const conclusion = getRowValue(pRow, ['ket_luan', 'conclusion', 'loi_dan', 'nhan_xet']);
 
-              const selectedTests: SelectedTest[] = [];
+              // Dùng Map để chống trùng chỉ số trong cùng một phiếu
+              const testMap = new Map<string, SelectedTest>();
 
               for (const [colHeader, rawValue] of Object.entries(pRow)) {
                 const cleaned = cleanKey(colHeader);
-                const isPatientCol = ['mabn', 'code', 'hovaten', 'hoten', 'name', 'namsinh', 'ngaysinh', 'dob', 'gioitinh', 'gender', 'sdt', 'sodienthoai', 'phone', 'diachi', 'address', 'diachicongty', 'congty', 'bschidinh', 'bacsi', 'doctor', 'chandoan', 'diagnosis', 'ketluan', 'conclusion', 'stt'].includes(cleaned);
-                if (isPatientCol) continue;
+                if (patientColKeys.includes(cleaned)) continue;
 
                 const resultStr = String(rawValue ?? '').trim();
                 if (!resultStr) continue;
@@ -1638,7 +1672,8 @@ export function parseExcelBatchPatients(
                   catalogItem.refMax
                 );
 
-                selectedTests.push({
+                const testKey = catalogItem.code.toUpperCase();
+                testMap.set(testKey, {
                   ...catalogItem,
                   result: resultStr,
                   note: evalRes.label || 'Bình thường'
@@ -1647,14 +1682,15 @@ export function parseExcelBatchPatients(
 
               results.push({
                 patient,
-                selectedTests,
+                selectedTests: Array.from(testMap.values()),
                 conclusion,
-                doctorName
+                doctorName,
+                hasExplicitCode
               });
             }
           } else {
             // ── TH2: PARSE THEO MẪU 2 SHEET (Sheet 1 BN, Sheet 2 Kết quả) ──
-            const wsResult = workbook.Sheets[workbook.SheetNames[1]];
+            const wsResult = workbook.Sheets[effectiveSheetNames[1]];
             const resultRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wsResult, { defval: '' });
 
             const resultByCode = new Map<string, Record<string, unknown>>();
@@ -1668,6 +1704,7 @@ export function parseExcelBatchPatients(
               if (!name) continue;
 
               const rawCode = getRowValue(pRow, ['ma_bn', 'ma_benh_nhan', 'code', 'ma']);
+              const hasExplicitCode = Boolean(rawCode && rawCode.trim().length > 0);
               const code = rawCode || generatePatientCode();
 
               const patient: Patient = {
@@ -1684,7 +1721,8 @@ export function parseExcelBatchPatients(
               const doctorName = getRowValue(pRow, ['bs_chi_dinh', 'bac_si', 'doctor']) || 'BS. Trần Hoài Long';
               const conclusion = getRowValue(pRow, ['ket_luan', 'conclusion']);
 
-              const selectedTests: SelectedTest[] = [];
+              // Dùng Map để chống trùng chỉ số trong cùng một phiếu
+              const testMap = new Map<string, SelectedTest>();
               const resultRow = resultByCode.get(patient.code.toLowerCase());
 
               if (resultRow) {
@@ -1718,7 +1756,8 @@ export function parseExcelBatchPatients(
                     catalogItem.refMax
                   );
 
-                  selectedTests.push({
+                  const testKey = catalogItem.code.toUpperCase();
+                  testMap.set(testKey, {
                     ...catalogItem,
                     result: resultStr,
                     note: evalRes.label || 'Bình thường'
@@ -1728,9 +1767,10 @@ export function parseExcelBatchPatients(
 
               results.push({
                 patient,
-                selectedTests,
+                selectedTests: Array.from(testMap.values()),
                 conclusion,
-                doctorName
+                doctorName,
+                hasExplicitCode
               });
             }
           }
@@ -1741,7 +1781,11 @@ export function parseExcelBatchPatients(
         }
       };
       reader.onerror = (error) => reject(error);
-      reader.readAsArrayBuffer(fileOrBuffer as Blob);
+      if (fileOrBuffer instanceof Blob) {
+        reader.readAsArrayBuffer(fileOrBuffer);
+      } else {
+        reader.readAsArrayBuffer(new Blob([fileOrBuffer as ArrayBuffer]));
+      }
     } catch (err) {
       reject(err);
     }
@@ -1762,7 +1806,11 @@ export function exportReportsExcel(reports: MedicalReport[]): void {
     'Địa Chỉ': rep.patient.address || '',
     'Chẩn Đoán': rep.patient.diagnosis || '',
     'Bác Sĩ Chỉ Định': rep.doctorName || '',
-    'Loại Phiếu': rep.isAllergen ? 'Panel Dị Nguyên 91 Chỉ Số' : 'Xét Nghiệm Chuẩn A4',
+    'Loại Phiếu': ReportKindResolver.match(ReportKindResolver.resolve(rep.selectedTests), {
+      allergen: () => 'Panel Dị Nguyên 91 Chỉ Số',
+      hybrid: () => 'Kết Hợp (Chuẩn A4 + Dị Nguyên)',
+      clinical: () => 'Xét Nghiệm Chuẩn A4',
+    }),
     'Số Lượng Chỉ Số': rep.testCount || rep.selectedTests.length,
     'Trạng Thái': rep.status,
     'Kết Luận Bác Sĩ': rep.conclusion || '',

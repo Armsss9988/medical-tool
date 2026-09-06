@@ -57,7 +57,8 @@ export function useWorkspaceActions(
       invoices.find(
         (inv) =>
           inv.reportId === currentReportId ||
-          inv.id === currentLoadedReport?.invoiceId ||
+          (currentLoadedReport?.invoiceId && inv.id === currentLoadedReport.invoiceId) ||
+          (currentLoadedReport?.code && inv.patientCode === currentLoadedReport.code) ||
           (currentLoadedReport &&
             Boolean(inv.patientCode && currentLoadedReport.code && inv.patientCode === currentLoadedReport.code) &&
             Boolean(
@@ -75,18 +76,22 @@ export function useWorkspaceActions(
   const isCurrentPdfOutdated = useMemo(() => {
     if (!currentLoadedReport || !currentLoadedReport.cloudPdfUrl) return false;
     if (currentLoadedReport.isPdfOutdated) return true;
+
     const patientChanged =
       patient.name !== currentLoadedReport.patient.name ||
       patient.dob !== currentLoadedReport.patient.dob ||
       patient.gender !== currentLoadedReport.patient.gender ||
+      patient.phone !== currentLoadedReport.patient.phone ||
       patient.sampleCode !== currentLoadedReport.patient.sampleCode ||
       (doctorName && doctorName !== currentLoadedReport.doctorName);
+
     const conclusionChanged = (conclusion || '') !== (currentLoadedReport.conclusion || '');
+
     const testsChanged =
       selectedTests.length !== currentLoadedReport.selectedTests.length ||
-      selectedTests.some((t, i) => {
-        const orig = currentLoadedReport.selectedTests[i];
-        return !orig || orig.code !== t.code || orig.result !== t.result || orig.note !== t.note;
+      selectedTests.some((t) => {
+        const orig = currentLoadedReport.selectedTests.find((o) => o.code === t.code);
+        return !orig || orig.result !== t.result || orig.note !== t.note || orig.equipmentId !== t.equipmentId;
       });
 
     return patientChanged || conclusionChanged || testsChanged;

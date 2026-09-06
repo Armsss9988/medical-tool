@@ -3,9 +3,9 @@ import FullAllergenReportView from './FullAllergenReportView';
 import HybridReportView from './HybridReportView';
 import { useWorkspace } from '../../../contexts/WorkspaceContext';
 import { PRINT_ELEMENT_ID } from '@domain/constants';
-import { ReportClassificationDomainService } from '@domain';
-import { hasMixedTests } from '@domain/allergenDetector';
-import type { ClinicInfo, MedicalReport, TestPackage, TestEquipment, CatalogItemEquipmentLink, AllergenGradingScale } from '@domain';
+import { ReportKindResolver } from '@domain/valueObjects/ReportKind';
+import type { ClinicInfo, MedicalReport, TestPackage, TestEquipment, CatalogItemEquipmentLink, AllergenGradingScale, ReportTemplate } from '@domain';
+import type { DynamicReportRenderProps } from '../types';
 
 // ─── PRINT LAYER COMPONENT ──────────────────────────────────────────────────
 // Hidden off-screen DOM elements for pixel-perfect A4 printing & PDF capture.
@@ -18,6 +18,8 @@ interface PrintLayerProps {
   equipments?: TestEquipment[];
   catalogItemEquipments?: CatalogItemEquipmentLink[];
   allergenScales?: AllergenGradingScale[];
+  activeTemplate?: ReportTemplate;
+  renderDynamicReport?: (props: DynamicReportRenderProps) => React.ReactNode;
 }
 
 export function PrintLayer({
@@ -27,7 +29,9 @@ export function PrintLayer({
   testPackages = [],
   equipments = [],
   catalogItemEquipments = [],
-  allergenScales = []
+  allergenScales = [],
+  activeTemplate,
+  renderDynamicReport
 }: PrintLayerProps) {
   const {
     patient,
@@ -36,20 +40,17 @@ export function PrintLayer({
     doctorName
   } = useWorkspace();
 
-  const reportType = ReportClassificationDomainService.classify(selectedTests);
-  const isBatchMixed = batchRenderReport ? hasMixedTests(batchRenderReport.selectedTests) : false;
-  const batchReportType = batchRenderReport
-    ? (isBatchMixed
-        ? 'hybrid'
-        : (batchRenderReport.isAllergen ? 'allergen' : ReportClassificationDomainService.classify(batchRenderReport.selectedTests)))
-    : 'clinical';
+  const reportKind = ReportKindResolver.resolve(selectedTests);
+  const batchReportKind = batchRenderReport
+    ? ReportKindResolver.resolve(batchRenderReport.selectedTests, { isBatch: true })
+    : null;
 
   return (
     <div
       className="fixed -left-[9999px] top-0 pointer-events-none overflow-hidden"
       style={{ width: '210mm', minWidth: '210mm', maxWidth: '210mm', opacity: 1, zIndex: -100 }}
     >
-      {reportType === 'hybrid' ? (
+      {reportKind.type === 'hybrid' ? (
         <HybridReportView
           elementId={PRINT_ELEMENT_ID.HYBRID_REPORT}
           clinicInfo={clinicInfo}
@@ -63,7 +64,7 @@ export function PrintLayer({
           equipments={equipments}
           catalogItemEquipments={catalogItemEquipments}
         />
-      ) : reportType === 'allergen' ? (
+      ) : reportKind.type === 'allergen' ? (
         <FullAllergenReportView
           elementId={PRINT_ELEMENT_ID.ALLERGEN_REPORT}
           clinicInfo={clinicInfo}
@@ -91,10 +92,28 @@ export function PrintLayer({
         />
       )}
 
+      {/* RENDER BẢN MẪU ĐỘNG THEO TEMPLATE BUILDER (CHO XUẤT PDF & IN ẤN ĐỘNG) */}
+      {activeTemplate && renderDynamicReport && (
+        renderDynamicReport({
+          elementId: PRINT_ELEMENT_ID.DYNAMIC_REPORT,
+          template: activeTemplate,
+          clinicInfo,
+          patient,
+          selectedTests,
+          conclusion,
+          doctorName,
+          qrCodeDataUrl,
+          testPackages,
+          equipments,
+          catalogItemEquipments,
+          allergenScales
+        })
+      )}
+
       {/* HIDDEN BATCH RENDER AREA — cho xuất PDF đồng loạt */}
-      {batchRenderReport && (
+      {batchRenderReport && batchReportKind && (
         <>
-          {batchReportType === 'hybrid' ? (
+          {batchReportKind.type === 'hybrid' ? (
             <HybridReportView
               elementId={PRINT_ELEMENT_ID.BATCH_HYBRID}
               clinicInfo={clinicInfo}
@@ -108,7 +127,7 @@ export function PrintLayer({
               equipments={equipments}
               catalogItemEquipments={catalogItemEquipments}
             />
-          ) : batchReportType === 'allergen' ? (
+          ) : batchReportKind.type === 'allergen' ? (
             <FullAllergenReportView
               elementId={PRINT_ELEMENT_ID.BATCH_ALLERGEN}
               clinicInfo={clinicInfo}
@@ -134,6 +153,23 @@ export function PrintLayer({
               equipments={equipments}
               catalogItemEquipments={catalogItemEquipments}
             />
+          )}
+
+          {activeTemplate && renderDynamicReport && (
+            renderDynamicReport({
+              elementId: PRINT_ELEMENT_ID.BATCH_DYNAMIC,
+              template: activeTemplate,
+              clinicInfo,
+              patient: batchRenderReport.patient,
+              selectedTests: batchRenderReport.selectedTests,
+              doctorName: batchRenderReport.doctorName,
+              conclusion: batchRenderReport.conclusion,
+              qrCodeDataUrl: undefined,
+              testPackages,
+              equipments,
+              catalogItemEquipments,
+              allergenScales
+            })
           )}
         </>
       )}
