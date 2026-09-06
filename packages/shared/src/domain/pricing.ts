@@ -60,11 +60,11 @@ export function computePricingWithPackages(
   const activePackages: ActivePackageInfo[] = [];
 
   for (const pkg of candidatePackages) {
-    // Kiểm tra xem gói này có bị trùng hoàn toàn với gói đã chọn không
+    // Một gói chỉ được áp dụng khi toàn bộ chỉ số của gói đó chưa bị chiếm bởi gói khác đã chọn
     const pkgCodesLower = getPkgCodes(pkg).map((c) => c.toLowerCase());
-    const hasNewCodes = pkgCodesLower.some((c) => !coveredCodes.has(c));
+    const allCodesAvailable = pkgCodesLower.every((c) => !coveredCodes.has(c));
 
-    if (hasNewCodes) {
+    if (allCodesAvailable) {
       activePackages.push({
         id: pkg.id,
         name: pkg.name,

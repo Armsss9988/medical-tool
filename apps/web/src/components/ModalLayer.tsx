@@ -5,9 +5,7 @@ import { InvoiceModal, RevenueManagerModal } from '@features/billing-revenue';
 import { ReportManagerModal } from '@features/report-history';
 import { SendZaloModal } from '@features/zalo-integration';
 import { BatchExportModal, AiSmartFillModal } from '@features/batch-import-export';
-import { TemplateBuilderModal } from '@features/template-builder';
-import DynamicReportView from '@features/template-builder/components/templateBuilder/DynamicReportView';
-import { useTemplateManager } from '@features/template-builder/hooks/useTemplateManager';
+import { TemplateBuilderModal, DynamicReportView, useTemplateManager } from '@features/template-builder';
 
 import { useWorkspace } from '../contexts/WorkspaceContext';
 import { useModal } from '../contexts/ModalContext';

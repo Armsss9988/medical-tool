@@ -3,20 +3,25 @@ import { StorageResult } from '@domain/types';
 function getLocalStorageItemWithFallback(key: string): string | null {
   if (typeof localStorage === 'undefined') return null;
 
-  // 1. Standard key: medical_${key}
-  const k1 = `medical_${key}`;
-  const r1 = localStorage.getItem(k1);
+  const normalizedKey = key.startsWith('medical_') ? key : `medical_${key}`;
+
+  // 1. Normalized key: e.g. 'medical_reports'
+  const r1 = localStorage.getItem(normalizedKey);
   if (r1 !== null) return r1;
 
-  // 2. Exact key: e.g. 'medical_reports'
+  // 2. Direct key fallback: e.g. 'reports'
   const r2 = localStorage.getItem(key);
   if (r2 !== null) return r2;
 
-  // 3. Strip prefix if key already started with 'medical_'
+  // 3. Fallback for legacy double-prefixed key: e.g. 'medical_medical_reports'
+  const r3 = localStorage.getItem(`medical_${key}`);
+  if (r3 !== null) return r3;
+
+  // 4. Strip prefix if key already started with 'medical_'
   if (key.startsWith('medical_')) {
     const stripped = key.replace(/^medical_/, '');
-    const r3 = localStorage.getItem(stripped);
-    if (r3 !== null) return r3;
+    const r4 = localStorage.getItem(stripped);
+    if (r4 !== null) return r4;
   }
 
   return null;
@@ -34,11 +39,15 @@ export async function loadData<T>(key: string, defaultValue: T): Promise<T> {
 export async function saveData<T>(key: string, data: T): Promise<StorageResult> {
   try {
     const serialized = JSON.stringify(data);
-    const lsKey = `medical_${key}`;
+    const lsKey = key.startsWith('medical_') ? key : `medical_${key}`;
     localStorage.setItem(lsKey, serialized);
-    // Also save under direct key if key already starts with medical_ for backward compatibility
+    // Clean up legacy double-prefixed key if present
     if (key.startsWith('medical_')) {
-      localStorage.setItem(key, serialized);
+      try {
+        localStorage.removeItem(`medical_${key}`);
+      } catch {
+        // ignore
+      }
     }
     return { success: true };
   } catch (err: unknown) {
@@ -54,8 +63,15 @@ export async function saveData<T>(key: string, data: T): Promise<StorageResult> 
           return item;
         });
         const serialized = JSON.stringify(sanitized);
-        const lsKey = `medical_${key}`;
+        const lsKey = key.startsWith('medical_') ? key : `medical_${key}`;
         localStorage.setItem(lsKey, serialized);
+        if (key.startsWith('medical_')) {
+          try {
+            localStorage.removeItem(`medical_${key}`);
+          } catch {
+            // ignore
+          }
+        }
         return { success: true };
       } catch (innerErr) {
         console.error('[GoLabStorage] LocalStorage quota exceeded even after sanitizing:', innerErr);
@@ -73,10 +89,6 @@ export function loadDataSync<T>(key: string, defaultValue: T): T {
   } catch {
     return defaultValue;
   }
-}
-
-export async function openDataFolder(): Promise<string | null> {
-  return null;
 }
 
 export async function getDataDirPath(): Promise<string> {

@@ -112,7 +112,7 @@ export class PdfExportTransaction {
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
-          URL.revokeObjectURL(downloadUrl);
+          setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
         } catch {
           /* ignore */
         }

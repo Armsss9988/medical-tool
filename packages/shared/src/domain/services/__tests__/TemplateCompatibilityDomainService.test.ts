@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { TemplateCompatibilityDomainService } from '../TemplateCompatibilityDomainService';
-import { ReportTemplate } from '../../templateTypes';
+import { ReportTemplate, TemplateBlock } from '../../templateTypes';
 import { CatalogItem } from '../../types';
 
 describe('TemplateCompatibilityDomainService', () => {
@@ -51,10 +51,10 @@ describe('TemplateCompatibilityDomainService', () => {
         createdAt: '',
         updatedAt: '',
         blocks: [
-          { id: 'b1', type: 'header', visible: true, order: 1, props: {} as any },
-          { id: 'b2', type: 'patient_info', visible: true, order: 2, props: {} as any },
-          { id: 'b3', type: 'test_table', visible: true, order: 3, props: {} as any },
-          { id: 'b4', type: 'signature', visible: true, order: 4, props: {} as any }
+          { id: 'b1', type: 'header', visible: true, order: 1, props: {} as unknown as TemplateBlock['props'] },
+          { id: 'b2', type: 'patient_info', visible: true, order: 2, props: {} as unknown as TemplateBlock['props'] },
+          { id: 'b3', type: 'test_table', visible: true, order: 3, props: {} as unknown as TemplateBlock['props'] },
+          { id: 'b4', type: 'signature', visible: true, order: 4, props: {} as unknown as TemplateBlock['props'] }
         ]
       };
 
@@ -78,8 +78,8 @@ describe('TemplateCompatibilityDomainService', () => {
         createdAt: '',
         updatedAt: '',
         blocks: [
-          { id: 'b1', type: 'header', visible: true, order: 1, props: {} as any },
-          { id: 'b2', type: 'patient_info', visible: true, order: 2, props: {} as any }
+          { id: 'b1', type: 'header', visible: true, order: 1, props: {} as unknown as TemplateBlock['props'] },
+          { id: 'b2', type: 'patient_info', visible: true, order: 2, props: {} as unknown as TemplateBlock['props'] }
         ]
       };
 
@@ -103,10 +103,10 @@ describe('TemplateCompatibilityDomainService', () => {
         createdAt: '',
         updatedAt: '',
         blocks: [
-          { id: 'b1', type: 'header', visible: true, order: 1, props: {} as any },
-          { id: 'b2', type: 'patient_info', visible: true, order: 2, props: {} as any },
-          { id: 'b3', type: 'test_table', visible: true, order: 3, props: {} as any },
-          { id: 'b4', type: 'allergen_positive_table', visible: true, order: 4, props: {} as any }
+          { id: 'b1', type: 'header', visible: true, order: 1, props: {} as unknown as TemplateBlock['props'] },
+          { id: 'b2', type: 'patient_info', visible: true, order: 2, props: {} as unknown as TemplateBlock['props'] },
+          { id: 'b3', type: 'test_table', visible: true, order: 3, props: {} as unknown as TemplateBlock['props'] },
+          { id: 'b4', type: 'allergen_positive_table', visible: true, order: 4, props: {} as unknown as TemplateBlock['props'] }
         ]
       };
 

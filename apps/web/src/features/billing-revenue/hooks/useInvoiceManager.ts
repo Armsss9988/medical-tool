@@ -35,8 +35,16 @@ export function useInvoiceManager() {
   }, []);
 
   // 3. Tự động đồng bộ khi invoices thay đổi sau khi ready
+  const lastSyncedHashRef = useRef<string>('');
+
   useEffect(() => {
     if (!isLoadedRef.current) return;
+
+    const currentHash = invoices.map((i) => `${i.id}:${i.status || ''}:${i.paidAt || ''}`).join('|');
+    if (lastSyncedHashRef.current === currentHash) {
+      return;
+    }
+    lastSyncedHashRef.current = currentHash;
 
     // Tự động đồng bộ lên Supabase Cloud DB
     const cloudConfig = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
@@ -71,6 +79,7 @@ export function useInvoiceManager() {
 
   // Helper: Đồng bộ ngay lập tức và trực tiếp lên Cloud DB
   const syncInvoicesDirectly = (nextList: Invoice[]) => {
+    lastSyncedHashRef.current = nextList.map((i) => `${i.id}:${i.status || ''}:${i.paidAt || ''}`).join('|');
     const cloudConfig = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
     if (cloudConfig?.enabled !== false && cloudConfig?.supabaseUrl) {
       syncInvoicesToSupabase(nextList, cloudConfig).catch((err) =>

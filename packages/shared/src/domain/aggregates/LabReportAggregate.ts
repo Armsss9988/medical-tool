@@ -103,8 +103,8 @@ export class LabReportAggregate {
           orderedAt: params.patient.orderedAt || now
         });
 
-    const hasAnyResult = params.selectedTests.some((t) => t.result && t.result.trim() !== '');
-    const completedCount = params.selectedTests.filter((t) => t.result && t.result.trim() !== '').length;
+    const hasAnyResult = params.selectedTests.some((t) => String(t.result ?? '').trim() !== '');
+    const completedCount = params.selectedTests.filter((t) => String(t.result ?? '').trim() !== '').length;
 
     const documentState: ReportDocumentState = hasAnyResult
       ? {
@@ -142,8 +142,8 @@ export class LabReportAggregate {
    */
   public static fromSnapshot(report: MedicalReport): LabReportAggregate {
     const profile = PatientProfile.from(report.patient);
-    const hasAnyResult = (report.selectedTests || []).some((t) => t.result && t.result.trim() !== '');
-    const completedCount = (report.selectedTests || []).filter((t) => t.result && t.result.trim() !== '').length;
+    const hasAnyResult = (report.selectedTests || []).some((t) => String(t.result ?? '').trim() !== '');
+    const completedCount = (report.selectedTests || []).filter((t) => String(t.result ?? '').trim() !== '').length;
 
     let documentState: ReportDocumentState;
     if (report.zaloSentAt || report.status === 'Đã trả kết quả') {
@@ -257,8 +257,8 @@ export class LabReportAggregate {
     this._selectedTests = [...newTests];
     this._updatedAt = new Date().toISOString();
 
-    const hasAnyResult = newTests.some((t) => t.result && t.result.trim() !== '');
-    const completedCount = newTests.filter((t) => t.result && t.result.trim() !== '').length;
+    const hasAnyResult = newTests.some((t) => String(t.result ?? '').trim() !== '');
+    const completedCount = newTests.filter((t) => String(t.result ?? '').trim() !== '').length;
 
     if (dirtyReasons.length > 0) {
       this._documentState = {
@@ -467,7 +467,7 @@ export class LabReportAggregate {
       this._documentState = {
         status: 'RESULTED',
         totalTests: this._selectedTests.length,
-        completedTests: this._selectedTests.filter((t) => t.result && t.result.trim() !== '').length,
+        completedTests: this._selectedTests.filter((t) => String(t.result ?? '').trim() !== '').length,
         resultedAt: new Date().toISOString()
       };
     } else if (status === 'Đã trả kết quả') {

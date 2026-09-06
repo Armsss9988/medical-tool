@@ -6,6 +6,8 @@ export type Result<T, E = string> =
   | { readonly ok: true; readonly value: T; readonly error?: never }
   | { readonly ok: false; readonly error: E; readonly value?: never };
 
+// Companion object pattern for Result type
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const Result = {
   ok<T>(value: T): Result<T, never> {
     return { ok: true, value };

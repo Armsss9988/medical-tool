@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Activity, ListChecks, TrendingUp, FolderOpen, Clock, Phone, ShieldCheck, ClipboardList, Package, Menu, X, Sparkles, Palette, Lock } from 'lucide-react';
+import { Settings, Activity, ListChecks, TrendingUp, Clock, Phone, ShieldCheck, ClipboardList, Package, Menu, X, Sparkles, Palette, Lock } from 'lucide-react';
 import { ClinicInfo, CatalogItem, getSafeClinicInfo } from '@domain/types';
 import { setPassword } from '@infra/apiClient';
 
@@ -15,7 +15,6 @@ interface HeaderProps {
   onOpenBatchExportModal?: () => void;
   onOpenAiSmartFill?: () => void;
   onOpenTemplateBuilder?: () => void;
-  onOpenDataFolder: () => void;
   invoiceCount?: number;
   reportCount?: number;
 }
@@ -29,7 +28,6 @@ export default function Header({
   onOpenBatchExportModal,
   onOpenAiSmartFill,
   onOpenTemplateBuilder,
-  onOpenDataFolder,
   invoiceCount = 0,
   reportCount = 0
 }: HeaderProps) {
@@ -185,19 +183,6 @@ export default function Header({
             >
               <Palette className="w-3.5 h-3.5 text-sky-400 group-hover:rotate-12 transition-transform" />
               <span>Mẫu In</span>
-            </button>
-          )}
-
-          {/* Mở Thư Mục Dữ Liệu Button */}
-          {window.electronAPI?.openDataFolder && (
-            <button
-              type="button"
-              onClick={onOpenDataFolder}
-              title="Mở thư mục GoLabData – nơi lưu toàn bộ dữ liệu phòng khám (Documents/GoLabData/)"
-              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 text-xs font-semibold shadow transition-all active:scale-95"
-            >
-              <FolderOpen className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">GoLabData</span>
             </button>
           )}
 

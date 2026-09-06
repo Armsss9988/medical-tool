@@ -559,7 +559,7 @@ function HybridReportView({
                             {resolvedEquipment || '---'}
                           </td>
                           <td className="py-1.5 px-2.5 text-slate-700 font-semibold text-[11px] align-middle leading-snug whitespace-normal">
-                            {t.note || (isAbnormal ? evaluation.label : 'Bình thường')}
+                            {t.note || (isAbnormal ? evaluation.label : (t.result && String(t.result).trim() !== '' ? 'Bình thường' : ''))}
                           </td>
                         </tr>
                       );

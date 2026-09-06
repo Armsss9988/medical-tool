@@ -152,4 +152,42 @@ describe('LabReportAggregate', () => {
     report.updateTests([{ ...sampleTests[0], result: '6.0' }]);
     expect(report.isDirty()).toBe(true);
   });
+
+  it('should handle numeric results (including 0) and non-string types safely without throwing', () => {
+    // Test with result as number 0 (falsy in JS if not converted to string)
+    const reportWithZero = LabReportAggregate.create({
+      code: 'BN-20260905-004',
+      patient: {
+        code: 'BN-20260905-004',
+        secretToken: 'TOK000',
+        name: 'Hoàng Văn D',
+        dob: '1970',
+        gender: 'Nam',
+        phone: '0901112233',
+        address: 'Hà Nội',
+        diagnosis: 'Kiểm tra'
+      },
+      doctorName: 'BS. Trung',
+      selectedTests: [
+        {
+          code: 'KET',
+          name: 'Ketone nước tiểu',
+          // @ts-expect-error test runtime robustness against numeric result
+          result: 0,
+          unit: 'mmol/L'
+        }
+      ]
+    });
+
+    expect(reportWithZero.documentState.status).toBe('RESULTED');
+    if (reportWithZero.documentState.status === 'RESULTED') {
+      expect(reportWithZero.documentState.completedTests).toBe(1);
+    }
+
+    // Test fromSnapshot with non-string results
+    const snapshot = reportWithZero.toSnapshot();
+    const restored = LabReportAggregate.fromSnapshot(snapshot);
+    expect(restored.documentState.status).toBe('RESULTED');
+  });
 });
+

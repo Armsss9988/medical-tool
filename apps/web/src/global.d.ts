@@ -23,13 +23,3 @@ interface ImportMeta {
     readonly [key: string]: string | boolean | undefined;
   };
 }
-
-// Electron bridge (optional, only present in Electron builds)
-interface ElectronAPI {
-  openDataFolder?: () => void;
-  [key: string]: unknown;
-}
-
-interface Window {
-  electronAPI?: ElectronAPI;
-}

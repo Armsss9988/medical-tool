@@ -328,7 +328,7 @@ export function useTemplateManager() {
         };
       })
     );
-  }, []);
+  }, [templates, pushHistory]);
 
   const removeBlockFromTemplate = useCallback((templateId: string, blockId: string) => {
     const target = templates.find((t) => t.id === templateId);
@@ -403,7 +403,7 @@ export function useTemplateManager() {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }, []);
 
   const importTemplateJson = useCallback((jsonStr: string): ReportTemplate | null => {

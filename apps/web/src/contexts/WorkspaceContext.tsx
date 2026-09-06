@@ -54,6 +54,9 @@ interface WorkspaceContextValue {
   nameInputRef: React.RefObject<HTMLInputElement | null>;
   autoFocusName: boolean;
   setAutoFocusName: Dispatch<SetStateAction<boolean>>;
+
+  // Dirty state tracking
+  hasUnsavedData: boolean;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
@@ -170,6 +173,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     invoices, setInvoices, saveOrUpdateInvoice, deleteInvoice, clearAllInvoices,
     recentTests, addToRecent, addMultipleToRecent,
     nameInputRef, autoFocusName, setAutoFocusName,
+    hasUnsavedData,
   };
 
   return (

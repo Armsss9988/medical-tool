@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { User, Hash, Calendar, Phone, Stethoscope, ChevronDown, ChevronUp, MapPin, Sparkles, RefreshCw, Zap } from 'lucide-react';
 import { Patient, Doctor, GENDER, GENDER_LIST, Invoice } from '@domain';
 
@@ -66,6 +66,14 @@ export default function PatientForm({
     return undefined;
   }, [autoFocusName, nameRef]);
 
+  const handleChange = useCallback(<K extends keyof Patient>(field: K, value: Patient[K]) => {
+    if (onPatientChange) {
+      onPatientChange(field, value);
+    } else if (setPatient) {
+      setPatient((prev) => ({ ...prev, [field]: value }));
+    }
+  }, [onPatientChange, setPatient]);
+
   // Đảm bảo Bác sĩ chỉ định luôn có giá trị hợp lệ ưu tiên từ danh sách
   useEffect(() => {
     const defaultDoc = (doctorsList && doctorsList.length > 0 && doctorsList[0]?.name) || 'BS. Trần Hoài Long';
@@ -75,15 +83,7 @@ export default function PatientForm({
     if (!doctorName && setDoctorName) {
       setDoctorName(patient.doctor || defaultDoc);
     }
-  }, [doctorsList, patient.doctor, doctorName, setDoctorName]);
-
-  const handleChange = <K extends keyof Patient>(field: K, value: Patient[K]) => {
-    if (onPatientChange) {
-      onPatientChange(field, value);
-    } else if (setPatient) {
-      setPatient((prev) => ({ ...prev, [field]: value }));
-    }
-  };
+  }, [doctorsList, patient.doctor, doctorName, setDoctorName, handleChange]);
 
   // Enter key handler: move to next field in the fast-entry chain
   const handleKeyDownChain = (

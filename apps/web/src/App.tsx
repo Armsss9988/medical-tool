@@ -15,11 +15,9 @@ import { useWorkspaceActions } from './hooks/useWorkspaceActions';
 import { useUnsavedGuard } from './hooks/useUnsavedGuard';
 import { useInvoiceActions } from '@features/billing-revenue';
 import { PrintLayer, useReportExport, useExportActions, type DynamicReportRenderProps } from '@features/report-export';
-import DynamicReportView from '@features/template-builder/components/templateBuilder/DynamicReportView';
-import { useTemplateManager } from '@features/template-builder/hooks/useTemplateManager';
+import { DynamicReportView, useTemplateManager } from '@features/template-builder';
 
 import { parseExcelCatalog } from '@infra/excelService';
-import { openDataFolder } from '@infra/storage';
 import type { MedicalReport, BatchImportRow, CatalogTabType } from '@domain';
 
 // ─── MAIN APPLICATION CONTENT ───────────────────────────────────────────────
@@ -213,15 +211,7 @@ function AppContent() {
     }
   };
 
-  // 7. DIRECTORY & BATCH REPORT HELPERS
-  const handleOpenDataDirectory = () => {
-    try {
-      openDataFolder();
-    } catch {
-      showToast('Tính năng mở thư mục chỉ khả dụng trong môi trường hệ thống hỗ trợ!', 'info');
-    }
-  };
-
+  // 7. BATCH REPORT HELPERS
   const handleBatchImport = (rows: BatchImportRow[]) => {
     bulkSaveOrUpdateReports(rows);
   };
@@ -286,7 +276,6 @@ function AppContent() {
         onOpenBatchExportModal={openBatchExportModal}
         onOpenAiSmartFill={() => openAiSmartFillModal('CATALOG_ITEMS')}
         onOpenTemplateBuilder={openTemplateBuilder}
-        onOpenDataFolder={handleOpenDataDirectory}
         onLoadExcelFile={handleLoadExcelFile}
         reportCount={reports.length}
         invoiceCount={invoices.length}

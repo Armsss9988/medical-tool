@@ -121,6 +121,49 @@ describe('Pricing Domain - computePricingWithPackages & buildInvoiceItems', () =
     expect(invoiceItems[0].price).toBe(1900000);
   });
 
+  it('should NOT double charge for overlapping packages and charge remaining items at orphan price', () => {
+    const overlappingPackages: TestPackage[] = [
+      {
+        id: 'pkg_a',
+        name: 'Gói A (4 chỉ số)',
+        codes: ['T1', 'T2', 'T3', 'T4'],
+        items: ['T1', 'T2', 'T3', 'T4'].map((c) => ({ code: c, equipmentId: null })),
+        price: 500000
+      },
+      {
+        id: 'pkg_b',
+        name: 'Gói B (3 chỉ số trùng 2)',
+        codes: ['T3', 'T4', 'T5'],
+        items: ['T3', 'T4', 'T5'].map((c) => ({ code: c, equipmentId: null })),
+        price: 300000
+      }
+    ];
+
+    const selectedTests = [
+      { code: 'T1', name: 'Test 1', price: 150000 },
+      { code: 'T2', name: 'Test 2', price: 150000 },
+      { code: 'T3', name: 'Test 3', price: 150000 },
+      { code: 'T4', name: 'Test 4', price: 150000 },
+      { code: 'T5', name: 'Test 5', price: 100000 }
+    ];
+
+    const pricing = computePricingWithPackages(
+      selectedTests.map((t) => t.code),
+      selectedTests,
+      overlappingPackages
+    );
+
+    // Gói A lớn hơn (4 chỉ số) được chọn -> 500k
+    // Gói B có T3, T4 đã bị phủ bởi Gói A -> Gói B KHÔNG được kích hoạt
+    // T5 tính giá lẻ riêng (100k)
+    // Tổng = 500k (Gói A) + 100k (T5) = 600k (thay vì bị tính đúp 500k + 300k = 800k)
+    expect(pricing.activePackages).toHaveLength(1);
+    expect(pricing.activePackages[0].id).toBe('pkg_a');
+    expect(pricing.orphanCodes).toEqual(['T5']);
+    expect(pricing.total).toBe(600000);
+  });
+
+
   it('getPkgCodes correctly extracts codes from various package formats', async () => {
     const { getPkgCodes } = await import('../types');
     expect(getPkgCodes(null)).toEqual([]);

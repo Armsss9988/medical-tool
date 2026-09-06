@@ -11,11 +11,6 @@ export default [
   {
     ignores: [
       '**/dist/**',
-      '**/dist-app/**',
-      '**/dist-electron/**',
-      '**/dist-release/**',
-      '**/build-app/**',
-      '**/release/**',
       'node_modules/**',
       '**/.next/**',
       'apps/web/.next/**',
@@ -27,7 +22,6 @@ export default [
       '*.config.cjs',
       '*.config.mjs',
       '**/*.config.mjs',
-      '**/electron/**',
       '**/coverage/**'
     ]
   },
@@ -106,6 +100,8 @@ export default [
       // 1. TypeScript Rules
       'no-undef': 'off',
       'no-unused-vars': 'off',
+      'no-redeclare': 'off',
+      '@typescript-eslint/no-redeclare': 'error',
       '@typescript-eslint/no-unused-vars': [
         'error',
         {

@@ -40,8 +40,16 @@ export function useReportManager() {
   }, []);
 
   // 3. Tự động đồng bộ khi danh sách reports thay đổi sau khi đã ready
+  const lastSyncedHashRef = useRef<string>('');
+
   useEffect(() => {
     if (!isLoadedRef.current) return;
+
+    const currentHash = reports.map((r) => `${r.id}:${r.updatedAt || ''}:${r.status || ''}`).join('|');
+    if (lastSyncedHashRef.current === currentHash) {
+      return;
+    }
+    lastSyncedHashRef.current = currentHash;
 
     // Tự động đồng bộ lên Supabase Cloud DB
     const cloudConfig = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
@@ -174,6 +182,7 @@ export function useReportManager() {
 
   // Helper: Đồng bộ ngay lập tức và trực tiếp lên Cloud DB
   const syncReportsDirectly = (nextList: MedicalReport[]) => {
+    lastSyncedHashRef.current = nextList.map((r) => `${r.id}:${r.updatedAt || ''}:${r.status || ''}`).join('|');
     const cloudConfig = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
     if (cloudConfig?.enabled !== false && cloudConfig?.supabaseUrl) {
       syncReportsToSupabase(nextList, cloudConfig).catch((err) =>
@@ -205,6 +214,7 @@ export function useReportManager() {
     code?: string;
     patient?: Patient;
     hasExplicitCode?: boolean;
+    allowIdentityMerge?: boolean;
   }
 
   const findMatchingReportIndex = (
@@ -229,8 +239,9 @@ export function useReportManager() {
       if (idx >= 0) return idx;
     }
 
-    // 3. Đối soát theo Bộ Ba Định Danh: Tên chuẩn hóa + Ngày/Năm sinh + Giới tính
-    if (criteria.patient?.name && criteria.patient?.dob) {
+    // 3. Chỉ đối soát theo Bộ Ba Định Danh khi được phép gộp (allowIdentityMerge)
+    // Áp dụng cho các trường hợp Import hàng loạt từ file Excel không có cột mã BN
+    if (criteria.allowIdentityMerge && criteria.patient?.name && criteria.patient?.dob) {
       const targetName = normalizeIdentityName(criteria.patient.name);
       const targetDob = normalizeIdentityDob(criteria.patient.dob);
       const targetGender = criteria.patient.gender;
@@ -274,15 +285,24 @@ export function useReportManager() {
     pdfVersion?: number;
     isPdfOutdated?: boolean;
     hasExplicitCode?: boolean;
+    allowIdentityMerge?: boolean;
   }): MedicalReport => {
     const prev = reportsRef.current;
 
-    // Tìm phiếu hiện có qua Identity Resolution
+    // Tìm phiếu hiện có:
+    // - Nếu có params.id: cập nhật đúng phiếu theo ID
+    // - Nếu có params.patient?.code: đối soát theo mã phiếu
+    // - allowIdentityMerge mặc định là false, ngăn ngừa việc ghi đè bệnh án khi tái khám
+    const hasExplicitCode = params.hasExplicitCode !== undefined
+      ? params.hasExplicitCode
+      : Boolean(params.patient?.code);
+
     const idx = findMatchingReportIndex(prev, {
       id: params.id,
       code: params.patient?.code,
       patient: params.patient,
-      hasExplicitCode: params.hasExplicitCode ?? Boolean(params.patient?.code && !params.patient.code.startsWith('BN-'))
+      hasExplicitCode,
+      allowIdentityMerge: params.allowIdentityMerge ?? false
     });
 
     const existingItem = idx >= 0 ? prev[idx] : null;
@@ -369,10 +389,14 @@ export function useReportManager() {
     const savedList: MedicalReport[] = [];
 
     for (const row of rows) {
+      const hasExplicit = row.hasExplicitCode !== undefined
+        ? row.hasExplicitCode
+        : Boolean(row.patient.code && !row.patient.code.startsWith('BN-AUTO-'));
       const idx = findMatchingReportIndex(currentList, {
         code: row.patient.code,
         patient: row.patient,
-        hasExplicitCode: row.hasExplicitCode ?? Boolean(row.patient.code && !row.patient.code.startsWith('BN-'))
+        hasExplicitCode: hasExplicit,
+        allowIdentityMerge: !hasExplicit
       });
 
       const existingItem = idx >= 0 ? currentList[idx] : null;

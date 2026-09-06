@@ -1,11 +1,16 @@
 'use client';
 
-import { useMemo } from 'react';
 import { PortalTestItem } from '../types';
 
 interface TestResultGaugeProps {
   test: PortalTestItem;
   className?: string;
+}
+
+function parseNumericResult(result?: string): number | null {
+  if (!result) return null;
+  const parsed = parseFloat(result.replace(/,/g, '.').replace(/[^\d.-]/g, ''));
+  return isNaN(parsed) ? null : parsed;
 }
 
 export default function TestResultGauge({ test, className = '' }: TestResultGaugeProps) {
@@ -74,11 +79,7 @@ export default function TestResultGauge({ test, className = '' }: TestResultGaug
   }
 
   // 2. ĐỊNH LƯỢNG CHỈ SỐ Y KHOA
-  const numVal = useMemo(() => {
-    if (!result) return null;
-    const parsed = parseFloat(result.replace(/,/g, '.').replace(/[^\d.-]/g, ''));
-    return isNaN(parsed) ? null : parsed;
-  }, [result]);
+  const numVal = parseNumericResult(result);
 
   if (numVal === null || refMax === null || refMax === undefined) {
     return null;

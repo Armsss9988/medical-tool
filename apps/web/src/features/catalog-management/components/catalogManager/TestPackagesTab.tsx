@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Plus, Trash2, Copy, Layers, FlaskConical, Dna, Search, ListChecks, PlusCircle, Download, Upload, X, Cpu, CheckSquare, Square } from 'lucide-react';
 import { CatalogItem, CatalogItemEquipmentLink, TestEquipment, TestPackage, PackageItem, getPkgCodes, getPkgItems, normalizeTestPackage } from '@domain/types';
 import { isAllergenTest } from '@domain/allergenDetector';
@@ -74,14 +74,14 @@ export default function TestPackagesTab({
     }
   };
 
-  const isAllergenPkg = (pkg: TestPackage) => {
+  const isAllergenPkg = useCallback((pkg: TestPackage) => {
     if (pkg.id.includes('di_nguyen') || pkg.name.toLowerCase().includes('dị nguyên')) return true;
     const codes = getPkgCodes(pkg);
     return codes.some((c) => {
       const matched = items.find((i) => i.code.toLowerCase() === c.toLowerCase());
       return matched ? isAllergenTest(matched) : false;
     });
-  };
+  }, [items]);
 
   const validPackages = useMemo(() => {
     return packages
@@ -89,8 +89,8 @@ export default function TestPackagesTab({
       .map(normalizeTestPackage);
   }, [packages]);
 
-  const allergenPkgCount = useMemo(() => validPackages.filter(isAllergenPkg).length, [validPackages]);
-  const generalPkgCount = useMemo(() => validPackages.filter((p) => !isAllergenPkg(p)).length, [validPackages]);
+  const allergenPkgCount = useMemo(() => validPackages.filter(isAllergenPkg).length, [validPackages, isAllergenPkg]);
+  const generalPkgCount = useMemo(() => validPackages.filter((p) => !isAllergenPkg(p)).length, [validPackages, isAllergenPkg]);
 
   const categories = useMemo(
     () => Array.from(new Set(items.map((i) => i.category).filter(Boolean))),
@@ -109,7 +109,7 @@ export default function TestPackagesTab({
 
       return matchSearch;
     });
-  }, [validPackages, pkgFilter, packageSearch]);
+  }, [validPackages, pkgFilter, packageSearch, isAllergenPkg]);
 
   const currentSelectedPkg = validPackages.find((p) => p.id === selectedPackageId) || filteredPackages[0];
   const currentPkgItems = useMemo(() => getPkgItems(currentSelectedPkg), [currentSelectedPkg]);

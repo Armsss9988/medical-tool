@@ -520,7 +520,11 @@ export function DynamicReportView({
                         )}
                         {cols.equipment && <td className={`${densityClass} text-center text-slate-600 text-[11px] truncate max-w-[150px] border-r border-slate-200`}>{resolvedEquipment || '---'}</td>}
                         {cols.price && <td className={`${densityClass} text-right font-mono text-slate-800 text-[11.5px] border-r border-slate-200`}>{t.price ? `${t.price.toLocaleString('vi-VN')} đ` : '---'}</td>}
-                        {cols.note && <td className={`${densityClass} text-slate-700 font-semibold text-[11px]`}>{t.note || (isAbnormal ? evaluation.label : 'Bình thường')}</td>}
+                        {cols.note && (
+                          <td className={`${densityClass} text-slate-700 font-semibold text-[11px]`}>
+                            {t.note || (isAbnormal ? evaluation.label : (t.result && String(t.result).trim() !== '' ? 'Bình thường' : ''))}
+                          </td>
+                        )}
                       </tr>
                     );
                   })
@@ -560,7 +564,11 @@ export function DynamicReportView({
                             )}
                             {cols.equipment && <td className={`${densityClass} text-center text-slate-600 text-[11px] truncate max-w-[150px] border-r border-slate-200`}>{resolvedEquipment || '---'}</td>}
                             {cols.price && <td className={`${densityClass} text-right font-mono text-slate-800 text-[11.5px] border-r border-slate-200`}>{t.price ? `${t.price.toLocaleString('vi-VN')} đ` : '---'}</td>}
-                            {cols.note && <td className={`${densityClass} text-slate-700 font-semibold text-[11px]`}>{t.note || (isAbnormal ? evaluation.label : 'Bình thường')}</td>}
+                            {cols.note && (
+                              <td className={`${densityClass} text-slate-700 font-semibold text-[11px]`}>
+                                {t.note || (isAbnormal ? evaluation.label : (t.result && String(t.result).trim() !== '' ? 'Bình thường' : ''))}
+                              </td>
+                            )}
                           </tr>
                         );
                       })}

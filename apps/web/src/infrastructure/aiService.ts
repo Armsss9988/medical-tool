@@ -13,15 +13,16 @@ export type AiProviderType = 'GEMINI' | 'OPENAI';
  */
 export async function testGeminiConnection(
   apiKey: string,
-  model: string = 'gemini-2.5-flash'
+  model: string = 'gemini-2.0-flash'
 ): Promise<{ success: boolean; message: string; latencyMs?: number }> {
+  const safeModel = model === 'gemini-2.5-flash' ? 'gemini-2.0-flash' : (model || 'gemini-2.0-flash');
   if (!apiKey || !apiKey.trim()) {
     return { success: false, message: 'Vui lòng nhập Gemini API Key trước khi kiểm tra!' };
   }
 
   const startTime = Date.now();
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${safeModel}:generateContent?key=${apiKey.trim()}`;
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -44,7 +45,7 @@ export async function testGeminiConnection(
 
     const data = await response.json();
     if (data.candidates && data.candidates.length > 0) {
-      return { success: true, message: `Kết nối thành công tới mô hình ${model} (Độ trễ: ${latencyMs}ms)!`, latencyMs };
+      return { success: true, message: `Kết nối thành công tới mô hình ${safeModel} (Độ trễ: ${latencyMs}ms)!`, latencyMs };
     } else {
       return { success: false, message: 'Phản hồi không hợp lệ từ Gemini API.', latencyMs };
     }
@@ -394,7 +395,8 @@ export async function executeAiSmartFill(
       return fallbackRuleBasedParser(request);
     }
   } else if (geminiKey) {
-    const model = (typeof window !== 'undefined' ? localStorage.getItem('GOLAB_AI_MODEL') : '') || 'gemini-2.5-flash';
+    const rawModel = (typeof window !== 'undefined' ? localStorage.getItem('GOLAB_AI_MODEL') : '') || 'gemini-2.0-flash';
+    const model = rawModel === 'gemini-2.5-flash' ? 'gemini-2.0-flash' : rawModel;
     try {
       candidateText = await callGeminiApi(request, geminiKey, model, systemPrompt, contextNote);
     } catch (err) {

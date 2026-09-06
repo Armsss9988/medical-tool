@@ -22,6 +22,10 @@ export function evaluateResult(
     quantitative: (q) => {
       // Nếu có tiền tố so sánh: VD: "< 15.0", "< 0.35"
       if (q.comparator === '<' || q.comparator === '<=') {
+        // Nếu có ngưỡng dưới (min > 0) và giá trị đo được <= min -> Báo THẤP ↓
+        if (min !== null && min !== undefined && !isNaN(min) && min > 0 && q.numericValue <= min) {
+          return { status: 'low', label: 'THẤP ↓' };
+        }
         return { status: 'normal', label: 'Bình thường' };
       }
       if (q.comparator === '>' || q.comparator === '>=') {

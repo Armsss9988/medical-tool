@@ -152,7 +152,8 @@ export default function SettingsModal({
     return typeof window !== 'undefined' ? localStorage.getItem('GOLAB_GEMINI_API_KEY') || '' : '';
   });
   const [localAiModel, setLocalAiModel] = useState<string>(() => {
-    return typeof window !== 'undefined' ? localStorage.getItem('GOLAB_AI_MODEL') || 'gemini-2.5-flash' : 'gemini-2.5-flash';
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('GOLAB_AI_MODEL') : null;
+    return saved === 'gemini-2.5-flash' || !saved ? 'gemini-2.0-flash' : saved;
   });
   const [localOpenAiKey, setLocalOpenAiKey] = useState<string>(() => {
     return typeof window !== 'undefined' ? localStorage.getItem('GOLAB_OPENAI_API_KEY') || '' : '';
@@ -660,7 +661,7 @@ export default function SettingsModal({
 
               {/* Action Buttons Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                {/* 1. ĐẨY TOÀN BỘ LOCAL LÊN CLOUD */}
+                {/* 1. ĐỒNG BỘ TOÀN BỘ DỮ LIỆU LÊN CLOUD */}
                 <button
                   type="button"
                   disabled={isSyncingAll || isFetchingAll || isBackingUp || isRestoring}
@@ -679,7 +680,7 @@ export default function SettingsModal({
                       zaloConfig: localZaloConfig
                     };
                     setIsSyncingAll(true);
-                    showToast('Đang đẩy toàn bộ 100% dữ liệu Local lên Supabase Cloud DB...', 'info');
+                    showToast('Đang đồng bộ toàn bộ dữ liệu ứng dụng lên Supabase Cloud DB...', 'info');
                     const res = await syncAllLocalDataToSupabase(payload, localCloudConfig);
                     setIsSyncingAll(false);
                     showToast(res.message, res.success ? 'success' : 'error');
@@ -694,21 +695,21 @@ export default function SettingsModal({
                   ) : (
                     <>
                       <CloudUpload className="w-3.5 h-3.5" />
-                      <span>Đẩy Toàn Bộ Local ➔ Cloud DB</span>
+                      <span>Đồng Bộ Dữ Liệu ➔ Cloud DB</span>
                     </>
                   )}
                 </button>
 
-                {/* 2. KÉO DỮ LIỆU TỪ CLOUD VỀ LOCAL */}
+                {/* 2. NẠP LẠI DỮ LIỆU TỪ CLOUD */}
                 <button
                   type="button"
                   disabled={isSyncingAll || isFetchingAll || isBackingUp || isRestoring}
                   onClick={async () => {
-                    if (!window.confirm('Bạn có chắc muốn kéo toàn bộ dữ liệu từ Cloud DB về máy? Dữ liệu trên máy sẽ được cập nhật đồng bộ với Cloud.')) {
+                    if (!window.confirm('Bạn có chắc muốn nạp lại toàn bộ dữ liệu từ Cloud DB? Dữ liệu trên ứng dụng sẽ được làm mới đồng bộ với Cloud.')) {
                       return;
                     }
                     setIsFetchingAll(true);
-                    showToast('Đang kéo toàn bộ dữ liệu từ Supabase Cloud DB về...', 'info');
+                    showToast('Đang nạp lại toàn bộ dữ liệu từ Supabase Cloud DB...', 'info');
                     const data = await fetchAllCloudDataToLocal(localCloudConfig);
                     setIsFetchingAll(false);
 
@@ -730,19 +731,19 @@ export default function SettingsModal({
                     if (data.invoices && setInvoices) setInvoices(data.invoices);
                     if (data.zaloConfig) { setZaloConfig(data.zaloConfig); setLocalZaloConfig(data.zaloConfig); }
 
-                    showToast(`Đã đồng bộ thành công toàn bộ dữ liệu từ Cloud về máy (${count} chỉ số + cấu hình máy đo + sổ phiếu + hóa đơn)!`, 'success');
+                    showToast(`Đã nạp thành công toàn bộ dữ liệu từ Cloud DB (${count} chỉ số + cấu hình máy đo + sổ phiếu + hóa đơn)!`, 'success');
                   }}
                   className="w-full px-3 py-2 bg-sky-700 hover:bg-sky-600 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 shadow transition active:scale-95 disabled:opacity-50 cursor-pointer"
                 >
                   {isFetchingAll ? (
                     <>
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Đang Kéo Dữ Liệu...</span>
+                      <span>Đang Nạp Dữ Liệu...</span>
                     </>
                   ) : (
                     <>
                       <CloudDownload className="w-3.5 h-3.5" />
-                      <span>Kéo Dữ Liệu Cloud ➔ Local</span>
+                      <span>Nạp Lại Dữ Liệu Từ Cloud</span>
                     </>
                   )}
                 </button>
@@ -1074,7 +1075,7 @@ export default function SettingsModal({
                       onChange={(e) => setLocalAiModel(e.target.value)}
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 font-semibold focus:ring-2 focus:ring-purple-500 focus:outline-none cursor-pointer"
                     >
-                      <option value="gemini-2.5-flash">Gemini 2.5 Flash (Khuyên Dùng - Siêu Nhanh)</option>
+                      <option value="gemini-2.0-flash">Gemini 2.0 Flash (Khuyên Dùng - Siêu Nhanh)</option>
                       <option value="gemini-1.5-pro">Gemini 1.5 Pro (Chuyên Sâu - Đọc PDF Lớn)</option>
                       <option value="gemini-1.5-flash">Gemini 1.5 Flash (Tiết Kiệm Quota)</option>
                     </select>

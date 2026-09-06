@@ -17,9 +17,14 @@ describe('TestResult Domain - evaluateResult & evaluateTestIndicator', () => {
       expect(evaluateResult('2.1', 4.0, 10.0)).toEqual({ status: 'low', label: 'THẤP ↓' });
     });
 
-    it('should evaluate string values starting with < as normal', () => {
+    it('should evaluate string values starting with < as normal when within min range', () => {
       expect(evaluateResult('<15,0', 0, 15.0)).toEqual({ status: 'normal', label: 'Bình thường' });
       expect(evaluateResult('<0.35', 0, 0.34)).toEqual({ status: 'normal', label: 'Bình thường' });
+    });
+
+    it('should evaluate values starting with < as low when numeric value is <= min', () => {
+      expect(evaluateResult('< 2.0', 4.0, 10.0)).toEqual({ status: 'low', label: 'THẤP ↓' });
+      expect(evaluateResult('<= 3.5', 4.0, 10.0)).toEqual({ status: 'low', label: 'THẤP ↓' });
     });
   });
 

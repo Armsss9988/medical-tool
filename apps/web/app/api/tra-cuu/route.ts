@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
     const tests = await db
       .select()
       .from(schema.medicalReportTests)
-      .where(ilike(schema.medicalReportTests.reportId, report.id))
+      .where(eq(schema.medicalReportTests.reportId, report.id))
       .orderBy(schema.medicalReportTests.testOrder);
 
     // Truy vấn thông tin hóa đơn và trạng thái thanh toán nếu có

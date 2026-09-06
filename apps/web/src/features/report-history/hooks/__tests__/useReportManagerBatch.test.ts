@@ -112,4 +112,38 @@ describe('useReportManager - Batch Import & Identity Resolution', () => {
     expect(result.current.reports[0].selectedTests[0].result).toBe('7.8');
     expect(result.current.reports[0].conclusion).toBe('Tiểu đường cần theo dõi');
   });
+
+  it('3. Does NOT overwrite old report when saving a new visit for returning patient with generated BN- code', () => {
+    const { result } = renderHook(() => useReportManager());
+
+    // Lần khám 1: Nguyễn Văn A đến khám ngày hôm qua, hệ thống sinh mã BN-20260905-001
+    act(() => {
+      result.current.saveOrUpdateReport({
+        patient: createPatient({ code: 'BN-20260905-001', name: 'Nguyễn Văn A', dob: '1990', gender: 'Nam' }),
+        selectedTests: [{ ...dummyTest, result: '5.0', note: 'Bình thường' }],
+        conclusion: 'Khám tổng quát lần 1',
+        doctorName: 'BS. Long'
+      });
+    });
+
+    expect(result.current.reports.length).toBe(1);
+    expect(result.current.reports[0].code).toBe('BN-20260905-001');
+
+    // Lần khám 2: Nguyễn Văn A quay lại tái khám tuần sau, hệ thống sinh mã mới BN-20260912-002
+    act(() => {
+      result.current.saveOrUpdateReport({
+        patient: createPatient({ code: 'BN-20260912-002', name: 'Nguyễn Văn A', dob: '1990', gender: 'Nam' }),
+        selectedTests: [{ ...dummyTest, result: '6.5', note: 'Hơi cao' }],
+        conclusion: 'Tái khám lần 2',
+        doctorName: 'BS. Long'
+      });
+    });
+
+    // PHẢI LƯU CẢ 2 PHIẾU KHÁM, KHÔNG ĐƯỢC GHI ĐÈ LẦN 1!
+    expect(result.current.reports.length).toBe(2);
+    const codes = result.current.reports.map((r) => r.code);
+    expect(codes).toContain('BN-20260905-001');
+    expect(codes).toContain('BN-20260912-002');
+  });
 });
+

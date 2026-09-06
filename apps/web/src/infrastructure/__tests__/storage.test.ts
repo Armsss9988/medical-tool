@@ -1,16 +1,14 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { saveData, loadData, openDataFolder, getDataDirPath } from '../storage';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { saveData, loadData, getDataDirPath } from '../storage';
 
 describe('storage (web-first localStorage)', () => {
   beforeEach(() => {
     localStorage.clear();
-    delete window.electronAPI;
   });
 
   afterEach(() => {
     localStorage.clear();
-    delete window.electronAPI;
   });
 
   it('saveData then loadData round-trips via localStorage', async () => {
@@ -24,28 +22,28 @@ describe('storage (web-first localStorage)', () => {
     expect(loaded).toEqual(items);
   });
 
-  it('loadData ignores window.electronAPI even when it is defined', async () => {
-    const items = [{ id: '1', name: 'Should round-trip through localStorage' }];
-    const electronSpy = vi.fn().mockResolvedValue('FROM_ELECTRON_WRONG_VALUE');
-    window.electronAPI = {
-      readLocalData: electronSpy,
-      writeLocalData: vi.fn(),
-      openDataFolder: vi.fn(),
-      getDataDirPath: vi.fn(),
-    };
-
-    await saveData('catalog', items);
-    const loaded = await loadData<typeof items>('catalog', []);
-
-    expect(electronSpy).not.toHaveBeenCalled();
-    expect(loaded).toEqual(items);
-  });
-
-  it('openDataFolder returns null on web', async () => {
-    expect(await openDataFolder()).toBeNull();
-  });
-
   it('getDataDirPath returns a localStorage string on web', async () => {
     expect(await getDataDirPath()).toContain('localStorage');
   });
+
+  it('normalizes keys starting with medical_ without creating medical_medical_ duplicates', async () => {
+    // Simulate legacy duplicate
+    localStorage.setItem('medical_medical_reports', JSON.stringify([{ id: 'legacy' }]));
+
+    const reports = [{ id: 'rep1', name: 'Blood test' }];
+    await saveData('medical_reports', reports);
+
+    // Should be saved under 'medical_reports'
+    expect(localStorage.getItem('medical_reports')).toBe(JSON.stringify(reports));
+    // Should NOT create or keep 'medical_medical_reports'
+    expect(localStorage.getItem('medical_medical_reports')).toBeNull();
+
+    // loadData works with both 'medical_reports' and 'reports'
+    const loadedDirect = await loadData('medical_reports', []);
+    expect(loadedDirect).toEqual(reports);
+
+    const loadedStripped = await loadData('reports', []);
+    expect(loadedStripped).toEqual(reports);
+  });
 });
+
