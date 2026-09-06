@@ -17,7 +17,7 @@ import { isAllergenTest } from '@domain/allergenDetector';
 import { evaluateResult } from '@domain/testResult';
 import { computeHybridReportTotalPrice } from '@domain/pricing';
 import { AllergenReportDomainService } from '@domain/services/AllergenReportDomainService';
-import { generateQrCodeDataUrl } from '@infra/qrService';
+import { generateQrCodeDataUrl, buildPortalUrl } from '@infra/qrService';
 import AllergenSummaryPage from './allergenReport/AllergenSummaryPage';
 import AllergenDetailPage from './allergenReport/AllergenDetailPage';
 import AllergenGuidancePage from './allergenReport/AllergenGuidancePage';
@@ -100,18 +100,13 @@ function HybridReportView({
       });
       return;
     }
-    const rawWebsite = typeof clinicInfo?.website === 'string' ? clinicInfo.website.trim() : '';
-    const baseUrl = rawWebsite
-      ? (rawWebsite.startsWith('http') ? rawWebsite : `https://${rawWebsite}`)
-      : 'https://golab.com.vn';
     const code = patient.code || `BN-${Date.now()}`;
-    const sample = patient.sampleCode || code;
-    const lookupUrl = `${baseUrl}/tra-cuu?code=${encodeURIComponent(code)}&sample=${encodeURIComponent(sample)}`;
+    const portalUrl = buildPortalUrl(code, clinicInfo?.website);
 
-    generateQrCodeDataUrl(lookupUrl).then((res) => {
+    generateQrCodeDataUrl(portalUrl).then((res) => {
       if (res) setAutoQrCode(res);
     });
-  }, [qrCodeDataUrl, qrCodeUrl, patient.code, patient.sampleCode, clinicInfo?.website]);
+  }, [qrCodeDataUrl, qrCodeUrl, patient.code, clinicInfo?.website]);
 
   const finalQrCode = qrCodeDataUrl || autoQrCode;
   const currentLogo =

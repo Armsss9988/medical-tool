@@ -23,18 +23,23 @@ if (savedApiBase) apiBase = savedApiBase;
 
 const SESSION_PASSWORD_KEY = 'golab_app_password';
 
-let password = sessionStorage.getItem(SESSION_PASSWORD_KEY) ?? '';
+let password = typeof window !== 'undefined' ? (sessionStorage.getItem(SESSION_PASSWORD_KEY) ?? '') : '';
 
 export function getPassword(): string {
+  if (!password && typeof window !== 'undefined') {
+    password = sessionStorage.getItem(SESSION_PASSWORD_KEY) ?? '';
+  }
   return password;
 }
 
 export function setPassword(p: string): void {
   password = p;
-  if (p) {
-    sessionStorage.setItem(SESSION_PASSWORD_KEY, p);
-  } else {
-    sessionStorage.removeItem(SESSION_PASSWORD_KEY);
+  if (typeof window !== 'undefined') {
+    if (p) {
+      sessionStorage.setItem(SESSION_PASSWORD_KEY, p);
+    } else {
+      sessionStorage.removeItem(SESSION_PASSWORD_KEY);
+    }
   }
 }
 

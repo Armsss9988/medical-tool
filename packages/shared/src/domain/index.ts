@@ -14,6 +14,7 @@ export * from './services/ReportPaginationDomainService';
 export * from './services/TemplateCompatibilityDomainService';
 export * from './services/itemResolver';
 export * from './utils/assertNever';
+export * from './utils/Result';
 
 // Value Objects (Product Types & Functional ADTs)
 export * from './valueObjects/Money';

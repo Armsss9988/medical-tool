@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { User, Hash, Calendar, Phone, Stethoscope, ChevronDown, ChevronUp, MapPin, Sparkles, RefreshCw, Zap } from 'lucide-react';
-import { Patient, Doctor, GENDER, GENDER_LIST } from '@domain';
+import { Patient, Doctor, GENDER, GENDER_LIST, Invoice } from '@domain';
 
 interface PatientFormProps {
   patient: Patient;
@@ -19,6 +19,12 @@ interface PatientFormProps {
   editingReportCode?: string | null;
   /** Callback to navigate to next tab on mobile */
   onNavigateNext?: () => void;
+  /** Trạng thái thu phí thực tế từ Hóa đơn (SSOT) */
+  isPaid?: boolean;
+  /** Hóa đơn tương ứng với phiếu hiện tại nếu có */
+  invoice?: Invoice | null;
+  /** Callback mở modal Hóa đơn */
+  onOpenInvoiceModal?: () => void;
 }
 
 export default function PatientForm({
@@ -33,7 +39,10 @@ export default function PatientForm({
   nameInputRef: externalNameRef,
   autoFocusName = false,
   editingReportCode = null,
-  onNavigateNext
+  onNavigateNext,
+  isPaid = false,
+  invoice = null,
+  onOpenInvoiceModal
 }: PatientFormProps) {
   const [showMoreTimeFields, setShowMoreTimeFields] = useState(false);
 
@@ -132,13 +141,16 @@ export default function PatientForm({
       setPatient((prev) => ({
         ...prev,
         orderedAt: formatted,
-        paidAt: formatted,
+        // Chỉ cập nhật paidAt khi phiếu thực sự đã thu phí (SSOT từ hóa đơn)
+        paidAt: isPaid ? (prev.paidAt || formatted) : prev.paidAt,
         receivedAt: formatted,
         returnedAt: formatted
       }));
     } else if (onPatientChange) {
       onPatientChange('orderedAt', formatted);
-      onPatientChange('paidAt', formatted);
+      if (isPaid && !patient.paidAt) {
+        onPatientChange('paidAt', formatted);
+      }
       onPatientChange('receivedAt', formatted);
       onPatientChange('returnedAt', formatted);
     }
@@ -399,11 +411,43 @@ export default function PatientForm({
                 />
               </div>
               <div>
-                <label className="block font-bold text-slate-700 mb-0.5 text-[11px]">2. T/G đóng phí:</label>
+                <div className="flex items-center justify-between mb-0.5">
+                  <label className="block font-bold text-slate-700 text-[11px]">2. T/G đóng phí:</label>
+                  {isPaid ? (
+                    <button
+                      type="button"
+                      onClick={onOpenInvoiceModal}
+                      className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded px-1.5 py-0.2 transition cursor-pointer"
+                      title="Hóa đơn đã thanh toán. Bấm để xem chi tiết hóa đơn"
+                    >
+                      <span>✓ Đã thu</span>
+                      {invoice?.code && <span className="font-mono text-[9px] opacity-80">({invoice.code})</span>}
+                    </button>
+                  ) : invoice ? (
+                    <button
+                      type="button"
+                      onClick={onOpenInvoiceModal}
+                      className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded px-1.5 py-0.2 transition cursor-pointer"
+                      title="Hóa đơn chưa thanh toán. Bấm để mở thu tiền"
+                    >
+                      <span>⏳ Chờ thu</span>
+                      <span className="font-mono text-[9px] opacity-80">({invoice.code})</span>
+                    </button>
+                  ) : onOpenInvoiceModal ? (
+                    <button
+                      type="button"
+                      onClick={onOpenInvoiceModal}
+                      className="inline-flex items-center text-[10px] font-medium text-slate-500 hover:text-sky-600 bg-slate-100 hover:bg-sky-50 border border-slate-200 hover:border-sky-200 rounded px-1.5 py-0.2 transition cursor-pointer"
+                      title="Chưa có hóa đơn. Bấm để tạo hóa đơn thu phí"
+                    >
+                      + Hóa đơn
+                    </button>
+                  ) : null}
+                </div>
                 <input
                   type="text"
                   placeholder="dd/mm/yyyy hh:mm"
-                  value={patient.paidAt || ''}
+                  value={patient.paidAt || (isPaid && invoice?.paidAt ? new Date(invoice.paidAt).toLocaleDateString('vi-VN') : '')}
                   onChange={(e) => handleChange('paidAt', e.target.value)}
                   tabIndex={102}
                   className="w-full bg-white border border-slate-300 focus:border-sky-500 rounded-lg px-2 py-1 text-xs font-mono font-medium"

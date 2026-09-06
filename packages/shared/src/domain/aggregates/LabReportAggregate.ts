@@ -1,7 +1,8 @@
 import { MedicalReport, Patient, SelectedTest, ReportStatus } from '../types';
 import { PatientProfile } from '../valueObjects/PatientProfile';
 import { ReportKind, ReportKindResolver } from '../valueObjects/ReportKind';
-import { ReportDocumentState, ReportDocumentStateHelper } from '../valueObjects/ReportDocumentState';
+import { ReportDocumentState, ReportDocumentStateHelper, DocumentStateNode } from '../valueObjects/ReportDocumentState';
+import { Result } from '../utils/Result';
 import { ClinicalStatusVO } from '../valueObjects/ClinicalStatusVO';
 import { DocumentStatusVO } from '../valueObjects/DocumentStatusVO';
 import { BillingStatusVO } from '../valueObjects/BillingStatusVO';
@@ -378,6 +379,43 @@ export class LabReportAggregate {
   }
 
   /**
+   * Thử nghiệm xuất bản PDF Cloud có bảo vệ theo State Machine (Guarded Transition)
+   */
+  public tryExportPdf(cloudPdfUrl: string, qrCodeDataUrl?: string): Result<LabReportAggregate, string> {
+    const nextNodeResult = this.stateNode.exportPdf(cloudPdfUrl, qrCodeDataUrl);
+    if (!nextNodeResult.ok) {
+      return Result.fail(nextNodeResult.error);
+    }
+    const nextSnapshot = nextNodeResult.value.toSnapshot();
+    this._cloudPdfUrl = cloudPdfUrl;
+    this._qrCodeDataUrl = qrCodeDataUrl || this._qrCodeDataUrl;
+    if (nextSnapshot.status === 'EXPORTED') {
+      this._pdfVersion = nextSnapshot.pdfVersion;
+    }
+    this._documentState = nextSnapshot;
+    this._updatedAt = new Date().toISOString();
+    return Result.ok(this);
+  }
+
+  /**
+   * Thử nghiệm gửi kết quả Zalo ZNS có bảo vệ theo State Machine (Guarded Transition)
+   */
+  public trySendZalo(channel: 'Zalo' | 'Print' | 'Direct' = 'Zalo', msgId?: string): Result<LabReportAggregate, string> {
+    const nextNodeResult = this.stateNode.sendZalo(channel, msgId);
+    if (!nextNodeResult.ok) {
+      return Result.fail(nextNodeResult.error);
+    }
+    const nextSnapshot = nextNodeResult.value.toSnapshot();
+    const now = new Date().toISOString();
+    this._zaloSentAt = now;
+    this._zaloMsgId = msgId || this._zaloMsgId;
+    this._patientProfile = this._patientProfile.withUpdates({ returnedAt: now });
+    this._documentState = nextSnapshot;
+    this._updatedAt = now;
+    return Result.ok(this);
+  }
+
+  /**
    * Gắn liên kết hóa đơn viện phí.
    */
   public linkInvoice(invoiceId: string, isPaid = false): void {
@@ -539,6 +577,10 @@ export class LabReportAggregate {
   public get conclusion(): string { return this._conclusion; }
   public get doctorName(): string { return this._doctorName; }
   public get documentState(): ReportDocumentState { return this._documentState; }
+  public get stateNode(): DocumentStateNode { return DocumentStateNode.fromSnapshot(this._documentState); }
+  public get canExportPdf(): boolean { return this.stateNode.canExportPdf; }
+  public get canSendZalo(): boolean { return this.stateNode.canSendZalo; }
+  public get canModifyTests(): boolean { return this.stateNode.canModifyTests; }
   public get kind(): ReportKind { return ReportKindResolver.resolve(this._selectedTests); }
   public get invoiceId(): string | undefined { return this._invoiceId; }
   public get isPaid(): boolean { return this._isPaid; }

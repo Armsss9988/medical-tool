@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { eq, or } from 'drizzle-orm';
+import { ilike, or, eq } from 'drizzle-orm';
 import { getDbSafe } from '@/lib/db';
 import * as schema from '@/lib/schema';
 import { evaluateResult } from '@domain/testResult';
@@ -11,7 +11,9 @@ export async function GET(req: NextRequest) {
   const code = (searchParams.get('code') || '').trim();
   const sample = (searchParams.get('sample') || '').trim();
 
-  if (!code && !sample) {
+  const searchTarget = code || sample;
+
+  if (!searchTarget) {
     return NextResponse.json(
       { found: false, message: 'Vui lòng cung cấp mã bệnh nhân hoặc mã mẫu để tra cứu.' },
       { status: 400 }
@@ -27,11 +29,13 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const conditions = [];
-    if (code) conditions.push(eq(schema.medicalReports.code, code));
-    if (sample) conditions.push(eq(schema.medicalReports.sampleCode, sample));
+    const conditions = [
+      ilike(schema.medicalReports.code, searchTarget),
+      ilike(schema.medicalReports.sampleCode, searchTarget),
+      ilike(schema.medicalReports.id, searchTarget)
+    ];
 
-    const query = conditions.length === 1 ? conditions[0] : or(...conditions);
+    const query = or(...conditions);
     const reports = await db
       .select()
       .from(schema.medicalReports)
@@ -41,7 +45,7 @@ export async function GET(req: NextRequest) {
     if (reports.length === 0) {
       return NextResponse.json({
         found: false,
-        message: `Không tìm thấy phiếu xét nghiệm cho mã: ${code || sample}`
+        message: `Không tìm thấy phiếu xét nghiệm cho mã: ${searchTarget}`
       });
     }
 
@@ -49,8 +53,59 @@ export async function GET(req: NextRequest) {
     const tests = await db
       .select()
       .from(schema.medicalReportTests)
-      .where(eq(schema.medicalReportTests.reportId, report.id))
+      .where(ilike(schema.medicalReportTests.reportId, report.id))
       .orderBy(schema.medicalReportTests.testOrder);
+
+    // Truy vấn thông tin hóa đơn và trạng thái thanh toán nếu có
+    let invoice: typeof schema.invoices.$inferSelect | null = null;
+    try {
+      if (report.invoiceId) {
+        const invRows = await db
+          .select()
+          .from(schema.invoices)
+          .where(eq(schema.invoices.id, report.invoiceId))
+          .limit(1);
+        if (invRows.length > 0) invoice = invRows[0];
+      }
+
+      if (!invoice) {
+        const invConditions = [
+          eq(schema.invoices.reportId, report.id),
+          ilike(schema.invoices.patientCode, report.code)
+        ];
+        if (report.sampleCode && report.sampleCode !== report.code) {
+          invConditions.push(ilike(schema.invoices.patientCode, report.sampleCode));
+        }
+
+        const invRows = await db
+          .select()
+          .from(schema.invoices)
+          .where(or(...invConditions))
+          .limit(1);
+        if (invRows.length > 0) invoice = invRows[0];
+      }
+    } catch (invErr) {
+      console.warn('[API /api/tra-cuu] Không thể nạp hóa đơn:', invErr);
+    }
+
+    const isPaid = Boolean(
+      invoice
+        ? invoice.status === 'Đã thanh toán' || invoice.status === 'Đã thu phí' || Boolean(invoice.paidAt)
+        : false
+    );
+
+    const paymentStatus = invoice
+      ? invoice.status
+      : (isPaid ? 'Đã thanh toán' : 'Chưa thanh toán');
+
+    const payment = {
+      isPaid,
+      status: paymentStatus,
+      totalAmount: invoice ? (invoice.finalAmount ?? invoice.subtotal ?? 0) : null,
+      paidAt: invoice?.paidAt ? invoice.paidAt.toISOString() : null,
+      paymentMethod: invoice?.paymentMethod || null,
+      invoiceCode: invoice?.code || null
+    };
 
     // Lấy thông tin phòng khám để hiển thị logo / hotline nếu có
     const clinicRows = await db.select().from(schema.clinicInfo).limit(1);
@@ -74,6 +129,13 @@ export async function GET(req: NextRequest) {
         cloudPdfUrl: report.cloudPdfUrl,
         pdfGeneratedAt: report.pdfGeneratedAt,
         createdAt: report.createdAt,
+        isPaid,
+        paymentStatus,
+        paymentAmount: payment.totalAmount,
+        paidAt: payment.paidAt,
+        paymentMethod: payment.paymentMethod,
+        invoiceCode: payment.invoiceCode,
+        payment,
         tests: tests.map((t) => {
           const evalRes = evaluateResult(t.result, t.refMin, t.refMax);
           const displayNote = t.note ? t.note.trim() : evalRes.label;
@@ -90,10 +152,15 @@ export async function GET(req: NextRequest) {
           return {
             testCode: t.testCode,
             testName: t.testName,
-            category: t.category,
+            category: t.category || 'Xét nghiệm chung',
             result: t.result,
-            unit: t.unit,
-            refText: t.refText,
+            unit: t.unit || '',
+            refMin: t.refMin ?? null,
+            refMax: t.refMax ?? null,
+            refText: t.refText || '',
+            note: displayNote || '',
+            evaluationType: t.evaluationType || (t.scaleId ? 'scale' : 'range'),
+            scaleId: t.scaleId || null,
             evaluation: isAbnormal ? 'ABNORMAL' : 'NORMAL'
           };
         })
@@ -104,7 +171,8 @@ export async function GET(req: NextRequest) {
             address: clinic.address,
             phone: clinic.phone,
             website: clinic.website,
-            logoUrl: clinic.logoUrl
+            logoUrl: clinic.logoUrl,
+            stampUrl: clinic.stampUrl
           }
         : null
     });

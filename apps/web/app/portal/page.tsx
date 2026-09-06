@@ -3,11 +3,11 @@ import type { Metadata } from 'next';
 import { PatientPortalView } from '@features/patient-portal';
 
 export const metadata: Metadata = {
-  title: 'Tra Cứu Kết Quả Xét Nghiệm | GoLab',
+  title: 'Cổng Tra Cứu Kết Quả Xét Nghiệm Y Khoa | GoLab',
   description: 'Tra cứu kết quả xét nghiệm trực tuyến nhanh chóng, an toàn và trực quan cho bệnh nhân.',
 };
 
-export default function TraCuuPage() {
+export default function PortalPage() {
   return (
     <Suspense
       fallback={

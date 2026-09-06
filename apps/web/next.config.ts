@@ -38,6 +38,7 @@ const nextConfig: NextConfig = {
       '@data': path.resolve(root, 'packages/shared/src/data'),
       '@components': path.resolve(__dirname, 'src/components'),
       '@assets': path.resolve(__dirname, 'src/assets'),
+      '@features': path.resolve(__dirname, 'src/features'),
     },
   },
 
@@ -57,6 +58,7 @@ const nextConfig: NextConfig = {
       '@data': path.resolve(root, 'packages/shared/src/data'),
       '@components': path.resolve(__dirname, 'src/components'),
       '@assets': path.resolve(__dirname, 'src/assets'),
+      '@features': path.resolve(__dirname, 'src/features'),
     };
 
     return config;

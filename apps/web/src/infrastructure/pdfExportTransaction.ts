@@ -6,7 +6,7 @@ import {
 } from '@domain/exportTransaction';
 import { generateHighQualityPdf } from './pdfService';
 import { uploadPdfToCloud, getPredictedCloudUrl } from './cloudService';
-import { generateQrCodeDataUrl } from './qrService';
+import { generateQrCodeDataUrl, buildPortalUrl } from './qrService';
 import { addLedgerRecord, getNextVersionForReport } from './pdfLedger';
 import { cleanupOldVersions, deleteSupabaseFile } from './cloudFileManager';
 
@@ -47,13 +47,15 @@ export class PdfExportTransaction {
       version = await getNextVersionForReport(this.patientCode);
       const versionedFilename = this.filename.replace(/\.pdf$/i, `_v${version}.pdf`);
       
-      // 1.2. Tính toán URL Cloud chính xác dự kiến
+      // 1.2. Tính toán URL Cloud chính xác dự kiến (để upload và lưu trữ)
       const predictedCloudUrl = getPredictedCloudUrl(versionedFilename);
 
-      // 1.3. Sinh mã QR chất lượng cao từ Cloud URL
-      qrDataUrl = await generateQrCodeDataUrl(predictedCloudUrl);
+      // 1.3. Sinh mã QR chất lượng cao trỏ tới Cổng Tra Cứu Trực Tuyến (Portal) của chính phiếu này
+      // Quy chuẩn GoLab: Mã QR trên phiếu PDF khi in ra giấy phải trỏ tới link portal để bệnh nhân quét và xem online
+      const portalUrl = buildPortalUrl(this.patientCode);
+      qrDataUrl = await generateQrCodeDataUrl(portalUrl);
 
-      // 1.4. Bơm trực tiếp mã QR vào DOM trước khi chụp PDF để bản in chứa đúng 100% QR Cloud
+      // 1.4. Bơm trực tiếp mã QR vào DOM trước khi chụp PDF để bản in chứa đúng 100% QR Portal
       const container = document.getElementById(this.elementId);
       if (container && qrDataUrl) {
         const qrImgs = container.querySelectorAll<HTMLImageElement>('img[alt*="QR"], img[data-qr="true"]');
@@ -66,9 +68,9 @@ export class PdfExportTransaction {
         step: 'generate_qr',
         status: 'success',
         durationMs: Date.now() - t1Start,
-        data: { qrDataUrl, predictedCloudUrl }
+        data: { qrDataUrl, portalUrl, predictedCloudUrl }
       });
-      this.callbacks?.onStepSuccess?.('generate_qr', { qrDataUrl, predictedCloudUrl });
+      this.callbacks?.onStepSuccess?.('generate_qr', { qrDataUrl, portalUrl, predictedCloudUrl });
 
       // -------------------------------------------------------------
       // BƯỚC 2: RENDER LOSSLESS PDF (ĐÃ CHỨA MÃ QR CHUẨN CLOUD 100%)

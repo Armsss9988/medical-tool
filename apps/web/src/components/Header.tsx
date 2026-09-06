@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Activity, ListChecks, TrendingUp, FolderOpen, Clock, Phone, ShieldCheck, ClipboardList, Package, Menu, X, Sparkles, Palette } from 'lucide-react';
+import { Settings, Activity, ListChecks, TrendingUp, FolderOpen, Clock, Phone, ShieldCheck, ClipboardList, Package, Menu, X, Sparkles, Palette, Lock } from 'lucide-react';
 import { ClinicInfo, CatalogItem, getSafeClinicInfo } from '@domain/types';
+import { setPassword } from '@infra/apiClient';
 
 interface HeaderProps {
   clinicInfo: ClinicInfo;
@@ -51,6 +52,11 @@ export default function Header({
   const handleMobileNav = (action: () => void) => {
     action();
     setIsMobileMenuOpen(false);
+  };
+
+  const handleLockSystem = () => {
+    setPassword('');
+    window.dispatchEvent(new CustomEvent('app-lock'));
   };
 
   return (
@@ -205,6 +211,16 @@ export default function Header({
             <Settings className="w-4 h-4" />
           </button>
 
+          {/* Lock System / Logout Passkey Button */}
+          <button
+            type="button"
+            onClick={handleLockSystem}
+            title="Khóa hệ thống / Đăng xuất phiên làm việc (Yêu cầu nhập lại Passkey)"
+            className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/60 active:bg-rose-900/80 text-slate-400 hover:text-rose-300 border border-slate-700/80 hover:border-rose-500/40 transition-all active:scale-95 group"
+          >
+            <Lock className="w-4 h-4 group-hover:scale-105 transition-transform" />
+          </button>
+
         </div>
 
         {/* Mobile Hamburger & Quick Badges Bar (lg:hidden) */}
@@ -323,7 +339,7 @@ export default function Header({
             )}
           </div>
 
-          <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+          <div className="pt-2 border-t border-slate-800 flex flex-col gap-2">
             <button
               type="button"
               onClick={() => handleMobileNav(onOpenSettings)}
@@ -331,6 +347,18 @@ export default function Header({
             >
               <Settings className="w-4 h-4 text-emerald-400" />
               <span>Cài Đặt & Cấu Hình Ngân Hàng / VietQR</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                handleLockSystem();
+              }}
+              className="w-full py-2 px-3 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 rounded-xl font-bold text-xs flex items-center justify-center space-x-2 transition active:scale-95 border border-rose-500/30"
+            >
+              <Lock className="w-4 h-4 text-rose-400" />
+              <span>Khóa Hệ Thống (Yêu Cầu Passkey)</span>
             </button>
           </div>
         </div>

@@ -2,8 +2,8 @@ import JSZip from 'jszip';
 import { MedicalReport, ClinicInfo, BatchExportProgress } from '@domain/types';
 import { ReportKindResolver } from '@domain/valueObjects/ReportKind';
 import { generateHighQualityPdf } from './pdfService';
-import { uploadPdfToCloud, getPredictedCloudUrl } from './cloudService';
-import { generateQrCodeDataUrl } from './qrService';
+import { uploadPdfToCloud } from './cloudService';
+import { generateQrCodeDataUrl, buildPortalUrl } from './qrService';
 import { addLedgerRecord, getNextVersionForReport } from './pdfLedger';
 import { PdfFileRecord } from '@domain/exportTransaction';
 
@@ -72,10 +72,10 @@ export async function batchExportPdfs(
       const version = await getNextVersionForReport(report.code);
       const versionedFilename = filename.replace(/\.pdf$/i, `_v${version}.pdf`);
 
-      const predictedCloudUrl = getPredictedCloudUrl(versionedFilename);
-      const qrDataUrl = await generateQrCodeDataUrl(predictedCloudUrl);
+      const portalUrl = buildPortalUrl(report.code);
+      const qrDataUrl = await generateQrCodeDataUrl(portalUrl);
 
-      // Bơm trực tiếp mã QR Cloud vào DOM trước khi chụp PDF để bản in chứa đúng 100% QR Cloud
+      // Bơm trực tiếp mã QR Portal vào DOM trước khi chụp PDF để bản in chứa đúng 100% QR Portal
       const container = document.getElementById(elementId);
       if (container && qrDataUrl) {
         const qrImgs = container.querySelectorAll<HTMLImageElement>('img[alt*="QR"], img[data-qr="true"]');

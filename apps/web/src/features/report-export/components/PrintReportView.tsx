@@ -1,6 +1,6 @@
 import { useState, useEffect, memo } from 'react';
 import { evaluateResult } from '@domain/testResult';
-import { generateQrCodeDataUrl } from '@infra/qrService';
+import { generateQrCodeDataUrl, buildPortalUrl } from '@infra/qrService';
 import golabLogo from '@assets/golabLogoDataUrl';
 import doctorStamp from '@assets/doctorStampDataUrl';
 import { Patient, SelectedTest, ClinicInfo, TestEquipment, CatalogItemEquipmentLink, resolveTestEquipmentName, DEFAULT_CLINIC_INFO, getSafeClinicInfo } from '@domain/types';
@@ -55,19 +55,14 @@ function PrintReportView({
       });
       return;
     }
-    // Tự động tạo mã QR tra cứu trực tuyến thời gian thực
-    const rawWebsite = typeof safeClinic.website === 'string' ? safeClinic.website.trim() : '';
-    const baseUrl = rawWebsite
-      ? (rawWebsite.startsWith('http') ? rawWebsite : `https://${rawWebsite}`)
-      : 'https://golab.com.vn';
+    // Tự động tạo mã QR tra cứu trực tuyến thời gian thực trỏ về Cổng Portal của phiếu này
     const code = patient.code || `BN-${Date.now()}`;
-    const sample = patient.sampleCode || code;
-    const lookupUrl = `${baseUrl}/tra-cuu?code=${encodeURIComponent(code)}&sample=${encodeURIComponent(sample)}`;
+    const portalUrl = buildPortalUrl(code, safeClinic.website);
 
-    generateQrCodeDataUrl(lookupUrl).then((res) => {
+    generateQrCodeDataUrl(portalUrl).then((res) => {
       if (res) setAutoQrCode(res);
     });
-  }, [qrCodeDataUrl, qrCodeUrl, patient.code, patient.sampleCode, safeClinic.website]);
+  }, [qrCodeDataUrl, qrCodeUrl, patient.code, safeClinic.website]);
 
   const finalQrCode = qrCodeDataUrl || autoQrCode;
 

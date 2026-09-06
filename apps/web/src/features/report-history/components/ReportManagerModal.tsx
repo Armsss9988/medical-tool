@@ -132,7 +132,7 @@ export default function ReportManagerModal({
     const notExportedCount = reports.filter((r) => !r.cloudPdfUrl).length;
     const paidCount = reports.filter((r) => {
       const inv = getInvoiceForReport(r);
-      return Boolean(inv ? inv.status === BILLING_STATUS.PAID : r.patient?.paidAt);
+      return Boolean(inv && inv.status === BILLING_STATUS.PAID);
     }).length;
     const unpaidCount = reports.length - paidCount;
 
@@ -205,7 +205,7 @@ export default function ReportManagerModal({
 
       // Lọc theo Tình trạng Thu Phí
       const inv = getInvoiceForReport(rep);
-      const isPaid = Boolean(inv ? inv.status === BILLING_STATUS.PAID : rep.patient?.paidAt);
+      const isPaid = Boolean(inv && inv.status === BILLING_STATUS.PAID);
       if (paymentFilter === 'PAID' && !isPaid) return false;
       if (paymentFilter === 'UNPAID' && isPaid) return false;
 
@@ -602,7 +602,7 @@ export default function ReportManagerModal({
                   {filteredReports.map((rep, idx) => {
                     const kind = ReportKindResolver.resolve(rep.selectedTests);
                     const inv = getInvoiceForReport(rep);
-                    const isPaid = Boolean(inv ? inv.status === 'Đã thanh toán' : rep.patient?.paidAt);
+                    const isPaid = Boolean(inv && inv.status === BILLING_STATUS.PAID);
                     const { clinical, document, billing } = LabReportAggregate.fromSnapshot(rep).computeStatusSummary(isPaid);
                     const isOutdated = document.isOutdated();
                     const versionStr = rep.pdfVersion ? `v${rep.pdfVersion}` : 'v1';
@@ -820,7 +820,7 @@ export default function ReportManagerModal({
               {filteredReports.map((rep) => {
                 const kind = ReportKindResolver.resolve(rep.selectedTests);
                 const inv = getInvoiceForReport(rep);
-                const isPaid = Boolean(inv ? inv.status === 'Đã thanh toán' : rep.patient?.paidAt);
+                const isPaid = Boolean(inv && inv.status === BILLING_STATUS.PAID);
                 const { clinical, document, billing } = LabReportAggregate.fromSnapshot(rep).computeStatusSummary(isPaid);
                 const isOutdated = document.isOutdated();
                 const versionStr = rep.pdfVersion ? `v${rep.pdfVersion}` : 'v1';

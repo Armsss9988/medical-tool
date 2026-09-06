@@ -163,6 +163,9 @@ export function MainWorkspace({
                   ? reports.find((r) => r.id === currentReportId)?.code || patient.code
                   : null
               }
+              isPaid={isCurrentReportPaid}
+              invoice={currentInvoiceForReport}
+              onOpenInvoiceModal={onOpenInvoiceModal}
             />
 
             {/* Trên Desktop: ConclusionForm nằm bên trái dưới PatientForm */}
