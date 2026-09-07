@@ -67,7 +67,32 @@ export class AllergenReportDomainService {
 
     const appliedScalesMap = new Map<string, AllergenGradingScale>();
 
-    const detailedList: AllergenReportItemDTO[] = tests.map((t, idx) => {
+    // Xây dựng bản đồ orderIndex từ gói dị nguyên (package_items)
+    const allergenPkg = testPackages.find((p) => p.id === 'di_nguyen_90') ||
+      testPackages.find((p) => p.id.includes('di_nguyen'));
+    const allergenOrderMap = new Map<string, number>();
+    if (allergenPkg && allergenPkg.items) {
+      allergenPkg.items.forEach((item, idx) => {
+        const order = typeof item.orderIndex === 'number' ? item.orderIndex : idx;
+        allergenOrderMap.set(item.code.trim().toLowerCase(), order);
+      });
+    }
+
+    // Sắp xếp các chỉ số dị nguyên theo đúng order_index của package_items (TIgE luôn đứng đầu)
+    const sortedTests = [...tests].sort((a, b) => {
+      const isA = isTIgETest(a);
+      const isB = isTIgETest(b);
+      if (isA) return -1;
+      if (isB) return 1;
+
+      const codeA = (a.code || '').trim().toLowerCase();
+      const codeB = (b.code || '').trim().toLowerCase();
+      const orderA = allergenOrderMap.has(codeA) ? allergenOrderMap.get(codeA)! : (dbMap.get(codeA)?.tt ?? 999);
+      const orderB = allergenOrderMap.has(codeB) ? allergenOrderMap.get(codeB)! : (dbMap.get(codeB)?.tt ?? 999);
+      return orderA - orderB;
+    });
+
+    const detailedList: AllergenReportItemDTO[] = sortedTests.map((t, idx) => {
       const dbItem = dbMap.get((t.code || '').toLowerCase()) || dbMap.get((t.name || '').toLowerCase());
       const isTIgE = isTIgETest(t) || (dbItem ? isTIgETest(dbItem) : false);
 

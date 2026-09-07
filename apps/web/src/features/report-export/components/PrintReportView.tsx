@@ -1,9 +1,10 @@
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, useMemo, memo } from 'react';
 import { evaluateResult } from '@domain/testResult';
 import { generateQrCodeDataUrl, buildPortalUrl } from '@infra/qrService';
 import golabLogo from '@assets/golabLogoDataUrl';
 import doctorStamp from '@assets/doctorStampDataUrl';
-import { Patient, SelectedTest, ClinicInfo, TestEquipment, CatalogItemEquipmentLink, resolveTestEquipmentName, DEFAULT_CLINIC_INFO, getSafeClinicInfo } from '@domain/types';
+import { Patient, SelectedTest, ClinicInfo, TestEquipment, CatalogItemEquipmentLink, TestPackage, resolveTestEquipmentName, DEFAULT_CLINIC_INFO, getSafeClinicInfo } from '@domain/types';
+import { sortTestsByPackageOrder } from '@domain/services/packageOrderResolver';
 
 interface PrintReportViewProps {
   elementId?: string;
@@ -17,6 +18,7 @@ interface PrintReportViewProps {
   clinicInfo?: ClinicInfo;
   equipments?: TestEquipment[];
   catalogItemEquipments?: CatalogItemEquipmentLink[];
+  testPackages?: TestPackage[];
 }
 
 interface FlatEntry {
@@ -38,11 +40,16 @@ function PrintReportView({
   qrCodeUrl,
   clinicInfo = DEFAULT_CLINIC_INFO,
   equipments = [],
-  catalogItemEquipments = []
+  catalogItemEquipments = [],
+  testPackages = []
 }: PrintReportViewProps) {
   const safeClinic = getSafeClinicInfo(clinicInfo);
-  const tests = selectedTests || [];
   const [autoQrCode, setAutoQrCode] = useState<string>(qrCodeDataUrl || '');
+
+  // 1. Sắp xếp các chỉ số theo chuẩn chuyên khoa và order_index từ bảng package_items
+  const sortedTests = useMemo(() => {
+    return sortTestsByPackageOrder(selectedTests || [], testPackages);
+  }, [selectedTests, testPackages]);
 
   useEffect(() => {
     if (qrCodeDataUrl) {
@@ -84,9 +91,9 @@ function PrintReportView({
       ? safeClinic.stampUrl
       : doctorStamp;
 
-  // 1. Gom nhóm các chỉ số theo danh mục
+  // 2. Gom nhóm các chỉ số theo danh mục
   const groupedCategories: Record<string, SelectedTest[]> = {};
-  tests.forEach((t) => {
+  sortedTests.forEach((t) => {
     const cat = t.category || 'XÉT NGHIỆM KHÁC';
     if (!groupedCategories[cat]) {
       groupedCategories[cat] = [];

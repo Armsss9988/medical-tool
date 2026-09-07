@@ -190,7 +190,8 @@ export async function getTableRows(db: Db, name: TableName): Promise<unknown[]> 
         const items = itemsByPackageId.get(p.id) || [];
         const packageItems = items.map((pi) => ({
           code: pi.catalogCode,
-          equipmentId: pi.equipmentId || null
+          equipmentId: pi.equipmentId || null,
+          orderIndex: pi.orderIndex
         }));
         return {
           id: p.id,

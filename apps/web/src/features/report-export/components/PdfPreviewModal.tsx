@@ -602,6 +602,7 @@ export default function PdfPreviewModal({
                 qrCodeDataUrl={qrCodeDataUrl}
                 equipments={equipments}
                 catalogItemEquipments={catalogItemEquipments}
+                testPackages={testPackages}
               />
             )}
           </div>

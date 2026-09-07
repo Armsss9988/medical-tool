@@ -89,6 +89,7 @@ export function PrintLayer({
           qrCodeDataUrl={qrCodeDataUrl}
           equipments={equipments}
           catalogItemEquipments={catalogItemEquipments}
+          testPackages={testPackages}
         />
       )}
 
@@ -152,6 +153,7 @@ export function PrintLayer({
               qrCodeDataUrl={undefined}
               equipments={equipments}
               catalogItemEquipments={catalogItemEquipments}
+              testPackages={testPackages}
             />
           )}
 

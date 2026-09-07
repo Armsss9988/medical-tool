@@ -17,6 +17,7 @@ import { isAllergenTest } from '@domain/allergenDetector';
 import { evaluateResult } from '@domain/testResult';
 import { computeHybridReportTotalPrice } from '@domain/pricing';
 import { AllergenReportDomainService } from '@domain/services/AllergenReportDomainService';
+import { sortTestsByPackageOrder } from '@domain/services/packageOrderResolver';
 import { generateQrCodeDataUrl, buildPortalUrl } from '@infra/qrService';
 import AllergenSummaryPage from './allergenReport/AllergenSummaryPage';
 import AllergenDetailPage from './allergenReport/AllergenDetailPage';
@@ -73,7 +74,7 @@ function HybridReportView({
   const safeClinic = getSafeClinicInfo(clinicInfo);
   const allTests = useMemo(() => selectedTests || [], [selectedTests]);
 
-  // Phân loại: Chỉ số thường vs Chỉ số dị nguyên
+  // Phân loại: Chỉ số thường vs Chỉ số dị nguyên (đã sắp xếp theo order_index của package_items)
   const { regularTests, allergenTests } = useMemo(() => {
     const reg: SelectedTest[] = [];
     const alg: SelectedTest[] = [];
@@ -84,8 +85,9 @@ function HybridReportView({
         reg.push(t);
       }
     }
-    return { regularTests: reg, allergenTests: alg };
-  }, [allTests]);
+    const sortedReg = sortTestsByPackageOrder(reg, testPackages);
+    return { regularTests: sortedReg, allergenTests: alg };
+  }, [allTests, testPackages]);
 
   const [autoQrCode, setAutoQrCode] = useState<string>(qrCodeDataUrl || '');
 

@@ -105,6 +105,8 @@ export interface PackageItem {
   code: string;
   /** ID máy đo được chọn cho chỉ số này trong gói. null = dùng máy mặc định của chỉ số */
   equipmentId?: string | null;
+  /** Thứ tự sắp xếp của chỉ số trong gói (tương ứng order_index trong package_items) */
+  orderIndex?: number;
 }
 
 export interface TestPackage {

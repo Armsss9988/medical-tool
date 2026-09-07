@@ -37,6 +37,7 @@ function AppContent() {
     doctorsList,
     setDoctorsList,
     referenceRanges,
+    setReferenceRanges,
     catalogItemEquipments,
     setCatalogItemEquipments,
     allergenScales,
@@ -332,6 +333,8 @@ function AppContent() {
         setCatalogItemEquipments={setCatalogItemEquipments}
         allergenScales={allergenScales}
         setAllergenScales={setAllergenScales}
+        referenceRanges={referenceRanges}
+        setReferenceRanges={setReferenceRanges}
         cloudLink={cloudLink}
         qrCodeDataUrl={qrCodeDataUrl}
         isExporting={isExporting}

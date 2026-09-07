@@ -36,7 +36,8 @@ import {
   DividerBlockProps,
   SpacerBlockProps,
   ReportPaginationDomainService,
-  ReportPaginationEntry
+  ReportPaginationEntry,
+  sortTestsByPackageOrder
 } from '@domain';
 import { evaluateResult } from '@domain/testResult';
 import { AllergenReportDomainService } from '@domain/services/AllergenReportDomainService';
@@ -248,16 +249,17 @@ export function DynamicReportView({
     });
   }, [allergenTests, testPackages, allergenScales]);
 
-  // Nhóm các chỉ số theo chuyên khoa (Category)
+  // Nhóm các chỉ số theo chuyên khoa (Category) đã sắp xếp theo order_index của package_items
   const groupedRegularTests = useMemo(() => {
+    const sorted = sortTestsByPackageOrder(regularTests, testPackages);
     const map = new Map<string, SelectedTest[]>();
-    for (const t of regularTests) {
+    for (const t of sorted) {
       const cat = (t.category && t.category.trim()) || 'Xét Nghiệm Khác';
       if (!map.has(cat)) map.set(cat, []);
       map.get(cat)!.push(t);
     }
     return Array.from(map.entries());
-  }, [regularTests]);
+  }, [regularTests, testPackages]);
 
   // Sắp xếp các block theo `order` và lọc block `visible` (trong design mode thì hiển thị mờ nếu hidden)
   const sortedBlocks = useMemo(() => {

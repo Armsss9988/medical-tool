@@ -188,8 +188,10 @@ export default function TestTable({
     if (!pkg) return;
 
     const rawCodes = getPkgCodes(pkg);
-    const targetCodes = new Set(rawCodes.map((c) => String(c || '').trim().toLowerCase()));
-    const itemsToAdd = (catalog || []).filter((item) => item && item.code && targetCodes.has(String(item.code).trim().toLowerCase()));
+    const catalogMap = new Map((catalog || []).map((item) => [String(item.code || '').trim().toLowerCase(), item]));
+    const itemsToAdd = rawCodes
+      .map((code) => catalogMap.get(String(code || '').trim().toLowerCase()))
+      .filter((item): item is CatalogItem => Boolean(item));
 
     if (itemsToAdd.length === 0) {
       if (showToast) {

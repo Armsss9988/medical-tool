@@ -13,6 +13,7 @@ export * from './services/ReportClassificationDomainService';
 export * from './services/ReportPaginationDomainService';
 export * from './services/TemplateCompatibilityDomainService';
 export * from './services/itemResolver';
+export * from './services/packageOrderResolver';
 export * from './utils/assertNever';
 export * from './utils/Result';
 

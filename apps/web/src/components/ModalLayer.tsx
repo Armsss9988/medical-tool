@@ -56,6 +56,8 @@ interface ModalLayerProps {
   setCatalogItemEquipments?: (links: CatalogItemEquipmentLink[]) => void;
   allergenScales?: AllergenGradingScale[];
   setAllergenScales?: (scales: AllergenGradingScale[]) => void;
+  referenceRanges?: ReferenceRangeItem[];
+  setReferenceRanges?: (ranges: ReferenceRangeItem[]) => void;
   reports?: MedicalReport[];
   setReports?: Dispatch<SetStateAction<MedicalReport[]>>;
   invoices?: Invoice[];
@@ -120,6 +122,8 @@ export function ModalLayer({
   setCatalogItemEquipments,
   allergenScales = [],
   setAllergenScales,
+  referenceRanges = [],
+  setReferenceRanges,
   cloudLink,
   qrCodeDataUrl,
   isExporting,
@@ -291,6 +295,8 @@ export function ModalLayer({
         onSaveCatalogItemEquipments={setCatalogItemEquipments}
         allergenScales={allergenScales}
         onSaveScales={setAllergenScales}
+        referenceRanges={referenceRanges}
+        onSaveReferenceRanges={setReferenceRanges}
         onSaveAllData={onSaveAllCatalogData}
         showToast={showToast}
       />

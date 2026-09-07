@@ -1,11 +1,26 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Save, Layers, Stethoscope, FlaskConical, Activity } from 'lucide-react';
+import { X, Save, Layers, Stethoscope, FlaskConical, Activity, Cpu, FolderTree, Sliders } from 'lucide-react';
 import { autoResolveItemLinks } from '@data';
-import { CatalogItem, CatalogItemEquipmentLink, TestPackage, TestGroup, TestEquipment, Doctor, AllergenGradingScale, CATALOG_TAB, CatalogTabType, normalizeTestPackage } from '@domain';
-import CatalogItemsTab from './catalogManager/CatalogItemsTab';
-import TestPackagesTab from './catalogManager/TestPackagesTab';
-import DoctorsTab from './catalogManager/DoctorsTab';
-import ScalesTab from './catalogManager/ScalesTab';
+import {
+  CatalogItem,
+  CatalogItemEquipmentLink,
+  TestPackage,
+  TestGroup,
+  TestEquipment,
+  Doctor,
+  AllergenGradingScale,
+  ReferenceRangeItem,
+  CATALOG_TAB,
+  CatalogTabType,
+  normalizeTestPackage
+} from '@domain';
+import { IndicatorTable } from './indicators/IndicatorTable';
+import { PackageTable } from './packages/PackageTable';
+import { DoctorTable } from './doctors/DoctorTable';
+import { ScalesTable } from './scales/ScalesTable';
+import { EquipmentTable } from './equipments/EquipmentTable';
+import { GroupTable } from './groups/GroupTable';
+import { ReferenceRangeTable } from './ranges/ReferenceRangeTable';
 
 interface CatalogManagerModalProps {
   isOpen: boolean;
@@ -25,6 +40,8 @@ interface CatalogManagerModalProps {
   onSaveCatalogItemEquipments?: (links: CatalogItemEquipmentLink[]) => void;
   allergenScales?: AllergenGradingScale[];
   onSaveScales?: (scales: AllergenGradingScale[]) => void;
+  referenceRanges?: ReferenceRangeItem[];
+  onSaveReferenceRanges?: (ranges: ReferenceRangeItem[]) => void;
   onSaveAllData?: (data: {
     catalog?: CatalogItem[];
     testPackages?: TestPackage[];
@@ -33,6 +50,7 @@ interface CatalogManagerModalProps {
     doctorsList?: Doctor[];
     catalogItemEquipments?: CatalogItemEquipmentLink[];
     allergenScales?: AllergenGradingScale[];
+    referenceRanges?: ReferenceRangeItem[];
   }) => Promise<void>;
   showToast?: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
 }
@@ -55,6 +73,8 @@ export default function CatalogManagerModal({
   onSaveCatalogItemEquipments,
   allergenScales = [],
   onSaveScales,
+  referenceRanges = [],
+  onSaveReferenceRanges,
   onSaveAllData,
   showToast
 }: CatalogManagerModalProps) {
@@ -66,6 +86,7 @@ export default function CatalogManagerModal({
   const [docsList, setDocsList] = useState<Doctor[]>(doctorsList);
   const [itemEquipments, setItemEquipments] = useState<CatalogItemEquipmentLink[]>(catalogItemEquipments);
   const [scalesList, setScalesList] = useState<AllergenGradingScale[]>(allergenScales);
+  const [rangesList, setRangesList] = useState<ReferenceRangeItem[]>(referenceRanges);
   const [isSaving, setIsSaving] = useState(false);
 
   const prevIsOpenRef = useRef(false);
@@ -80,10 +101,11 @@ export default function CatalogManagerModal({
       setDocsList(doctorsList);
       setItemEquipments(catalogItemEquipments);
       setScalesList(allergenScales || []);
+      setRangesList(referenceRanges || []);
       setActiveTab(targetTab || CATALOG_TAB.INDICATORS);
     }
     prevIsOpenRef.current = isOpen;
-  }, [isOpen, catalog, testPackages, testGroups, equipments, doctorsList, catalogItemEquipments, allergenScales, targetTab]);
+  }, [isOpen, catalog, testPackages, testGroups, equipments, doctorsList, catalogItemEquipments, allergenScales, referenceRanges, targetTab]);
 
   // Nếu targetTab thay đổi từ bên ngoài khi modal đang mở, cập nhật activeTab tương ứng
   const prevTargetTabRef = useRef(targetTab);
@@ -96,33 +118,7 @@ export default function CatalogManagerModal({
 
   if (!isOpen) return null;
 
-  // Group helpers
-  const handleCreateGroup = (name: string) => {
-    const newG: TestGroup = { id: crypto.randomUUID(), name };
-    const updated = [...groups, newG];
-    setGroups(updated);
-    if (onSaveTestGroups) onSaveTestGroups(updated);
-  };
 
-  const handleDeleteGroup = (id: string) => {
-    const updated = groups.filter((g) => g.id !== id);
-    setGroups(updated);
-    if (onSaveTestGroups) onSaveTestGroups(updated);
-  };
-
-  // Equipment helpers
-  const handleCreateEquipment = (name: string) => {
-    const newEq: TestEquipment = { id: crypto.randomUUID(), name, code: name.toUpperCase().replace(/\s+/g, '_').slice(0, 15) };
-    const updated = [...eqList, newEq];
-    setEqList(updated);
-    if (onSaveEquipments) onSaveEquipments(updated);
-  };
-
-  const handleDeleteEquipment = (id: string) => {
-    const updated = eqList.filter((eq) => eq.id !== id);
-    setEqList(updated);
-    if (onSaveEquipments) onSaveEquipments(updated);
-  };
 
   const handleSaveAll = async () => {
     // 1. Kiểm tra dữ liệu hợp lệ: chỉ kiểm tra gói xét nghiệm nếu người dùng có thay đổi gói
@@ -143,12 +139,12 @@ export default function CatalogManagerModal({
 
       // Xác định chính xác những bảng có dữ liệu thay đổi thực sự
       const hasCatalogChanged = JSON.stringify(items) !== JSON.stringify(catalog);
-      const hasPackagesChanged = JSON.stringify(packages) !== JSON.stringify(testPackages);
       const hasGroupsChanged = JSON.stringify(groups) !== JSON.stringify(testGroups);
       const hasEqChanged = JSON.stringify(eqList) !== JSON.stringify(equipments);
       const hasDocsChanged = JSON.stringify(docsList) !== JSON.stringify(doctorsList);
       const hasItemEqChanged = JSON.stringify(itemEquipments) !== JSON.stringify(catalogItemEquipments);
       const hasScalesChanged = JSON.stringify(scalesList) !== JSON.stringify(allergenScales);
+      const hasRangesChanged = JSON.stringify(rangesList) !== JSON.stringify(referenceRanges);
 
       const changedData: Parameters<NonNullable<typeof onSaveAllData>>[0] = {};
       if (hasCatalogChanged) changedData.catalog = items;
@@ -158,6 +154,7 @@ export default function CatalogManagerModal({
       if (hasDocsChanged) changedData.doctorsList = docsList;
       if (hasItemEqChanged) changedData.catalogItemEquipments = itemEquipments;
       if (hasScalesChanged) changedData.allergenScales = scalesList;
+      if (hasRangesChanged) changedData.referenceRanges = rangesList;
 
       // Cập nhật state ở tầng cha ngay lập tức
       if (hasCatalogChanged) onSaveCatalog(items);
@@ -167,6 +164,7 @@ export default function CatalogManagerModal({
       if (hasDocsChanged && onSaveDoctors) onSaveDoctors(docsList);
       if (hasItemEqChanged && onSaveCatalogItemEquipments) onSaveCatalogItemEquipments(itemEquipments);
       if (hasScalesChanged && onSaveScales) onSaveScales(scalesList);
+      if (hasRangesChanged && onSaveReferenceRanges) onSaveReferenceRanges(rangesList);
 
       // Nếu có dữ liệu thay đổi và có onSaveAllData, đồng bộ đúng các bảng thay đổi
       if (onSaveAllData) {
@@ -206,11 +204,11 @@ export default function CatalogManagerModal({
               <h3 className="font-extrabold text-sm sm:text-base tracking-wide flex items-center gap-1.5 sm:gap-2 flex-wrap">
                 <span>Quản Lý Danh Mục</span>
                 <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-400/30 px-2 py-0.5 rounded">
-                  {items.length} Chỉ Số • {packages.length} Gói
+                  {items.length} Chỉ Số • {packages.length} Gói • {eqList.length} Máy
                 </span>
               </h3>
               <p className="text-xs text-slate-400 hidden sm:block">
-                Tùy biến chỉ số, gói xét nghiệm, thiết bị đo, khoảng tham chiếu, thang đo độ dương tính và bác sĩ chỉ định
+                Tùy biến chỉ số, gói xét nghiệm, máy đo, nhóm, thang đo, khoảng tham chiếu và bác sĩ chỉ định
               </p>
             </div>
           </div>
@@ -235,12 +233,12 @@ export default function CatalogManagerModal({
           </div>
         </div>
 
-        {/* 4 MAIN TABS NAVIGATION */}
+        {/* 7 MAIN TABS NAVIGATION */}
         <div className="flex border-b border-slate-200 bg-slate-100/80 px-2 sm:px-4 pt-2 gap-1 text-xs font-bold shrink-0 overflow-x-auto no-scrollbar touch-pan-x">
           <button
             type="button"
             onClick={() => setActiveTab('INDICATORS')}
-            className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs ${
+            className={`px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs ${
               activeTab === 'INDICATORS' || activeTab === 'ALLERGENS'
                 ? 'bg-white border-slate-200 text-sky-700 shadow-xs'
                 : 'bg-transparent border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -253,83 +251,153 @@ export default function CatalogManagerModal({
           <button
             type="button"
             onClick={() => setActiveTab('PACKAGES')}
-            className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs ${
+            className={`px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs ${
               activeTab === 'PACKAGES' || activeTab === 'PACKAGES_INDICATOR' || activeTab === 'PACKAGES_ALLERGEN'
                 ? 'bg-white border-slate-200 text-sky-700 shadow-xs'
                 : 'bg-transparent border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>2. Gói Xét Nghiệm ({packages.length})</span>
+            <span>2. Gói ({packages.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('EQUIPMENTS')}
+            className={`px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs ${
+              activeTab === 'EQUIPMENTS'
+                ? 'bg-white border-slate-200 text-sky-700 shadow-xs'
+                : 'bg-transparent border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+            }`}
+          >
+            <Cpu className="w-3.5 h-3.5" />
+            <span>3. Thiết Bị ({eqList.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('GROUPS')}
+            className={`px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs ${
+              activeTab === 'GROUPS'
+                ? 'bg-white border-slate-200 text-emerald-700 shadow-xs'
+                : 'bg-transparent border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+            }`}
+          >
+            <FolderTree className="w-3.5 h-3.5" />
+            <span>4. Nhóm ({groups.length})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('SCALES')}
-            className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs ${
+            className={`px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs ${
               activeTab === 'SCALES'
                 ? 'bg-white border-slate-200 text-amber-700 shadow-xs'
                 : 'bg-transparent border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
             }`}
           >
             <Activity className="w-3.5 h-3.5" />
-            <span>3. Thang Đo ({scalesList.length})</span>
+            <span>5. Thang Đo ({scalesList.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('RANGES')}
+            className={`px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs ${
+              activeTab === 'RANGES'
+                ? 'bg-white border-slate-200 text-indigo-700 shadow-xs'
+                : 'bg-transparent border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+            }`}
+          >
+            <Sliders className="w-3.5 h-3.5" />
+            <span>6. Tham Chiếu ({rangesList.length})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('DOCTORS')}
-            className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs ${
+            className={`px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs ${
               activeTab === 'DOCTORS'
                 ? 'bg-white border-slate-200 text-emerald-700 shadow-xs'
                 : 'bg-transparent border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
             }`}
           >
             <Stethoscope className="w-3.5 h-3.5" />
-            <span>4. Bác Sĩ ({docsList.length})</span>
+            <span>7. Bác Sĩ ({docsList.length})</span>
           </button>
         </div>
 
         {/* TAB 1: TOÀN BỘ CHỈ SỐ XÉT NGHIỆM */}
         {(activeTab === 'INDICATORS' || activeTab === 'ALLERGENS') && (
-          <CatalogItemsTab
+          <IndicatorTable
             items={items}
             setItems={setItems}
             groups={groups}
-            onCreateGroup={handleCreateGroup}
-            onDeleteGroup={handleDeleteGroup}
             equipments={eqList}
-            onCreateEquipment={handleCreateEquipment}
-            onDeleteEquipment={handleDeleteEquipment}
             catalogItemEquipments={itemEquipments}
             setCatalogItemEquipments={setItemEquipments}
             scales={scalesList}
+            showToast={showToast}
           />
         )}
 
         {/* TAB 2: TOÀN BỘ GÓI XÉT NGHIỆM */}
         {(activeTab === 'PACKAGES' || activeTab === 'PACKAGES_INDICATOR' || activeTab === 'PACKAGES_ALLERGEN') && (
-          <TestPackagesTab
+          <PackageTable
             items={items}
             packages={packages}
             setPackages={setPackages}
             equipments={eqList}
             catalogItemEquipments={itemEquipments}
+            groups={groups}
+            showToast={showToast}
           />
         )}
 
-        {/* TAB 3: THANG ĐO PHÂN ĐỘ */}
+        {/* TAB 3: THIẾT BỊ XÉT NGHIỆM */}
+        {activeTab === 'EQUIPMENTS' && (
+          <EquipmentTable
+            equipments={eqList}
+            setEquipments={setEqList}
+            catalog={items}
+            catalogItemEquipments={itemEquipments}
+            onSaveEquipments={onSaveEquipments}
+            showToast={showToast}
+          />
+        )}
+
+        {/* TAB 4: NHÓM CHỈ SỐ */}
+        {activeTab === 'GROUPS' && (
+          <GroupTable
+            groups={groups}
+            setGroups={setGroups}
+            catalog={items}
+            onSaveGroups={onSaveTestGroups}
+            showToast={showToast}
+          />
+        )}
+
+        {/* TAB 5: THANG ĐO PHÂN ĐỘ */}
         {activeTab === 'SCALES' && (
-          <ScalesTab
+          <ScalesTable
             scales={scalesList}
             setScales={setScalesList}
             equipments={eqList}
           />
         )}
 
-        {/* TAB 4: DANH SÁCH BÁC SĨ */}
+        {/* TAB 6: KHOẢNG THAM CHIẾU NÂNG CAO */}
+        {activeTab === 'RANGES' && (
+          <ReferenceRangeTable
+            referenceRanges={rangesList}
+            setReferenceRanges={setRangesList}
+            showToast={showToast}
+          />
+        )}
+
+        {/* TAB 7: DANH SÁCH BÁC SĨ */}
         {activeTab === 'DOCTORS' && (
-          <DoctorsTab 
+          <DoctorTable 
             docsList={docsList} 
             setDocsList={setDocsList} 
             onSaveDoctors={onSaveDoctors}
