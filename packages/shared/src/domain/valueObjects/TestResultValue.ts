@@ -70,10 +70,10 @@ export class TestResultValueParser {
     const lower = rawStr.toLowerCase();
 
     // 2. Phân tích kết quả định tính
-    if (lower.includes('âm') || lower.includes('negative') || lower === 'neg' || lower === '(-)') {
+    if (lower.includes('không phát hiện') || lower.includes('âm') || lower.includes('negative') || lower === 'neg' || lower === '(-)') {
       return { kind: 'qualitative', normalized: 'Âm tính', rawString: rawStr };
     }
-    if (lower.includes('dương') || lower.includes('positive') || lower === 'pos' || lower.includes('(+)')) {
+    if ((lower.includes('phát hiện') && !lower.includes('không')) || lower.includes('dương') || lower.includes('positive') || lower === 'pos' || lower.includes('(+)')) {
       return { kind: 'qualitative', normalized: 'Dương tính', rawString: rawStr };
     }
     if (lower.includes('nghi ngờ') || lower.includes('indeterminate') || lower.includes('borderline') || lower === '(±)') {

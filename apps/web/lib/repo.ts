@@ -21,6 +21,79 @@ export const TABLES: Record<TableName, AnyPgTable> = {
   'report-templates': tables.reportTemplates
 };
 
+let _packageItemsColumnsChecked = false;
+async function ensurePackageItemsColumns(db: Db) {
+  if (_packageItemsColumnsChecked) return;
+  try {
+    await db.execute(sql`
+      ALTER TABLE package_items 
+      ADD COLUMN IF NOT EXISTS default_value TEXT,
+      ADD COLUMN IF NOT EXISTS has_default_value BOOLEAN DEFAULT false;
+    `);
+    _packageItemsColumnsChecked = true;
+  } catch (err) {
+    // Không ném lỗi nếu môi trường không có quyền DDL hoặc cột đã tồn tại
+    console.warn('[repo] Failed to ensure package_items columns:', err);
+  }
+}
+
+let _catalogItemEquipmentsColumnsChecked = false;
+async function ensureCatalogItemEquipmentsColumns(db: Db) {
+  if (_catalogItemEquipmentsColumnsChecked) return;
+  try {
+    await db.execute(sql`
+      ALTER TABLE catalog_item_equipments 
+      ADD COLUMN IF NOT EXISTS evaluation_type TEXT;
+    `);
+    _catalogItemEquipmentsColumnsChecked = true;
+  } catch (err) {
+    console.warn('[repo] Failed to ensure catalog_item_equipments columns:', err);
+  }
+}
+
+let _catalogItemsColumnsChecked = false;
+async function ensureCatalogItemsColumns(db: Db) {
+  if (_catalogItemsColumnsChecked) return;
+  try {
+    await db.execute(sql`
+      ALTER TABLE catalog_items 
+      DROP COLUMN IF EXISTS equipment,
+      DROP COLUMN IF EXISTS reference_range_id,
+      DROP COLUMN IF EXISTS scale_id;
+    `);
+    _catalogItemsColumnsChecked = true;
+  } catch (err) {
+    console.warn('[repo] Failed to drop redundant catalog_items columns:', err);
+  }
+}
+
+let _reportTemplatesTableChecked = false;
+async function ensureReportTemplatesTable(db: Db) {
+  if (_reportTemplatesTableChecked) return;
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS report_templates (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        category TEXT NOT NULL DEFAULT 'custom',
+        is_default BOOLEAN NOT NULL DEFAULT false,
+        paper_size TEXT NOT NULL DEFAULT 'A4',
+        orientation TEXT NOT NULL DEFAULT 'portrait',
+        font_family TEXT NOT NULL DEFAULT 'Times New Roman',
+        primary_color TEXT NOT NULL DEFAULT '#0284c7',
+        padding_mm INTEGER NOT NULL DEFAULT 15,
+        blocks JSONB NOT NULL DEFAULT '[]'::jsonb,
+        created_at TIMESTAMP NOT NULL DEFAULT now(),
+        updated_at TIMESTAMP NOT NULL DEFAULT now()
+      );
+    `);
+    _reportTemplatesTableChecked = true;
+  } catch (err) {
+    console.warn('[repo] Failed to ensure report_templates table:', err);
+  }
+}
+
 /**
  * Nạp dữ liệu các bảng theo chuẩn Quan Hệ (Relational JOIN / Subquery)
  * và ánh xạ sang Domain Models hoàn chỉnh mà Frontend yêu cầu.
@@ -175,6 +248,7 @@ export async function getTableRows(db: Db, name: TableName): Promise<unknown[]> 
     }
 
     case 'test-packages': {
+      await ensurePackageItemsColumns(db);
       const pkgs = await db.select().from(tables.testPackages).orderBy(asc(tables.testPackages.id));
       const allItems = await db.select().from(tables.packageItems).orderBy(asc(tables.packageItems.orderIndex));
 
@@ -191,7 +265,9 @@ export async function getTableRows(db: Db, name: TableName): Promise<unknown[]> 
         const packageItems = items.map((pi) => ({
           code: pi.catalogCode,
           equipmentId: pi.equipmentId || null,
-          orderIndex: pi.orderIndex
+          orderIndex: pi.orderIndex,
+          defaultValue: pi.defaultValue ?? null,
+          hasDefaultValue: pi.hasDefaultValue ?? false
         }));
         return {
           id: p.id,
@@ -205,6 +281,7 @@ export async function getTableRows(db: Db, name: TableName): Promise<unknown[]> 
     }
 
     case 'report-templates': {
+      await ensureReportTemplatesTable(db);
       const rows = await db.select().from(tables.reportTemplates).orderBy(asc(tables.reportTemplates.name));
       return rows.map((r): ReportTemplate => ({
         id: r.id,
@@ -221,6 +298,16 @@ export async function getTableRows(db: Db, name: TableName): Promise<unknown[]> 
         createdAt: r.createdAt ? r.createdAt.toISOString() : new Date().toISOString(),
         updatedAt: r.updatedAt ? r.updatedAt.toISOString() : new Date().toISOString()
       }));
+    }
+
+    case 'catalog': {
+      await ensureCatalogItemsColumns(db);
+      return (await db.select().from(tables.catalogItems)) as unknown[];
+    }
+
+    case 'catalog-item-equipments': {
+      await ensureCatalogItemEquipmentsColumns(db);
+      return (await db.select().from(tables.catalogItemEquipments)) as unknown[];
     }
 
     default: {
@@ -426,6 +513,7 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
       }
 
       case 'test-packages': {
+        await ensurePackageItemsColumns(tx as unknown as Db);
         const packageList = rows as TestPackage[];
         await tx.delete(tables.packageItems);
         await tx.delete(tables.testPackages);
@@ -448,16 +536,21 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
         for (const p of packageList) {
           const items = p.items || (p.codes || []).map((c) => ({ code: c, equipmentId: null }));
           for (let idx = 0; idx < items.length; idx++) {
-            const it = items[idx] as { code?: string; equipmentId?: string | null } | string;
+            const it = items[idx] as { code?: string; equipmentId?: string | null; orderIndex?: number | null } | string;
             const code = typeof it === 'string' ? it : (it.code || '');
             const eqId = typeof it === 'object' ? (it.equipmentId || null) : null;
-            if (!code) continue;
+            const customOrder = typeof it === 'object' && typeof it.orderIndex === 'number' ? it.orderIndex : idx;
+            const itObj = typeof it === 'object' && it ? it : null;
+            const defVal = itObj && 'defaultValue' in itObj ? (itObj.defaultValue as string | null) : null;
+            const hasDef = itObj && 'hasDefaultValue' in itObj ? Boolean(itObj.hasDefaultValue) : false;
             allPackageItems.push({
               id: `${p.id}_${code}_${idx}`,
               packageId: p.id,
               catalogCode: code,
               equipmentId: eqId,
-              orderIndex: idx
+              orderIndex: customOrder,
+              defaultValue: defVal,
+              hasDefaultValue: hasDef
             });
           }
         }
@@ -547,6 +640,94 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
           await tx.insert(tables.reportTemplates).values(values.slice(i, i + BATCH_SIZE));
         }
         return tplList.length;
+      }
+
+      case 'catalog': {
+        await ensureCatalogItemsColumns(tx);
+        const catList = rows as (typeof tables.catalogItems.$inferInsert)[];
+        if (catList.length === 0) return 0;
+
+        const catValues = catList.map((c) => ({
+          code: c.code,
+          category: c.category,
+          name: c.name,
+          refMin: c.refMin ?? null,
+          refMax: c.refMax ?? null,
+          unit: c.unit ?? '',
+          refText: c.refText ?? '',
+          price: c.price ?? 0,
+          scientific: c.scientific || null,
+          evaluationType: c.evaluationType || null,
+          updatedAt: new Date()
+        }));
+
+        for (let i = 0; i < catValues.length; i += BATCH_SIZE) {
+          await tx
+            .insert(tables.catalogItems)
+            .values(catValues.slice(i, i + BATCH_SIZE))
+            .onConflictDoUpdate({
+              target: tables.catalogItems.code,
+              set: {
+                category: sql`excluded.category`,
+                name: sql`excluded.name`,
+                refMin: sql`excluded.ref_min`,
+                refMax: sql`excluded.ref_max`,
+                unit: sql`excluded.unit`,
+                refText: sql`excluded.ref_text`,
+                price: sql`excluded.price`,
+                scientific: sql`excluded.scientific`,
+                evaluationType: sql`excluded.evaluation_type`,
+                updatedAt: sql`excluded.updated_at`
+              }
+            });
+        }
+
+        // Xóa an toàn: chỉ xóa những mã không còn trong danh sách incoming VÀ không bị ràng buộc bởi package_items
+        const newCodes = new Set(catList.map((c) => c.code));
+        const existingItems = await tx.select({ code: tables.catalogItems.code }).from(tables.catalogItems);
+        const codesToDelete = existingItems
+          .filter((ei) => !newCodes.has(ei.code))
+          .map((ei) => ei.code);
+
+        if (codesToDelete.length > 0) {
+          const usedInPackages = await tx
+            .selectDistinct({ code: tables.packageItems.catalogCode })
+            .from(tables.packageItems);
+          const usedSet = new Set(usedInPackages.map((p) => p.code));
+          const safeCodesToDelete = codesToDelete.filter((code) => !usedSet.has(code));
+
+          if (safeCodesToDelete.length > 0) {
+            await tx.delete(tables.catalogItems).where(inArray(tables.catalogItems.code, safeCodesToDelete));
+          }
+        }
+
+        return catList.length;
+      }
+
+      case 'catalog-item-equipments': {
+        await ensureCatalogItemEquipmentsColumns(db);
+        const linkList = rows as (typeof tables.catalogItemEquipments.$inferInsert)[];
+        await tx.delete(tables.catalogItemEquipments);
+        if (linkList.length === 0) return 0;
+
+        const linkValues = linkList.map((l) => ({
+          id: l.id,
+          catalogCode: l.catalogCode,
+          equipmentId: l.equipmentId,
+          evaluationType: (l as unknown as { evaluationType?: string }).evaluationType || null,
+          refMin: l.refMin ?? null,
+          refMax: l.refMax ?? null,
+          unit: l.unit || null,
+          refText: l.refText || null,
+          scaleId: l.scaleId || null,
+          isDefault: l.isDefault ?? false,
+          updatedAt: new Date()
+        }));
+
+        for (let i = 0; i < linkValues.length; i += BATCH_SIZE) {
+          await tx.insert(tables.catalogItemEquipments).values(linkValues.slice(i, i + BATCH_SIZE));
+        }
+        return linkList.length;
       }
 
       default: {

@@ -467,6 +467,7 @@ function PrintReportView({
                         ? displayNote.includes('CAO') ||
                           displayNote.includes('THẤP') ||
                           displayNote.includes('Dương') ||
+                          (displayNote.includes('Phát Hiện') && !displayNote.includes('Không')) ||
                           displayNote.includes('H ') ||
                           displayNote.includes('L ') ||
                           /Độ\s*[1-6]/i.test(displayNote)

@@ -1,4 +1,4 @@
-import { CatalogItem, TestGroup, TestEquipment, Doctor } from '@domain/types';
+import { CatalogItem, TestGroup, TestEquipment, Doctor, CatalogItemEquipmentLink } from '@domain/types';
 
 export class ManageCatalogUseCase {
   public canDeleteGroup(groupId: string, groups: TestGroup[], catalog: CatalogItem[]): { canDelete: boolean; message?: string } {
@@ -6,7 +6,7 @@ export class ManageCatalogUseCase {
     if (!targetGroup) return { canDelete: false, message: 'Không tìm thấy nhóm cần xóa.' };
 
     const refCount = catalog.filter(
-      (item) => item.category.trim().toLowerCase() === targetGroup.name.trim().toLowerCase()
+      (item) => (item.category || '').trim().toLowerCase() === targetGroup.name.trim().toLowerCase()
     ).length;
 
     if (refCount > 0) {
@@ -19,18 +19,29 @@ export class ManageCatalogUseCase {
     return { canDelete: true };
   }
 
-  public canDeleteEquipment(equipmentId: string, equipments: TestEquipment[], catalog: CatalogItem[]): { canDelete: boolean; message?: string } {
+  public canDeleteEquipment(
+    equipmentId: string,
+    equipments: TestEquipment[],
+    catalog: CatalogItem[],
+    catalogItemEquipments?: CatalogItemEquipmentLink[]
+  ): { canDelete: boolean; message?: string } {
     const targetEq = equipments.find((e) => e.id === equipmentId);
     if (!targetEq) return { canDelete: false, message: 'Không tìm thấy thiết bị cần xóa.' };
 
-    const refCount = catalog.filter(
+    const byName = catalog.filter(
       (item) => (item.equipment || '').trim().toLowerCase() === targetEq.name.trim().toLowerCase()
     ).length;
+
+    const byLink = (catalogItemEquipments || []).filter(
+      (l) => l.equipmentId === equipmentId
+    ).length;
+
+    const refCount = Math.max(byName, byLink);
 
     if (refCount > 0) {
       return {
         canDelete: false,
-        message: `⚠️ KHÔNG THỂ XÓA THIẾT Bị "${targetEq.name}"!\n\nĐang có ${refCount} chỉ số/dị nguyên đang được gán cho thiết bị này. Vui lòng chuyển thiết bị khác trước khi xóa.`
+        message: `⚠️ KHÔNG THỂ XÓA THIẾT BỊ "${targetEq.name}"!\n\nĐang có ${refCount} chỉ số/dị nguyên đang được gán cho thiết bị này. Vui lòng chuyển thiết bị khác trước khi xóa.`
       };
     }
 

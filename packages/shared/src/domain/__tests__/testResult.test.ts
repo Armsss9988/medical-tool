@@ -124,6 +124,59 @@ describe('TestResult Domain - evaluateResult & evaluateTestIndicator', () => {
     });
   });
 
+  describe('evaluateTestIndicator - Detection evaluation (Phát Hiện / Không Phát Hiện)', () => {
+    it('should evaluate result 0 as "Không Phát Hiện" (normal, isAbnormal: false)', () => {
+      const resStringZero = evaluateTestIndicator('HPV', 'Sinh Học Phân Tử', 'Copies/mL', '0', null, null, undefined, undefined, 'detection');
+      expect(resStringZero.status).toBe('normal');
+      expect(resStringZero.label).toBe('Không Phát Hiện');
+      expect(resStringZero.isAbnormal).toBe(false);
+
+      const resNumZero = evaluateTestIndicator('HPV', 'Sinh Học Phân Tử', 'Copies/mL', 0, null, null, undefined, undefined, 'detection');
+      expect(resNumZero.status).toBe('normal');
+      expect(resNumZero.label).toBe('Không Phát Hiện');
+      expect(resNumZero.isAbnormal).toBe(false);
+
+      const resDecimalZero = evaluateTestIndicator('HPV', 'Sinh Học Phân Tử', 'Copies/mL', '0.0', null, null, undefined, undefined, 'detection');
+      expect(resDecimalZero.status).toBe('normal');
+      expect(resDecimalZero.label).toBe('Không Phát Hiện');
+      expect(resDecimalZero.isAbnormal).toBe(false);
+
+      const resCommaZero = evaluateTestIndicator('HPV', 'Sinh Học Phân Tử', 'Copies/mL', '0,00', null, null, undefined, undefined, 'detection');
+      expect(resCommaZero.status).toBe('normal');
+      expect(resCommaZero.label).toBe('Không Phát Hiện');
+      expect(resCommaZero.isAbnormal).toBe(false);
+    });
+
+    it('should evaluate result > 0 as "Phát Hiện" (high, isAbnormal: true)', () => {
+      const resPositiveInt = evaluateTestIndicator('HPV', 'Sinh Học Phân Tử', 'Copies/mL', '1', null, null, undefined, undefined, 'detection');
+      expect(resPositiveInt.status).toBe('high');
+      expect(resPositiveInt.label).toBe('Phát Hiện');
+      expect(resPositiveInt.isAbnormal).toBe(true);
+
+      const resPositiveDec = evaluateTestIndicator('HPV', 'Sinh Học Phân Tử', 'Copies/mL', '0.5', null, null, undefined, undefined, 'detection');
+      expect(resPositiveDec.status).toBe('high');
+      expect(resPositiveDec.label).toBe('Phát Hiện');
+      expect(resPositiveDec.isAbnormal).toBe(true);
+
+      const resLarge = evaluateTestIndicator('HPV', 'Sinh Học Phân Tử', 'Copies/mL', '2500', null, null, undefined, undefined, 'detection');
+      expect(resLarge.status).toBe('high');
+      expect(resLarge.label).toBe('Phát Hiện');
+      expect(resLarge.isAbnormal).toBe(true);
+    });
+
+    it('should return empty label and normal for empty or null result', () => {
+      const resEmpty = evaluateTestIndicator('HPV', 'Sinh Học Phân Tử', 'Copies/mL', '', null, null, undefined, undefined, 'detection');
+      expect(resEmpty.status).toBe('normal');
+      expect(resEmpty.label).toBe('');
+      expect(resEmpty.isAbnormal).toBe(false);
+
+      const resNull = evaluateTestIndicator('HPV', 'Sinh Học Phân Tử', 'Copies/mL', null, null, null, undefined, undefined, 'detection');
+      expect(resNull.status).toBe('normal');
+      expect(resNull.label).toBe('');
+      expect(resNull.isAbnormal).toBe(false);
+    });
+  });
+
   describe('resolveTestEquipmentName', () => {
     const mockEquipments = [
       { id: 'eq_1', name: 'MS-H630 (Máy Phân Tích Huyết Học)', code: 'MS-H630' },

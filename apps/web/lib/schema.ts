@@ -19,6 +19,7 @@ export const catalogItemEquipments = pgTable('catalog_item_equipments', {
   id: text('id').primaryKey(),
   catalogCode: text('catalog_code').notNull(),
   equipmentId: text('equipment_id').notNull(),
+  evaluationType: text('evaluation_type'),
   refMin: real('ref_min'),
   refMax: real('ref_max'),
   unit: text('unit'),
@@ -43,7 +44,9 @@ export const packageItems = pgTable('package_items', {
   packageId: text('package_id').notNull().references(() => testPackages.id, { onDelete: 'cascade' }),
   catalogCode: text('catalog_code').notNull(),
   equipmentId: text('equipment_id'),
-  orderIndex: integer('order_index').notNull().default(0)
+  orderIndex: integer('order_index').notNull().default(0),
+  defaultValue: text('default_value'),
+  hasDefaultValue: boolean('has_default_value').default(false)
 });
 
 export const testGroups = pgTable('test_groups', {

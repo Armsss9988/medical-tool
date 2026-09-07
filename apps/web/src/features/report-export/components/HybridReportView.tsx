@@ -538,8 +538,9 @@ function HybridReportView({
                   </thead>
                   <tbody className="divide-y divide-slate-200">
                     {page.tests.map((t, idx) => {
+                      const isAbnormalByNote = t.note ? (t.note.includes('Phát Hiện') && !t.note.includes('Không')) : false;
                       const evaluation = evaluateResult(t.result, t.refMin, t.refMax);
-                      const isAbnormal = evaluation.status === 'high' || evaluation.status === 'low';
+                      const isAbnormal = evaluation.status === 'high' || evaluation.status === 'low' || isAbnormalByNote;
                       const resolvedEquipment = resolveTestEquipmentName(t, equipments, catalogItemEquipments);
                       const sttNumber = page.startRowIndex + idx;
 

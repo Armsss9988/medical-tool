@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { TestTube, Plus, Trash2, Search, Layers, Sparkles, X, ClipboardPaste, Clock, Keyboard, ChevronUp, ChevronDown } from 'lucide-react';
 import { buildSelectedTest, computeAutoFillValue, evaluateIndicatorChange, resolveIndicatorReference, evaluateTestIndicator } from '@domain';
-import { CatalogItem, SelectedTest, TestPackage, TestGroup, ToastType, getPkgCodes, TestEquipment, CatalogItemEquipmentLink, ReferenceRangeItem, AllergenGradingScale } from '@domain/types';
+import { CatalogItem, SelectedTest, TestPackage, TestGroup, ToastType, getPkgCodes, getPkgItems, TestEquipment, CatalogItemEquipmentLink, ReferenceRangeItem, AllergenGradingScale } from '@domain/types';
 import { computePricingWithPackages } from '@domain/pricing';
 import NoteCombobox from './NoteCombobox';
 
@@ -54,6 +54,7 @@ export default function TestTable({
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [bulkPasteText, setBulkPasteText] = useState('');
+  const [autoFillPackageDefaults, setAutoFillPackageDefaults] = useState(true);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const resultInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
@@ -150,6 +151,20 @@ export default function TestTable({
       prev.map((t) => {
         if (t.code !== code) return t;
 
+        const resolved = resolveIndicatorReference(t, {
+          equipmentId: t.equipmentId,
+          catalogItemEquipments,
+          referenceRanges,
+          allergenScales,
+          equipments
+        });
+        const isDetection = (t.evaluationType || resolved.evaluationType) === 'detection';
+
+        // Lựa chọn B: Chỉ cho nhập số, không cho nhập chữ
+        if (isDetection && rawVal !== '' && !/^[-+]?[0-9]*[.,]?[0-9]*$/.test(rawVal.trim())) {
+          return t;
+        }
+
         const evaluated = evaluateIndicatorChange(t, rawVal, {
           catalogItemEquipments,
           referenceRanges,
@@ -200,44 +215,93 @@ export default function TestTable({
       return;
     }
 
+    const pkgItems = getPkgItems(pkg);
+    const pkgItemMap = new Map(pkgItems.map((pi) => [String(pi.code || '').trim().toLowerCase(), pi]));
+
     const existingCodes = new Set(selectedTests.map((t) => String(t.code || '').trim().toLowerCase()));
+    let autoFilledCount = 0;
+
     const newOnes = itemsToAdd
       .filter((item) => item && item.code && !existingCodes.has(String(item.code).trim().toLowerCase()))
       .map((item) => {
-        const pkgItem = (pkg.items || []).find((pi) => pi && String(pi.code || '').trim().toLowerCase() === String(item.code).trim().toLowerCase());
+        const pkgItem = pkgItemMap.get(String(item.code || '').trim().toLowerCase());
         let targetEquipmentId: string | undefined = pkgItem?.equipmentId || undefined;
         if (!targetEquipmentId && pkg.defaultEquipmentId) {
           const hasLink = catalogItemEquipments.some((l) => l.catalogCode.toUpperCase() === item.code.toUpperCase() && l.equipmentId === pkg.defaultEquipmentId);
           if (hasLink) targetEquipmentId = pkg.defaultEquipmentId;
         }
 
-        return buildSelectedTest(item, {
+        const selected = buildSelectedTest(item, {
           equipmentId: targetEquipmentId,
           catalogItemEquipments,
           referenceRanges,
           allergenScales,
           equipments
         });
+
+        // Tự động điền giá trị mặc định của gói nếu được bật
+        if (autoFillPackageDefaults && pkgItem?.hasDefaultValue && pkgItem.defaultValue != null && pkgItem.defaultValue !== '') {
+          const rawVal = String(pkgItem.defaultValue);
+          const evaluated = evaluateIndicatorChange(selected, rawVal, {
+            catalogItemEquipments,
+            referenceRanges,
+            allergenScales,
+            equipments
+          });
+          selected.result = evaluated.result;
+          selected.note = evaluated.note;
+          autoFilledCount++;
+        }
+
+        return selected;
       });
 
-    if (newOnes.length === 0) {
+    // Cập nhật các chỉ số đã có trong bảng nhưng ô kết quả còn trống ('')
+    let updatedExistingCount = 0;
+    let updatedExistingList = selectedTests;
+    if (autoFillPackageDefaults) {
+      updatedExistingList = selectedTests.map((t) => {
+        const cLower = String(t.code || '').trim().toLowerCase();
+        const pkgItem = pkgItemMap.get(cLower);
+        if (pkgItem && pkgItem.hasDefaultValue && pkgItem.defaultValue != null && pkgItem.defaultValue !== '' && (!t.result || t.result.trim() === '')) {
+          updatedExistingCount++;
+          const rawVal = String(pkgItem.defaultValue);
+          const evaluated = evaluateIndicatorChange(t, rawVal, {
+            catalogItemEquipments,
+            referenceRanges,
+            allergenScales,
+            equipments
+          });
+          return { ...t, result: evaluated.result, note: evaluated.note };
+        }
+        return t;
+      });
+    }
+
+    if (newOnes.length === 0 && updatedExistingCount === 0) {
       if (showToast) {
         showToast(`Tất cả ${itemsToAdd.length} chỉ số trong gói [${pkg.name}] đã có trong bảng xét nghiệm!`, 'info');
       }
       return;
     }
 
-    setSelectedTests((prev) => [...prev, ...newOnes]);
+    setSelectedTests([...updatedExistingList, ...newOnes]);
 
     // Track in recent tests
-    if (onAddMultipleToRecent) {
+    if (onAddMultipleToRecent && newOnes.length > 0) {
       onAddMultipleToRecent(
         newOnes.map((t) => ({ code: t.code, name: t.name || t.code, category: t.category || '' }))
       );
     }
 
     if (showToast) {
-      showToast(`Đã thêm ${newOnes.length} chỉ số từ gói [${pkg.name}]!`, 'success');
+      const totalFilled = autoFilledCount + updatedExistingCount;
+      const fillMsg = totalFilled > 0 ? ` (kèm ${totalFilled} kết quả mặc định)` : '';
+      if (newOnes.length > 0) {
+        showToast(`Đã thêm ${newOnes.length} chỉ số từ gói [${pkg.name}]${fillMsg}!`, 'success');
+      } else {
+        showToast(`Đã cập nhật ${updatedExistingCount} kết quả mặc định từ gói [${pkg.name}]!`, 'success');
+      }
     }
   };
 
@@ -326,14 +390,31 @@ export default function TestTable({
         if (idx >= lines.length) return t;
         const rawVal = lines[idx];
 
-        const evaluated = evaluateIndicatorChange(t, rawVal, {
+        const resolved = resolveIndicatorReference(t, {
+          equipmentId: t.equipmentId,
+          catalogItemEquipments,
+          referenceRanges,
+          allergenScales,
+          equipments
+        });
+        const isDetection = (t.evaluationType || resolved.evaluationType) === 'detection';
+
+        let sanitizedVal = rawVal;
+        if (isDetection) {
+          if (!/^[-+]?[0-9]*[.,]?[0-9]*$/.test(rawVal.trim())) {
+            const match = rawVal.match(/[-+]?[0-9]+([.,][0-9]+)?/);
+            sanitizedVal = match ? match[0] : '';
+          }
+        }
+
+        const evaluated = evaluateIndicatorChange(t, sanitizedVal, {
           catalogItemEquipments,
           referenceRanges,
           allergenScales,
           equipments
         });
 
-        return { ...t, result: rawVal, note: evaluated.note };
+        return { ...t, result: sanitizedVal, note: evaluated.note };
       })
     );
 
@@ -550,6 +631,21 @@ export default function TestTable({
             </select>
           </div>
 
+          {/* Tùy chọn điền sẵn kết quả mặc định của gói */}
+          <label
+            className="inline-flex items-center gap-1.5 px-2 py-1 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 hover:bg-emerald-50/60 hover:text-emerald-800 cursor-pointer shrink-0 shadow-2xs select-none transition"
+            title="Tự động điền giá trị kết quả mặc định đã cấu hình trong gói vào ô kết quả"
+          >
+            <input
+              type="checkbox"
+              checked={autoFillPackageDefaults}
+              onChange={(e) => setAutoFillPackageDefaults(e.target.checked)}
+              className="w-3.5 h-3.5 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer"
+            />
+            <span className="hidden sm:inline">Điền sẵn KQ mặc định</span>
+            <span className="sm:hidden">Điền KQ</span>
+          </label>
+
           <div className="h-4 w-px bg-slate-300 shrink-0 hidden sm:block" />
 
           {/* Quick Package Chips */}
@@ -690,7 +786,9 @@ export default function TestTable({
                     t.result,
                     resolved.refMin,
                     resolved.refMax,
-                    resolved.scale
+                    resolved.scale,
+                    undefined,
+                    t.evaluationType || resolved.evaluationType
                   );
                   const isAbnormal = evalRes.isAbnormal;
 
@@ -768,6 +866,7 @@ export default function TestTable({
                           value={t.note || ''}
                           onChange={(val) => handleNoteChange(t.code, val)}
                           isAllergen={resolved.isAllergen || !!resolved.scale || (t.category?.includes('Dị Nguyên') ?? false)}
+                          isDetection={(t.evaluationType || resolved.evaluationType) === 'detection'}
                           isAbnormal={isAbnormal}
                           placeholder="Đánh giá..."
                         />
@@ -818,7 +917,9 @@ export default function TestTable({
               t.result,
               resolved.refMin,
               resolved.refMax,
-              resolved.scale
+              resolved.scale,
+              undefined,
+              t.evaluationType || resolved.evaluationType
             );
             const isAbnormal = evalRes.isAbnormal;
             const displayUnit = resolved.unit || '---';
@@ -928,6 +1029,7 @@ export default function TestTable({
                       value={t.note || ''}
                       onChange={(val) => handleNoteChange(t.code, val)}
                       isAllergen={resolved.isAllergen || !!resolved.scale || (t.category?.includes('Dị Nguyên') ?? false)}
+                      isDetection={(t.evaluationType || resolved.evaluationType) === 'detection'}
                       isAbnormal={isAbnormal}
                       placeholder="Chọn đánh giá hoặc nhập ghi chú..."
                     />
@@ -965,3 +1067,5 @@ export default function TestTable({
     </div>
   );
 }
+
+export { TestTable };

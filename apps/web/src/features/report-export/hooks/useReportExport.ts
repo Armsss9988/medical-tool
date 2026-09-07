@@ -43,7 +43,7 @@ export function useReportExport(
     setLastError(null);
     setCurrentStep('render_pdf');
 
-    const cleanCode = reportCode || filename.replace(/^PhieuXN_[^_]+_/, '').replace(/\.pdf$/, '') || 'BN-TEMP';
+    const cleanCode = reportCode || (filename.replace(/\.pdf$/i, '').split('_').pop()) || 'BN-TEMP';
     const cleanPatientName = patientName || 'BenhNhan';
 
     const tx = new PdfExportTransaction(

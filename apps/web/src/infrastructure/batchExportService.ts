@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import { MedicalReport, ClinicInfo, BatchExportProgress } from '@domain/types';
+import { formatReportPdfFilename } from '@domain';
 import { ReportKindResolver } from '@domain/valueObjects/ReportKind';
 import { generateHighQualityPdf } from './pdfService';
 import { uploadPdfToCloud } from './cloudService';
@@ -67,8 +68,7 @@ export async function batchExportPdfs(
       const elementId = reportKind.elementId;
 
       // 4. Chuẩn bị định danh phiên bản & sinh mã QR Cloud đích thực trước khi Render
-      const safeName = patientName.replace(/\s+/g, '_');
-      const filename = `PhieuXN_${safeName}_${report.code}.pdf`;
+      const filename = formatReportPdfFilename(patientName, report.code);
       const version = await getNextVersionForReport(report.code);
       const versionedFilename = filename.replace(/\.pdf$/i, `_v${version}.pdf`);
 
@@ -154,8 +154,7 @@ export async function downloadBatchZip(
   const zip = new JSZip();
 
   for (const item of results) {
-    const safeName = (item.patientName || 'BenhNhan').replace(/\s+/g, '_');
-    const filename = `PhieuXN_${safeName}_${item.code}.pdf`;
+    const filename = formatReportPdfFilename(item.patientName, item.code);
     zip.file(filename, item.blob);
   }
 

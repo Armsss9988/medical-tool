@@ -1,4 +1,4 @@
-import { TestResultEvaluation, AllergenGradingScale, ReferenceRangeItem } from './types';
+import { TestResultEvaluation, AllergenGradingScale, ReferenceRangeItem, EvaluationType } from './types';
 import { calculateAllergenGrade } from './allergen';
 import { TestResultValueParser } from './valueObjects/TestResultValue';
 
@@ -80,8 +80,50 @@ export function evaluateTestIndicator(
   min?: number | null,
   max?: number | null,
   scale?: AllergenGradingScale,
-  refRange?: ReferenceRangeItem
+  refRange?: ReferenceRangeItem,
+  evaluationType?: EvaluationType
 ): IndicatorEvaluationResult {
+  // ─── ĐÁNH GIÁ CHỈ SỐ PHÁT HIỆN (DETECTION) ───────────────────────────────────
+  if (evaluationType === 'detection') {
+    if (val === null || val === undefined || String(val).trim() === '') {
+      return {
+        status: 'normal',
+        label: '',
+        isAbnormal: false
+      };
+    }
+    const cleanStr = String(val).trim().replace(',', '.');
+    const num = parseFloat(cleanStr);
+    if (isNaN(num)) {
+      const lower = cleanStr.toLowerCase();
+      if (
+        lower.includes('không') ||
+        lower.includes('khong') ||
+        lower.includes('âm') ||
+        lower.includes('am') ||
+        lower === 'kph' ||
+        lower.includes('kph') ||
+        lower.includes('neg') ||
+        lower.includes('non')
+      ) {
+        return { status: 'normal', label: 'Không Phát Hiện', isAbnormal: false };
+      }
+      return { status: 'high', label: 'Phát Hiện', isAbnormal: true };
+    }
+    if (num <= 0) {
+      return {
+        status: 'normal',
+        label: 'Không Phát Hiện',
+        isAbnormal: false
+      };
+    }
+    return {
+      status: 'high',
+      label: 'Phát Hiện',
+      isAbnormal: true
+    };
+  }
+
   const isTIgE = (code || '').toLowerCase() === 'tige';
   const isAllergen = !isTIgE && ((category && category.includes('Dị Nguyên')) || unit === 'IU/mL');
 

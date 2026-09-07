@@ -32,12 +32,20 @@ describe('catalogRowSchema', () => {
     expect(catalogRowSchema.safeParse(row).success).toBe(false);
   });
 
-  it('applies defaults', () => {
-    const row = { code: 'X', category: 'C', name: 'Y' };
+  it('parses catalog item with evaluationType correctly', () => {
+    const row = {
+      code: 'GLU',
+      category: 'Sinh hóa',
+      name: 'Glucose',
+      unit: 'mmol/L',
+      refText: '3.9-6.4',
+      evaluationType: 'range'
+    };
     const result = catalogRowSchema.safeParse(row);
+    expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.unit).toBe('');
-      expect(result.data.refText).toBe('');
+      expect(result.data.evaluationType).toBe('range');
+      expect(result.data.code).toBe('GLU');
     }
   });
 });
@@ -65,6 +73,29 @@ describe('testPackageRowSchema', () => {
     const result = ROW_SCHEMAS['test-packages'].safeParse(row);
     expect(result.success).toBe(true);
   });
+
+  it('preserves defaultValue and hasDefaultValue in package items', () => {
+    const row = {
+      id: 'pkg_screen',
+      name: 'Gói Sàng Lọc',
+      items: [
+        { code: 'HBSAG', equipmentId: null, defaultValue: 'Âm tính', hasDefaultValue: true },
+        { code: 'GLU', equipmentId: 'cobas_c311', defaultValue: '5.2', hasDefaultValue: true },
+        { code: 'URE', equipmentId: null, defaultValue: null, hasDefaultValue: false }
+      ],
+      price: 350000
+    };
+    const result = ROW_SCHEMAS['test-packages'].safeParse(row);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.items[0].defaultValue).toBe('Âm tính');
+      expect(result.data.items[0].hasDefaultValue).toBe(true);
+      expect(result.data.items[1].defaultValue).toBe('5.2');
+      expect(result.data.items[1].hasDefaultValue).toBe(true);
+      expect(result.data.items[2].defaultValue).toBeNull();
+      expect(result.data.items[2].hasDefaultValue).toBe(false);
+    }
+  });
 });
 
 describe('catalogItemEquipmentRowSchema', () => {
@@ -78,6 +109,24 @@ describe('catalogItemEquipmentRowSchema', () => {
     };
     const result = ROW_SCHEMAS['catalog-item-equipments'].safeParse(row);
     expect(result.success).toBe(true);
+  });
+
+  it('handles flexibleNumber for refMin and refMax (empty string, string number, null)', () => {
+    const row = {
+      id: 'cie_glu_ms360',
+      catalogCode: 'GLU',
+      equipmentId: 'ms_360',
+      refMin: '',
+      refMax: '6.4',
+      unit: 'mmol/L',
+      isDefault: true
+    };
+    const result = ROW_SCHEMAS['catalog-item-equipments'].safeParse(row);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.refMin).toBeNull();
+      expect(result.data.refMax).toBe(6.4);
+    }
   });
 });
 

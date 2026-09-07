@@ -1,4 +1,4 @@
-import { TestPackage } from '../types';
+import { TestPackage, getPkgItems } from '../types';
 
 /**
  * Trọng số thứ tự chuẩn y khoa của các chuyên khoa xét nghiệm chính.
@@ -65,7 +65,7 @@ export function buildPackageItemOrderMap(testPackages: TestPackage[] = []): Map<
   });
 
   for (const pkg of sortedPackages) {
-    const items = pkg.items || [];
+    const items = getPkgItems(pkg);
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       if (!item || !item.code) continue;

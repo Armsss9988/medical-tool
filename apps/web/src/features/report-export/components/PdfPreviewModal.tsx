@@ -22,7 +22,7 @@ import PrintReportView from './PrintReportView';
 import FullAllergenReportView from './FullAllergenReportView';
 import HybridReportView from './HybridReportView';
 import { PRINT_ELEMENT_ID } from '@domain/constants';
-import { ClinicInfo, Patient, SelectedTest, ToastType, TestPackage, TestEquipment, CatalogItemEquipmentLink, AllergenGradingScale, ReportClassificationDomainService, ReportTemplate, TemplateCompatibilityDomainService } from '@domain';
+import { ClinicInfo, Patient, SelectedTest, ToastType, TestPackage, TestEquipment, CatalogItemEquipmentLink, AllergenGradingScale, ReportClassificationDomainService, ReportTemplate, TemplateCompatibilityDomainService, formatReportPdfFilename } from '@domain';
 import type { DynamicReportRenderProps } from '../types';
 import {
   ExportStepName,
@@ -337,7 +337,7 @@ export default function PdfPreviewModal({
             {onDownloadPdf && (
               <button
                 onClick={() => {
-                  const fname = `PhieuXN_${(safePatient.name || 'BenhNhan').replace(/\s+/g, '_')}_${safePatient.code}.pdf`;
+                  const fname = formatReportPdfFilename(safePatient.name, safePatient.code);
                   onDownloadPdf(activeElementId, fname);
                 }}
                 disabled={!cloudLink || isExporting}
@@ -632,7 +632,7 @@ export default function PdfPreviewModal({
                 </button>
                 <a
                   href={cloudLink}
-                  download={`PhieuXN_${(safePatient.name || 'BenhNhan').replace(/\s+/g, '_')}_${safePatient.code}.pdf`}
+                  download={formatReportPdfFilename(safePatient.name, safePatient.code)}
                   target="_blank"
                   rel="noreferrer"
                   className="px-2 py-0.5 rounded bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[10px] border border-emerald-600 transition flex items-center gap-1"

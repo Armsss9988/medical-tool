@@ -38,13 +38,15 @@ export interface Patient {
   returnedAt?: string;
 }
 
-export type EvaluationType = 'range' | 'scale' | 'text';
+export type EvaluationType = 'range' | 'scale' | 'text' | 'detection';
 
 /** Liên kết giữa một chỉ số xét nghiệm và một loại máy đo cụ thể (kèm ngưỡng tham chiếu riêng cho máy) */
 export interface CatalogItemEquipmentLink {
   id: string;
   catalogCode: string;
   equipmentId: string;
+  /** Phương thức đánh giá riêng cho máy đo này (Tham chiếu, Thang đo, hoặc Phát hiện) */
+  evaluationType?: EvaluationType;
   refMin?: number | null;
   refMax?: number | null;
   unit?: string | null;
@@ -79,11 +81,11 @@ export interface CatalogItem {
   refMax?: number | null;
   /** Danh sách liên kết máy đo → reference_range/scale riêng (tùy máy) */
   equipmentLinks?: CatalogItemEquipmentLink[];
-  /** @deprecated Dùng equipmentLinks thay thế — giữ để backward compat với dữ liệu cũ */
+  /** @deprecated Đã loại bỏ khỏi bảng DB catalog_items — tra cứu/cấu hình máy đo qua catalog_item_equipments */
   equipment?: string;
-  /** @deprecated Dùng equipmentLinks thay thế */
+  /** @deprecated Đã loại bỏ khỏi bảng DB catalog_items — cấu hình dải đo qua catalog_item_equipments */
   referenceRangeId?: string;
-  /** @deprecated Dùng equipmentLinks thay thế */
+  /** @deprecated Đã loại bỏ khỏi bảng DB catalog_items — cấu hình thang đo qua catalog_item_equipments */
   scaleId?: string;
 }
 
@@ -100,13 +102,17 @@ export interface SelectedTest extends CatalogItem {
   refMax?: number | null;
 }
 
-/** Một mục chỉ số trong gói xét nghiệm, kèm thông tin máy đo được chọn */
+/** Một mục chỉ số trong gói xét nghiệm, kèm thông tin máy đo được chọn và giá trị mặc định */
 export interface PackageItem {
   code: string;
   /** ID máy đo được chọn cho chỉ số này trong gói. null = dùng máy mặc định của chỉ số */
   equipmentId?: string | null;
   /** Thứ tự sắp xếp của chỉ số trong gói (tương ứng order_index trong package_items) */
   orderIndex?: number;
+  /** Giá trị kết quả mặc định điền sẵn khi chọn gói (VD: 'Âm tính', '0', '5.0') */
+  defaultValue?: string | null;
+  /** Tùy chọn bật/tắt tự động điền giá trị mặc định cho chỉ số này khi chọn gói */
+  hasDefaultValue?: boolean | null;
 }
 
 export interface TestPackage {
@@ -186,14 +192,35 @@ export function getPkgItems(pkg: TestPackage | undefined | null): PackageItem[] 
       } else if (i && typeof i === 'object' && 'code' in i) {
         const c = String((i as { code: unknown }).code || '').trim();
         if (c) {
-          list.push({
+          const rawOrder = (i as { orderIndex?: unknown }).orderIndex;
+          const rawDefVal = (i as { defaultValue?: unknown }).defaultValue;
+          const rawHasDef = (i as { hasDefaultValue?: unknown }).hasDefaultValue;
+          const itemObj: PackageItem = {
             code: c,
             equipmentId: (i as { equipmentId?: string | null }).equipmentId || null
-          });
+          };
+          if (typeof rawOrder === 'number') {
+            itemObj.orderIndex = rawOrder;
+          }
+          if (rawDefVal !== undefined) {
+            itemObj.defaultValue = typeof rawDefVal === 'string' ? rawDefVal : (rawDefVal != null ? String(rawDefVal) : null);
+          }
+          if (rawHasDef !== undefined) {
+            itemObj.hasDefaultValue = Boolean(rawHasDef);
+          } else if (itemObj.defaultValue != null && itemObj.defaultValue !== '') {
+            itemObj.hasDefaultValue = true;
+          }
+          list.push(itemObj);
         }
       }
     }
-    if (list.length > 0) return list;
+    if (list.length > 0) {
+      const hasOrderIndex = list.some((item) => typeof item.orderIndex === 'number');
+      if (hasOrderIndex) {
+        return list.sort((a, b) => (a.orderIndex ?? 999999) - (b.orderIndex ?? 999999));
+      }
+      return list;
+    }
   }
 
   let rawCodes: unknown = pkg.codes;
@@ -226,7 +253,7 @@ export function normalizeTestPackage(pkg: TestPackage): TestPackage {
     ...pkg,
     price: numPrice,
     items,
-    codes: codes.length > 0 ? codes : items.map((i) => i.code)
+    codes: items.length > 0 ? items.map((i) => i.code) : codes
   };
 }
 

@@ -496,8 +496,9 @@ export function DynamicReportView({
                       );
                     }
                     const t = entry.test;
+                    const isAbnormalByNote = t.note ? (t.note.includes('Phát Hiện') && !t.note.includes('Không')) : false;
                     const evaluation = evaluateResult(t.result, t.refMin, t.refMax);
-                    const isAbnormal = evaluation.status === 'high' || evaluation.status === 'low';
+                    const isAbnormal = evaluation.status === 'high' || evaluation.status === 'low' || isAbnormalByNote;
                     const resolvedEquipment = resolveTestEquipmentName(t, equipments, catalogItemEquipments);
 
                     return (
@@ -540,8 +541,9 @@ export function DynamicReportView({
                       </tr>
                       {items.map((t, idx) => {
                         rowCounter++;
+                        const isAbnormalByNote = t.note ? (t.note.includes('Phát Hiện') && !t.note.includes('Không')) : false;
                         const evaluation = evaluateResult(t.result, t.refMin, t.refMax);
-                        const isAbnormal = evaluation.status === 'high' || evaluation.status === 'low';
+                        const isAbnormal = evaluation.status === 'high' || evaluation.status === 'low' || isAbnormalByNote;
                         const resolvedEquipment = resolveTestEquipmentName(t, equipments, catalogItemEquipments);
 
                         return (
@@ -578,8 +580,9 @@ export function DynamicReportView({
                   ))
                 ) : (
                   regularTests.map((t, idx) => {
+                    const isAbnormalByNote = t.note ? (t.note.includes('Phát Hiện') && !t.note.includes('Không')) : false;
                     const evaluation = evaluateResult(t.result, t.refMin, t.refMax);
-                    const isAbnormal = evaluation.status === 'high' || evaluation.status === 'low';
+                    const isAbnormal = evaluation.status === 'high' || evaluation.status === 'low' || isAbnormalByNote;
                     const resolvedEquipment = resolveTestEquipmentName(t, equipments, catalogItemEquipments);
 
                     return (

@@ -3,7 +3,7 @@ import { useWorkspace } from '../../../contexts/WorkspaceContext';
 import { useModal } from '../../../contexts/ModalContext';
 import { useToast } from '../../../contexts/ToastContext';
 import { REPORT_STATUS } from '@domain/constants';
-import { ReportClassificationDomainService } from '@domain';
+import { ReportClassificationDomainService, formatReportPdfFilename } from '@domain';
 import { buildCurrentReport, resolveDoctorName } from '@domain/reportFactory';
 import { generateZaloTextMessage, openZaloChat } from '@infra/zaloService';
 import type { ClinicInfo, MedicalReport, ToastType } from '@domain';
@@ -47,7 +47,7 @@ export function useExportActions(
     const elementId = (customElementId && typeof customElementId === 'string')
       ? customElementId
       : ReportClassificationDomainService.resolvePrintElementId(reportType);
-    const filename = `PhieuXN_${(patient.name || 'BenhNhan').replace(/\s+/g, '_')}_${patient.code}.pdf`;
+    const filename = formatReportPdfFilename(patient.name, patient.code);
 
     const result = await handleExportPdfAndUploadCloud(
       elementId,
@@ -86,7 +86,7 @@ export function useExportActions(
   const handleDownloadPdfDirect = useCallback(() => {
     const reportType = ReportClassificationDomainService.classify(selectedTests);
     const elementId = ReportClassificationDomainService.resolvePrintElementId(reportType);
-    const filename = `PhieuXN_${(patient.name || 'BenhNhan').replace(/\s+/g, '_')}_${patient.code}.pdf`;
+    const filename = formatReportPdfFilename(patient.name, patient.code);
     handleDownloadPdf(elementId, filename);
   }, [selectedTests, patient, handleDownloadPdf]);
 
@@ -182,8 +182,14 @@ export function useExportActions(
   }, [reports, saveOrUpdateReport, showToast]);
 
   const handlePrintDirect = useCallback(() => {
+    const originalTitle = document.title;
+    const printTitle = formatReportPdfFilename(patient.name, patient.code).replace(/\.pdf$/i, '');
+    document.title = printTitle;
     window.print();
-  }, []);
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 1000);
+  }, [patient.name, patient.code]);
 
   const handleDownloadQrCodeDirect = useCallback(() => {
     handleDownloadQrCode(patient.name, patient.code);

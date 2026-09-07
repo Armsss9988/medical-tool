@@ -1,4 +1,4 @@
-import { SelectedTest, TestPackage, AllergenDatabaseItem, AllergenGradingScale, getPkgCodes } from '../types';
+import { SelectedTest, TestPackage, AllergenDatabaseItem, AllergenGradingScale, getPkgCodes, getPkgItems } from '../types';
 import { calculateAllergenGrade } from '../allergen';
 import { computePricingWithPackages } from '../pricing';
 import { getAllergenScaleById } from '../constants/allergenScales';
@@ -71,8 +71,9 @@ export class AllergenReportDomainService {
     const allergenPkg = testPackages.find((p) => p.id === 'di_nguyen_90') ||
       testPackages.find((p) => p.id.includes('di_nguyen'));
     const allergenOrderMap = new Map<string, number>();
-    if (allergenPkg && allergenPkg.items) {
-      allergenPkg.items.forEach((item, idx) => {
+    if (allergenPkg) {
+      const pkgItems = getPkgItems(allergenPkg);
+      pkgItems.forEach((item, idx) => {
         const order = typeof item.orderIndex === 'number' ? item.orderIndex : idx;
         allergenOrderMap.set(item.code.trim().toLowerCase(), order);
       });

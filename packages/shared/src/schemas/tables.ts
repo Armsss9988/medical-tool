@@ -39,10 +39,13 @@ export const catalogRowSchema = z.object({
   evaluationType: z.string().nullable().optional()
 });
 
-/** Zod schema cho một PackageItem (chỉ số trong gói kèm máy đo) */
+/** Zod schema cho một PackageItem (chỉ số trong gói kèm máy đo và giá trị mặc định) */
 export const packageItemSchema = z.object({
   code: z.string().min(1),
-  equipmentId: z.string().nullable().optional()
+  equipmentId: z.string().nullable().optional(),
+  orderIndex: z.number().nullable().optional(),
+  defaultValue: z.string().nullable().optional(),
+  hasDefaultValue: z.boolean().nullable().optional()
 });
 
 export const testPackageRowSchema = z.object({
@@ -136,8 +139,9 @@ export const catalogItemEquipmentRowSchema = z.object({
   id: z.string().min(1),
   catalogCode: z.string().min(1),
   equipmentId: z.string().min(1),
-  refMin: z.number().nullable().optional(),
-  refMax: z.number().nullable().optional(),
+  evaluationType: z.string().nullable().optional(),
+  refMin: flexibleNumber,
+  refMax: flexibleNumber,
   unit: z.string().nullable().optional(),
   refText: z.string().nullable().optional(),
   scaleId: z.string().nullable().optional(),

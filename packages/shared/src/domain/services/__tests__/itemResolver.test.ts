@@ -289,6 +289,106 @@ describe('Unified Reference Resolver (resolveIndicatorReference)', () => {
       expect(change.result).toBe('1.5');
       expect(change.note).toBe('Dương tính trung bình (Độ 2)');
     });
+
+    it('đánh giá chỉ số phát hiện (detection): 0 -> Không Phát Hiện, >0 -> Phát Hiện, rỗng -> rỗng', () => {
+      const test = buildSelectedTest({
+        code: 'HPV',
+        name: 'HPV DNA Realtime PCR',
+        category: 'Sinh Học Phân Tử',
+        unit: 'Copies/mL',
+        refText: '',
+        evaluationType: 'detection'
+      });
+      expect(test.note).toBe('');
+
+      const autoFill = computeAutoFillValue(test);
+      expect(autoFill.result).toBe('0');
+      expect(autoFill.note).toBe('Không Phát Hiện');
+
+      const changeZero = evaluateIndicatorChange(test, '0');
+      expect(changeZero.result).toBe('0');
+      expect(changeZero.note).toBe('Không Phát Hiện');
+
+      const changePos = evaluateIndicatorChange(test, '150');
+      expect(changePos.result).toBe('150');
+      expect(changePos.note).toBe('Phát Hiện');
+
+      const changeEmpty = evaluateIndicatorChange(test, '');
+      expect(changeEmpty.result).toBe('');
+      expect(changeEmpty.note).toBe('');
+    });
+
+    it('1 chỉ số liên kết nhiều máy đo với các phương thức đánh giá khác nhau (Máy A: Range, Máy B: Detection)', () => {
+      const hpvItem: CatalogItem = {
+        code: 'HBV',
+        name: 'Viêm gan B',
+        category: 'Sinh Học Phân Tử',
+        unit: 'IU/mL',
+        refText: ''
+      };
+
+      const customLinks: CatalogItemEquipmentLink[] = [
+        {
+          id: 'link_hbv_quant',
+          catalogCode: 'HBV',
+          equipmentId: 'eq_quant',
+          evaluationType: 'range',
+          refMin: 10,
+          refMax: 1000,
+          unit: 'IU/mL',
+          refText: '10 - 1000',
+          isDefault: true
+        },
+        {
+          id: 'link_hbv_pcr',
+          catalogCode: 'HBV',
+          equipmentId: 'eq_pcr',
+          evaluationType: 'detection',
+          unit: 'Copies/mL',
+          refText: 'Không phát hiện',
+          isDefault: false
+        }
+      ];
+
+      // Khi chọn máy định lượng (range)
+      const resRange = resolveIndicatorReference(hpvItem, {
+        equipmentId: 'eq_quant',
+        catalogItemEquipments: customLinks
+      });
+      expect(resRange.evaluationType).toBe('range');
+      expect(resRange.refMin).toBe(10);
+      expect(resRange.refMax).toBe(1000);
+      expect(resRange.unit).toBe('IU/mL');
+
+      // Khi chọn máy PCR (detection)
+      const resDetection = resolveIndicatorReference(hpvItem, {
+        equipmentId: 'eq_pcr',
+        catalogItemEquipments: customLinks
+      });
+      expect(resDetection.evaluationType).toBe('detection');
+      expect(resDetection.refMin).toBeNull();
+      expect(resDetection.refMax).toBeNull();
+      expect(resDetection.refText).toBe('Không phát hiện');
+      expect(resDetection.unit).toBe('Copies/mL');
+
+      // Kiểm tra đánh giá thay đổi khi dùng máy PCR
+      const testPcr = buildSelectedTest(hpvItem, {
+        equipmentId: 'eq_pcr',
+        catalogItemEquipments: customLinks
+      });
+      expect(testPcr.evaluationType).toBe('detection');
+      const evalPcr = evaluateIndicatorChange(testPcr, '0', {
+        equipmentId: 'eq_pcr',
+        catalogItemEquipments: customLinks
+      });
+      expect(evalPcr.note).toBe('Không Phát Hiện');
+
+      const evalPcrPos = evaluateIndicatorChange(testPcr, '500', {
+        equipmentId: 'eq_pcr',
+        catalogItemEquipments: customLinks
+      });
+      expect(evalPcrPos.note).toBe('Phát Hiện');
+    });
   });
 });
 

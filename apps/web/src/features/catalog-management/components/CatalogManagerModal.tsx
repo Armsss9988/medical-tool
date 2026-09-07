@@ -116,13 +116,63 @@ export default function CatalogManagerModal({
     prevTargetTabRef.current = targetTab;
   }, [isOpen, targetTab]);
 
-  if (!isOpen) return null;
 
 
+  // Xác định chính xác những bảng có dữ liệu thay đổi thực sự
+  const hasCatalogChanged = JSON.stringify(items) !== JSON.stringify(catalog);
+  const hasPackagesChanged = JSON.stringify(packages) !== JSON.stringify(testPackages);
+  const hasGroupsChanged = JSON.stringify(groups) !== JSON.stringify(testGroups);
+  const hasEqChanged = JSON.stringify(eqList) !== JSON.stringify(equipments);
+  const hasDocsChanged = JSON.stringify(docsList) !== JSON.stringify(doctorsList);
+  const hasItemEqChanged = JSON.stringify(itemEquipments) !== JSON.stringify(catalogItemEquipments);
+  const hasScalesChanged = JSON.stringify(scalesList) !== JSON.stringify(allergenScales);
+  const hasRangesChanged = JSON.stringify(rangesList) !== JSON.stringify(referenceRanges);
+
+  const hasUnsavedChanges = (
+    hasCatalogChanged ||
+    hasPackagesChanged ||
+    hasGroupsChanged ||
+    hasEqChanged ||
+    hasDocsChanged ||
+    hasItemEqChanged ||
+    hasScalesChanged ||
+    hasRangesChanged
+  );
+
+  const unsavedCount = (
+    (hasCatalogChanged ? 1 : 0) +
+    (hasPackagesChanged ? 1 : 0) +
+    (hasGroupsChanged ? 1 : 0) +
+    (hasEqChanged ? 1 : 0) +
+    (hasDocsChanged ? 1 : 0) +
+    (hasItemEqChanged ? 1 : 0) +
+    (hasScalesChanged ? 1 : 0) +
+    (hasRangesChanged ? 1 : 0)
+  );
+
+  // Đóng an toàn: Cảnh báo nếu có dữ liệu chưa lưu để tránh mất mát công sức nhập liệu
+  const handleSafeClose = () => {
+    if (hasUnsavedChanges) {
+      if (!confirm(`Bạn đang có thay đổi chưa lưu trong danh mục (${unsavedCount} mục)! Bạn có chắc chắn muốn đóng mà không lưu không?`)) {
+        return;
+      }
+    }
+    onClose();
+  };
+
+  // Cảnh báo beforeunload khi người dùng vô tình F5 hoặc đóng trình duyệt
+  useEffect(() => {
+    if (!isOpen || !hasUnsavedChanges) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isOpen, hasUnsavedChanges]);
 
   const handleSaveAll = async () => {
     // 1. Kiểm tra dữ liệu hợp lệ: chỉ kiểm tra gói xét nghiệm nếu người dùng có thay đổi gói
-    const hasPackagesChanged = JSON.stringify(packages) !== JSON.stringify(testPackages);
     if (hasPackagesChanged) {
       const invalidPkg = packages.find((p) => !p.name || !p.name.trim());
       if (invalidPkg) {
@@ -136,15 +186,6 @@ export default function CatalogManagerModal({
       if (showToast) {
         showToast('Đang lưu danh mục vào cơ sở dữ liệu...', 'info');
       }
-
-      // Xác định chính xác những bảng có dữ liệu thay đổi thực sự
-      const hasCatalogChanged = JSON.stringify(items) !== JSON.stringify(catalog);
-      const hasGroupsChanged = JSON.stringify(groups) !== JSON.stringify(testGroups);
-      const hasEqChanged = JSON.stringify(eqList) !== JSON.stringify(equipments);
-      const hasDocsChanged = JSON.stringify(docsList) !== JSON.stringify(doctorsList);
-      const hasItemEqChanged = JSON.stringify(itemEquipments) !== JSON.stringify(catalogItemEquipments);
-      const hasScalesChanged = JSON.stringify(scalesList) !== JSON.stringify(allergenScales);
-      const hasRangesChanged = JSON.stringify(rangesList) !== JSON.stringify(referenceRanges);
 
       const changedData: Parameters<NonNullable<typeof onSaveAllData>>[0] = {};
       if (hasCatalogChanged) changedData.catalog = items;
@@ -190,6 +231,34 @@ export default function CatalogManagerModal({
     }
   };
 
+  // Phím tắt Ctrl+S lưu toàn bộ danh mục & phím Escape đóng an toàn
+  const handleSaveAllRef = useRef(handleSaveAll);
+  handleSaveAllRef.current = handleSaveAll;
+  const handleSafeCloseRef = useRef(handleSafeClose);
+  handleSafeCloseRef.current = handleSafeClose;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        handleSaveAllRef.current();
+      } else if (e.key === 'Escape') {
+        // Chỉ đóng nếu không đang gõ trong input text hoặc textarea
+        const target = e.target as HTMLElement;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+          return;
+        }
+        e.preventDefault();
+        handleSafeCloseRef.current();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
   return (
     <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-4 overflow-hidden">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-7xl h-[92vh] max-h-[95vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
@@ -206,9 +275,14 @@ export default function CatalogManagerModal({
                 <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-400/30 px-2 py-0.5 rounded">
                   {items.length} Chỉ Số • {packages.length} Gói • {eqList.length} Máy
                 </span>
+                {hasUnsavedChanges && (
+                  <span className="text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-400/40 px-2 py-0.5 rounded animate-pulse">
+                    ● Có thay đổi chưa lưu
+                  </span>
+                )}
               </h3>
               <p className="text-xs text-slate-400 hidden sm:block">
-                Tùy biến chỉ số, gói xét nghiệm, máy đo, nhóm, thang đo, khoảng tham chiếu và bác sĩ chỉ định
+                Tùy biến chỉ số, gói xét nghiệm, máy đo, nhóm, thang đo, khoảng tham chiếu và bác sĩ chỉ định (Ctrl+S để lưu)
               </p>
             </div>
           </div>
@@ -216,17 +290,28 @@ export default function CatalogManagerModal({
           <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
             <button
               type="button"
+              disabled={isSaving}
               onClick={handleSaveAll}
-              className="flex items-center space-x-1.5 px-3 sm:px-4 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-700/20 transition-all active:scale-95 cursor-pointer"
+              className={`flex items-center space-x-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs font-bold shadow-lg transition-all active:scale-95 cursor-pointer ${
+                hasUnsavedChanges
+                  ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 ring-2 ring-amber-300 ring-offset-2 ring-offset-slate-900 shadow-amber-500/30 animate-pulse'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-700/20'
+              }`}
+              title="Phím tắt: Ctrl + S để lưu"
             >
               <Save className="w-4 h-4" />
-              <span className="hidden sm:inline">Lưu Toàn Bộ Thay Đổi</span>
-              <span className="sm:hidden">Lưu Dữ Liệu</span>
+              <span className="hidden sm:inline">
+                {isSaving ? 'Đang Lưu...' : hasUnsavedChanges ? `Lưu Thay Đổi (${unsavedCount}) • Ctrl+S` : 'Lưu Danh Mục (Ctrl+S)'}
+              </span>
+              <span className="sm:hidden">
+                {hasUnsavedChanges ? `Lưu (${unsavedCount})` : 'Lưu'}
+              </span>
             </button>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleSafeClose}
               className="p-1.5 sm:p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition cursor-pointer"
+              title="Đóng cửa sổ"
             >
               <X className="w-5 h-5" />
             </button>
@@ -238,7 +323,7 @@ export default function CatalogManagerModal({
           <button
             type="button"
             onClick={() => setActiveTab('INDICATORS')}
-            className={`px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs ${
+            className={`px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs relative ${
               activeTab === 'INDICATORS' || activeTab === 'ALLERGENS'
                 ? 'bg-white border-slate-200 text-sky-700 shadow-xs'
                 : 'bg-transparent border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -246,12 +331,13 @@ export default function CatalogManagerModal({
           >
             <FlaskConical className="w-3.5 h-3.5" />
             <span>1. Chỉ Số ({items.length})</span>
+            {hasCatalogChanged && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" title="Có thay đổi chưa lưu" />}
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('PACKAGES')}
-            className={`px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs ${
+            className={`px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs relative ${
               activeTab === 'PACKAGES' || activeTab === 'PACKAGES_INDICATOR' || activeTab === 'PACKAGES_ALLERGEN'
                 ? 'bg-white border-slate-200 text-sky-700 shadow-xs'
                 : 'bg-transparent border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -259,12 +345,13 @@ export default function CatalogManagerModal({
           >
             <Layers className="w-3.5 h-3.5" />
             <span>2. Gói ({packages.length})</span>
+            {hasPackagesChanged && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" title="Có thay đổi chưa lưu" />}
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('EQUIPMENTS')}
-            className={`px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs ${
+            className={`px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs relative ${
               activeTab === 'EQUIPMENTS'
                 ? 'bg-white border-slate-200 text-sky-700 shadow-xs'
                 : 'bg-transparent border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -272,12 +359,13 @@ export default function CatalogManagerModal({
           >
             <Cpu className="w-3.5 h-3.5" />
             <span>3. Thiết Bị ({eqList.length})</span>
+            {hasEqChanged && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" title="Có thay đổi chưa lưu" />}
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('GROUPS')}
-            className={`px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs ${
+            className={`px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs relative ${
               activeTab === 'GROUPS'
                 ? 'bg-white border-slate-200 text-emerald-700 shadow-xs'
                 : 'bg-transparent border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -285,12 +373,13 @@ export default function CatalogManagerModal({
           >
             <FolderTree className="w-3.5 h-3.5" />
             <span>4. Nhóm ({groups.length})</span>
+            {hasGroupsChanged && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" title="Có thay đổi chưa lưu" />}
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('SCALES')}
-            className={`px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs ${
+            className={`px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs relative ${
               activeTab === 'SCALES'
                 ? 'bg-white border-slate-200 text-amber-700 shadow-xs'
                 : 'bg-transparent border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -298,12 +387,13 @@ export default function CatalogManagerModal({
           >
             <Activity className="w-3.5 h-3.5" />
             <span>5. Thang Đo ({scalesList.length})</span>
+            {hasScalesChanged && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" title="Có thay đổi chưa lưu" />}
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('RANGES')}
-            className={`px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs ${
+            className={`px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs relative ${
               activeTab === 'RANGES'
                 ? 'bg-white border-slate-200 text-indigo-700 shadow-xs'
                 : 'bg-transparent border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -311,12 +401,13 @@ export default function CatalogManagerModal({
           >
             <Sliders className="w-3.5 h-3.5" />
             <span>6. Tham Chiếu ({rangesList.length})</span>
+            {hasRangesChanged && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" title="Có thay đổi chưa lưu" />}
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('DOCTORS')}
-            className={`px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs ${
+            className={`px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-t-xl transition-all border-t border-x flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap text-[11px] sm:text-xs relative ${
               activeTab === 'DOCTORS'
                 ? 'bg-white border-slate-200 text-emerald-700 shadow-xs'
                 : 'bg-transparent border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -324,6 +415,7 @@ export default function CatalogManagerModal({
           >
             <Stethoscope className="w-3.5 h-3.5" />
             <span>7. Bác Sĩ ({docsList.length})</span>
+            {hasDocsChanged && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" title="Có thay đổi chưa lưu" />}
           </button>
         </div>
 
@@ -351,6 +443,8 @@ export default function CatalogManagerModal({
               setPackages={setPackages}
               equipments={eqList}
               catalogItemEquipments={itemEquipments}
+              referenceRanges={rangesList}
+              allergenScales={scalesList}
               groups={groups}
               showToast={showToast}
             />

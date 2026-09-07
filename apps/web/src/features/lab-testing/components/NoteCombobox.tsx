@@ -23,6 +23,8 @@ const ALLERGEN_NOTE_OPTIONS: NoteOption[] = [
 
 const GENERAL_NOTE_OPTIONS: NoteOption[] = [
   { label: 'Bình thường', badgeClass: 'text-emerald-700 bg-emerald-50 border border-emerald-200' },
+  { label: 'Không Phát Hiện', badgeClass: 'text-emerald-700 bg-emerald-50 border border-emerald-200' },
+  { label: 'Phát Hiện', badgeClass: 'text-rose-700 bg-rose-50 border border-rose-200 font-bold' },
   { label: 'CAO ↑', badgeClass: 'text-rose-700 bg-rose-50 border border-rose-200 font-bold' },
   { label: 'THẤP ↓', badgeClass: 'text-blue-700 bg-blue-50 border border-blue-200 font-bold' },
   { label: 'H (Tăng)', badgeClass: 'text-rose-700 bg-rose-50 font-bold' },
@@ -35,10 +37,20 @@ const GENERAL_NOTE_OPTIONS: NoteOption[] = [
   { label: 'Mẫu đục / mỡ', badgeClass: 'text-slate-600 bg-slate-100' }
 ];
 
+const DETECTION_NOTE_OPTIONS: NoteOption[] = [
+  { label: 'Không Phát Hiện', badgeClass: 'text-emerald-700 bg-emerald-50 border border-emerald-200' },
+  { label: 'Phát Hiện', badgeClass: 'text-rose-700 bg-rose-50 border border-rose-200 font-bold' },
+  { label: 'Nghi ngờ', badgeClass: 'text-amber-700 bg-amber-50' },
+  { label: 'Âm tính', badgeClass: 'text-emerald-700 bg-emerald-50' },
+  { label: 'Dương tính', badgeClass: 'text-rose-700 bg-rose-50 font-bold' },
+  { label: 'Bình thường', badgeClass: 'text-slate-700 bg-slate-100' }
+];
+
 interface NoteComboboxProps {
   value: string;
   onChange: (val: string) => void;
   isAllergen?: boolean;
+  isDetection?: boolean;
   isAbnormal?: boolean;
   placeholder?: string;
 }
@@ -47,6 +59,7 @@ export default function NoteCombobox({
   value = '',
   onChange,
   isAllergen = false,
+  isDetection = false,
   isAbnormal = false,
   placeholder = 'Ghi chú / Đánh giá...'
 }: NoteComboboxProps) {
@@ -55,7 +68,11 @@ export default function NoteCombobox({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const baseOptions = isAllergen ? ALLERGEN_NOTE_OPTIONS : GENERAL_NOTE_OPTIONS;
+  const baseOptions = isDetection
+    ? DETECTION_NOTE_OPTIONS
+    : isAllergen
+    ? ALLERGEN_NOTE_OPTIONS
+    : GENERAL_NOTE_OPTIONS;
 
   // Filter options only when user is actively searching with filterText
   const visibleOptions = useMemo(() => {

@@ -75,7 +75,7 @@ export function EquipmentTable({
   };
 
   const handleDeleteEquipment = (eq: TestEquipment) => {
-    const check = useCase.canDeleteEquipment(eq.id, equipments, catalog);
+    const check = useCase.canDeleteEquipment(eq.id, equipments, catalog, catalogItemEquipments);
     if (!check.canDelete) {
       showToast?.(check.message || 'Không thể xóa thiết bị đang được sử dụng.', 'warning');
       alert(check.message);

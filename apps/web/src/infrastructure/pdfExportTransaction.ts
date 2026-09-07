@@ -4,6 +4,7 @@ import {
   ExportTransactionResult, 
   PdfFileRecord 
 } from '@domain/exportTransaction';
+import { formatReportPdfFilename } from '@domain';
 import { generateHighQualityPdf } from './pdfService';
 import { uploadPdfToCloud, getPredictedCloudUrl } from './cloudService';
 import { generateQrCodeDataUrl, buildPortalUrl } from './qrService';
@@ -100,15 +101,17 @@ export class PdfExportTransaction {
       uploadedFilename = uploadRes.filename || versionedFilename;
 
       // Đã upload lên Cloud Storage thành công -> Tiến hành tự động lưu file PDF về máy tính người dùng
+      // Chuẩn tên file khi tải về máy tính: PhieuXN_Ten_MaPhieu.pdf (không kèm đuôi version)
+      const localDownloadFilename = formatReportPdfFilename(this.patientName, this.patientCode);
       try {
-        pdfRes.pdf.save(uploadedFilename || this.filename);
+        pdfRes.pdf.save(localDownloadFilename);
       } catch (saveErr) {
         console.warn('Không thể tự động save jsPDF, fallback qua Blob download:', saveErr);
         try {
           const downloadUrl = URL.createObjectURL(pdfBlob);
           const a = document.createElement('a');
           a.href = downloadUrl;
-          a.download = uploadedFilename || this.filename;
+          a.download = localDownloadFilename;
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);

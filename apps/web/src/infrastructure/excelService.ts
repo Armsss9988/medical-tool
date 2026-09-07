@@ -1669,14 +1669,17 @@ export function parseExcelBatchPatients(
                   catalogItem.unit,
                   resultStr,
                   catalogItem.refMin,
-                  catalogItem.refMax
+                  catalogItem.refMax,
+                  undefined,
+                  undefined,
+                  catalogItem.evaluationType
                 );
 
                 const testKey = catalogItem.code.toUpperCase();
                 testMap.set(testKey, {
                   ...catalogItem,
                   result: resultStr,
-                  note: evalRes.label || 'Bình thường'
+                  note: evalRes.label || (catalogItem.evaluationType === 'detection' && (!resultStr || resultStr.trim() === '') ? '' : 'Bình thường')
                 });
               }
 
@@ -1753,14 +1756,17 @@ export function parseExcelBatchPatients(
                     catalogItem.unit,
                     resultStr,
                     catalogItem.refMin,
-                    catalogItem.refMax
+                    catalogItem.refMax,
+                    undefined,
+                    undefined,
+                    catalogItem.evaluationType
                   );
 
                   const testKey = catalogItem.code.toUpperCase();
                   testMap.set(testKey, {
                     ...catalogItem,
                     result: resultStr,
-                    note: evalRes.label || 'Bình thường'
+                    note: evalRes.label || (catalogItem.evaluationType === 'detection' && (!resultStr || resultStr.trim() === '') ? '' : 'Bình thường')
                   });
                 }
               }

@@ -125,42 +125,72 @@ export function resolveIndicatorReference(
     activeEquipmentName = eqObj?.name || activeEquipmentId;
   }
 
-  // ─── 2. Phân giải THANG ĐO DỊ NGUYÊN (SCALE) ──────────────────────────────
-  const activeScaleId = matchedLink?.scaleId || item.scaleId || (isAllergenCategory ? 'scale_protia_91' : undefined);
+  // ─── 2. Xác định phương thức đánh giá theo máy đo (hoặc theo item) ─────────
+  // Mỗi máy đo liên kết có thể có một phương thức đánh giá độc lập (range | scale | detection | text).
+  // Ưu tiên cao nhất là evaluationType cấu hình trực tiếp trên máy đo (matchedLink.evaluationType).
+  const effectiveEvalType: EvaluationType = matchedLink?.evaluationType || (
+    matchedLink?.scaleId ? 'scale' :
+    (item.evaluationType || (
+      isAllergenCategory ? 'scale' : 'range'
+    ))
+  );
 
-  if (activeScaleId) {
-    const scale = getAllergenScaleById(activeScaleId, allergenScales);
-    // Tìm level có grade === 0 (Mức không phản ứng)
-    const level0 = scale?.levels?.find((l) => l.grade === 0);
-
-    const refMin = level0?.minVal !== undefined && level0?.minVal !== null ? level0.minVal : 0;
-    const refMax = level0?.maxVal !== undefined && level0?.maxVal !== null ? level0.maxVal : 0.34;
-    const unit = matchedLink?.unit || scale?.unit || item.unit || 'IU/ml';
-    const refText = matchedLink?.refText || (level0?.rangeText ? `${level0.rangeText} (Độ 0)` : '<0.34 (Độ 0)');
-    const label = level0?.label || 'Không phản ứng';
+  // A. Trường hợp PHÁT HIỆN (DETECTION)
+  if (effectiveEvalType === 'detection') {
+    const unit = matchedLink?.unit || item.unit || '';
+    const refText = (matchedLink?.refText !== undefined && matchedLink?.refText !== null && matchedLink?.refText !== '')
+      ? matchedLink.refText
+      : (item.refText || 'Không phát hiện');
 
     return {
-      refMin,
-      refMax,
+      refMin: null,
+      refMax: null,
       refText,
       unit,
-      evaluationType: 'scale',
-      scaleId: activeScaleId,
-      scale,
+      evaluationType: 'detection',
       equipmentId: activeEquipmentId,
       equipmentName: activeEquipmentName,
-      label,
-      isAllergen: true
+      isAllergen: false
     };
   }
 
-  // ─── 3. Phân giải KHOẢNG SỐ THAM CHIẾU (RANGE) & TEXT ─────────────────────
+  // B. Trường hợp THANG ĐO DỊ NGUYÊN (SCALE)
+  if (effectiveEvalType === 'scale') {
+    const activeScaleId = matchedLink?.scaleId || item.scaleId || (isAllergenCategory ? 'scale_protia_91' : undefined);
+    if (activeScaleId) {
+      const scale = getAllergenScaleById(activeScaleId, allergenScales);
+      // Tìm level có grade === 0 (Mức không phản ứng)
+      const level0 = scale?.levels?.find((l) => l.grade === 0);
+
+      const refMin = level0?.minVal !== undefined && level0?.minVal !== null ? level0.minVal : 0;
+      const refMax = level0?.maxVal !== undefined && level0?.maxVal !== null ? level0.maxVal : 0.34;
+      const unit = matchedLink?.unit || scale?.unit || item.unit || 'IU/ml';
+      const refText = matchedLink?.refText || (level0?.rangeText ? `${level0.rangeText} (Độ 0)` : '<0.34 (Độ 0)');
+      const label = level0?.label || 'Không phản ứng';
+
+      return {
+        refMin,
+        refMax,
+        refText,
+        unit,
+        evaluationType: 'scale',
+        scaleId: activeScaleId,
+        scale,
+        equipmentId: activeEquipmentId,
+        equipmentName: activeEquipmentName,
+        label,
+        isAllergen: true
+      };
+    }
+  }
+
+  // C. Trường hợp KHOẢNG THAM CHIẾU SỐ (RANGE) & ĐỊNH TÍNH (TEXT)
   let resolvedRefMin: number | null = null;
   let resolvedRefMax: number | null = null;
   let resolvedRefText = '';
   let resolvedUnit = matchedLink?.unit || item.unit || '';
 
-  // Ưu tiên A: Ngưỡng đã cấu hình trực tiếp trên máy đo (CatalogItemEquipmentLink)
+  // Ưu tiên 1: Ngưỡng đã cấu hình trực tiếp trên máy đo (CatalogItemEquipmentLink)
   const hasLinkRange = matchedLink && (
     (matchedLink.refMin !== null && matchedLink.refMin !== undefined) ||
     (matchedLink.refMax !== null && matchedLink.refMax !== undefined) ||
@@ -181,7 +211,7 @@ export function resolveIndicatorReference(
       resolvedRefText = `<= ${resolvedRefMax}`;
     }
   } else {
-    // Ưu tiên B: Tra cứu trong bảng ReferenceRangeItem
+    // Ưu tiên 2: Tra cứu trong bảng ReferenceRangeItem
     const refRangeId = item.referenceRangeId || DEFAULT_CODE_TO_REFERENCE_RANGE_MAP[itemCodeUpper];
     const refRange = refRangeId ? referenceRanges.find((r) => r.id === refRangeId) : undefined;
 
@@ -195,7 +225,7 @@ export function resolveIndicatorReference(
         resolvedRefText = `${resolvedRefMin} - ${resolvedRefMax}`;
       }
     } else {
-      // Fallback C: Dữ liệu tĩnh trên CatalogItem (nếu có)
+      // Fallback 3: Dữ liệu tĩnh trên CatalogItem (nếu có)
       resolvedRefMin = item.refMin !== undefined ? item.refMin : null;
       resolvedRefMax = item.refMax !== undefined ? item.refMax : null;
       resolvedRefText = item.refText || '';
@@ -205,15 +235,17 @@ export function resolveIndicatorReference(
     }
   }
 
-  const isNumericRange = resolvedRefMin !== null || resolvedRefMax !== null;
-  const evaluationType: EvaluationType = isNumericRange ? 'range' : ((item.evaluationType as EvaluationType) || 'text');
+  const isNumericRange = (resolvedRefMin !== null || resolvedRefMax !== null);
+  const finalEvalType: EvaluationType = effectiveEvalType === 'text' 
+    ? 'text' 
+    : (isNumericRange ? 'range' : (effectiveEvalType || 'range'));
 
   return {
     refMin: resolvedRefMin,
     refMax: resolvedRefMax,
     refText: resolvedRefText || item.refText || (resolvedRefMin !== null && resolvedRefMax !== null ? `${resolvedRefMin} - ${resolvedRefMax}` : '---'),
     unit: resolvedUnit || item.unit || '',
-    evaluationType,
+    evaluationType: finalEvalType,
     equipmentId: activeEquipmentId,
     equipmentName: activeEquipmentName,
     isAllergen: false
@@ -231,10 +263,12 @@ export function buildSelectedTest(
 ): SelectedTest {
   const resolved = resolveIndicatorReference(item, options);
   const isTIgE = isTIgETest(item);
-  const defaultNote = isTIgE ? 'Bình thường' : resolved.isAllergen ? 'Âm tính (Độ 0)' : 'Bình thường';
+  const isDetection = item.evaluationType === 'detection' || resolved.evaluationType === 'detection';
+  const defaultNote = isDetection ? '' : (isTIgE ? 'Bình thường' : resolved.isAllergen ? 'Âm tính (Độ 0)' : 'Bình thường');
 
   return {
     ...item,
+    evaluationType: resolved.evaluationType,
     equipmentId: resolved.equipmentId,
     equipment: resolved.equipmentName,
     refMin: resolved.refMin,
@@ -270,6 +304,13 @@ export function computeAutoFillValue(
     return {
       result: '<15,0',
       note: 'Bình thường'
+    };
+  }
+
+  if (resolved.evaluationType === 'detection' || test.evaluationType === 'detection') {
+    return {
+      result: '0',
+      note: 'Không Phát Hiện'
     };
   }
 
@@ -312,6 +353,10 @@ export function evaluateIndicatorChange(
     ...options
   });
 
+  const effectiveEvalType: EvaluationType = test.evaluationType === 'detection' || resolved.evaluationType === 'detection'
+    ? 'detection'
+    : (resolved.evaluationType || test.evaluationType);
+
   const evalRes = evaluateTestIndicator(
     test.code,
     test.category,
@@ -319,9 +364,12 @@ export function evaluateIndicatorChange(
     rawVal,
     resolved.refMin,
     resolved.refMax,
-    resolved.scale
+    resolved.scale,
+    undefined,
+    effectiveEvalType
   );
-  const autoNote = evalRes.label || test.note;
+  const isDetection = effectiveEvalType === 'detection';
+  const autoNote = evalRes.label || (isDetection && (!rawVal || rawVal.trim() === '') ? '' : test.note);
 
   return {
     result: rawVal,

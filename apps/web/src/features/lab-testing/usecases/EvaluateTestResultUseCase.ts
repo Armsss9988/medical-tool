@@ -27,16 +27,22 @@ export class EvaluateTestResultUseCase {
         test.result,
         resolved.refMin,
         resolved.refMax,
-        resolved.scale
+        resolved.scale,
+        undefined,
+        test.evaluationType || resolved.evaluationType
       );
+
+      const isDetection = (test.evaluationType || resolved.evaluationType) === 'detection';
+      const finalNote = evalRes.label || (isDetection && (!test.result || String(test.result).trim() === '') ? '' : test.note);
 
       return {
         ...test,
+        evaluationType: test.evaluationType || resolved.evaluationType,
         refMin: resolved.refMin,
         refMax: resolved.refMax,
         refText: resolved.refText,
         unit: resolved.unit,
-        note: evalRes.label || test.note
+        note: finalNote
       };
     });
   }

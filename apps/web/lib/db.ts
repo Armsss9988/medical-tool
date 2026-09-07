@@ -8,13 +8,14 @@ export type Db = PostgresJsDatabase<typeof schema>;
 
 function loadEnvIfMissing() {
   if (process.env.DATABASE_URL) return;
+  const dir = typeof __dirname !== 'undefined' ? __dirname : (import.meta.dirname || process.cwd());
   const possiblePaths = [
     path.resolve(process.cwd(), '.env'),
     path.resolve(process.cwd(), '../../.env'),
     path.resolve(process.cwd(), '../.env'),
-    path.resolve(__dirname, '../../../../.env'),
-    path.resolve(__dirname, '../../../.env'),
-    path.resolve(__dirname, '../../.env')
+    path.resolve(dir, '../../../../.env'),
+    path.resolve(dir, '../../../.env'),
+    path.resolve(dir, '../../.env')
   ];
   for (const p of possiblePaths) {
     try {
