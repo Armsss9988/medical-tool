@@ -153,7 +153,7 @@ export function IndicatorTable({
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 overflow-hidden">
+    <div className="flex flex-col flex-1 min-h-0 bg-slate-50 overflow-hidden">
       <IndicatorFilterBar
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
@@ -171,10 +171,10 @@ export function IndicatorTable({
         onDownloadTemplate={exportCatalogItemsTemplate}
       />
 
-      <div className="flex-1 overflow-auto p-3 sm:p-4">
+      <div className="flex-1 min-h-0 overflow-auto p-3 sm:p-4">
         <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
           <table className="w-full text-left text-xs text-slate-700">
-            <thead className="bg-slate-100/80 text-slate-600 font-bold border-b border-slate-200 uppercase text-[10.5px]">
+            <thead className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-xs text-slate-600 font-bold border-b border-slate-200 uppercase text-[10.5px]">
               <tr>
                 <th className="p-2.5 text-center w-10">#</th>
                 <th className="p-2.5 w-24">Mã Chỉ Số</th>

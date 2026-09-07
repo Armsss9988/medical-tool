@@ -119,100 +119,105 @@ export function DoctorTable({
   };
 
   return (
-    <div className="p-6 flex-grow overflow-y-auto space-y-5">
-      {/* BANNER & ACTION BAR */}
-      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between flex-wrap gap-3 text-xs shadow-2xs">
-        <div>
-          <h4 className="font-extrabold text-emerald-950 text-sm flex items-center gap-2">
-            <Stethoscope className="w-4 h-4 text-emerald-700" />
-            <span>Danh Sách Bác Sĩ Chỉ Định & Chuyên Gia</span>
-          </h4>
-          <p className="text-emerald-700 mt-0.5">
-            Dữ liệu bác sĩ được dùng cho phiếu kết quả xét nghiệm, chỉ định lâm sàng và kết luận chuyên gia.
-          </p>
+    <div className="flex flex-col flex-1 min-h-0 bg-slate-50 overflow-hidden">
+      {/* BANNER & SEARCH SECTION */}
+      <div className="p-4 sm:p-6 pb-3 shrink-0 space-y-4">
+        {/* BANNER & ACTION BAR */}
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between flex-wrap gap-3 text-xs shadow-2xs">
+          <div>
+            <h4 className="font-extrabold text-emerald-950 text-sm flex items-center gap-2">
+              <Stethoscope className="w-4 h-4 text-emerald-700" />
+              <span>Danh Sách Bác Sĩ Chỉ Định & Chuyên Gia</span>
+            </h4>
+            <p className="text-emerald-700 mt-0.5">
+              Dữ liệu bác sĩ được dùng cho phiếu kết quả xét nghiệm, chỉ định lâm sàng và kết luận chuyên gia.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-mono font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-3 py-1.5 rounded-xl">
+              {docsList.length} Bác Sĩ
+            </span>
+
+            <button
+              type="button"
+              onClick={handleOpenAdd}
+              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-1.5 rounded-xl shadow-xs transition active:scale-95 cursor-pointer text-xs"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>+ Thêm Bác Sĩ</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSaveDoctorsNow}
+              disabled={isSaving}
+              className="flex items-center gap-1.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold px-3.5 py-1.5 rounded-xl shadow-xs transition active:scale-95 cursor-pointer text-xs"
+              title="Lưu danh sách bác sĩ trực tiếp vào Cơ Sở Dữ Liệu"
+            >
+              {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              <span>{isSaving ? 'Đang lưu...' : 'Lưu Danh Sách'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => exportDoctorsTemplate(docsList)}
+              className="flex items-center gap-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold px-3 py-1.5 rounded-xl shadow-xs transition active:scale-95 cursor-pointer text-xs"
+              title="Xuất danh sách bác sĩ ra file Excel"
+            >
+              <Download className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Xuất Excel</span>
+            </button>
+
+            <label
+              className="flex items-center gap-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold px-3 py-1.5 rounded-xl shadow-xs transition active:scale-95 cursor-pointer text-xs"
+              title="Nhập danh sách bác sĩ từ file Excel"
+            >
+              <Upload className="w-3.5 h-3.5 text-blue-600" />
+              <span>Nhập Excel</span>
+              <input type="file" accept=".xlsx,.xls" onChange={handleImportDoctorsExcel} className="hidden" />
+            </label>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-mono font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-3 py-1.5 rounded-xl">
-            {docsList.length} Bác Sĩ
-          </span>
-
-          <button
-            type="button"
-            onClick={handleOpenAdd}
-            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-1.5 rounded-xl shadow-xs transition active:scale-95 cursor-pointer text-xs"
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            <span>+ Thêm Bác Sĩ</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleSaveDoctorsNow}
-            disabled={isSaving}
-            className="flex items-center gap-1.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold px-3.5 py-1.5 rounded-xl shadow-xs transition active:scale-95 cursor-pointer text-xs"
-            title="Lưu danh sách bác sĩ trực tiếp vào Cơ Sở Dữ Liệu"
-          >
-            {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-            <span>{isSaving ? 'Đang lưu...' : 'Lưu Danh Sách'}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => exportDoctorsTemplate(docsList)}
-            className="flex items-center gap-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold px-3 py-1.5 rounded-xl shadow-xs transition active:scale-95 cursor-pointer text-xs"
-            title="Xuất danh sách bác sĩ ra file Excel"
-          >
-            <Download className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Xuất Excel</span>
-          </button>
-
-          <label
-            className="flex items-center gap-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold px-3 py-1.5 rounded-xl shadow-xs transition active:scale-95 cursor-pointer text-xs"
-            title="Nhập danh sách bác sĩ từ file Excel"
-          >
-            <Upload className="w-3.5 h-3.5 text-blue-600" />
-            <span>Nhập Excel</span>
-            <input type="file" accept=".xlsx,.xls" onChange={handleImportDoctorsExcel} className="hidden" />
-          </label>
-        </div>
-      </div>
-
-      {/* TÌM KIẾM BÁC SĨ */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="relative w-full max-w-sm">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Tìm theo tên, chuyên khoa, số điện thoại..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:outline-none"
-          />
-        </div>
-        <span className="text-xs text-slate-500 font-medium">
-          Hiển thị {filteredDocs.length}/{docsList.length} bác sĩ
-        </span>
-      </div>
-
-      {/* DANH SÁCH BÁC SĨ CARDS */}
-      {filteredDocs.length === 0 ? (
-        <div className="text-center py-12 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
-          <Stethoscope className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-          <p className="text-xs text-slate-500 font-semibold">Chưa có bác sĩ nào phù hợp.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-          {filteredDocs.map((doc) => (
-            <DoctorCard
-              key={doc.id}
-              doctor={doc}
-              onEdit={handleOpenEdit}
-              onDelete={handleDeleteDoctor}
+        {/* TÌM KIẾM BÁC SĨ */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="relative w-full max-w-sm">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Tìm theo tên, chuyên khoa, số điện thoại..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:outline-none"
             />
-          ))}
+          </div>
+          <span className="text-xs text-slate-500 font-medium">
+            Hiển thị {filteredDocs.length}/{docsList.length} bác sĩ
+          </span>
         </div>
-      )}
+      </div>
+
+      {/* DANH SÁCH BÁC SĨ CARDS (SCROLL AREA) */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 pb-6">
+        {filteredDocs.length === 0 ? (
+          <div className="text-center py-12 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+            <Stethoscope className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+            <p className="text-xs text-slate-500 font-semibold">Chưa có bác sĩ nào phù hợp.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {filteredDocs.map((doc) => (
+              <DoctorCard
+                key={doc.id}
+                doctor={doc}
+                onEdit={handleOpenEdit}
+                onDelete={handleDeleteDoctor}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* MODAL THÊM / SỬA BÁC SĨ */}
       <DoctorFormModal

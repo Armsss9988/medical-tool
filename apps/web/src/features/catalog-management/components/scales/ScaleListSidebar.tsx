@@ -34,7 +34,7 @@ export function ScaleListSidebar({
   }, [scales, searchTerm]);
 
   return (
-    <div className="w-full md:w-80 lg:w-96 border-r border-slate-800 bg-slate-950/60 flex flex-col shrink-0">
+    <div className="w-full md:w-80 lg:w-96 border-r border-slate-800 bg-slate-950/60 flex flex-col shrink-0 min-h-0">
       {/* Sidebar Header & Search */}
       <div className="p-3.5 border-b border-slate-800 space-y-2.5">
         <div className="flex items-center justify-between">
@@ -66,7 +66,7 @@ export function ScaleListSidebar({
       </div>
 
       {/* Scale Cards List */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1.5 custom-scrollbar">
+      <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1.5 custom-scrollbar">
         {filteredScales.map((s) => {
           const isSelected = s.id === activeScaleId;
           const isPreset = s.id === 'scale_protia_91' || s.id === 'scale_allergen_44';

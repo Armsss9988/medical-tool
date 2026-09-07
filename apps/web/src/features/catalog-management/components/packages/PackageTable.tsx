@@ -137,7 +137,7 @@ export function PackageTable({
   };
 
   return (
-    <div className="flex h-full bg-slate-50 overflow-hidden">
+    <div className="flex flex-1 min-h-0 bg-slate-50 overflow-hidden">
       {/* Left sidebar: Package list */}
       <PackageListSidebar
         packages={filteredPackages}
@@ -158,7 +158,7 @@ export function PackageTable({
 
       {/* Right main area: Package editor */}
       {currentPkg ? (
-        <div className="flex-1 flex flex-col h-full overflow-hidden p-3 sm:p-4 space-y-3">
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden p-3 sm:p-4 space-y-3">
           {/* Header controls: Name, Price, Default Equipment */}
           <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs space-y-3 shrink-0 text-xs">
             <div className="grid grid-cols-12 gap-3 items-center">
@@ -231,7 +231,7 @@ export function PackageTable({
           </div>
 
           {/* Content area: List vs Picker */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
             {subView === 'PICKER' ? (
               <PackageItemPicker
                 catalogItems={items}
@@ -241,14 +241,14 @@ export function PackageTable({
                 onAddWholeGroup={handleAddWholeGroup}
               />
             ) : (
-              <div className="bg-white rounded-xl border border-slate-200 shadow-xs h-full overflow-y-auto">
+              <div className="bg-white rounded-xl border border-slate-200 shadow-xs flex-1 min-h-0 overflow-y-auto">
                 {currentPkgItems.length === 0 ? (
                   <div className="p-12 text-center text-slate-400 text-xs">
                     Gói này chưa có chỉ số nào. Nhấn <strong>"Thêm Chỉ Số Vào Gói"</strong> để chọn!
                   </div>
                 ) : (
                   <table className="w-full text-left text-xs text-slate-700">
-                    <thead className="bg-slate-100/80 text-slate-600 font-bold border-b border-slate-200 uppercase text-[10.5px] sticky top-0">
+                    <thead className="bg-slate-100/95 backdrop-blur-xs text-slate-600 font-bold border-b border-slate-200 uppercase text-[10.5px] sticky top-0 z-10">
                       <tr>
                         <th className="p-2.5 text-center w-10">#</th>
                         <th className="p-2.5 w-24">Mã</th>

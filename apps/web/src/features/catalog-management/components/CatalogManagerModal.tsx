@@ -192,7 +192,7 @@ export default function CatalogManagerModal({
 
   return (
     <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-4 overflow-hidden">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-7xl max-h-[95vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-7xl h-[92vh] max-h-[95vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         
         {/* HEADER MODAL */}
         <div className="bg-slate-900 text-white px-4 sm:px-6 py-3 sm:py-3.5 flex items-center justify-between border-b border-slate-800 shrink-0">
@@ -327,84 +327,87 @@ export default function CatalogManagerModal({
           </button>
         </div>
 
-        {/* TAB 1: TOÀN BỘ CHỈ SỐ XÉT NGHIỆM */}
-        {(activeTab === 'INDICATORS' || activeTab === 'ALLERGENS') && (
-          <IndicatorTable
-            items={items}
-            setItems={setItems}
-            groups={groups}
-            equipments={eqList}
-            catalogItemEquipments={itemEquipments}
-            setCatalogItemEquipments={setItemEquipments}
-            scales={scalesList}
-            showToast={showToast}
-          />
-        )}
+        {/* TAB CONTENT WRAPPER */}
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col relative bg-slate-50">
+          {/* TAB 1: TOÀN BỘ CHỈ SỐ XÉT NGHIỆM */}
+          {(activeTab === 'INDICATORS' || activeTab === 'ALLERGENS') && (
+            <IndicatorTable
+              items={items}
+              setItems={setItems}
+              groups={groups}
+              equipments={eqList}
+              catalogItemEquipments={itemEquipments}
+              setCatalogItemEquipments={setItemEquipments}
+              scales={scalesList}
+              showToast={showToast}
+            />
+          )}
 
-        {/* TAB 2: TOÀN BỘ GÓI XÉT NGHIỆM */}
-        {(activeTab === 'PACKAGES' || activeTab === 'PACKAGES_INDICATOR' || activeTab === 'PACKAGES_ALLERGEN') && (
-          <PackageTable
-            items={items}
-            packages={packages}
-            setPackages={setPackages}
-            equipments={eqList}
-            catalogItemEquipments={itemEquipments}
-            groups={groups}
-            showToast={showToast}
-          />
-        )}
+          {/* TAB 2: TOÀN BỘ GÓI XÉT NGHIỆM */}
+          {(activeTab === 'PACKAGES' || activeTab === 'PACKAGES_INDICATOR' || activeTab === 'PACKAGES_ALLERGEN') && (
+            <PackageTable
+              items={items}
+              packages={packages}
+              setPackages={setPackages}
+              equipments={eqList}
+              catalogItemEquipments={itemEquipments}
+              groups={groups}
+              showToast={showToast}
+            />
+          )}
 
-        {/* TAB 3: THIẾT BỊ XÉT NGHIỆM */}
-        {activeTab === 'EQUIPMENTS' && (
-          <EquipmentTable
-            equipments={eqList}
-            setEquipments={setEqList}
-            catalog={items}
-            catalogItemEquipments={itemEquipments}
-            onSaveEquipments={onSaveEquipments}
-            showToast={showToast}
-          />
-        )}
+          {/* TAB 3: THIẾT BỊ XÉT NGHIỆM */}
+          {activeTab === 'EQUIPMENTS' && (
+            <EquipmentTable
+              equipments={eqList}
+              setEquipments={setEqList}
+              catalog={items}
+              catalogItemEquipments={itemEquipments}
+              onSaveEquipments={onSaveEquipments}
+              showToast={showToast}
+            />
+          )}
 
-        {/* TAB 4: NHÓM CHỈ SỐ */}
-        {activeTab === 'GROUPS' && (
-          <GroupTable
-            groups={groups}
-            setGroups={setGroups}
-            catalog={items}
-            onSaveGroups={onSaveTestGroups}
-            showToast={showToast}
-          />
-        )}
+          {/* TAB 4: NHÓM CHỈ SỐ */}
+          {activeTab === 'GROUPS' && (
+            <GroupTable
+              groups={groups}
+              setGroups={setGroups}
+              catalog={items}
+              onSaveGroups={onSaveTestGroups}
+              showToast={showToast}
+            />
+          )}
 
-        {/* TAB 5: THANG ĐO PHÂN ĐỘ */}
-        {activeTab === 'SCALES' && (
-          <ScalesTable
-            scales={scalesList}
-            setScales={setScalesList}
-            equipments={eqList}
-          />
-        )}
+          {/* TAB 5: THANG ĐO PHÂN ĐỘ */}
+          {activeTab === 'SCALES' && (
+            <ScalesTable
+              scales={scalesList}
+              setScales={setScalesList}
+              equipments={eqList}
+            />
+          )}
 
-        {/* TAB 6: KHOẢNG THAM CHIẾU NÂNG CAO */}
-        {activeTab === 'RANGES' && (
-          <ReferenceRangeTable
-            referenceRanges={rangesList}
-            setReferenceRanges={setRangesList}
-            showToast={showToast}
-          />
-        )}
+          {/* TAB 6: KHOẢNG THAM CHIẾU NÂNG CAO */}
+          {activeTab === 'RANGES' && (
+            <ReferenceRangeTable
+              referenceRanges={rangesList}
+              setReferenceRanges={setRangesList}
+              showToast={showToast}
+            />
+          )}
 
-        {/* TAB 7: DANH SÁCH BÁC SĨ */}
-        {activeTab === 'DOCTORS' && (
-          <DoctorTable 
-            docsList={docsList} 
-            setDocsList={setDocsList} 
-            onSaveDoctors={onSaveDoctors}
-            onSaveAllData={onSaveAllData}
-            showToast={showToast}
-          />
-        )}
+          {/* TAB 7: DANH SÁCH BÁC SĨ */}
+          {activeTab === 'DOCTORS' && (
+            <DoctorTable 
+              docsList={docsList} 
+              setDocsList={setDocsList} 
+              onSaveDoctors={onSaveDoctors}
+              onSaveAllData={onSaveAllData}
+              showToast={showToast}
+            />
+          )}
+        </div>
 
         {/* FOOTER MODAL */}
         <div className="bg-slate-50 px-4 sm:px-6 py-2.5 sm:py-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-0 shrink-0">

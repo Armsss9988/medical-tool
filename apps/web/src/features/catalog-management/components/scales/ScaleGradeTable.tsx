@@ -19,8 +19,8 @@ export function ScaleGradeTable({
     <div className="flex-1 overflow-y-auto p-4 min-h-0 custom-scrollbar">
       <div className="bg-slate-950/60 border border-slate-800 rounded-xl overflow-hidden shadow-md">
         <table className="w-full text-left text-xs border-collapse">
-          <thead>
-            <tr className="bg-slate-800/90 text-slate-200 border-b border-slate-700 text-[11px] uppercase tracking-wider font-extrabold">
+          <thead className="sticky top-0 z-10">
+            <tr className="bg-slate-800/95 backdrop-blur-xs text-slate-200 border-b border-slate-700 text-[11px] uppercase tracking-wider font-extrabold">
               <th className="py-2.5 px-3 w-16 text-center">Bậc (Grade)</th>
               <th className="py-2.5 px-3 w-28">Ngưỡng Min</th>
               <th className="py-2.5 px-3 w-28">Ngưỡng Max</th>

@@ -59,55 +59,59 @@ export function ReferenceRangeTable({
   };
 
   return (
-    <div className="p-4 flex-grow overflow-y-auto flex flex-col space-y-3">
-      {/* Banner Giới Thiệu */}
-      <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4 text-xs flex items-center justify-between flex-wrap gap-3 shadow-2xs">
-        <div>
-          <h4 className="font-extrabold text-sky-950 text-sm flex items-center gap-2">
-            <Sliders className="w-4 h-4 text-sky-600" />
-            <span>Cơ Sở Dữ Liệu Bộ Tham Chiếu Xét Nghiệm (Reference Ranges)</span>
-          </h4>
-          <p className="text-sky-700/90 text-xs mt-0.5">
-            Quản lý độc lập các khoảng tham chiếu chuẩn (Min – Max, Đơn vị, Diễn giải). Các chỉ số định lượng liên kết trực tiếp tới bảng này.
-          </p>
+    <div className="flex flex-col flex-1 min-h-0 bg-slate-50 overflow-hidden">
+      {/* Top Header Controls */}
+      <div className="p-3 sm:p-4 shrink-0 space-y-3">
+        {/* Banner Giới Thiệu */}
+        <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4 text-xs flex items-center justify-between flex-wrap gap-3 shadow-2xs">
+          <div>
+            <h4 className="font-extrabold text-sky-950 text-sm flex items-center gap-2">
+              <Sliders className="w-4 h-4 text-sky-600" />
+              <span>Cơ Sở Dữ Liệu Bộ Tham Chiếu Xét Nghiệm (Reference Ranges)</span>
+            </h4>
+            <p className="text-sky-700/90 text-xs mt-0.5">
+              Quản lý độc lập các khoảng tham chiếu chuẩn (Min – Max, Đơn vị, Diễn giải). Các chỉ số định lượng liên kết trực tiếp tới bảng này.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="font-mono font-bold text-sky-800 bg-sky-100 border border-sky-300 px-3 py-1.5 rounded-xl">
+              {referenceRanges.length} Bộ Tham Chiếu
+            </span>
+            <button
+              type="button"
+              onClick={handleOpenAdd}
+              className="flex items-center gap-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold px-3.5 py-1.5 rounded-xl shadow-xs transition active:scale-95 cursor-pointer text-xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Thêm Tham Chiếu</span>
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="font-mono font-bold text-sky-800 bg-sky-100 border border-sky-300 px-3 py-1.5 rounded-xl">
-            {referenceRanges.length} Bộ Tham Chiếu
+        {/* Toolbar Tìm Kiếm */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="relative w-full max-w-sm">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Tìm theo tên, mã, đơn vị, hiển thị..."
+              className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-semibold focus:outline-none focus:border-sky-500"
+            />
+          </div>
+          <span className="text-xs text-slate-500 font-medium">
+            Hiển thị {filteredRanges.length}/{referenceRanges.length} bộ tham chiếu
           </span>
-          <button
-            type="button"
-            onClick={handleOpenAdd}
-            className="flex items-center gap-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold px-3.5 py-1.5 rounded-xl shadow-xs transition active:scale-95 cursor-pointer text-xs"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>+ Thêm Tham Chiếu</span>
-          </button>
         </div>
       </div>
 
-      {/* Toolbar Tìm Kiếm */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="relative w-full max-w-sm">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Tìm theo tên, mã, đơn vị, hiển thị..."
-            className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-semibold focus:outline-none focus:border-sky-500"
-          />
-        </div>
-        <span className="text-xs text-slate-500 font-medium">
-          Hiển thị {filteredRanges.length}/{referenceRanges.length} bộ tham chiếu
-        </span>
-      </div>
-
-      {/* Bảng Dữ Liệu */}
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-        <table className="w-full text-left text-xs text-slate-700">
-          <thead className="bg-slate-100/80 text-slate-600 font-bold border-b border-slate-200 uppercase text-[10.5px]">
+      {/* Bảng Dữ Liệu (Scroll Area) */}
+      <div className="flex-1 min-h-0 overflow-auto px-3 sm:px-4 pb-3 sm:pb-4">
+        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+          <table className="w-full text-left text-xs text-slate-700">
+            <thead className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-xs text-slate-600 font-bold border-b border-slate-200 uppercase text-[10.5px]">
             <tr>
               <th className="p-3 text-center w-12">#</th>
               <th className="p-3">Tên Bộ Tham Chiếu</th>
@@ -173,6 +177,7 @@ export function ReferenceRangeTable({
             )}
           </tbody>
         </table>
+      </div>
       </div>
 
       {/* Modal Thêm / Sửa */}

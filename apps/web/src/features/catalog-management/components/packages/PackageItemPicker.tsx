@@ -38,7 +38,7 @@ export function PackageItemPicker({
   }, [catalogItems, searchTerm, selectedGroup]);
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 border border-slate-200 rounded-xl overflow-hidden text-xs">
+    <div className="flex flex-col flex-1 min-h-0 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden text-xs">
       {/* Search & Group filters */}
       <div className="p-3 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
         <div className="flex items-center gap-2 flex-1 min-w-[200px]">
@@ -78,7 +78,7 @@ export function PackageItemPicker({
       </div>
 
       {/* Test indicators list */}
-      <div className="flex-1 overflow-y-auto p-2 divide-y divide-slate-100 bg-white">
+      <div className="flex-1 min-h-0 overflow-y-auto p-2 divide-y divide-slate-100 bg-white">
         {filteredItems.length === 0 ? (
           <div className="p-6 text-center text-slate-400">Không tìm thấy chỉ số xét nghiệm nào.</div>
         ) : (
