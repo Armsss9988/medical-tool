@@ -1,13 +1,19 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useReportManager } from '../useReportManager';
-import { Patient, SelectedTest } from '@domain';
+import { Patient, SelectedTest, domainEventBus, INVOICE_EVENT_TYPES } from '@domain';
+import { postReport } from '@infra/apiClient';
 
-// Mock cloudDbService to avoid network calls
+// Mock cloudDbService & apiClient to avoid network calls
 vi.mock('@infra/cloudDbService', () => ({
   syncReportsToSupabase: vi.fn().mockResolvedValue(true),
   fetchReportsFromSupabase: vi.fn().mockResolvedValue([]),
   DEFAULT_CLOUD_DB_CONFIG: { enabled: false }
+}));
+
+vi.mock('@infra/apiClient', () => ({
+  postReport: vi.fn().mockResolvedValue({ success: true, id: 'mock-id' }),
+  deleteReportApi: vi.fn().mockResolvedValue({ success: true, id: 'mock-id' })
 }));
 
 describe('useReportManager - Batch Import & Identity Resolution', () => {
@@ -144,6 +150,41 @@ describe('useReportManager - Batch Import & Identity Resolution', () => {
     const codes = result.current.reports.map((r) => r.code);
     expect(codes).toContain('BN-20260905-001');
     expect(codes).toContain('BN-20260912-002');
+  });
+
+  it('4. Persists report payment status via postReport when INVOICE_PAID domain event is received', () => {
+    const { result } = renderHook(() => useReportManager());
+
+    act(() => {
+      result.current.saveOrUpdateReport({
+        id: 'rep-test-paid',
+        patient: createPatient({ code: 'BN-100', name: 'Trần Văn B', dob: '1985', gender: 'Nam' }),
+        selectedTests: [dummyTest],
+        conclusion: 'Bình thường',
+        doctorName: 'BS. Test'
+      });
+    });
+
+    const mockPostReport = vi.mocked(postReport);
+    mockPostReport.mockClear();
+
+    // Phát domain event: INVOICE_PAID
+    act(() => {
+      domainEventBus.emit(INVOICE_EVENT_TYPES.PAID, {
+        invoice: { id: 'inv-100', reportId: 'rep-test-paid' } as never,
+        paymentMethod: 'Tiền mặt',
+        paidAt: '2026-09-12T00:00:00Z',
+        reportId: 'rep-test-paid'
+      });
+    });
+
+    // Kiểm tra report state đã cập nhật
+    expect(result.current.reports[0].patient.paidAt).toBe('2026-09-12T00:00:00Z');
+    // Kiểm tra postReport đã được gọi để lưu xuống DB
+    expect(mockPostReport).toHaveBeenCalledTimes(1);
+    expect(mockPostReport).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'rep-test-paid'
+    }));
   });
 });
 

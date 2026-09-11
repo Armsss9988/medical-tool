@@ -3,7 +3,7 @@ import { asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { TableName } from '@golab/shared/schemas/tables';
 import * as tables from './schema';
 import type { Db } from './db';
-import type { MedicalReport, Invoice, AllergenGradingScale, TestPackage, Gender, ReportTemplate } from '@domain/index';
+import { InvoiceAggregate, LabReportAggregate, type MedicalReport, type Invoice, type AllergenGradingScale, type TestPackage, type Gender, type ReportTemplate, type CatalogItem } from '@domain/index';
 
 export const TABLES: Record<TableName, AnyPgTable> = {
   catalog: tables.catalogItems,
@@ -48,22 +48,6 @@ async function ensureCatalogItemEquipmentsColumns(db: Db) {
     _catalogItemEquipmentsColumnsChecked = true;
   } catch (err) {
     console.warn('[repo] Failed to ensure catalog_item_equipments columns:', err);
-  }
-}
-
-let _catalogItemsColumnsChecked = false;
-async function ensureCatalogItemsColumns(db: Db) {
-  if (_catalogItemsColumnsChecked) return;
-  try {
-    await db.execute(sql`
-      ALTER TABLE catalog_items 
-      DROP COLUMN IF EXISTS equipment,
-      DROP COLUMN IF EXISTS reference_range_id,
-      DROP COLUMN IF EXISTS scale_id;
-    `);
-    _catalogItemsColumnsChecked = true;
-  } catch (err) {
-    console.warn('[repo] Failed to drop redundant catalog_items columns:', err);
   }
 }
 
@@ -301,7 +285,6 @@ export async function getTableRows(db: Db, name: TableName): Promise<unknown[]> 
     }
 
     case 'catalog': {
-      await ensureCatalogItemsColumns(db);
       return (await db.select().from(tables.catalogItems)) as unknown[];
     }
 
@@ -643,7 +626,6 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
       }
 
       case 'catalog': {
-        await ensureCatalogItemsColumns(tx);
         const catList = rows as (typeof tables.catalogItems.$inferInsert)[];
         if (catList.length === 0) return 0;
 
@@ -784,3 +766,566 @@ export async function deleteDatabaseSnapshotById(db: Db, id: string): Promise<bo
   await db.delete(tables.databaseSnapshots).where(eq(tables.databaseSnapshots.id, id));
   return true;
 }
+
+/**
+ * Internal helper to save medical report within an existing transaction context
+ */
+async function saveMedicalReportInternal(tx: any, rep: MedicalReport): Promise<void> {
+  const BATCH_SIZE = 100;
+  const reportValue = {
+    id: rep.id,
+    code: rep.code || rep.patient?.code || 'BN',
+    sampleCode: rep.sampleCode || rep.patient?.sampleCode || null,
+    status: rep.status || 'Chờ xét nghiệm',
+    doctorName: rep.doctorName || null,
+    conclusion: rep.conclusion || null,
+    isAllergen: rep.isAllergen || false,
+    invoiceId: rep.invoiceId || null,
+    cloudPdfUrl: rep.cloudPdfUrl || null,
+    qrCodeDataUrl: rep.qrCodeDataUrl || null,
+    pdfVersion: rep.pdfVersion || 1,
+    isPdfOutdated: rep.isPdfOutdated || false,
+    pdfGeneratedAt: rep.pdfGeneratedAt ? new Date(rep.pdfGeneratedAt) : null,
+    zaloSentAt: rep.zaloSentAt ? new Date(rep.zaloSentAt) : null,
+    zaloMsgId: rep.zaloMsgId || null,
+    patientName: rep.patient?.name || '',
+    patientDob: rep.patient?.dob || null,
+    patientGender: rep.patient?.gender || null,
+    patientPhone: rep.patient?.phone || null,
+    patientAddress: rep.patient?.address || null,
+    patientDiagnosis: rep.patient?.diagnosis || null,
+    patientOrderedAt: rep.patient?.orderedAt || null,
+    patientReceivedAt: rep.patient?.receivedAt || null,
+    patientReturnedAt: rep.patient?.returnedAt || null,
+    patientSecretToken: rep.patient?.secretToken || null,
+    patientSampleStatus: rep.patient?.sampleStatus || null,
+    updatedAt: new Date()
+  };
+
+  // Upsert Master
+  await tx
+    .insert(tables.medicalReports)
+    .values({
+      ...reportValue,
+      createdAt: rep.createdAt ? new Date(rep.createdAt) : new Date()
+    })
+    .onConflictDoUpdate({
+      target: tables.medicalReports.id,
+      set: reportValue
+    });
+
+  // Replace Details for this report only
+  await tx.delete(tables.medicalReportTests).where(eq(tables.medicalReportTests.reportId, rep.id));
+
+  const tests = Array.isArray(rep.selectedTests) ? rep.selectedTests : [];
+  if (tests.length > 0) {
+    const testValues = tests.map((t, idx) => ({
+      id: `${rep.id}_${t.code || idx}_${idx}`,
+      reportId: rep.id,
+      testOrder: idx,
+      testCode: t.code || `T${idx + 1}`,
+      testName: t.name || 'Chỉ số',
+      category: t.category || null,
+      result: t.result || '',
+      note: t.note || null,
+      unit: t.unit || null,
+      refMin: t.refMin ?? null,
+      refMax: t.refMax ?? null,
+      refText: t.refText || null,
+      price: t.price || 0,
+      equipmentId: t.equipmentId || null,
+      equipmentName: t.equipment || null,
+      scaleId: t.scaleId || null,
+      evaluationType: t.evaluationType || null,
+      scientific: t.scientific || null,
+      createdAt: new Date()
+    }));
+
+    for (let i = 0; i < testValues.length; i += BATCH_SIZE) {
+      await tx.insert(tables.medicalReportTests).values(testValues.slice(i, i + BATCH_SIZE));
+    }
+  }
+}
+
+/**
+ * Lưu hoặc cập nhật một Phiếu Kết Quả Xét Nghiệm duy nhất (kèm các dòng chỉ số)
+ */
+export async function saveMedicalReport(db: Db, rep: MedicalReport): Promise<void> {
+  if (typeof (db as any).transaction === 'function') {
+    await db.transaction(async (tx) => {
+      await saveMedicalReportInternal(tx, rep);
+    });
+  } else {
+    await saveMedicalReportInternal(db, rep);
+  }
+}
+
+/**
+ * Xóa một Phiếu Kết Quả Xét Nghiệm duy nhất (kèm cascade các chỉ số và giải phóng liên kết trên hóa đơn)
+ */
+export async function deleteMedicalReport(db: Db, reportId: string): Promise<boolean> {
+  return await db.transaction(async (tx) => {
+    await tx.delete(tables.medicalReportTests).where(eq(tables.medicalReportTests.reportId, reportId));
+    await tx.update(tables.invoices).set({ reportId: null }).where(eq(tables.invoices.reportId, reportId));
+    await tx.delete(tables.medicalReports).where(eq(tables.medicalReports.id, reportId));
+    return true;
+  });
+}
+
+/**
+ * Internal helper to save invoice within an existing transaction context
+ */
+async function saveInvoiceInternal(tx: any, inv: Invoice): Promise<void> {
+  const BATCH_SIZE = 100;
+  const subtotal = inv.totalAmount || 0;
+  const invValue = {
+    id: inv.id,
+    code: inv.code,
+    reportId: inv.reportId || null,
+    patientCode: inv.patientCode || null,
+    patientName: inv.patientName || null,
+    patientPhone: inv.patientPhone || null,
+    doctorName: inv.doctorName || null,
+    cashierName: inv.cashierName || null,
+    status: inv.status || 'Chưa thu phí',
+    paymentMethod: inv.paymentMethod || 'Tiền mặt',
+    subtotal,
+    discountAmount: inv.discountAmount || 0,
+    discountPercent: inv.discountPercent || 0,
+    discountType: 'amount',
+    surchargeAmount: inv.surchargeAmount || 0,
+    finalAmount: inv.finalAmount || 0,
+    notes: inv.notes || null,
+    paidAt: inv.paidAt ? new Date(inv.paidAt) : null,
+    cancelledAt: null,
+    updatedAt: new Date()
+  };
+
+  // Upsert Master
+  await tx
+    .insert(tables.invoices)
+    .values({
+      ...invValue,
+      createdAt: inv.createdAt ? new Date(inv.createdAt) : new Date()
+    })
+    .onConflictDoUpdate({
+      target: tables.invoices.id,
+      set: invValue
+    });
+
+  // Replace Details for this invoice only
+  await tx.delete(tables.invoiceItems).where(eq(tables.invoiceItems.invoiceId, inv.id));
+
+  const items = Array.isArray(inv.items) ? inv.items : [];
+  if (items.length > 0) {
+    const itemValues = items.map((item, idx) => {
+      const price = item.price || 0;
+      const quantity = item.quantity || 1;
+      return {
+        id: `${inv.id}_${item.code || idx}_${idx}`,
+        invoiceId: inv.id,
+        itemOrder: idx,
+        code: item.code || `DV${idx + 1}`,
+        name: item.name || 'Dịch vụ',
+        price,
+        quantity,
+        unit: item.unit || 'Lần',
+        total: price * quantity
+      };
+    });
+
+    for (let i = 0; i < itemValues.length; i += BATCH_SIZE) {
+      await tx.insert(tables.invoiceItems).values(itemValues.slice(i, i + BATCH_SIZE));
+    }
+  }
+}
+
+/**
+ * Lưu hoặc cập nhật một Hóa Đơn duy nhất (kèm danh sách dịch vụ)
+ */
+export async function saveInvoice(db: Db, inv: Invoice): Promise<void> {
+  if (typeof (db as any).transaction === 'function') {
+    await db.transaction(async (tx) => {
+      await saveInvoiceInternal(tx, inv);
+    });
+  } else {
+    await saveInvoiceInternal(db, inv);
+  }
+}
+
+/**
+ * Xóa một Hóa Đơn duy nhất (kèm cascade các mục)
+ */
+export async function deleteInvoice(db: Db, invoiceId: string): Promise<boolean> {
+  return await db.transaction(async (tx) => {
+    await tx.delete(tables.invoiceItems).where(eq(tables.invoiceItems.invoiceId, invoiceId));
+    await tx.delete(tables.invoices).where(eq(tables.invoices.id, invoiceId));
+    return true;
+  });
+}
+
+/**
+ * Lấy một Hóa Đơn theo ID (kèm danh sách dịch vụ con)
+ */
+export async function getInvoiceById(db: Db, id: string): Promise<Invoice | null> {
+  const [inv] = await db.select().from(tables.invoices).where(eq(tables.invoices.id, id));
+  if (!inv) return null;
+
+  const items = await db
+    .select()
+    .from(tables.invoiceItems)
+    .where(eq(tables.invoiceItems.invoiceId, id))
+    .orderBy(asc(tables.invoiceItems.itemOrder));
+
+  return {
+    id: inv.id,
+    code: inv.code,
+    reportId: inv.reportId || undefined,
+    patientCode: inv.patientCode || undefined,
+    patientName: inv.patientName || '',
+    patientPhone: inv.patientPhone || '',
+    patientDob: '',
+    patientGender: 'Nam' as Gender,
+    doctorName: inv.doctorName || '',
+    cashierName: inv.cashierName || undefined,
+    status: inv.status as Invoice['status'],
+    paymentMethod: (inv.paymentMethod as Invoice['paymentMethod']) || 'Tiền mặt',
+    totalAmount: inv.subtotal,
+    discountAmount: inv.discountAmount,
+    discountPercent: inv.discountPercent,
+    finalAmount: inv.finalAmount,
+    paidAt: inv.paidAt ? inv.paidAt.toISOString() : undefined,
+    notes: inv.notes || '',
+    items: items.map((item) => ({
+      code: item.code,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      unit: item.unit || 'Lần',
+      total: item.total
+    })),
+    createdAt: inv.createdAt ? inv.createdAt.toISOString() : new Date().toISOString()
+  };
+}
+
+/**
+ * Lấy một Phiếu Kết Quả Xét Nghiệm theo ID (kèm danh sách chỉ số)
+ */
+export async function getMedicalReportById(db: Db, id: string): Promise<MedicalReport | null> {
+  const [rep] = await db.select().from(tables.medicalReports).where(eq(tables.medicalReports.id, id));
+  if (!rep) return null;
+
+  const tests = await db
+    .select()
+    .from(tables.medicalReportTests)
+    .where(eq(tables.medicalReportTests.reportId, id))
+    .orderBy(asc(tables.medicalReportTests.testOrder));
+
+  return {
+    id: rep.id,
+    code: rep.code,
+    sampleCode: rep.sampleCode || rep.code,
+    status: rep.status as MedicalReport['status'],
+    doctorName: rep.doctorName || '',
+    conclusion: rep.conclusion || '',
+    isAllergen: rep.isAllergen,
+    testCount: tests.length,
+    invoiceId: rep.invoiceId || undefined,
+    cloudPdfUrl: rep.cloudPdfUrl || undefined,
+    qrCodeDataUrl: rep.qrCodeDataUrl || undefined,
+    pdfVersion: rep.pdfVersion,
+    isPdfOutdated: rep.isPdfOutdated,
+    pdfGeneratedAt: rep.pdfGeneratedAt ? rep.pdfGeneratedAt.toISOString() : undefined,
+    zaloSentAt: rep.zaloSentAt ? rep.zaloSentAt.toISOString() : undefined,
+    zaloMsgId: rep.zaloMsgId || undefined,
+    patient: {
+      code: rep.code,
+      name: rep.patientName,
+      dob: rep.patientDob || '',
+      gender: (rep.patientGender as MedicalReport['patient']['gender']) || 'Nam',
+      phone: rep.patientPhone || '',
+      address: rep.patientAddress || '',
+      diagnosis: rep.patientDiagnosis || '',
+      orderedAt: rep.patientOrderedAt || '',
+      receivedAt: rep.patientReceivedAt || '',
+      returnedAt: rep.patientReturnedAt || '',
+      secretToken: rep.patientSecretToken || '',
+      sampleCode: rep.sampleCode || rep.code,
+      sampleStatus: (rep.patientSampleStatus as any) || 'Đã nhận mẫu'
+    },
+    selectedTests: tests.map((t) => ({
+      code: t.testCode,
+      name: t.testName,
+      category: t.category || '',
+      result: t.result || '',
+      note: t.note || '',
+      unit: t.unit || '',
+      refMin: t.refMin ?? undefined,
+      refMax: t.refMax ?? undefined,
+      refText: t.refText || '',
+      price: t.price || 0,
+      equipmentId: t.equipmentId || undefined,
+      equipment: t.equipmentName || undefined,
+      scaleId: t.scaleId || undefined,
+      evaluationType: (t.evaluationType as 'range' | 'scale') || undefined,
+      scientific: t.scientific || undefined
+    })),
+    createdAt: rep.createdAt ? rep.createdAt.toISOString() : new Date().toISOString(),
+    updatedAt: rep.updatedAt ? rep.updatedAt.toISOString() : new Date().toISOString()
+  };
+}
+
+/**
+ * Transaction thu tiền hóa đơn & tự động cập nhật phiếu khám liên kết
+ */
+export async function payInvoiceTransaction(
+  db: Db,
+  invoiceId: string,
+  paymentData: { paymentMethod?: string; cashier?: string; paidAt?: string; discount?: number },
+  fallbackInvoice?: Invoice
+): Promise<{ invoice: Invoice; report?: MedicalReport }> {
+  return await db.transaction(async (tx) => {
+    let rawInvoice = await getInvoiceById(tx as unknown as Db, invoiceId);
+    if (!rawInvoice && fallbackInvoice) {
+      await saveInvoiceInternal(tx, fallbackInvoice);
+      rawInvoice = fallbackInvoice;
+    }
+
+    if (!rawInvoice) {
+      throw new Error(`Invoice not found: ${invoiceId}`);
+    }
+
+    const invAgg = InvoiceAggregate.fromSnapshot(rawInvoice);
+    invAgg.markPaid(
+      (paymentData.paymentMethod as any) || 'Tiền mặt',
+      paymentData.cashier,
+      paymentData.paidAt
+    );
+
+    const updatedInvoice = invAgg.toSnapshot();
+    await saveInvoiceInternal(tx, updatedInvoice);
+
+    let updatedReport: MedicalReport | undefined;
+    const targetReportId = updatedInvoice.reportId || rawInvoice.reportId;
+    if (targetReportId) {
+      const rawReport = await getMedicalReportById(tx as unknown as Db, targetReportId);
+      if (rawReport) {
+        const repAgg = LabReportAggregate.fromSnapshot(rawReport);
+        repAgg.markPaymentCollected(updatedInvoice.id, updatedInvoice.paidAt);
+        updatedReport = repAgg.toSnapshot();
+        await saveMedicalReportInternal(tx, updatedReport);
+      }
+    }
+
+    return { invoice: updatedInvoice, report: updatedReport };
+  });
+}
+
+/**
+ * Transaction hủy hóa đơn & hoàn tác trạng thái phiếu khám liên kết
+ */
+export async function cancelInvoiceTransaction(
+  db: Db,
+  invoiceId: string,
+  cancelData: { reason?: string; cancelledBy?: string }
+): Promise<{ invoice: Invoice; report?: MedicalReport }> {
+  return await db.transaction(async (tx) => {
+    const rawInvoice = await getInvoiceById(tx as unknown as Db, invoiceId);
+    if (!rawInvoice) {
+      throw new Error(`Invoice not found: ${invoiceId}`);
+    }
+
+    const invAgg = InvoiceAggregate.fromSnapshot(rawInvoice);
+    invAgg.refund(cancelData.reason);
+
+    const updatedInvoice = invAgg.toSnapshot();
+    await saveInvoiceInternal(tx, updatedInvoice);
+
+    let updatedReport: MedicalReport | undefined;
+    const targetReportId = updatedInvoice.reportId || rawInvoice.reportId;
+    if (targetReportId) {
+      const rawReport = await getMedicalReportById(tx as unknown as Db, targetReportId);
+      if (rawReport) {
+        const repAgg = LabReportAggregate.fromSnapshot(rawReport);
+        repAgg.markPaymentVoided();
+        updatedReport = repAgg.toSnapshot();
+        await saveMedicalReportInternal(tx, updatedReport);
+      }
+    }
+
+    return { invoice: updatedInvoice, report: updatedReport };
+  });
+}
+
+/**
+ * Lưu hoặc cập nhật một Chỉ Số Xét Nghiệm duy nhất (kèm liên kết máy đo nếu có)
+ */
+export async function saveCatalogItem(db: Db, item: CatalogItem): Promise<void> {
+  await db.transaction(async (tx) => {
+    const catValue = {
+      code: item.code,
+      category: item.category,
+      name: item.name,
+      refMin: item.refMin ?? null,
+      refMax: item.refMax ?? null,
+      unit: item.unit ?? '',
+      refText: item.refText ?? '',
+      price: item.price ?? 0,
+      scientific: item.scientific || null,
+      evaluationType: item.evaluationType || null,
+      updatedAt: new Date()
+    };
+
+    await tx
+      .insert(tables.catalogItems)
+      .values(catValue)
+      .onConflictDoUpdate({
+        target: tables.catalogItems.code,
+        set: {
+          category: sql`excluded.category`,
+          name: sql`excluded.name`,
+          refMin: sql`excluded.ref_min`,
+          refMax: sql`excluded.ref_max`,
+          unit: sql`excluded.unit`,
+          refText: sql`excluded.ref_text`,
+          price: sql`excluded.price`,
+          scientific: sql`excluded.scientific`,
+          evaluationType: sql`excluded.evaluation_type`,
+          updatedAt: sql`excluded.updated_at`
+        }
+      });
+
+    if (Array.isArray(item.equipmentLinks)) {
+      await ensureCatalogItemEquipmentsColumns(tx as unknown as Db);
+      await tx
+        .delete(tables.catalogItemEquipments)
+        .where(eq(tables.catalogItemEquipments.catalogCode, item.code));
+
+      if (item.equipmentLinks.length > 0) {
+        const linkValues = item.equipmentLinks.map((l, idx) => ({
+          id: l.id || `${item.code}_${l.equipmentId || idx}`,
+          catalogCode: item.code,
+          equipmentId: l.equipmentId,
+          evaluationType: l.evaluationType || null,
+          refMin: l.refMin ?? null,
+          refMax: l.refMax ?? null,
+          unit: l.unit || null,
+          refText: l.refText || null,
+          scaleId: l.scaleId || null,
+          isDefault: l.isDefault ?? false,
+          updatedAt: new Date()
+        }));
+        await tx.insert(tables.catalogItemEquipments).values(linkValues);
+      }
+    }
+  });
+}
+
+/**
+ * Xóa một Chỉ Số Xét Nghiệm (có kiểm tra ràng buộc với Gói xét nghiệm)
+ */
+export async function deleteCatalogItem(
+  db: Db,
+  code: string
+): Promise<{ success: boolean; message?: string }> {
+  // Kiểm tra xem mã này có đang được sử dụng trong gói xét nghiệm nào không
+  const usedInPackages = await db
+    .select({ packageId: tables.packageItems.packageId })
+    .from(tables.packageItems)
+    .where(eq(tables.packageItems.catalogCode, code))
+    .limit(1);
+
+  if (usedInPackages.length > 0) {
+    return {
+      success: false,
+      message: `Không thể xóa chỉ số "${code}" vì đang thuộc gói xét nghiệm "${usedInPackages[0].packageId}". Vui lòng xóa chỉ số khỏi gói xét nghiệm trước.`
+    };
+  }
+
+  return await db.transaction(async (tx) => {
+    await tx
+      .delete(tables.catalogItemEquipments)
+      .where(eq(tables.catalogItemEquipments.catalogCode, code));
+
+    await tx.delete(tables.catalogItems).where(eq(tables.catalogItems.code, code));
+    return { success: true };
+  });
+}
+
+/**
+ * Lưu hoặc cập nhật một Gói Xét Nghiệm duy nhất (kèm danh sách chỉ số con)
+ */
+export async function saveTestPackage(db: Db, pkg: TestPackage): Promise<void> {
+  await ensurePackageItemsColumns(db);
+  await db.transaction(async (tx) => {
+    const pkgValue = {
+      id: pkg.id,
+      name: (pkg.name && pkg.name.trim()) || 'Gói xét nghiệm mới',
+      defaultEquipmentId: pkg.defaultEquipmentId || null,
+      price: pkg.price || 0,
+      updatedAt: new Date()
+    };
+
+    await tx
+      .insert(tables.testPackages)
+      .values(pkgValue)
+      .onConflictDoUpdate({
+        target: tables.testPackages.id,
+        set: {
+          name: sql`excluded.name`,
+          defaultEquipmentId: sql`excluded.default_equipment_id`,
+          price: sql`excluded.price`,
+          updatedAt: sql`excluded.updated_at`
+        }
+      });
+
+    await tx.delete(tables.packageItems).where(eq(tables.packageItems.packageId, pkg.id));
+
+    const items = pkg.items || (pkg.codes || []).map((c) => ({ code: c, equipmentId: null }));
+    if (items.length > 0) {
+      const allPackageItems: (typeof tables.packageItems.$inferInsert)[] = [];
+      for (let idx = 0; idx < items.length; idx++) {
+        const it = items[idx] as {
+          code?: string;
+          equipmentId?: string | null;
+          orderIndex?: number | null;
+          defaultValue?: string | null;
+          hasDefaultValue?: boolean | null;
+        } | string;
+        const code = typeof it === 'string' ? it : (it.code || '');
+        const eqId = typeof it === 'object' ? (it.equipmentId || null) : null;
+        const customOrder = typeof it === 'object' && typeof it.orderIndex === 'number' ? it.orderIndex : idx;
+        const itObj = typeof it === 'object' && it ? it : null;
+        const defVal = itObj && 'defaultValue' in itObj ? (itObj.defaultValue as string | null) : null;
+        const hasDef = itObj && 'hasDefaultValue' in itObj ? Boolean(itObj.hasDefaultValue) : false;
+
+        allPackageItems.push({
+          id: `${pkg.id}_${code}_${idx}`,
+          packageId: pkg.id,
+          catalogCode: code,
+          equipmentId: eqId,
+          orderIndex: customOrder,
+          defaultValue: defVal,
+          hasDefaultValue: hasDef
+        });
+      }
+
+      const BATCH_SIZE = 100;
+      for (let i = 0; i < allPackageItems.length; i += BATCH_SIZE) {
+        await tx.insert(tables.packageItems).values(allPackageItems.slice(i, i + BATCH_SIZE));
+      }
+    }
+  });
+}
+
+/**
+ * Xóa một Gói Xét Nghiệm duy nhất (kèm cascade các chỉ số con)
+ */
+export async function deleteTestPackage(db: Db, packageId: string): Promise<boolean> {
+  return await db.transaction(async (tx) => {
+    await tx.delete(tables.packageItems).where(eq(tables.packageItems.packageId, packageId));
+    await tx.delete(tables.testPackages).where(eq(tables.testPackages.id, packageId));
+    return true;
+  });
+}
+

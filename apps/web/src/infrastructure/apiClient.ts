@@ -1,4 +1,5 @@
 import { STORAGE_KEYS } from '@domain/constants/storageKeys';
+import type { Invoice, MedicalReport } from '@domain';
 
 export const TABLE_API_NAMES: Record<string, string> = {
   [STORAGE_KEYS.CATALOG]: 'catalog',
@@ -73,20 +74,31 @@ async function handleResponse<T>(res: Response): Promise<T> {
     throw new ApiAuthError('Unauthorized');
   }
   if (!res.ok) {
-    throw new Error(`Request failed with status ${res.status}`);
+    const errorBody = await res.json().catch(() => ({}));
+    const message =
+      (errorBody as { error?: string; message?: string }).error ||
+      (errorBody as { error?: string; message?: string }).message ||
+      `Request failed with status ${res.status}`;
+    throw new Error(message);
   }
   return (await res.json()) as T;
 }
 
+function resolveUrl(endpoint: string): string {
+  const base = (apiBase || '/api').replace(/\/$/, '');
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `${base}${path}`;
+}
+
 export async function getTable(name: string): Promise<TableData> {
-  const res = await fetch(`${apiBase}/tables/${name}`, {
+  const res = await fetch(resolveUrl(`/tables/${name}`), {
     headers: { 'x-app-password': getPassword() }
   });
   return handleResponse<TableData>(res);
 }
 
 export async function putTable(name: string, rows: unknown[]): Promise<PutTableResult> {
-  const res = await fetch(`${apiBase}/tables/${name}`, {
+  const res = await fetch(resolveUrl(`/tables/${name}`), {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -96,3 +108,141 @@ export async function putTable(name: string, rows: unknown[]): Promise<PutTableR
   });
   return handleResponse<PutTableResult>(res);
 }
+
+export async function postReport(report: unknown): Promise<{ success: boolean; id: string }> {
+  const res = await fetch(resolveUrl('/reports'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-app-password': getPassword()
+    },
+    body: JSON.stringify(report)
+  });
+  return handleResponse<{ success: boolean; id: string }>(res);
+}
+
+export async function deleteReportApi(id: string): Promise<{ success: boolean; id: string }> {
+  const res = await fetch(resolveUrl(`/reports/${encodeURIComponent(id)}`), {
+    method: 'DELETE',
+    headers: { 'x-app-password': getPassword() }
+  });
+  return handleResponse<{ success: boolean; id: string }>(res);
+}
+
+export async function postInvoice(invoice: unknown): Promise<{ success: boolean; id: string }> {
+  const res = await fetch(resolveUrl('/invoices'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-app-password': getPassword()
+    },
+    body: JSON.stringify(invoice)
+  });
+  return handleResponse<{ success: boolean; id: string }>(res);
+}
+
+export async function deleteInvoiceApi(id: string): Promise<{ success: boolean; id: string }> {
+  const res = await fetch(resolveUrl(`/invoices/${encodeURIComponent(id)}`), {
+    method: 'DELETE',
+    headers: { 'x-app-password': getPassword() }
+  });
+  return handleResponse<{ success: boolean; id: string }>(res);
+}
+
+export async function postCatalogItem(item: unknown): Promise<{ success: boolean; code: string }> {
+  const res = await fetch(resolveUrl('/catalog'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-app-password': getPassword()
+    },
+    body: JSON.stringify(item)
+  });
+  return handleResponse<{ success: boolean; code: string }>(res);
+}
+
+export async function deleteCatalogItemApi(code: string): Promise<{ success: boolean; code: string }> {
+  const res = await fetch(resolveUrl(`/catalog/${encodeURIComponent(code)}`), {
+    method: 'DELETE',
+    headers: { 'x-app-password': getPassword() }
+  });
+  return handleResponse<{ success: boolean; code: string }>(res);
+}
+
+export async function postTestPackage(pkg: unknown): Promise<{ success: boolean; id: string }> {
+  const res = await fetch(resolveUrl('/packages'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-app-password': getPassword()
+    },
+    body: JSON.stringify(pkg)
+  });
+  return handleResponse<{ success: boolean; id: string }>(res);
+}
+
+export async function deleteTestPackageApi(id: string): Promise<{ success: boolean; id: string }> {
+  const res = await fetch(resolveUrl(`/packages/${encodeURIComponent(id)}`), {
+    method: 'DELETE',
+    headers: { 'x-app-password': getPassword() }
+  });
+  return handleResponse<{ success: boolean; id: string }>(res);
+}
+
+export async function payInvoice(
+  id: string,
+  paymentData: { paymentMethod?: string; cashier?: string; paidAt?: string; discount?: number; invoice?: Invoice }
+): Promise<{ success: boolean; invoice?: Invoice; report?: MedicalReport }> {
+  const res = await fetch(resolveUrl(`/invoices/${encodeURIComponent(id)}/pay`), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-app-password': getPassword()
+    },
+    body: JSON.stringify(paymentData)
+  });
+  return handleResponse<{ success: boolean; invoice?: Invoice; report?: MedicalReport }>(res);
+}
+
+export async function cancelInvoice(
+  id: string,
+  cancelData: { reason?: string; cancelledBy?: string }
+): Promise<{ success: boolean; invoice?: Invoice; report?: MedicalReport }> {
+  const res = await fetch(resolveUrl(`/invoices/${encodeURIComponent(id)}/cancel`), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-app-password': getPassword()
+    },
+    body: JSON.stringify(cancelData)
+  });
+  return handleResponse<{ success: boolean; invoice?: Invoice; report?: MedicalReport }>(res);
+}
+
+export async function recordPdfExportApi(
+  reportId: string,
+  data: {
+    cloudPdfUrl: string;
+    qrCodeDataUrl?: string;
+    version?: number;
+    report?: MedicalReport;
+    note?: string;
+  }
+): Promise<{ success: boolean; report?: MedicalReport }> {
+  const res = await fetch(resolveUrl(`/reports/${encodeURIComponent(reportId)}/export-pdf`), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-app-password': getPassword()
+    },
+    body: JSON.stringify(data)
+  });
+  return handleResponse<{ success: boolean; report?: MedicalReport }>(res);
+}
+
+export async function putReportTemplatesApi(templates: unknown[]): Promise<PutTableResult> {
+  return putTable('report-templates', templates);
+}
+
+
+

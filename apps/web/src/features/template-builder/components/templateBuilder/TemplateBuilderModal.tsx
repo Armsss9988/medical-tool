@@ -14,7 +14,6 @@ import {
   Check,
   Star,
   Printer,
-  Cloud,
   X,
   Undo2,
   Redo2,
@@ -83,9 +82,6 @@ export function TemplateBuilderModal({
     exportTemplateJson,
     importTemplateJson,
     resetToPresets,
-    cloudStatus,
-    isCloudSyncing,
-    syncWithCloud,
     undo,
     redo,
     canUndo,
@@ -540,29 +536,6 @@ export function TemplateBuilderModal({
               <span>In Thử</span>
             </button>
 
-            <button
-              type="button"
-              onClick={async () => {
-                const ok = await syncWithCloud();
-                if (ok) {
-                  onShowToast?.('Đã đồng bộ toàn bộ mẫu in lên Cloud!', 'success');
-                } else {
-                  onShowToast?.('Không thể đồng bộ lên Cloud, vui lòng kiểm tra kết nối API!', 'error');
-                }
-              }}
-              disabled={isCloudSyncing}
-              className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ${
-                cloudStatus === 'synced'
-                  ? 'bg-sky-950/70 text-sky-300 border-sky-600/50 hover:bg-sky-900/60'
-                  : cloudStatus === 'error'
-                  ? 'bg-rose-950/70 text-rose-300 border-rose-600/50 hover:bg-rose-900/60'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-              }`}
-              title="Đồng bộ tất cả mẫu in lên Cloud (Supabase / Postgres)"
-            >
-              <Cloud className={`w-3.5 h-3.5 ${isCloudSyncing ? 'animate-spin' : ''}`} />
-              <span>{isCloudSyncing ? 'Đang lưu...' : cloudStatus === 'synced' ? 'Đã lên Cloud' : 'Đồng bộ Cloud'}</span>
-            </button>
 
             <button
               type="button"

@@ -144,4 +144,25 @@
 | **Bảo vệ ranh giới Domain** | `.NET Class Library` (Core DLL) | Monorepo Package (`packages/shared/src/domain`) |
 | **Xử lý luồng lỗi** | `OneOf<T, TError>` / `LanguageExt` | `Result<T, E>` / Discriminated Unions |
 
+---
+
+### 9. Quy Chuẩn Kiến Trúc Hybrid: Backend Commands & State Consistency (BẮT BUỘC TUÂN THỦ)
+
+1. **Phân Định Ranh Giới (FE vs BE)**:
+   - **Frontend (Tốc độ & Tương tác 0ms)**: Giữ các tác vụ soạn thảo kết quả, nhảy ô, SmartFill, tự động kết luận, cảnh báo dị nguyên và render PDF Canvas/OKLCH không độ trễ.
+   - **Backend (Nguồn chân lý & Tính nhất quán ACID)**: Đảm nhận toàn bộ các thao tác có tính cam kết (Commitments), thay đổi trạng thái tài chính (Thu tiền/Hủy hóa đơn) và chốt phiên bản xuất PDF trong **1 Database Transaction (`db.transaction`)**.
+
+2. **CẤM Tác Vụ Bất Đồng Bộ (Side-Effects) Trong React State Updaters**:
+   - TUYỆT ĐỐI KHÔNG lồng các lệnh gọi API mạng (`fetch`, `postInvoice`, `postReport`, v.v.) bên trong callback của `setState(prev => ...)`.
+   - Callback cập nhật state của React BẮT BUỘC phải là Pure Function. Mọi tác vụ I/O mạng phải được thực thi tuần tự bên ngoài updater.
+
+3. **CẤM Dùng Event Bus Trên Browser Để Tự Động Lưu Chéo Cơ Sở Dữ Liệu**:
+   - TUYỆT ĐỐI KHÔNG dùng `domainEventBus` trên trình duyệt để khi nhận sự kiện này thì tự động gọi API lưu bảng khác (ví dụ: nghe `INVOICE_PAID` rồi tự gọi `postReport` xuống DB).
+   - Việc đồng bộ trạng thái liên thực thể (Hóa đơn $\leftrightarrow$ Phiếu khám) là **trách nhiệm 100% của Backend trong 1 Transaction**.
+
+4. **Bắt Buộc Sử Dụng Command Endpoints Chuyên Biệt**:
+   - Khi thực hiện hành động nghiệp vụ có giao dịch, BẮT BUỘC gọi Command Route Handler tương ứng (`/api/invoices/[id]/pay`, `/api/invoices/[id]/cancel`, `/api/reports/[id]/export-pdf`) thay vì chỉ gửi POST JSON thô vào các CRUD endpoints.
+   - Frontend tiếp nhận phản hồi nguyên tử `{ invoice, report }` từ Server để cập nhật UI ngay lập tức.
+
+
 

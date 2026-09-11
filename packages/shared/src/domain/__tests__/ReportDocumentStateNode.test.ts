@@ -293,4 +293,89 @@ describe('LabReportAggregate - Guarded State Machine Transitions', () => {
     expect(zaloRes.ok).toBe(true);
     expect(report.documentState.status).toBe('DELIVERED');
   });
+
+  describe('DocumentStateNode.fromLegacyStatus & Aggregate transitions', () => {
+    it('should construct correct class node instances from ReportStatus', () => {
+      const draftNode = DocumentStateNode.fromLegacyStatus('Chờ xét nghiệm', {
+        totalTests: 5,
+        completedTests: 0
+      });
+      expect(draftNode).toBeInstanceOf(DraftStateNode);
+      expect(draftNode.status).toBe('DRAFT');
+      expect(draftNode.label).toBe('Chờ xét nghiệm');
+
+      const resultedNode = DocumentStateNode.fromLegacyStatus('Đã có kết quả', {
+        totalTests: 5,
+        completedTests: 3
+      });
+      expect(resultedNode).toBeInstanceOf(ResultedStateNode);
+      expect(resultedNode.status).toBe('RESULTED');
+      expect(resultedNode.canExportPdf).toBe(true);
+
+      const exportedNode = DocumentStateNode.fromLegacyStatus('Đã xuất Cloud', {
+        totalTests: 5,
+        completedTests: 5,
+        cloudPdfUrl: 'https://cloud.com/pdf.pdf',
+        qrCodeDataUrl: 'data:qr',
+        pdfVersion: 2
+      });
+      expect(exportedNode).toBeInstanceOf(ExportedStateNode);
+      expect(exportedNode.status).toBe('EXPORTED');
+      expect((exportedNode as ExportedStateNode).cloudPdfUrl).toBe('https://cloud.com/pdf.pdf');
+      expect((exportedNode as ExportedStateNode).pdfVersion).toBe(2);
+
+      const outdatedNode = DocumentStateNode.fromLegacyStatus('Cần cập nhật PDF', {
+        totalTests: 5,
+        completedTests: 5,
+        cloudPdfUrl: 'https://cloud.com/pdf.pdf'
+      });
+      expect(outdatedNode).toBeInstanceOf(OutdatedStateNode);
+      expect(outdatedNode.status).toBe('OUTDATED');
+      expect(outdatedNode.canExportPdf).toBe(true);
+
+      const deliveredNode = DocumentStateNode.fromLegacyStatus('Đã trả kết quả', {
+        totalTests: 5,
+        completedTests: 5,
+        cloudPdfUrl: 'https://cloud.com/pdf.pdf',
+        channel: 'Direct'
+      });
+      expect(deliveredNode).toBeInstanceOf(DeliveredStateNode);
+      expect(deliveredNode.status).toBe('DELIVERED');
+      expect((deliveredNode as DeliveredStateNode).channel).toBe('Direct');
+    });
+
+    it('LabReportAggregate: updateLegacyStatus should transition state using StateNode classes', () => {
+      const report = LabReportAggregate.create({
+        code: 'BN-SM-001',
+        patient: samplePatient,
+        doctorName: 'BS. Trung',
+        selectedTests: [sampleTest]
+      });
+
+      expect(report.stateNode).toBeInstanceOf(ResultedStateNode);
+
+      // Chuyển sang "Đã xuất Cloud"
+      report.recordCloudExport('https://cloud.com/report.pdf', 'data:qr');
+      expect(report.stateNode).toBeInstanceOf(ExportedStateNode);
+
+      // Cập nhật thủ công sang "Cần cập nhật PDF"
+      report.updateLegacyStatus('Cần cập nhật PDF');
+      expect(report.stateNode).toBeInstanceOf(OutdatedStateNode);
+      expect(report.documentState.status).toBe('OUTDATED');
+      expect(report.toSnapshot().status).toBe('Cần cập nhật PDF');
+
+      // Cập nhật thủ công sang "Đã trả kết quả"
+      report.updateLegacyStatus('Đã trả kết quả');
+      expect(report.stateNode).toBeInstanceOf(DeliveredStateNode);
+      expect(report.documentState.status).toBe('DELIVERED');
+      expect(report.toSnapshot().status).toBe('Đã trả kết quả');
+
+      // Chuyển trực tiếp qua transitionToState
+      const draftNode = new DraftStateNode(1, 0, false);
+      report.transitionToState(draftNode);
+      expect(report.stateNode).toBeInstanceOf(DraftStateNode);
+      expect(report.documentState.status).toBe('DRAFT');
+      expect(report.toSnapshot().status).toBe('Chờ xét nghiệm');
+    });
+  });
 });

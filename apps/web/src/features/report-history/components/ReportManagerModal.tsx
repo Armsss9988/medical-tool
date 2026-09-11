@@ -232,6 +232,16 @@ export default function ReportManagerModal({
     return reports.filter((r) => r.isPdfOutdated || r.status === REPORT_STATUS.OUTDATED);
   }, [reports]);
 
+  // Lọc nhanh danh sách bảng về đúng các phiếu Outdated
+  const handleFilterToOutdated = useCallback((specificCode?: string) => {
+    setPdfFilter('OUTDATED');
+    setDateFilter(DATE_FILTER.ALL);
+    setSelectedDoctor('ALL');
+    setSelectedType('ALL');
+    setPaymentFilter('ALL');
+    setSearchTerm(specificCode || '');
+  }, []);
+
   // 4. Xuất toàn bộ phiếu đã lọc ra Excel
   const handleExportFilteredExcel = async () => {
     if (filteredReports.length === 0) {
@@ -551,24 +561,111 @@ export default function ReportManagerModal({
 
         {/* ═══ BULK OUTDATED ACTION BANNER ═══ */}
         {allOutdatedReports.length > 0 && (
-          <div className="px-4 sm:px-6 py-2.5 bg-amber-950/60 border-b border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shrink-0 text-xs">
-            <div className="flex items-center space-x-2">
-              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-              <span className="text-amber-200 font-medium">
-                Phát hiện <strong className="text-amber-300 font-bold">{allOutdatedReports.length}</strong> phiếu có dữ liệu thay đổi sau khi xuất PDF.
-              </span>
+          <div className="px-4 sm:px-6 py-3 bg-gradient-to-r from-amber-950/90 via-amber-900/50 to-amber-950/90 border-b border-amber-500/40 shrink-0 text-xs shadow-inner">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
+              <div className="space-y-1.5 min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="p-1 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">
+                    <AlertTriangle className="w-4 h-4" />
+                  </span>
+                  <span className="text-amber-200 font-semibold">
+                    Phát hiện <strong className="text-amber-300 font-extrabold text-sm">{allOutdatedReports.length}</strong> phiếu có dữ liệu thay đổi sau khi xuất PDF:
+                  </span>
+                </div>
+
+                {/* Danh sách chi tiết các phiếu bị Outdated */}
+                <div className="flex flex-wrap items-center gap-1.5 pl-6 sm:pl-7">
+                  {allOutdatedReports.slice(0, 5).map((rep) => {
+                    const agg = LabReportAggregate.fromSnapshot(rep);
+                    const docState = agg.documentState;
+                    const reason = docState.status === 'OUTDATED' && docState.dirtyReasons.length > 0 ? docState.dirtyReasons[0] : null;
+
+                    return (
+                      <div
+                        key={rep.id}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900/90 border border-amber-500/50 text-amber-200 shadow-sm"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleFilterToOutdated(rep.code)}
+                          className="font-mono font-extrabold text-amber-400 hover:text-amber-300 hover:underline transition cursor-pointer"
+                          title="Bấm để lọc phiếu này trong bảng"
+                        >
+                          {rep.code}
+                        </button>
+                        <span className="font-bold text-white uppercase truncate max-w-[130px]" title={rep.patient.name}>
+                          {rep.patient.name || '---'}
+                        </span>
+                        {reason && (
+                          <span className="text-[10px] text-amber-300/80 hidden sm:inline" title={reason}>
+                            • {reason}
+                          </span>
+                        )}
+                        <div className="flex items-center gap-0.5 ml-1 border-l border-amber-500/30 pl-1">
+                          <button
+                            type="button"
+                            onClick={() => onPreviewReport(rep)}
+                            className="p-1 hover:bg-amber-500/30 text-slate-300 hover:text-white rounded transition cursor-pointer"
+                            title="Xem trước mẫu in A4"
+                          >
+                            <Eye className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onLoadReport(rep)}
+                            className="p-1 hover:bg-emerald-500/30 text-slate-300 hover:text-emerald-300 rounded transition cursor-pointer"
+                            title="Nạp phiếu này lên form xét nghiệm"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                          </button>
+                          {onUpdateSingleReportPdf && (
+                            <button
+                              type="button"
+                              onClick={() => onUpdateSingleReportPdf(rep)}
+                              disabled={isUpdatingPdf}
+                              className="p-1 hover:bg-amber-500 text-amber-300 hover:text-slate-950 rounded transition disabled:opacity-50 cursor-pointer"
+                              title="Cập nhật lại PDF cho riêng phiếu này"
+                            >
+                              <RefreshCw className={`w-3 h-3 ${isUpdatingPdf ? 'animate-spin' : ''}`} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {allOutdatedReports.length > 5 && (
+                    <span className="text-slate-400 text-xs pl-1">
+                      +{allOutdatedReports.length - 5} phiếu khác
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Nhóm nút hành động */}
+              <div className="flex items-center gap-2 self-end lg:self-center shrink-0 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => handleFilterToOutdated()}
+                  className="flex-1 sm:flex-initial px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 font-bold rounded-lg transition active:scale-95 flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                  title="Lọc bảng danh sách chỉ hiển thị các phiếu cần cập nhật PDF"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  <span>Lọc Xem {allOutdatedReports.length} Phiếu Này</span>
+                </button>
+
+                {onBatchUpdateOutdatedReports && (
+                  <button
+                    type="button"
+                    onClick={() => onBatchUpdateOutdatedReports(allOutdatedReports)}
+                    disabled={isUpdatingPdf}
+                    className="flex-1 sm:flex-initial px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold rounded-lg transition active:scale-95 flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isUpdatingPdf ? 'animate-spin' : ''}`} />
+                    <span>⚡ Cập Nhật PDF ({allOutdatedReports.length})</span>
+                  </button>
+                )}
+              </div>
             </div>
-            {onBatchUpdateOutdatedReports && (
-              <button
-                type="button"
-                onClick={() => onBatchUpdateOutdatedReports(allOutdatedReports)}
-                disabled={isUpdatingPdf}
-                className="w-full sm:w-auto px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold rounded-lg transition active:scale-95 flex items-center justify-center space-x-1 shadow-sm disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isUpdatingPdf ? 'animate-spin' : ''}`} />
-                <span>⚡ Cập Nhật PDF Cho {allOutdatedReports.length} Phiếu</span>
-              </button>
-            )}
           </div>
         )}
 
@@ -603,12 +700,16 @@ export default function ReportManagerModal({
                     const kind = ReportKindResolver.resolve(rep.selectedTests);
                     const inv = getInvoiceForReport(rep);
                     const isPaid = Boolean(inv && inv.status === BILLING_STATUS.PAID);
-                    const { clinical, document, billing } = LabReportAggregate.fromSnapshot(rep).computeStatusSummary(isPaid);
+                    const agg = LabReportAggregate.fromSnapshot(rep);
+                    const { clinical, document, billing } = agg.computeStatusSummary(isPaid);
                     const isOutdated = document.isOutdated();
                     const versionStr = rep.pdfVersion ? `v${rep.pdfVersion}` : 'v1';
+                    const dirtyReason = isOutdated && agg.documentState.status === 'OUTDATED' && agg.documentState.dirtyReasons.length > 0
+                      ? agg.documentState.dirtyReasons[0]
+                      : 'Dữ liệu đã sửa đổi';
 
                     return (
-                      <tr key={rep.id} className={`hover:bg-slate-800/40 transition-colors ${isOutdated ? 'bg-amber-950/20' : ''}`}>
+                      <tr key={rep.id} className={`hover:bg-slate-800/40 transition-colors ${isOutdated ? 'bg-amber-950/30 border-l-4 border-l-amber-500' : ''}`}>
                         <td className="p-3 text-center text-slate-500 font-mono">{idx + 1}</td>
 
                         {/* Mã phiếu & Ngày giờ */}
@@ -702,7 +803,7 @@ export default function ReportManagerModal({
                                 <AlertTriangle className="w-3 h-3 text-amber-400" />
                                 <span>{document.label()} ({versionStr})</span>
                               </span>
-                              <span className="block text-[9.5px] text-amber-400/80">Dữ liệu đã sửa đổi</span>
+                              <span className="block text-[9.5px] text-amber-400/90 font-medium" title={dirtyReason}>{dirtyReason}</span>
                             </div>
                           ) : document.isSynced() ? (
                             <div className="space-y-0.5">
@@ -821,15 +922,19 @@ export default function ReportManagerModal({
                 const kind = ReportKindResolver.resolve(rep.selectedTests);
                 const inv = getInvoiceForReport(rep);
                 const isPaid = Boolean(inv && inv.status === BILLING_STATUS.PAID);
-                const { clinical, document, billing } = LabReportAggregate.fromSnapshot(rep).computeStatusSummary(isPaid);
+                const agg = LabReportAggregate.fromSnapshot(rep);
+                const { clinical, document, billing } = agg.computeStatusSummary(isPaid);
                 const isOutdated = document.isOutdated();
                 const versionStr = rep.pdfVersion ? `v${rep.pdfVersion}` : 'v1';
+                const dirtyReason = isOutdated && agg.documentState.status === 'OUTDATED' && agg.documentState.dirtyReasons.length > 0
+                  ? agg.documentState.dirtyReasons[0]
+                  : 'Dữ liệu đã sửa đổi';
 
                 return (
                   <div
                     key={`mob_rep_${rep.id}`}
                     className={`p-3.5 bg-slate-900 border rounded-2xl shadow-sm transition-all ${
-                      isOutdated ? 'border-amber-500/60 bg-amber-950/20' : 'border-slate-800'
+                      isOutdated ? 'border-amber-500/80 bg-amber-950/30 ring-1 ring-amber-500/40' : 'border-slate-800'
                     }`}
                   >
                     {/* Header: Mã phiếu, loại phiếu & ngày giờ */}
@@ -877,10 +982,15 @@ export default function ReportManagerModal({
                         <span>{billing.label()} {inv?.finalAmount ? `(${(inv.finalAmount).toLocaleString('vi-VN')} đ)` : ''}</span>
                       </span>
 
-                      <span className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-md border ${document.getBadgeStyle().bg} ${document.getBadgeStyle().text} ${document.getBadgeStyle().border}`}>
-                        {isOutdated ? <AlertTriangle className="w-3 h-3 text-amber-400" /> : <CheckCircle2 className="w-3 h-3 text-emerald-400" />}
-                        <span>{document.label()} ({versionStr})</span>
-                      </span>
+                      <div className="flex flex-col items-end gap-0.5">
+                        <span className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-md border ${document.getBadgeStyle().bg} ${document.getBadgeStyle().text} ${document.getBadgeStyle().border}`}>
+                          {isOutdated ? <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" /> : <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />}
+                          <span>{document.label()} ({versionStr})</span>
+                        </span>
+                        {isOutdated && (
+                          <span className="text-[9.5px] text-amber-400/90 font-medium text-right" title={dirtyReason}>{dirtyReason}</span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Dải nút hành động cảm ứng trên mobile */}
@@ -1086,7 +1196,7 @@ export default function ReportManagerModal({
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="block text-xs font-bold text-white">Cập nhật PDF mới lên Cloud</span>
-                    <span className="block text-[10px] text-amber-400/80">Đồng bộ lại bản in khi dữ liệu đã sửa</span>
+                    <span className="block text-[10px] text-amber-400/80">Cập nhật lại bản in khi dữ liệu đã sửa</span>
                   </div>
                 </button>
               )}

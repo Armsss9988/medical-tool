@@ -7,6 +7,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      '@': path.resolve(import.meta.dirname, 'apps/web'),
       '@domain': path.resolve(import.meta.dirname, 'packages/shared/src/domain'),
       '@data': path.resolve(import.meta.dirname, 'packages/shared/src/data'),
       '@infra': path.resolve(import.meta.dirname, 'apps/web/src/infrastructure'),

@@ -91,7 +91,7 @@ export default function CatalogManagerModal({
 
   const prevIsOpenRef = useRef(false);
 
-  // Chỉ khởi tạo/đồng bộ dữ liệu khi modal chuyển từ đóng sang mở
+  // Chỉ khởi tạo nạp dữ liệu khi modal chuyển từ đóng sang mở
   useEffect(() => {
     if (isOpen && !prevIsOpenRef.current) {
       setItems(catalog.map(autoResolveItemLinks));
@@ -207,7 +207,7 @@ export default function CatalogManagerModal({
       if (hasScalesChanged && onSaveScales) onSaveScales(scalesList);
       if (hasRangesChanged && onSaveReferenceRanges) onSaveReferenceRanges(rangesList);
 
-      // Nếu có dữ liệu thay đổi và có onSaveAllData, đồng bộ đúng các bảng thay đổi
+      // Nếu có dữ liệu thay đổi và có onSaveAllData, lưu đúng các bảng thay đổi
       if (onSaveAllData) {
         if (Object.keys(changedData).length > 0) {
           await onSaveAllData(changedData);

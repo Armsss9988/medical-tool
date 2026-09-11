@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { MedicalReport, Patient, SelectedTest, ReportStatus, STORAGE_KEYS, CloudDbConfig } from '@domain';
+import { MedicalReport, Patient, SelectedTest, ReportStatus, REPORT_STATUS, STORAGE_KEYS, CloudDbConfig, PatientIdentityDomainService } from '@domain';
 import { LabReportAggregate } from '@domain/aggregates/LabReportAggregate';
 import { loadState } from '@infra/storage';
 import { syncReportsToSupabase, fetchReportsFromSupabase, DEFAULT_CLOUD_DB_CONFIG } from '@infra/cloudDbService';
+import { postReport, deleteReportApi, recordPdfExportApi } from '@infra/apiClient';
 import { domainEventBus } from '@domain/events/DomainEventBus';
 import {
   REPORT_EVENT_TYPES,
@@ -17,7 +18,8 @@ import {
 export function useReportManager() {
   // 1. Khởi tạo danh sách phiếu xét nghiệm
   const [reports, setReports] = useState<MedicalReport[]>([]);
-  const isLoadedRef = useRef(false);
+  const reportsRef = useRef(reports);
+  reportsRef.current = reports;
 
   // 2. Nạp trực tiếp từ Cloud Database (PostgreSQL)
   useEffect(() => {
@@ -32,57 +34,38 @@ export function useReportManager() {
         }
       } catch (err) {
         console.error('Lỗi khi tải danh sách phiếu xét nghiệm từ Cloud DB:', err);
-      } finally {
-        isLoadedRef.current = true;
       }
     }
     initReports();
   }, []);
 
-  // 3. Tự động đồng bộ khi danh sách reports thay đổi sau khi đã ready
-  const lastSyncedHashRef = useRef<string>('');
-
-  useEffect(() => {
-    if (!isLoadedRef.current) return;
-
-    const currentHash = reports.map((r) => `${r.id}:${r.updatedAt || ''}:${r.status || ''}`).join('|');
-    if (lastSyncedHashRef.current === currentHash) {
-      return;
-    }
-    lastSyncedHashRef.current = currentHash;
-
-    // Tự động đồng bộ lên Supabase Cloud DB
-    const cloudConfig = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
-    if (cloudConfig?.enabled !== false && cloudConfig?.supabaseUrl) {
-      syncReportsToSupabase(reports, cloudConfig).catch((e) =>
-        console.warn('[CloudDB] Lỗi đồng bộ reports lên Cloud:', e)
-      );
-    }
-  }, [reports]);
-
-  // 4. LẮNG NGHE DOMAIN EVENTS ĐỂ TỰ ĐỘNG ĐỒNG BỘ HIỆU ỨNG LIÊN ĐỚI (CASCADE SYNC)
+  // 4. LẮNG NGHE DOMAIN EVENTS ĐỂ TỰ ĐỘNG CẬP NHẬT HIỆU ỨNG LIÊN ĐỚI (CASCADE UPDATE)
   useEffect(() => {
     // 4.1. Khi Hóa đơn được thanh toán -> Cập nhật trạng thái phiếu sang Đã thu (khớp chính xác theo ID)
     const unsubPaid = domainEventBus.subscribe<InvoicePaidPayload>(
       INVOICE_EVENT_TYPES.PAID,
       ({ payload }) => {
-        setReports((prev) => {
-          const targetReportId = payload.reportId || payload.invoice.reportId;
-          const targetIndex = prev.findIndex(
-            (r) =>
-              (targetReportId && r.id === targetReportId) ||
-              (payload.invoice.id && r.invoiceId === payload.invoice.id)
-          );
-          if (targetIndex < 0) return prev;
+        const prev = reportsRef.current;
+        const targetReportId = payload.reportId || payload.invoice.reportId;
+        const targetIndex = prev.findIndex(
+          (r) =>
+            (targetReportId && r.id === targetReportId) ||
+            (payload.invoice.id && r.invoiceId === payload.invoice.id)
+        );
+        if (targetIndex < 0) return;
 
-          const target = prev[targetIndex];
-          const agg = LabReportAggregate.fromSnapshot(target);
-          agg.markPaymentCollected(payload.invoice.id, payload.paidAt);
-          const updated = agg.toSnapshot();
+        const target = prev[targetIndex];
+        const agg = LabReportAggregate.fromSnapshot(target);
+        agg.markPaymentCollected(payload.invoice.id, payload.paidAt);
+        const updated = agg.toSnapshot();
 
-          const next = [...prev];
-          next[targetIndex] = updated;
-          return next;
+        const next = [...prev];
+        next[targetIndex] = updated;
+        reportsRef.current = next;
+        setReports(next);
+
+        postReport(updated).catch((err) => {
+          console.warn('[useReportManager] Lỗi lưu cập nhật thu tiền phiếu:', err);
         });
       }
     );
@@ -91,22 +74,26 @@ export function useReportManager() {
     const unsubCancelled = domainEventBus.subscribe<InvoiceCancelledPayload>(
       INVOICE_EVENT_TYPES.CANCELLED,
       ({ payload }) => {
-        setReports((prev) => {
-          const targetIndex = prev.findIndex(
-            (r) =>
-              (payload.invoiceId && r.invoiceId === payload.invoiceId) ||
-              (payload.reportId && r.id === payload.reportId)
-          );
-          if (targetIndex < 0) return prev;
+        const prev = reportsRef.current;
+        const targetIndex = prev.findIndex(
+          (r) =>
+            (payload.invoiceId && r.invoiceId === payload.invoiceId) ||
+            (payload.reportId && r.id === payload.reportId)
+        );
+        if (targetIndex < 0) return;
 
-          const target = prev[targetIndex];
-          const agg = LabReportAggregate.fromSnapshot(target);
-          agg.markPaymentVoided();
-          const updated = agg.toSnapshot();
+        const target = prev[targetIndex];
+        const agg = LabReportAggregate.fromSnapshot(target);
+        agg.markPaymentVoided();
+        const updated = agg.toSnapshot();
 
-          const next = [...prev];
-          next[targetIndex] = updated;
-          return next;
+        const next = [...prev];
+        next[targetIndex] = updated;
+        reportsRef.current = next;
+        setReports(next);
+
+        postReport(updated).catch((err) => {
+          console.warn('[useReportManager] Lỗi lưu hủy thu tiền phiếu:', err);
         });
       }
     );
@@ -115,22 +102,26 @@ export function useReportManager() {
     const unsubDeleted = domainEventBus.subscribe<InvoiceDeletedPayload>(
       INVOICE_EVENT_TYPES.DELETED,
       ({ payload }) => {
-        setReports((prev) => {
-          const targetIndex = prev.findIndex(
-            (r) =>
-              (payload.invoiceId && r.invoiceId === payload.invoiceId) ||
-              (payload.reportId && r.id === payload.reportId)
-          );
-          if (targetIndex < 0) return prev;
+        const prev = reportsRef.current;
+        const targetIndex = prev.findIndex(
+          (r) =>
+            (payload.invoiceId && r.invoiceId === payload.invoiceId) ||
+            (payload.reportId && r.id === payload.reportId)
+        );
+        if (targetIndex < 0) return;
 
-          const target = prev[targetIndex];
-          const agg = LabReportAggregate.fromSnapshot(target);
-          agg.markPaymentVoided();
-          const updated = agg.toSnapshot();
+        const target = prev[targetIndex];
+        const agg = LabReportAggregate.fromSnapshot(target);
+        agg.markPaymentVoided();
+        const updated = agg.toSnapshot();
 
-          const next = [...prev];
-          next[targetIndex] = updated;
-          return next;
+        const next = [...prev];
+        next[targetIndex] = updated;
+        reportsRef.current = next;
+        setReports(next);
+
+        postReport(updated).catch((err) => {
+          console.warn('[useReportManager] Lỗi lưu hủy liên kết hóa đơn trên phiếu:', err);
         });
       }
     );
@@ -139,16 +130,21 @@ export function useReportManager() {
     const unsubPdf = domainEventBus.subscribe<ReportPdfExportedPayload>(
       REPORT_EVENT_TYPES.PDF_EXPORTED,
       ({ payload }) => {
-        setReports((prev) => {
-          const idx = prev.findIndex((r) => r.id === payload.reportId);
-          if (idx < 0) return prev;
+        const prev = reportsRef.current;
+        const idx = prev.findIndex((r) => r.id === payload.reportId);
+        if (idx < 0) return;
 
-          const agg = LabReportAggregate.fromSnapshot(prev[idx]);
-          agg.recordCloudExport(payload.cloudPdfUrl, payload.qrCodeDataUrl);
-          const updated = agg.toSnapshot();
-          const next = [...prev];
-          next[idx] = updated;
-          return next;
+        const agg = LabReportAggregate.fromSnapshot(prev[idx]);
+        agg.recordCloudExport(payload.cloudPdfUrl, payload.qrCodeDataUrl, payload.pdfVersion);
+        const updated = agg.toSnapshot();
+
+        const next = [...prev];
+        next[idx] = updated;
+        reportsRef.current = next;
+        setReports(next);
+
+        postReport(updated).catch((err) => {
+          console.warn('[useReportManager] Lỗi lưu cập nhật PDF xuất bản:', err);
         });
       }
     );
@@ -157,16 +153,21 @@ export function useReportManager() {
     const unsubZalo = domainEventBus.subscribe<ReportZaloSentPayload>(
       REPORT_EVENT_TYPES.ZALO_SENT,
       ({ payload }) => {
-        setReports((prev) => {
-          const idx = prev.findIndex((r) => r.id === payload.reportId);
-          if (idx < 0) return prev;
+        const prev = reportsRef.current;
+        const idx = prev.findIndex((r) => r.id === payload.reportId);
+        if (idx < 0) return;
 
-          const agg = LabReportAggregate.fromSnapshot(prev[idx]);
-          agg.recordZaloSent(payload.msgId);
-          const updated = agg.toSnapshot();
-          const next = [...prev];
-          next[idx] = updated;
-          return next;
+        const agg = LabReportAggregate.fromSnapshot(prev[idx]);
+        agg.recordZaloSent(payload.msgId);
+        const updated = agg.toSnapshot();
+
+        const next = [...prev];
+        next[idx] = updated;
+        reportsRef.current = next;
+        setReports(next);
+
+        postReport(updated).catch((err) => {
+          console.warn('[useReportManager] Lỗi lưu trạng thái Zalo gửi phiếu:', err);
         });
       }
     );
@@ -180,93 +181,24 @@ export function useReportManager() {
     };
   }, []);
 
-  // Helper: Đồng bộ ngay lập tức và trực tiếp lên Cloud DB
+  // Helper: Lưu ngay lập tức và trực tiếp lên Cloud DB
   const syncReportsDirectly = (nextList: MedicalReport[]) => {
-    lastSyncedHashRef.current = nextList.map((r) => `${r.id}:${r.updatedAt || ''}:${r.status || ''}`).join('|');
     const cloudConfig = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
     if (cloudConfig?.enabled !== false && cloudConfig?.supabaseUrl) {
       syncReportsToSupabase(nextList, cloudConfig).catch((err) =>
-        console.warn('[useReportManager] Lỗi đồng bộ trực tiếp phiếu lên Cloud:', err)
+        console.warn('[useReportManager] Lỗi lưu trực tiếp phiếu lên Cloud:', err)
       );
     }
   };
 
   // 5. Thêm mới hoặc cập nhật phiếu thông qua Domain State Machine & Phát Event
-  const reportsRef = useRef(reports);
-  reportsRef.current = reports;
 
-  // Chuẩn hóa tên và ngày sinh phục vụ nhận diện định danh bệnh nhân
-  const normalizeIdentityName = (str: string): string => {
-    return str
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]/g, '');
-  };
-
-  const normalizeIdentityDob = (raw: string | undefined): string => {
-    if (!raw) return '';
-    return raw.trim().replace(/[^\d]/g, '');
-  };
-
-  interface MatchCriteria {
-    id?: string;
-    code?: string;
-    patient?: Patient;
-    hasExplicitCode?: boolean;
-    allowIdentityMerge?: boolean;
-  }
-
+  // Đối soát nhận diện định danh bệnh nhân thông qua Pure Domain Service
   const findMatchingReportIndex = (
     list: MedicalReport[],
-    criteria: MatchCriteria
+    criteria: Parameters<typeof PatientIdentityDomainService.findMatchingIndex>[1]
   ): number => {
-    // 1. Đối soát theo ID nếu có
-    if (criteria.id) {
-      const idx = list.findIndex((r) => r.id === criteria.id);
-      if (idx >= 0) return idx;
-    }
-
-    // 2. Đối soát theo Mã BN cụ thể (người dùng tự nhập hoặc file có cột mã BN)
-    const code = criteria.code || criteria.patient?.code;
-    if (criteria.hasExplicitCode && code) {
-      const cleanTargetCode = code.trim().toLowerCase();
-      const idx = list.findIndex(
-        (r) =>
-          (r.code && r.code.trim().toLowerCase() === cleanTargetCode) ||
-          (r.patient?.code && r.patient.code.trim().toLowerCase() === cleanTargetCode)
-      );
-      if (idx >= 0) return idx;
-    }
-
-    // 3. Chỉ đối soát theo Bộ Ba Định Danh khi được phép gộp (allowIdentityMerge)
-    // Áp dụng cho các trường hợp Import hàng loạt từ file Excel không có cột mã BN
-    if (criteria.allowIdentityMerge && criteria.patient?.name && criteria.patient?.dob) {
-      const targetName = normalizeIdentityName(criteria.patient.name);
-      const targetDob = normalizeIdentityDob(criteria.patient.dob);
-      const targetGender = criteria.patient.gender;
-
-      if (targetName && targetDob) {
-        const idx = list.findIndex((r) => {
-          if (!r.patient?.name || !r.patient?.dob) return false;
-          const nameMatch = normalizeIdentityName(r.patient.name) === targetName;
-          if (!nameMatch) return false;
-
-          const dobMatch = normalizeIdentityDob(r.patient.dob) === targetDob;
-          if (!dobMatch) return false;
-
-          if (targetGender && r.patient.gender && targetGender !== r.patient.gender) {
-            return false;
-          }
-
-          return true;
-        });
-
-        if (idx >= 0) return idx;
-      }
-    }
-
-    return -1;
+    return PatientIdentityDomainService.findMatchingIndex(list, criteria);
   };
 
   const saveOrUpdateReport = (params: {
@@ -324,7 +256,7 @@ export function useReportManager() {
       });
 
       if (params.cloudPdfUrl) {
-        agg.recordCloudExport(params.cloudPdfUrl, params.qrCodeDataUrl);
+        agg.recordCloudExport(params.cloudPdfUrl, params.qrCodeDataUrl, params.pdfVersion);
       }
       updatedReport = agg.toSnapshot();
     } else {
@@ -346,8 +278,8 @@ export function useReportManager() {
         status: params.status
       });
 
-      if (params.cloudPdfUrl && params.cloudPdfUrl !== existingItem.cloudPdfUrl) {
-        agg.recordCloudExport(params.cloudPdfUrl, params.qrCodeDataUrl);
+      if (params.cloudPdfUrl && (params.status === REPORT_STATUS.EXPORTED || params.cloudPdfUrl !== existingItem.cloudPdfUrl)) {
+        agg.recordCloudExport(params.cloudPdfUrl, params.qrCodeDataUrl, params.pdfVersion);
       }
       updatedReport = agg.toSnapshot();
     }
@@ -360,9 +292,26 @@ export function useReportManager() {
       nextReports = [updatedReport, ...prev];
     }
 
-    reportsRef.current = nextReports; // Cập nhật ngay ref đồng bộ
+    reportsRef.current = nextReports; // Cập nhật ngay ref
     setReports(nextReports);
-    syncReportsDirectly(nextReports);
+    // Lưu lên server: Nếu xuất Cloud PDF thì gọi Command endpoint chuyên biệt để ghi nhận Ledger & Version
+    const isNewPdfExport = Boolean(params.cloudPdfUrl && params.cloudPdfUrl !== existingItem?.cloudPdfUrl);
+    if (isNewPdfExport) {
+      recordPdfExportApi(updatedReport.id, {
+        cloudPdfUrl: params.cloudPdfUrl!,
+        qrCodeDataUrl: params.qrCodeDataUrl,
+        version: updatedReport.pdfVersion,
+        report: updatedReport
+      }).catch((err) => {
+        console.warn('[useReportManager] Lỗi recordPdfExportApi, fallback postReport:', err);
+        postReport(updatedReport).catch(() => syncReportsDirectly(nextReports));
+      });
+    } else {
+      postReport(updatedReport).catch((err) => {
+        console.warn('[useReportManager] Không thể lưu đơn lẻ phiếu lên server, fallback lưu mảng:', err);
+        syncReportsDirectly(nextReports);
+      });
+    }
 
     // Phát Domain Event: REPORT_SAVED (sử dụng report đã computed)
     domainEventBus.emit(REPORT_EVENT_TYPES.SAVED, {
@@ -436,7 +385,7 @@ export function useReportManager() {
       });
     }
 
-    // Cập nhật State và đồng bộ Cloud đúng 1 lần duy nhất sau khi xử lý xong batch
+    // Cập nhật State và lưu Cloud đúng 1 lần duy nhất sau khi xử lý xong batch
     reportsRef.current = currentList;
     setReports(currentList);
     syncReportsDirectly(currentList);
@@ -446,26 +395,28 @@ export function useReportManager() {
 
   // 7. Cập nhật hàng loạt phiếu (Dùng sau khi chạy batch re-export)
   const bulkUpdateReports = (updatedList: MedicalReport[]) => {
-    setReports((prev) => {
-      const updatedMap = new Map(updatedList.map((r) => [r.id, r]));
-      const next = prev.map((r) => updatedMap.get(r.id) || r);
-      reportsRef.current = next;
-      syncReportsDirectly(next);
-      return next;
-    });
+    const prev = reportsRef.current;
+    const updatedMap = new Map(updatedList.map((r) => [r.id, r]));
+    const next = prev.map((r) => updatedMap.get(r.id) || r);
+    reportsRef.current = next;
+    setReports(next);
+    syncReportsDirectly(next);
   };
 
   // 8. Xóa 1 phiếu & Phát Event
   const deleteReport = (id: string) => {
     let deletedReportCode: string | undefined;
+    const prev = reportsRef.current;
+    const target = prev.find((r) => r.id === id);
+    if (target) deletedReportCode = target.code;
+    const next = prev.filter((r) => r.id !== id);
+    reportsRef.current = next;
+    setReports(next);
 
-    setReports((prev) => {
-      const target = prev.find((r) => r.id === id);
-      if (target) deletedReportCode = target.code;
-      const next = prev.filter((r) => r.id !== id);
-      reportsRef.current = next;
+    // Xóa đơn lẻ trên server bên ngoài state updater
+    deleteReportApi(id).catch((err) => {
+      console.warn('[useReportManager] Lỗi xóa đơn lẻ phiếu trên server, fallback:', err);
       syncReportsDirectly(next);
-      return next;
     });
 
     // Phát Domain Event: REPORT_DELETED
@@ -484,17 +435,39 @@ export function useReportManager() {
 
   // 10. Cập nhật trạng thái phiếu thông qua State Machine & Aggregate
   const updateReportStatus = (id: string, newStatus: ReportStatus) => {
-    setReports((prev) => {
-      const next = prev.map((r) => {
-        if (r.id !== id) return r;
-        const agg = LabReportAggregate.fromSnapshot(r);
-        agg.updateLegacyStatus(newStatus);
-        return agg.toSnapshot();
-      });
-      reportsRef.current = next;
-      syncReportsDirectly(next);
-      return next;
+    const prev = reportsRef.current;
+    let updatedReport: MedicalReport | undefined;
+    const next = prev.map((r) => {
+      if (r.id !== id) return r;
+      const agg = LabReportAggregate.fromSnapshot(r);
+      agg.updateLegacyStatus(newStatus);
+      updatedReport = agg.toSnapshot();
+      return updatedReport;
     });
+    reportsRef.current = next;
+    setReports(next);
+
+    if (updatedReport) {
+      postReport(updatedReport).catch((err) => {
+        console.warn('[useReportManager] Lỗi cập nhật trạng thái phiếu đơn lẻ:', err);
+        syncReportsDirectly(next);
+      });
+    }
+  };
+
+  // 10. Tiếp nhận cập nhật phiếu từ Backend Transaction (Authoritative Response)
+  const handleExternalReportUpdate = (updatedReport: MedicalReport) => {
+    const prev = reportsRef.current;
+    const idx = prev.findIndex((r) => r.id === updatedReport.id);
+    let next: MedicalReport[];
+    if (idx >= 0) {
+      next = [...prev];
+      next[idx] = updatedReport;
+    } else {
+      next = [updatedReport, ...prev];
+    }
+    reportsRef.current = next;
+    setReports(next);
   };
 
   return {
@@ -505,6 +478,7 @@ export function useReportManager() {
     bulkUpdateReports,
     deleteReport,
     clearAllReports,
-    updateReportStatus
+    updateReportStatus,
+    handleExternalReportUpdate
   };
 }

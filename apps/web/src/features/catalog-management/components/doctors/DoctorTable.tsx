@@ -68,7 +68,7 @@ export function DoctorTable({
       setIsSaving(true);
       if (onSaveDoctors) onSaveDoctors(docsList);
       if (onSaveAllData) await onSaveAllData({ doctorsList: docsList });
-      showToast?.('Đã lưu và đồng bộ danh sách Bác Sĩ thành công!', 'success');
+      showToast?.('Đã lưu danh sách Bác Sĩ thành công!', 'success');
     } catch (err) {
       console.error('[DoctorTable] Lỗi lưu bác sĩ:', err);
       showToast?.('Có lỗi xảy ra khi lưu danh sách bác sĩ!', 'error');

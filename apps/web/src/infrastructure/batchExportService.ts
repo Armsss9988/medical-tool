@@ -2,11 +2,7 @@ import JSZip from 'jszip';
 import { MedicalReport, ClinicInfo, BatchExportProgress } from '@domain/types';
 import { formatReportPdfFilename } from '@domain';
 import { ReportKindResolver } from '@domain/valueObjects/ReportKind';
-import { generateHighQualityPdf } from './pdfService';
-import { uploadPdfToCloud } from './cloudService';
-import { generateQrCodeDataUrl, buildPortalUrl } from './qrService';
-import { addLedgerRecord, getNextVersionForReport } from './pdfLedger';
-import { PdfFileRecord } from '@domain/exportTransaction';
+import { PdfExportTransaction } from './pdfExportTransaction';
 
 export interface BatchExportCallbacks {
   onProgress: (progress: BatchExportProgress) => void;
@@ -16,16 +12,9 @@ export interface BatchExportCallbacks {
 
 /**
  * Pipeline xuất PDF đồng loạt cho danh sách phiếu.
- * Quy trình MỖI phiếu (tuần tự):
- * 1. Set data vào hidden render component (callback)
- * 2. Chờ DOM re-render
- * 3. generateHighQualityPdf() → blob
- * 4. uploadPdfToCloud()
- * 5. generateQrCodeDataUrl()
- * 6. Lưu metadata vào Ledger
- * 7. Thu thập blob vào kết quả
+ * Sử dụng chung duy nhất Engine: PdfExportTransaction cho từng phiếu để đảm bảo tính nhất quán 100%.
  *
- * Cuối cùng: Nén toàn bộ blob thành ZIP và trigger download.
+ * Cuối cùng: Hỗ trợ nén toàn bộ blob thành ZIP khi người dùng yêu cầu.
  */
 export async function batchExportPdfs(
   reports: MedicalReport[],
@@ -52,7 +41,7 @@ export async function batchExportPdfs(
       break;
     }
 
-    const patientName = report.patient.name || 'BenhNhan';
+    const patientName = report.patient?.name || 'BenhNhan';
     progress.current = patientName;
     callbacks.onProgress({ ...progress });
 
@@ -66,54 +55,35 @@ export async function batchExportPdfs(
       // 3. Phân giải loại báo cáo chính xác bằng ADT ReportKind (hỗ trợ cả Hỗn Hợp, Dị Nguyên và Tiêu Chuẩn)
       const reportKind = ReportKindResolver.resolve(report.selectedTests, { isBatch: true });
       const elementId = reportKind.elementId;
-
-      // 4. Chuẩn bị định danh phiên bản & sinh mã QR Cloud đích thực trước khi Render
       const filename = formatReportPdfFilename(patientName, report.code);
-      const version = await getNextVersionForReport(report.code);
-      const versionedFilename = filename.replace(/\.pdf$/i, `_v${version}.pdf`);
 
-      const portalUrl = buildPortalUrl(report.code);
-      const qrDataUrl = await generateQrCodeDataUrl(portalUrl);
+      // 4. Ủy quyền toàn bộ tiến trình xuất và đồng bộ Cloud cho Engine duy nhất: PdfExportTransaction
+      const tx = new PdfExportTransaction(
+        elementId,
+        filename,
+        report.code,
+        patientName,
+        {
+          currentVersion: report.pdfVersion,
+          cloudPdfUrl: report.cloudPdfUrl,
+          autoDownloadLocal: false // Xuất hàng loạt không trigger tải riêng lẻ từng file
+        }
+      );
 
-      // Bơm trực tiếp mã QR Portal vào DOM trước khi chụp PDF để bản in chứa đúng 100% QR Portal
-      const container = document.getElementById(elementId);
-      if (container && qrDataUrl) {
-        const qrImgs = container.querySelectorAll<HTMLImageElement>('img[alt*="QR"], img[data-qr="true"]');
-        qrImgs.forEach((img) => {
-          img.src = qrDataUrl;
-        });
+      const result = await tx.execute();
+
+      if (!result.success || !result.finalUrl || !result.blob) {
+        throw new Error(result.error || 'Giao dịch Transaction xuất PDF thất bại');
       }
 
-      // 5. Render PDF chất lượng cao (đã chứa mã QR Cloud chuẩn)
-      const pdfRes = await generateHighQualityPdf(elementId, filename);
-
-      // 6. Upload lên Cloud Storage
-      const uploadRes = await uploadPdfToCloud(pdfRes.blob, versionedFilename);
-
-      // 7. Save to Ledger
-      const ledgerRecord: PdfFileRecord = {
-        id: crypto.randomUUID(),
-        reportId: report.code,
-        patientCode: report.code,
-        patientName: patientName,
-        filename: uploadRes.filename || versionedFilename,
-        version: version,
-        cloudProvider: uploadRes.provider,
-        cloudUrl: uploadRes.url,
-        qrDataUrl: qrDataUrl,
-        fileSizeBytes: pdfRes.blob.size,
-        createdAt: new Date().toISOString(),
-        isLatest: true
-      };
-      await addLedgerRecord(ledgerRecord);
-
-      // 8. Collect result
+      // 5. Thu thập kết quả
       progress.results.push({
         code: report.code,
         patientName: patientName,
-        cloudUrl: uploadRes.url,
-        qrDataUrl: qrDataUrl,
-        blob: pdfRes.blob
+        cloudUrl: result.finalUrl,
+        qrDataUrl: result.finalQrCodeDataUrl || '',
+        blob: result.blob,
+        version: result.version
       });
 
       progress.completed++;

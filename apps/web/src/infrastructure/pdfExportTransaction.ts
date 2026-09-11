@@ -18,17 +18,44 @@ export interface TransactionStepCallback {
   onRollback?: (step: ExportStepName) => void;
 }
 
+export interface PdfExportTransactionOptions {
+  currentVersion?: number;
+  cloudPdfUrl?: string;
+  autoDownloadLocal?: boolean;
+  callbacks?: TransactionStepCallback;
+}
+
 export class PdfExportTransaction {
   private executedSteps: ExportStepResult[] = [];
   private rollbackActions: Array<() => Promise<void>> = [];
+  private callbacks?: TransactionStepCallback;
+  private autoDownloadLocal: boolean;
+  private currentVersion?: number;
+  private cloudPdfUrl?: string;
 
   constructor(
     private elementId: string,
     private filename: string,
     private patientCode: string,
     private patientName: string,
-    private callbacks?: TransactionStepCallback
-  ) {}
+    callbacksOrOptions?: TransactionStepCallback | PdfExportTransactionOptions
+  ) {
+    if (callbacksOrOptions && (
+      'callbacks' in callbacksOrOptions ||
+      'autoDownloadLocal' in callbacksOrOptions ||
+      'currentVersion' in callbacksOrOptions ||
+      'cloudPdfUrl' in callbacksOrOptions
+    )) {
+      const opts = callbacksOrOptions as PdfExportTransactionOptions;
+      this.callbacks = opts.callbacks;
+      this.autoDownloadLocal = opts.autoDownloadLocal !== false;
+      this.currentVersion = opts.currentVersion;
+      this.cloudPdfUrl = opts.cloudPdfUrl;
+    } else {
+      this.callbacks = callbacksOrOptions as TransactionStepCallback | undefined;
+      this.autoDownloadLocal = true;
+    }
+  }
 
   public async execute(): Promise<ExportTransactionResult> {
     let pdfBlob: Blob | null = null;
@@ -44,8 +71,8 @@ export class PdfExportTransaction {
       this.callbacks?.onStepStart?.('generate_qr');
       const t1Start = Date.now();
 
-      // 1.1. Xác định phiên bản tiếp theo cho bệnh nhân này
-      version = await getNextVersionForReport(this.patientCode);
+      // 1.1. Xác định phiên bản tiếp theo cho bệnh nhân này (đồng bộ đa nguồn: DB, Cloud URL, Ledger)
+      version = await getNextVersionForReport(this.patientCode, this.currentVersion, this.cloudPdfUrl);
       const versionedFilename = this.filename.replace(/\.pdf$/i, `_v${version}.pdf`);
       
       // 1.2. Tính toán URL Cloud chính xác dự kiến (để upload và lưu trữ)
@@ -100,24 +127,25 @@ export class PdfExportTransaction {
       cloudUrl = uploadRes.url || predictedCloudUrl;
       uploadedFilename = uploadRes.filename || versionedFilename;
 
-      // Đã upload lên Cloud Storage thành công -> Tiến hành tự động lưu file PDF về máy tính người dùng
-      // Chuẩn tên file khi tải về máy tính: PhieuXN_Ten_MaPhieu.pdf (không kèm đuôi version)
-      const localDownloadFilename = formatReportPdfFilename(this.patientName, this.patientCode);
-      try {
-        pdfRes.pdf.save(localDownloadFilename);
-      } catch (saveErr) {
-        console.warn('Không thể tự động save jsPDF, fallback qua Blob download:', saveErr);
+      // Đã upload lên Cloud Storage thành công -> Tự động lưu file PDF về máy tính nếu được bật (mặc định cho xuất lẻ)
+      if (this.autoDownloadLocal) {
+        const localDownloadFilename = formatReportPdfFilename(this.patientName, this.patientCode);
         try {
-          const downloadUrl = URL.createObjectURL(pdfBlob);
-          const a = document.createElement('a');
-          a.href = downloadUrl;
-          a.download = localDownloadFilename;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
-        } catch {
-          /* ignore */
+          pdfRes.pdf.save(localDownloadFilename);
+        } catch (saveErr) {
+          console.warn('Không thể tự động save jsPDF, fallback qua Blob download:', saveErr);
+          try {
+            const downloadUrl = URL.createObjectURL(pdfBlob);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = localDownloadFilename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+          } catch {
+            /* ignore */
+          }
         }
       }
 
@@ -191,6 +219,7 @@ export class PdfExportTransaction {
         finalUrl: cloudUrl,
         finalQrCodeDataUrl: qrDataUrl,
         version: version,
+        blob: pdfBlob,
         executedSteps: this.executedSteps,
         rolledBack: false
       };
@@ -225,6 +254,7 @@ export class PdfExportTransaction {
         finalUrl: null,
         finalQrCodeDataUrl: null,
         version: 0,
+        blob: null,
         executedSteps: this.executedSteps,
         rolledBack: true,
         error: error.message

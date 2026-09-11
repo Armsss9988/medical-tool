@@ -92,14 +92,16 @@ function AppContent() {
   }, []);
 
   const handleBatchReportExported = useCallback(
-    (report: MedicalReport, cloudUrl: string, qrDataUrl: string) => {
+    (report: MedicalReport, cloudUrl: string, qrDataUrl: string, version?: number) => {
       saveOrUpdateReport({
+        id: report.id,
         patient: report.patient,
         selectedTests: report.selectedTests,
         conclusion: report.conclusion,
         doctorName: report.doctorName,
         cloudPdfUrl: cloudUrl || undefined,
         qrCodeDataUrl: qrDataUrl || undefined,
+        pdfVersion: version,
         status: 'Đã xuất Cloud'
       });
     },

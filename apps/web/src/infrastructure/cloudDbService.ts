@@ -58,43 +58,10 @@ export interface DatabaseBackupFile {
   report_templates?: ReportTemplate[];
 }
 
-export interface AllLocalDataPayload {
-  catalog: CatalogItem[];
-  testPackages: TestPackage[];
-  testGroups: TestGroup[];
-  equipments: TestEquipment[];
-  doctorsList: Doctor[];
-  clinicInfo: ClinicInfo | null;
-  referenceRanges?: ReferenceRangeItem[];
-  catalogItemEquipments?: CatalogItemEquipmentLink[];
-  allergenScales?: AllergenGradingScale[];
-  reports: MedicalReport[];
-  invoices: Invoice[];
-  zaloConfig?: ZaloZnsConfig | null;
-  reportTemplates?: ReportTemplate[];
-}
-
-export interface AllCloudDataResult {
-  catalog: CatalogItem[] | null;
-  testPackages: TestPackage[] | null;
-  testGroups: TestGroup[] | null;
-  equipments: TestEquipment[] | null;
-  doctorsList: Doctor[] | null;
-  clinicInfo: ClinicInfo | null;
-  referenceRanges?: ReferenceRangeItem[] | null;
-  catalogItemEquipments?: CatalogItemEquipmentLink[] | null;
-  allergenScales?: AllergenGradingScale[] | null;
-  reports: MedicalReport[] | null;
-  invoices: Invoice[] | null;
-  zaloConfig: ZaloZnsConfig | null;
-  reportTemplates?: ReportTemplate[] | null;
-}
-
 export const DEFAULT_CLOUD_DB_CONFIG: CloudDbConfig = {
   enabled: true,
   supabaseUrl: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || '',
-  supabaseAnonKey: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || '',
-  autoSync: true
+  supabaseAnonKey: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || ''
 };
 
 export async function testSupabaseConnection(config: CloudDbConfig): Promise<{ success: boolean; message: string }> {
@@ -137,7 +104,7 @@ export async function syncTableToCloud<T>(
     await putTable(tableName, rows);
     return true;
   } catch (err) {
-    console.warn('[CloudDB] Không thể đồng bộ bảng ' + key + ':', err);
+    console.warn('[CloudDB] Không thể lưu bảng ' + key + ':', err);
     return false;
   }
 }
@@ -391,121 +358,6 @@ export async function upsertEquipmentsToSupabase(
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : 'Lỗi không xác định';
     return { success: false, message: `Lỗi upsert thiết bị: ${errMsg}` };
-  }
-}
-
-/**
- * Đồng bộ toàn bộ dữ liệu Local lên Supabase Cloud Database (1-Click Full Migration).
- */
-export async function syncAllLocalDataToSupabase(
-  payload: AllLocalDataPayload,
-  config: CloudDbConfig
-): Promise<{ success: boolean; message: string; stats: Record<string, number> }> {
-  if (config && config.enabled === false) {
-    return {
-      success: false,
-      message: 'Chưa bật hoặc chưa cấu hình Supabase Cloud DB!',
-      stats: {}
-    };
-  }
-
-  try {
-    const results = await Promise.all([
-      payload.catalog ? syncTableToCloud('catalog_data', payload.catalog, config) : Promise.resolve(true),
-      payload.testPackages ? syncTableToCloud('test_packages', payload.testPackages, config) : Promise.resolve(true),
-      payload.testGroups ? syncTableToCloud('test_groups', payload.testGroups, config) : Promise.resolve(true),
-      payload.equipments ? syncTableToCloud('equipments_catalog', payload.equipments, config) : Promise.resolve(true),
-      payload.doctorsList ? syncTableToCloud('doctors_list', payload.doctorsList, config) : Promise.resolve(true),
-      payload.clinicInfo ? syncTableToCloud('clinic_info', payload.clinicInfo, config) : Promise.resolve(true),
-      payload.referenceRanges ? syncTableToCloud('reference_ranges', payload.referenceRanges, config) : Promise.resolve(true),
-      payload.catalogItemEquipments ? syncTableToCloud('catalog_item_equipments', payload.catalogItemEquipments, config) : Promise.resolve(true),
-      payload.allergenScales ? syncTableToCloud('allergen_scales', payload.allergenScales, config) : Promise.resolve(true),
-      payload.reports ? syncTableToCloud('medical_reports', payload.reports, config) : Promise.resolve(true),
-      payload.invoices ? syncTableToCloud('invoices_data', payload.invoices, config) : Promise.resolve(true),
-      payload.zaloConfig ? syncTableToCloud('zalo_config', payload.zaloConfig, config) : Promise.resolve(true),
-    ]);
-
-    const stats = {
-      catalog: payload.catalog?.length ?? 0,
-      testPackages: payload.testPackages?.length ?? 0,
-      testGroups: payload.testGroups?.length ?? 0,
-      equipments: payload.equipments?.length ?? 0,
-      doctorsList: payload.doctorsList?.length ?? 0,
-      referenceRanges: payload.referenceRanges?.length ?? 0,
-      catalogItemEquipments: payload.catalogItemEquipments?.length ?? 0,
-      allergenScales: payload.allergenScales?.length ?? 0,
-      reports: payload.reports?.length ?? 0,
-      invoices: payload.invoices?.length ?? 0,
-    };
-
-    const allOk = results.every(Boolean);
-    return {
-      success: allOk,
-      message: allOk
-        ? `Đã đồng bộ thành công toàn bộ 100% dữ liệu Local lên Cloud DB: ${stats.catalog} chỉ số, ${stats.testPackages} gói, ${stats.equipments} thiết bị, ${stats.catalogItemEquipments} liên kết máy đo, ${stats.reports} phiếu xét nghiệm, ${stats.invoices} hóa đơn, ${stats.doctorsList} bác sĩ.`
-        : 'Một số bảng chưa đồng bộ thành công. Vui lòng kiểm tra lại kết nối Supabase.',
-      stats
-    };
-  } catch (err) {
-    const errMsg = err instanceof Error ? err.message : 'Lỗi không xác định';
-    return { success: false, message: `Lỗi đồng bộ dữ liệu: ${errMsg}`, stats: {} };
-  }
-}
-
-/**
- * Kéo toàn bộ dữ liệu từ Cloud DB về Local.
- */
-export async function fetchAllCloudDataToLocal(
-  config: CloudDbConfig
-): Promise<AllCloudDataResult | null> {
-  if (!config.enabled || !config.supabaseUrl) return null;
-
-  try {
-    const [
-      catalog,
-      testPackages,
-      testGroups,
-      equipments,
-      doctorsList,
-      clinicInfo,
-      referenceRanges,
-      catalogItemEquipments,
-      allergenScales,
-      reports,
-      invoices,
-      zaloConfig
-    ] = await Promise.all([
-      fetchTableFromCloud<CatalogItem[]>('catalog_data', config),
-      fetchTableFromCloud<TestPackage[]>('test_packages', config),
-      fetchTableFromCloud<TestGroup[]>('test_groups', config),
-      fetchTableFromCloud<TestEquipment[]>('equipments_catalog', config),
-      fetchTableFromCloud<Doctor[]>('doctors_list', config),
-      fetchTableFromCloud<ClinicInfo>('clinic_info', config),
-      fetchTableFromCloud<ReferenceRangeItem[]>('reference_ranges', config),
-      fetchTableFromCloud<CatalogItemEquipmentLink[]>('catalog_item_equipments', config),
-      fetchTableFromCloud<AllergenGradingScale[]>('allergen_scales', config),
-      fetchTableFromCloud<MedicalReport[]>('medical_reports', config),
-      fetchTableFromCloud<Invoice[]>('invoices_data', config),
-      fetchTableFromCloud<ZaloZnsConfig>('zalo_config', config),
-    ]);
-
-    return {
-      catalog,
-      testPackages,
-      testGroups,
-      equipments,
-      doctorsList,
-      clinicInfo,
-      referenceRanges,
-      catalogItemEquipments,
-      allergenScales,
-      reports,
-      invoices,
-      zaloConfig
-    };
-  } catch (err) {
-    console.error('[CloudDB] Lỗi tải toàn bộ dữ liệu từ Cloud:', err);
-    return null;
   }
 }
 

@@ -341,7 +341,6 @@ export interface CloudDbConfig {
   enabled: boolean;
   supabaseUrl: string;
   supabaseAnonKey: string;
-  autoSync?: boolean;
 }
 
 export interface InvoiceItem {
@@ -523,7 +522,7 @@ export interface BatchExportProgress {
   current: string;
   status: 'idle' | 'running' | 'done' | 'cancelled' | 'error';
   errors: Array<{ code: string; patientName: string; error: string }>;
-  results: Array<{ code: string; patientName: string; cloudUrl: string; qrDataUrl: string; blob: Blob }>;
+  results: Array<{ code: string; patientName: string; cloudUrl: string; qrDataUrl: string; blob: Blob; version?: number }>;
 }
 
 export interface AllergenDatabaseItem {

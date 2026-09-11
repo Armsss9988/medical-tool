@@ -23,6 +23,7 @@ export interface ExportTransactionResult {
   executedSteps: ExportStepResult[];
   rolledBack: boolean;
   error?: string;
+  blob?: Blob | null;
 }
 
 export interface PdfFileRecord {
@@ -60,5 +61,5 @@ export const EXPORT_STEP_LABELS: Record<ExportStepName, string> = {
   upload_cloud: '2. Tải lên Cloud Storage (3 tầng)',
   generate_qr: '3. Tạo mã QR tra cứu trực tiếp',
   save_metadata: '4. Ghi nhận Ledger & Dọn dẹp phiên bản cũ',
-  notify_complete: '5. Hoàn tất & Đồng bộ trạng thái'
+  notify_complete: '5. Hoàn tất & Cập nhật trạng thái'
 };

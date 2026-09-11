@@ -35,6 +35,7 @@ When generating or modifying code, you must **NEVER**:
 5. **NO Unexported Private Slice Internals**: Outer application code (`App.tsx`, `MainWorkspace.tsx`) must only import from the slice's public barrel: `@features/<feature-name>`.
 6. **NO Split ADT or External StateMachine Folders**: NEVER create `domain/adt/` or `domain/stateMachine/`. All Sum Types / Closed Hierarchies are Value Objects in `packages/shared/src/domain/valueObjects/`. All State Transitions and FSM lifecycles are mediated exclusively by Aggregate Roots in `packages/shared/src/domain/aggregates/`.
 7. **NO Direct Entity Snapshot Mutation**: Never mutate domain entity snapshots directly in slices or UI hooks (`report.status = ...`). Always instantiate the Aggregate Root (`LabReportAggregate.fromSnapshot(...)`), invoke domain methods, and export clean immutable snapshots.
+8. **NO Cross-Entity Sync via Browser Events or Side-Effects in State Updaters**: Never trigger API calls inside `setState(prev => ...)` or use `domainEventBus` to persist other entities to the DB. Multi-entity commitments (Invoices $\leftrightarrow$ Medical Reports, PDF versioning) MUST be handled by Backend Database Transactions (`db.transaction`) via explicit Command Endpoints. (See `hybrid-backend-commands` skill).
 
 ---
 

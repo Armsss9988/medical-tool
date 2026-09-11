@@ -1,5 +1,6 @@
 import { assertNever } from '../utils/assertNever';
 import { Result } from '../utils/Result';
+import type { ReportStatus } from '../types';
 
 export type ReportDocumentStatus = 'DRAFT' | 'RESULTED' | 'EXPORTED' | 'OUTDATED' | 'DELIVERED';
 
@@ -192,6 +193,57 @@ export abstract class DocumentStateNode {
         );
       default:
         return assertNever(snapshot);
+    }
+  }
+
+  /**
+   * Khởi tạo đối tượng StateNode cụ thể tương ứng từ ReportStatus (legacy enum)
+   */
+  public static fromLegacyStatus(
+    status: ReportStatus,
+    context: {
+      totalTests: number;
+      completedTests: number;
+      cloudPdfUrl?: string;
+      qrCodeDataUrl?: string;
+      pdfVersion?: number;
+      dirtyReasons?: ReadonlyArray<string>;
+      channel?: 'Zalo' | 'Print' | 'Direct';
+      timestamp?: string;
+      msgId?: string;
+    }
+  ): DocumentStateNode {
+    const now = context.timestamp || new Date().toISOString();
+    switch (status) {
+      case 'Chờ xét nghiệm':
+        return new DraftStateNode(context.totalTests, 0, false);
+      case 'Đã có kết quả':
+        return new ResultedStateNode(context.totalTests, context.completedTests, now);
+      case 'Đã xuất Cloud':
+        return new ExportedStateNode(
+          context.cloudPdfUrl || '',
+          context.qrCodeDataUrl || '',
+          context.pdfVersion || 1,
+          now
+        );
+      case 'Cần cập nhật PDF':
+        return new OutdatedStateNode(
+          context.cloudPdfUrl || '',
+          context.qrCodeDataUrl,
+          context.pdfVersion || 1,
+          now,
+          context.dirtyReasons || ['Cập nhật trạng thái yêu cầu cập nhật bản in PDF']
+        );
+      case 'Đã trả kết quả':
+        return new DeliveredStateNode(
+          context.cloudPdfUrl || '',
+          now,
+          context.channel || 'Direct',
+          context.qrCodeDataUrl,
+          context.msgId
+        );
+      default:
+        return assertNever(status);
     }
   }
 }

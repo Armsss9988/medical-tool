@@ -21,13 +21,42 @@ export async function getLedgerByReport(patientCode: string): Promise<PdfFileRec
 }
 
 /**
- * Xác định số phiên bản tiếp theo cho bệnh nhân
+ * Xác định số phiên bản tiếp theo cho bệnh nhân.
+ * Đồng bộ đa nguồn (Cloud DB / Snapshot, URL hiện hữu và Sổ cái localStorage)
+ * Đảm bảo KHÔNG BAO GIỜ ghi đè file _v1.pdf khi cập nhật phiếu đã có kết quả.
  */
-export async function getNextVersionForReport(patientCode: string): Promise<number> {
+export async function getNextVersionForReport(
+  patientCode: string,
+  currentVersion?: number,
+  cloudPdfUrl?: string
+): Promise<number> {
+  // 1. Phân tích phiên bản từ cloudPdfUrl hiện có (ví dụ: ..._v1.pdf -> 1)
+  let urlVer = 0;
+  if (cloudPdfUrl) {
+    const match = cloudPdfUrl.match(/_v(\d+)\.pdf$/i);
+    if (match) {
+      urlVer = parseInt(match[1], 10);
+    }
+  }
+
+  // 2. So khớp với sổ cái Ledger trong localStorage
   const existing = await getLedgerByReport(patientCode);
-  if (existing.length === 0) return 1;
-  const maxVer = Math.max(...existing.map((r) => r.version || 1));
-  return maxVer + 1;
+  const ledgerMaxVer = existing.length > 0 ? Math.max(...existing.map((r) => r.version || 1)) : 0;
+
+  // 3. Kiểm tra xem phiếu này đã từng được xuất bản lần nào chưa:
+  // - Hoặc đã có URL Cloud
+  // - Hoặc đã có lịch sử trong sổ cái Ledger
+  // - Hoặc currentVersion > 1 (đã qua ít nhất 1 lần nâng cấp phiên bản)
+  const hasPriorExport = Boolean(cloudPdfUrl) || existing.length > 0 || (currentVersion !== undefined && currentVersion > 1);
+
+  if (!hasPriorExport) {
+    return 1;
+  }
+
+  const baseVer = Math.max(currentVersion || 0, urlVer);
+  const maxExisting = Math.max(baseVer, ledgerMaxVer, 1);
+
+  return maxExisting + 1;
 }
 
 /**

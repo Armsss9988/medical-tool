@@ -66,7 +66,7 @@ export default function PasswordGateModal() {
           <h3 className="font-bold text-slate-800 text-base">Nhập Passkey</h3>
         </div>
         <p className="text-xs text-slate-500">
-          Nhập passkey bảo mật để kết nối và đồng bộ với Cloud Database.
+          Nhập passkey bảo mật để kết nối với Cloud Database.
         </p>
 
         <div>

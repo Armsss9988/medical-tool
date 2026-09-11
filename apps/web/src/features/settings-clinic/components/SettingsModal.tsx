@@ -10,7 +10,6 @@ import {
   MessageCircle,
   CreditCard,
   CloudUpload,
-  CloudDownload,
   Download,
   FileJson,
   Loader2,
@@ -31,31 +30,18 @@ import {
   CloudDbConfig,
   ZaloZnsConfig,
   ToastType,
-  CatalogItem,
-  TestPackage,
-  TestGroup,
-  TestEquipment,
-  Doctor,
-  Invoice,
-  MedicalReport,
-  CatalogItemEquipmentLink,
-  AllergenGradingScale,
-  DEFAULT_CLINIC_INFO,
-  getSafeClinicInfo
+  DEFAULT_CLINIC_INFO
 } from '@domain/types';
 import {
   testSupabaseConnection,
   seedAllDefaultDataToSupabase,
-  syncAllLocalDataToSupabase,
-  fetchAllCloudDataToLocal,
   backupAllDataFromSupabase,
   restoreAllDataToSupabase,
   listCloudSnapshots,
   createCloudSnapshot,
   restoreCloudSnapshot,
   deleteCloudSnapshot,
-  CloudSnapshotSummary,
-  AllLocalDataPayload
+  CloudSnapshotSummary
 } from '@infra/cloudDbService';
 import { testZaloConnection } from '@infra/zaloService';
 import { testGeminiConnection, testOpenAiConnection, AiProviderType } from '@infra/aiService';
@@ -92,24 +78,6 @@ interface SettingsModalProps {
   zaloConfig: ZaloZnsConfig;
   setZaloConfig: React.Dispatch<React.SetStateAction<ZaloZnsConfig>>;
   showToast: (message: string, type?: ToastType) => void;
-  catalog?: CatalogItem[];
-  setCatalog?: (items: CatalogItem[]) => void;
-  testPackages?: TestPackage[];
-  setTestPackages?: (packages: TestPackage[]) => void;
-  testGroups?: TestGroup[];
-  setTestGroups?: (groups: TestGroup[]) => void;
-  equipments?: TestEquipment[];
-  setEquipments?: (equipments: TestEquipment[]) => void;
-  doctorsList?: Doctor[];
-  setDoctorsList?: (doctors: Doctor[]) => void;
-  catalogItemEquipments?: CatalogItemEquipmentLink[];
-  setCatalogItemEquipments?: (links: CatalogItemEquipmentLink[]) => void;
-  allergenScales?: AllergenGradingScale[];
-  setAllergenScales?: (scales: AllergenGradingScale[]) => void;
-  reports?: MedicalReport[];
-  setReports?: React.Dispatch<React.SetStateAction<MedicalReport[]>>;
-  invoices?: Invoice[];
-  setInvoices?: React.Dispatch<React.SetStateAction<Invoice[]>>;
 }
 
 export default function SettingsModal({
@@ -121,25 +89,7 @@ export default function SettingsModal({
   setCloudDbConfig,
   zaloConfig,
   setZaloConfig,
-  showToast,
-  catalog = [],
-  setCatalog,
-  testPackages = [],
-  setTestPackages,
-  testGroups = [],
-  setTestGroups,
-  equipments = [],
-  setEquipments,
-  doctorsList = [],
-  setDoctorsList,
-  catalogItemEquipments = [],
-  setCatalogItemEquipments,
-  allergenScales = [],
-  setAllergenScales,
-  reports = [],
-  setReports,
-  invoices = [],
-  setInvoices
+  showToast
 }: SettingsModalProps) {
   const [localCloudConfig, setLocalCloudConfig] = useState<CloudDbConfig>({ ...cloudDbConfig });
   const [localZaloConfig, setLocalZaloConfig] = useState<ZaloZnsConfig>({ ...zaloConfig });
@@ -170,8 +120,6 @@ export default function SettingsModal({
   const [isTestingCloud, setIsTestingCloud] = useState(false);
   const [isSeedingData, setIsSeedingData] = useState(false);
   const [isTestingZalo, setIsTestingZalo] = useState(false);
-  const [isSyncingAll, setIsSyncingAll] = useState(false);
-  const [isFetchingAll, setIsFetchingAll] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const fileRestoreInputRef = useRef<HTMLInputElement>(null);
@@ -616,7 +564,7 @@ export default function SettingsModal({
                 className="w-4 h-4 text-emerald-600 rounded"
               />
               <label htmlFor="cloud-enabled" className="font-semibold text-slate-700">
-                Bật tự động đồng bộ Cloud DB (Supabase)
+                Kích hoạt kết nối Cloud DB (Supabase)
               </label>
             </div>
 
@@ -642,115 +590,17 @@ export default function SettingsModal({
               />
             </div>
 
-            {/* KHUNG THAO TÁC ĐỒNG BỘ 1-CLICK */}
-            <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-slate-50 border-2 border-emerald-200/80 rounded-xl p-3.5 space-y-3 shadow-xs">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <h5 className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5 text-emerald-950">
-                    <CloudUpload className="w-4 h-4 text-emerald-700 shrink-0" />
-                    <span>Đồng Bộ Toàn Diện 100% Dữ Liệu (Local ⇄ Cloud)</span>
-                  </h5>
-                  <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
-                    Đưa toàn bộ 9 kho dữ liệu (Chỉ số, Gói XN, Nhóm, Thiết bị, Bác sĩ, Phòng khám, Sổ phiếu XN, Hóa đơn, Cấu hình Zalo) lên Supabase.
-                  </p>
-                </div>
-                <span className="text-[10px] font-extrabold px-2 py-0.5 bg-emerald-600 text-white rounded-md shrink-0 shadow-xs">
-                  9 Bảng Dữ Liệu
-                </span>
+            {/* CÔNG CỤ SAO LƯU & QUẢN TRỊ DATABASE */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2 shadow-xs">
+              <div className="flex items-center justify-between">
+                <h5 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                  <Database className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                  <span>Công Cụ Sao Lưu Ngoại Tuyến &amp; Quản Trị</span>
+                </h5>
               </div>
 
-              {/* Action Buttons Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                {/* 1. ĐỒNG BỘ TOÀN BỘ DỮ LIỆU LÊN CLOUD */}
-                <button
-                  type="button"
-                  disabled={isSyncingAll || isFetchingAll || isBackingUp || isRestoring}
-                  onClick={async () => {
-                    const payload: AllLocalDataPayload = {
-                      catalog,
-                      testPackages,
-                      testGroups,
-                      equipments,
-                      doctorsList,
-                      catalogItemEquipments,
-                      allergenScales,
-                      clinicInfo,
-                      reports,
-                      invoices,
-                      zaloConfig: localZaloConfig
-                    };
-                    setIsSyncingAll(true);
-                    showToast('Đang đồng bộ toàn bộ dữ liệu ứng dụng lên Supabase Cloud DB...', 'info');
-                    const res = await syncAllLocalDataToSupabase(payload, localCloudConfig);
-                    setIsSyncingAll(false);
-                    showToast(res.message, res.success ? 'success' : 'error');
-                  }}
-                  className="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 shadow transition active:scale-95 disabled:opacity-50 cursor-pointer"
-                >
-                  {isSyncingAll ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Đang Đồng Bộ...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CloudUpload className="w-3.5 h-3.5" />
-                      <span>Đồng Bộ Dữ Liệu ➔ Cloud DB</span>
-                    </>
-                  )}
-                </button>
-
-                {/* 2. NẠP LẠI DỮ LIỆU TỪ CLOUD */}
-                <button
-                  type="button"
-                  disabled={isSyncingAll || isFetchingAll || isBackingUp || isRestoring}
-                  onClick={async () => {
-                    if (!window.confirm('Bạn có chắc muốn nạp lại toàn bộ dữ liệu từ Cloud DB? Dữ liệu trên ứng dụng sẽ được làm mới đồng bộ với Cloud.')) {
-                      return;
-                    }
-                    setIsFetchingAll(true);
-                    showToast('Đang nạp lại toàn bộ dữ liệu từ Supabase Cloud DB...', 'info');
-                    const data = await fetchAllCloudDataToLocal(localCloudConfig);
-                    setIsFetchingAll(false);
-
-                    if (!data) {
-                      showToast('Không thể tải dữ liệu từ Cloud DB. Vui lòng kiểm tra kết nối!', 'error');
-                      return;
-                    }
-
-                    let count = 0;
-                    if (data.catalog && setCatalog) { setCatalog(data.catalog); count += data.catalog.length; }
-                    if (data.testPackages && setTestPackages) setTestPackages(data.testPackages);
-                    if (data.testGroups && setTestGroups) setTestGroups(data.testGroups);
-                    if (data.equipments && setEquipments) setEquipments(data.equipments);
-                    if (data.doctorsList && setDoctorsList) setDoctorsList(data.doctorsList);
-                    if (data.catalogItemEquipments && setCatalogItemEquipments) setCatalogItemEquipments(data.catalogItemEquipments);
-                    if (data.allergenScales && setAllergenScales) setAllergenScales(data.allergenScales);
-                    if (data.clinicInfo) setClinicInfo(getSafeClinicInfo(data.clinicInfo));
-                    if (data.reports && setReports) setReports(data.reports);
-                    if (data.invoices && setInvoices) setInvoices(data.invoices);
-                    if (data.zaloConfig) { setZaloConfig(data.zaloConfig); setLocalZaloConfig(data.zaloConfig); }
-
-                    showToast(`Đã nạp thành công toàn bộ dữ liệu từ Cloud DB (${count} chỉ số + cấu hình máy đo + sổ phiếu + hóa đơn)!`, 'success');
-                  }}
-                  className="w-full px-3 py-2 bg-sky-700 hover:bg-sky-600 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 shadow transition active:scale-95 disabled:opacity-50 cursor-pointer"
-                >
-                  {isFetchingAll ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Đang Nạp Dữ Liệu...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CloudDownload className="w-3.5 h-3.5" />
-                      <span>Nạp Lại Dữ Liệu Từ Cloud</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Secondary Backup / Restore / Seed Tools */}
-              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-emerald-200/60">
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2 pt-1">
                 <button
                   type="button"
                   disabled={isTestingCloud || isBackingUp}
@@ -760,7 +610,7 @@ export default function SettingsModal({
                     setIsTestingCloud(false);
                     showToast(res.message, res.success ? 'success' : 'error');
                   }}
-                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-semibold text-[11px] flex items-center gap-1 transition disabled:opacity-50"
+                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-semibold text-[11px] flex items-center gap-1 transition disabled:opacity-50 cursor-pointer"
                 >
                   <Database className="w-3 h-3 text-emerald-400" />
                   <span>{isTestingCloud ? 'Đang Kiểm Tra...' : 'Kiểm Tra Kết Nối'}</span>
@@ -768,7 +618,7 @@ export default function SettingsModal({
 
                 <button
                   type="button"
-                  disabled={isBackingUp || isSyncingAll}
+                  disabled={isBackingUp}
                   onClick={async () => {
                     setIsBackingUp(true);
                     showToast('Đang tạo file sao lưu JSON toàn diện...', 'info');
@@ -807,7 +657,7 @@ export default function SettingsModal({
 
                 <button
                   type="button"
-                  disabled={isSeedingData || isSyncingAll}
+                  disabled={isSeedingData}
                   onClick={async () => {
                     if (!window.confirm('Thao tác này sẽ nạp lại bộ dữ liệu mẫu mặc định gốc (167+ chỉ số, gói XN, nhóm, thiết bị) lên Cloud. Tiếp tục?')) {
                       return;

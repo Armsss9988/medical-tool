@@ -15,6 +15,11 @@ interface ExportHistoryParams {
   filename: string;
   reportCode?: string;
   patientName?: string;
+  options?: {
+    currentVersion?: number;
+    cloudPdfUrl?: string;
+    autoDownloadLocal?: boolean;
+  };
 }
 
 export function useReportExport(
@@ -34,10 +39,15 @@ export function useReportExport(
     elementId: string,
     filename: string,
     reportCode?: string,
-    patientName?: string
+    patientName?: string,
+    options?: {
+      currentVersion?: number;
+      cloudPdfUrl?: string;
+      autoDownloadLocal?: boolean;
+    }
   ): Promise<ExportTransactionResult | null> => {
     // Lưu lại params cho retry
-    lastParamsRef.current = { elementId, filename, reportCode, patientName };
+    lastParamsRef.current = { elementId, filename, reportCode, patientName, options };
 
     setIsExporting(true);
     setLastError(null);
@@ -52,9 +62,14 @@ export function useReportExport(
       cleanCode,
       cleanPatientName,
       {
-        onStepStart: (step: ExportStepName) => {
-          setCurrentStep(step);
-          showToast(EXPORT_STEP_LABELS[step] || 'Đang xử lý...', 'info');
+        currentVersion: options?.currentVersion,
+        cloudPdfUrl: options?.cloudPdfUrl,
+        autoDownloadLocal: options?.autoDownloadLocal,
+        callbacks: {
+          onStepStart: (step: ExportStepName) => {
+            setCurrentStep(step);
+            showToast(EXPORT_STEP_LABELS[step] || 'Đang xử lý...', 'info');
+          }
         }
       }
     );
@@ -127,9 +142,9 @@ export function useReportExport(
       showToast('Không có dữ liệu xuất trước đó để thử lại!', 'warning');
       return null;
     }
-    const { elementId, filename, reportCode, patientName } = lastParamsRef.current;
+    const { elementId, filename, reportCode, patientName, options } = lastParamsRef.current;
     showToast('Đang thử lại tiến trình xuất PDF & Upload...', 'info');
-    return handleExportPdfAndUploadCloud(elementId, filename, reportCode, patientName);
+    return handleExportPdfAndUploadCloud(elementId, filename, reportCode, patientName, options);
   };
 
   const handleDownloadQrCode = (patientName: string, patientCode: string) => {

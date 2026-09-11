@@ -189,5 +189,41 @@ describe('LabReportAggregate', () => {
     const restored = LabReportAggregate.fromSnapshot(snapshot);
     expect(restored.documentState.status).toBe('RESULTED');
   });
+
+  it('should preserve pdfGeneratedAt when report transitions to OUTDATED', () => {
+    const report = LabReportAggregate.create({
+      code: 'BN-OUTDATED-001',
+      patient: {
+        code: 'BN-OUTDATED-001',
+        secretToken: 'TOK999',
+        name: 'Nguyen Van Outdated',
+        dob: '1992',
+        gender: 'Nam',
+        phone: '0901234999',
+        address: 'Hue',
+        diagnosis: 'Test Outdated'
+      },
+      doctorName: 'BS. Trung',
+      selectedTests: sampleTests
+    });
+
+    report.recordCloudExport('https://cloud.example.com/pdf1.pdf', 'data:image/png;base64,qr123');
+    expect(report.documentState.status).toBe('EXPORTED');
+    const exportedAt = (report.documentState as any).exportedAt;
+
+    // Modify test to make it OUTDATED
+    report.updateTests([{ ...sampleTests[0], result: '9.0' }]);
+    expect(report.documentState.status).toBe('OUTDATED');
+
+    const snap = report.toSnapshot();
+    expect(snap.pdfGeneratedAt).toBe(exportedAt);
+    expect(snap.isPdfOutdated).toBe(true);
+
+    const restored = LabReportAggregate.fromSnapshot(snap);
+    expect(restored.documentState.status).toBe('OUTDATED');
+    if (restored.documentState.status === 'OUTDATED') {
+      expect(restored.documentState.lastExportedAt).toBe(exportedAt);
+    }
+  });
 });
 

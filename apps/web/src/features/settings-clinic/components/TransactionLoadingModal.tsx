@@ -34,7 +34,7 @@ const STEP_DESCRIPTIONS: Record<ExportStepName, string> = {
   upload_cloud: 'Đang tải file PDF an toàn lên hệ thống Cloud Storage (3 tầng chịu lỗi)...',
   generate_qr: 'Đang tạo mã QR bảo mật liên kết trực tiếp tới file PDF...',
   save_metadata: 'Đang ghi nhận phiên bản vào sổ lưu trữ và dọn dẹp các bản PDF cũ...',
-  notify_complete: 'Hoàn tất quá trình xuất phiếu và đồng bộ toàn hệ thống!'
+  notify_complete: 'Hoàn tất quá trình xuất phiếu và lưu trữ thành công!'
 };
 
 export default function TransactionLoadingModal({

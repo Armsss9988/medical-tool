@@ -669,10 +669,10 @@ export default function PdfPreviewModal({
             </div>
             <div>
               <h3 className="text-base font-extrabold text-slate-900">
-                Xác Nhận Lưu PDF & Đồng Bộ Cloud
+                Xác Nhận Lưu & Xuất PDF
               </h3>
               <p className="text-xs text-slate-500 font-medium">
-                Lưu dữ liệu kết quả, xuất file PDF và đồng bộ lên máy chủ
+                Lưu dữ liệu kết quả, xuất file PDF và lưu trữ lên máy chủ
               </p>
             </div>
           </div>
@@ -710,7 +710,7 @@ export default function PdfPreviewModal({
           </div>
 
           <div className="text-[11.5px] text-slate-600 leading-relaxed bg-amber-50 border border-amber-200/70 p-2.5 rounded-lg text-amber-950 font-medium">
-            💡 Hệ thống sẽ tự động lưu phiếu vào <strong>Sổ Lưu Trữ</strong>, kết xuất file PDF chất lượng cao (300 DPI), tạo mã <strong>QR tra cứu trực tuyến</strong> và đồng bộ lên Cloud.
+            💡 Hệ thống sẽ tự động lưu phiếu vào <strong>Sổ Lưu Trữ</strong>, kết xuất file PDF chất lượng cao (300 DPI), tạo mã <strong>QR tra cứu trực tuyến</strong> và tải lên Cloud Storage.
           </div>
 
           <div className="flex items-center justify-end space-x-2.5 pt-1">
@@ -730,7 +730,7 @@ export default function PdfPreviewModal({
               className="px-4 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer active:scale-95"
             >
               <CloudUpload className="w-4 h-4" />
-              <span>Xác Nhận Lưu & Đồng Bộ</span>
+              <span>Xác Nhận Lưu & Xuất PDF</span>
             </button>
           </div>
         </div>

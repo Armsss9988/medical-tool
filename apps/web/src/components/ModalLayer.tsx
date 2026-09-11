@@ -160,11 +160,9 @@ export function ModalLayer({
     doctorName,
     currentReportId,
     reports,
-    setReports,
     deleteReport,
     clearAllReports,
     invoices,
-    setInvoices,
     deleteInvoice,
     clearAllInvoices
   } = useWorkspace();
@@ -223,24 +221,6 @@ export function ModalLayer({
         zaloConfig={zaloConfig}
         setZaloConfig={setZaloConfig}
         showToast={showToast}
-        catalog={catalog}
-        setCatalog={setCatalog}
-        testPackages={testPackages}
-        setTestPackages={setTestPackages}
-        testGroups={testGroups}
-        setTestGroups={setTestGroups}
-        equipments={equipments}
-        setEquipments={setEquipments}
-        doctorsList={doctorsList}
-        setDoctorsList={setDoctorsList}
-        catalogItemEquipments={catalogItemEquipments}
-        setCatalogItemEquipments={setCatalogItemEquipments}
-        allergenScales={allergenScales}
-        setAllergenScales={setAllergenScales}
-        reports={reports}
-        setReports={setReports}
-        invoices={invoices}
-        setInvoices={setInvoices}
       />
 
       {/* 2. PDF PREVIEW MODAL */}
@@ -313,6 +293,7 @@ export function ModalLayer({
         doctorName={doctorName}
         clinicInfo={clinicInfo}
         currentReportId={currentReportId}
+        existingInvoice={invoices.find((inv) => (currentReportId && inv.reportId === currentReportId) || (patient.code && inv.patientCode === patient.code))}
         isReportSaved={Boolean(currentReportId && reports.some((r) => r.id === currentReportId))}
         onSaveReportFirst={onSaveCurrentReport}
         onSaveInvoice={onSaveInvoice}

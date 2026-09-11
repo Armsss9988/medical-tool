@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   ReportTemplate,
   TemplateBlock,
@@ -6,9 +6,9 @@ import {
   PRESET_TEMPLATES
 } from '@domain/templateTypes';
 import {
-  fetchReportTemplatesFromSupabase,
-  syncReportTemplatesToSupabase
+  fetchReportTemplatesFromSupabase
 } from '@infra/cloudDbService';
+import { putReportTemplatesApi } from '@infra/apiClient';
 
 const STORAGE_KEY_TEMPLATES = 'golab_report_templates_v2';
 const STORAGE_KEY_ACTIVE = 'golab_active_template_id_v2';
@@ -42,8 +42,6 @@ export function useTemplateManager() {
     return PRESET_TEMPLATES[0]?.id || 'tpl_standard_clinical';
   });
 
-  const [cloudStatus, setCloudStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
 
   // Undo / Redo History Stacks (tối đa 30 bước)
   const [undoStack, setUndoStack] = useState<ReportTemplate[]>([]);
@@ -63,13 +61,10 @@ export function useTemplateManager() {
         if (!isMounted || !cloudTemplates || cloudTemplates.length === 0) return;
 
         setTemplates((prev) => {
-          const cloudCustom = cloudTemplates.filter((ct) => !PRESET_TEMPLATES.some((p) => p.id === ct.id));
-          const localCustom = prev.filter((lt) => !PRESET_TEMPLATES.some((p) => p.id === lt.id));
-
           const mergedMap = new Map<string, ReportTemplate>();
           PRESET_TEMPLATES.forEach((p) => mergedMap.set(p.id, p));
-          cloudCustom.forEach((c) => mergedMap.set(c.id, c));
-          localCustom.forEach((l) => {
+          cloudTemplates.forEach((c) => mergedMap.set(c.id, c));
+          prev.forEach((l) => {
             const existing = mergedMap.get(l.id);
             if (!existing || new Date(l.updatedAt).getTime() >= new Date(existing.updatedAt).getTime()) {
               mergedMap.set(l.id, l);
@@ -77,10 +72,7 @@ export function useTemplateManager() {
           });
           return Array.from(mergedMap.values());
         });
-        if (isMounted) {
-          setCloudStatus('synced');
-          setLastSyncedAt(new Date().toISOString());
-        }
+
       } catch (err) {
         console.warn('[useTemplateManager] Không thể tải templates từ Cloud:', err);
       }
@@ -91,13 +83,27 @@ export function useTemplateManager() {
     };
   }, []);
 
-  // Sync to localStorage
+  // Sync to localStorage & Cloud Database
+  const isInitialLoadRef = useRef(true);
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_TEMPLATES, JSON.stringify(templates));
     } catch (e) {
       console.warn('[useTemplateManager] Lỗi lưu templates vào localStorage:', e);
     }
+
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      putReportTemplatesApi(templates).catch((err) => {
+        console.warn('[useTemplateManager] Lỗi lưu templates lên server:', err);
+      });
+    }, 1000);
+
+    return () => clearTimeout(timer);
   }, [templates]);
 
   useEffect(() => {
@@ -435,24 +441,6 @@ export function useTemplateManager() {
     setActiveTemplateId(PRESET_TEMPLATES[0].id);
   }, []);
 
-  const syncWithCloud = useCallback(async (): Promise<boolean> => {
-    try {
-      setCloudStatus('syncing');
-      const success = await syncReportTemplatesToSupabase(templates);
-      if (success) {
-        setCloudStatus('synced');
-        setLastSyncedAt(new Date().toISOString());
-        return true;
-      } else {
-        setCloudStatus('error');
-        return false;
-      }
-    } catch (err) {
-      console.warn('[useTemplateManager] Lỗi đồng bộ template lên Cloud:', err);
-      setCloudStatus('error');
-      return false;
-    }
-  }, [templates]);
 
   const undo = useCallback(() => {
     if (undoStack.length === 0) return;
@@ -480,10 +468,6 @@ export function useTemplateManager() {
     templates,
     activeTemplateId,
     activeTemplate,
-    cloudStatus,
-    isCloudSyncing: cloudStatus === 'syncing',
-    lastSyncedAt,
-    syncWithCloud,
     undo,
     redo,
     canUndo: undoStack.length > 0,

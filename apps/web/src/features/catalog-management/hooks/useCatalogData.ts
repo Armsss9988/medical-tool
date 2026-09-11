@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   CatalogItem, 
   CatalogItemEquipmentLink,
@@ -32,19 +32,22 @@ import {
   syncGroupsToSupabase,
   syncEquipmentsToSupabase,
   syncDoctorsToSupabase,
-  syncClinicInfoToSupabase,
   syncReferenceRangesToSupabase,
   syncCatalogItemEquipmentsToSupabase,
-  syncScalesToSupabase,
-  syncZaloConfigToSupabase
+  syncScalesToSupabase
 } from '@infra/cloudDbService';
+import {
+  postCatalogItem,
+  deleteCatalogItemApi,
+  postTestPackage,
+  deleteTestPackageApi
+} from '@infra/apiClient';
 
 
 const DEFAULT_CLOUD_DB_CONFIG: CloudDbConfig = {
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL || '',
   supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
-  enabled: true,
-  autoSync: true
+  enabled: true
 };
 
 const DEFAULT_ZALO_CONFIG: ZaloZnsConfig = {
@@ -71,99 +74,6 @@ export function useCatalogData() {
   const [zaloConfig, setZaloConfig] = useState<ZaloZnsConfig>(DEFAULT_ZALO_CONFIG);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const isManualSavingRef = useRef<boolean>(false);
-  const isInitialSyncDoneRef = useRef<boolean>(false);
-
-  // Tự động đồng bộ Cloud Database khi state thay đổi (CHỈ sau khi đã nạp xong từ Cloud)
-  useEffect(() => {
-    if (!isInitialSyncDoneRef.current || isManualSavingRef.current) return;
-    if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
-      syncCatalogToSupabase(catalog, cloudDbConfig).catch((err) => {
-        console.warn('[CloudDB] Lỗi đồng bộ danh mục:', err);
-      });
-    }
-  }, [catalog, cloudDbConfig]);
-
-  useEffect(() => {
-    if (!isInitialSyncDoneRef.current || isManualSavingRef.current) return;
-    if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
-      syncPackagesToSupabase(testPackages, cloudDbConfig).catch((err) => {
-        console.warn('[CloudDB] Lỗi đồng bộ gói:', err);
-      });
-    }
-  }, [testPackages, cloudDbConfig]);
-
-  useEffect(() => {
-    if (!isInitialSyncDoneRef.current || isManualSavingRef.current) return;
-    if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
-      syncGroupsToSupabase(testGroups, cloudDbConfig).catch((err) => {
-        console.warn('[CloudDB] Lỗi đồng bộ nhóm:', err);
-      });
-    }
-  }, [testGroups, cloudDbConfig]);
-
-  useEffect(() => {
-    if (!isInitialSyncDoneRef.current || isManualSavingRef.current) return;
-    if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
-      syncEquipmentsToSupabase(equipments, cloudDbConfig).catch((err) => {
-        console.warn('[CloudDB] Lỗi đồng bộ thiết bị:', err);
-      });
-    }
-  }, [equipments, cloudDbConfig]);
-
-  useEffect(() => {
-    if (!isInitialSyncDoneRef.current || isManualSavingRef.current) return;
-    if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
-      syncDoctorsToSupabase(doctorsList, cloudDbConfig).catch((err) => {
-        console.warn('[CloudDB] Lỗi đồng bộ bác sĩ:', err);
-      });
-    }
-  }, [doctorsList, cloudDbConfig]);
-
-  useEffect(() => {
-    if (!isInitialSyncDoneRef.current || isManualSavingRef.current) return;
-    if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
-      syncReferenceRangesToSupabase(referenceRanges, cloudDbConfig).catch((err) => {
-        console.warn('[CloudDB] Lỗi đồng bộ tham chiếu:', err);
-      });
-    }
-  }, [referenceRanges, cloudDbConfig]);
-
-  useEffect(() => {
-    if (!isInitialSyncDoneRef.current || isManualSavingRef.current) return;
-    if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
-      syncCatalogItemEquipmentsToSupabase(catalogItemEquipments, cloudDbConfig).catch((err) => {
-        console.warn('[CloudDB] Lỗi đồng bộ liên kết máy:', err);
-      });
-    }
-  }, [catalogItemEquipments, cloudDbConfig]);
-
-  useEffect(() => {
-    if (!isInitialSyncDoneRef.current || isManualSavingRef.current) return;
-    if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
-      syncScalesToSupabase(allergenScales, cloudDbConfig).catch((err) => {
-        console.warn('[CloudDB] Lỗi đồng bộ thang dị ứng:', err);
-      });
-    }
-  }, [allergenScales, cloudDbConfig]);
-
-  useEffect(() => {
-    if (!isInitialSyncDoneRef.current || isManualSavingRef.current) return;
-    if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
-      syncClinicInfoToSupabase(clinicInfo, cloudDbConfig).catch((err) => {
-        console.warn('[CloudDB] Lỗi đồng bộ phòng khám:', err);
-      });
-    }
-  }, [clinicInfo, cloudDbConfig]);
-
-  useEffect(() => {
-    if (!isInitialSyncDoneRef.current || isManualSavingRef.current) return;
-    if (cloudDbConfig?.enabled && cloudDbConfig?.autoSync) {
-      syncZaloConfigToSupabase(zaloConfig, cloudDbConfig).catch((err) => {
-        console.warn('[CloudDB] Lỗi đồng bộ Zalo config:', err);
-      });
-    }
-  }, [zaloConfig, cloudDbConfig]);
 
   // Lưu trực tiếp toàn bộ dữ liệu danh mục xuống Cloud DB có thể await
   const saveAllCatalogData = useCallback(async (data: {
@@ -176,60 +86,53 @@ export function useCatalogData() {
     allergenScales?: AllergenGradingScale[];
     referenceRanges?: ReferenceRangeItem[];
   }) => {
-    isManualSavingRef.current = true;
-    try {
-      if (data.catalog) {
-        setCatalog(data.catalog);
-      }
-      if (data.testPackages) {
-        setTestPackages(data.testPackages);
-      }
-      if (data.testGroups) {
-        setTestGroups(data.testGroups);
-      }
-      if (data.equipments) {
-        setEquipments(data.equipments);
-      }
-      if (data.doctorsList) {
-        setDoctorsList(data.doctorsList);
-      }
-      if (data.catalogItemEquipments) {
-        setCatalogItemEquipments(data.catalogItemEquipments);
-      }
-      if (data.allergenScales) {
-        setAllergenScales(data.allergenScales);
-      }
-      if (data.referenceRanges) {
-        setReferenceRanges(data.referenceRanges);
-      }
+    if (data.catalog) {
+      setCatalog(data.catalog);
+    }
+    if (data.testPackages) {
+      setTestPackages(data.testPackages);
+    }
+    if (data.testGroups) {
+      setTestGroups(data.testGroups);
+    }
+    if (data.equipments) {
+      setEquipments(data.equipments);
+    }
+    if (data.doctorsList) {
+      setDoctorsList(data.doctorsList);
+    }
+    if (data.catalogItemEquipments) {
+      setCatalogItemEquipments(data.catalogItemEquipments);
+    }
+    if (data.allergenScales) {
+      setAllergenScales(data.allergenScales);
+    }
+    if (data.referenceRanges) {
+      setReferenceRanges(data.referenceRanges);
+    }
 
-      if (cloudDbConfig?.enabled) {
-        // Thực thi tuần tự các bảng cần đồng bộ để tránh tràn transaction pooler / khóa hàng Postgres
-        const tasks: (() => Promise<unknown>)[] = [];
-        if (data.testGroups) tasks.push(() => syncGroupsToSupabase(data.testGroups!, cloudDbConfig));
-        if (data.equipments) tasks.push(() => syncEquipmentsToSupabase(data.equipments!, cloudDbConfig));
-        if (data.catalog) tasks.push(() => syncCatalogToSupabase(data.catalog!, cloudDbConfig));
-        if (data.testPackages) tasks.push(() => syncPackagesToSupabase(data.testPackages!, cloudDbConfig));
-        if (data.doctorsList) tasks.push(() => syncDoctorsToSupabase(data.doctorsList!, cloudDbConfig));
-        if (data.catalogItemEquipments) tasks.push(() => syncCatalogItemEquipmentsToSupabase(data.catalogItemEquipments!, cloudDbConfig));
-        if (data.allergenScales) tasks.push(() => syncScalesToSupabase(data.allergenScales!, cloudDbConfig));
-        if (data.referenceRanges) tasks.push(() => syncReferenceRangesToSupabase(data.referenceRanges!, cloudDbConfig));
+    if (cloudDbConfig?.enabled) {
+      // Thực thi tuần tự các bảng cần lưu lên Cloud để tránh tràn transaction pooler / khóa hàng Postgres
+      const tasks: (() => Promise<unknown>)[] = [];
+      if (data.testGroups) tasks.push(() => syncGroupsToSupabase(data.testGroups!, cloudDbConfig));
+      if (data.equipments) tasks.push(() => syncEquipmentsToSupabase(data.equipments!, cloudDbConfig));
+      if (data.catalog) tasks.push(() => syncCatalogToSupabase(data.catalog!, cloudDbConfig));
+      if (data.testPackages) tasks.push(() => syncPackagesToSupabase(data.testPackages!, cloudDbConfig));
+      if (data.doctorsList) tasks.push(() => syncDoctorsToSupabase(data.doctorsList!, cloudDbConfig));
+      if (data.catalogItemEquipments) tasks.push(() => syncCatalogItemEquipmentsToSupabase(data.catalogItemEquipments!, cloudDbConfig));
+      if (data.allergenScales) tasks.push(() => syncScalesToSupabase(data.allergenScales!, cloudDbConfig));
+      if (data.referenceRanges) tasks.push(() => syncReferenceRangesToSupabase(data.referenceRanges!, cloudDbConfig));
 
-        for (const task of tasks) {
-          await task().catch((err) => {
-            console.warn('[CloudDB] Lỗi đồng bộ thành phần danh mục:', err);
-          });
-        }
+      for (const task of tasks) {
+        await task().catch((err) => {
+          console.warn('[CloudDB] Lỗi lưu thành phần danh mục lên Cloud:', err);
+        });
       }
-    } finally {
-      setTimeout(() => {
-        isManualSavingRef.current = false;
-      }, 500);
     }
   }, [cloudDbConfig]);
 
   // Tự động tải dữ liệu từ Cloud Database khi khởi động
-  const syncCloudData = useCallback(async () => {
+  const loadCloudData = useCallback(async () => {
     if (cloudDbConfig?.enabled === false) {
       setIsLoading(false);
       return;
@@ -293,22 +196,90 @@ export function useCatalogData() {
       console.warn('[CloudDB] Không thể tải dữ liệu từ Cloud:', err);
     } finally {
       setIsLoading(false);
-      setTimeout(() => {
-        isInitialSyncDoneRef.current = true;
-      }, 400);
     }
   }, [cloudDbConfig]);
 
   useEffect(() => {
-    syncCloudData();
-  }, [syncCloudData]);
+    loadCloudData();
+  }, [loadCloudData]);
 
   // Khi user nhập pass thành công, trigger fetch lại toàn bộ dữ liệu
   useEffect(() => {
-    const handler = () => syncCloudData();
+    const handler = () => loadCloudData();
     window.addEventListener('password-unlocked', handler);
     return () => window.removeEventListener('password-unlocked', handler);
-  }, [syncCloudData]);
+  }, [loadCloudData]);
+
+  // Lưu đơn lẻ một chỉ số xét nghiệm lên Cloud DB
+  const saveSingleCatalogItem = useCallback(async (item: CatalogItem) => {
+    setCatalog((prev) => {
+      const idx = prev.findIndex((i) => i.code === item.code);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = item;
+        return next;
+      }
+      return [...prev, item];
+    });
+
+    if (item.equipmentLinks) {
+      setCatalogItemEquipments((prev) => {
+        const filtered = prev.filter((l) => l.catalogCode !== item.code);
+        return [...filtered, ...(item.equipmentLinks || [])];
+      });
+    }
+
+    if (cloudDbConfig?.enabled) {
+      await postCatalogItem(item);
+    }
+  }, [cloudDbConfig]);
+
+  // Xóa đơn lẻ một chỉ số xét nghiệm khỏi Cloud DB (có báo lỗi nếu vi phạm ràng buộc gói)
+  const deleteSingleCatalogItem = useCallback(async (code: string): Promise<{ success: boolean; message?: string }> => {
+    try {
+      if (cloudDbConfig?.enabled) {
+        await deleteCatalogItemApi(code);
+      }
+      setCatalog((prev) => prev.filter((i) => i.code !== code));
+      setCatalogItemEquipments((prev) => prev.filter((l) => l.catalogCode !== code));
+      return { success: true };
+    } catch (err) {
+      const message = (err as Error).message || 'Không thể xóa chỉ số';
+      return { success: false, message };
+    }
+  }, [cloudDbConfig]);
+
+  // Lưu đơn lẻ một gói xét nghiệm lên Cloud DB
+  const saveSingleTestPackage = useCallback(async (pkg: TestPackage) => {
+    const normalized = normalizeTestPackage(pkg);
+    setTestPackages((prev) => {
+      const idx = prev.findIndex((p) => p.id === normalized.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = normalized;
+        return next;
+      }
+      return [...prev, normalized];
+    });
+
+    if (cloudDbConfig?.enabled) {
+      await postTestPackage(normalized);
+    }
+  }, [cloudDbConfig]);
+
+  // Xóa đơn lẻ một gói xét nghiệm khỏi Cloud DB
+  const deleteSingleTestPackage = useCallback(async (id: string): Promise<boolean> => {
+    try {
+      if (cloudDbConfig?.enabled) {
+        await deleteTestPackageApi(id);
+      }
+      setTestPackages((prev) => prev.filter((p) => p.id !== id));
+      return true;
+    } catch (err) {
+      console.error('[useCatalogData] Lỗi xóa gói xét nghiệm:', err);
+      return false;
+    }
+  }, [cloudDbConfig]);
 
   return {
     catalog,
@@ -334,6 +305,10 @@ export function useCatalogData() {
     zaloConfig,
     setZaloConfig,
     isLoading,
-    saveAllCatalogData
+    saveAllCatalogData,
+    saveSingleCatalogItem,
+    deleteSingleCatalogItem,
+    saveSingleTestPackage,
+    deleteSingleTestPackage
   };
 }

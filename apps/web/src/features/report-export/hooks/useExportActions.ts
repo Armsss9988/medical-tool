@@ -43,6 +43,9 @@ export function useExportActions(
     const reportId = onSaveCurrentReport();
     if (!reportId) return;
 
+    // Tìm thông tin phiếu hiện tại trong reports để đồng bộ chính xác phiên bản
+    const existingRep = reports.find((r) => r.id === reportId || r.code === patient.code);
+
     const reportType = ReportClassificationDomainService.classify(selectedTests);
     const elementId = (customElementId && typeof customElementId === 'string')
       ? customElementId
@@ -53,7 +56,11 @@ export function useExportActions(
       elementId,
       filename,
       patient.code,
-      patient.name
+      patient.name,
+      {
+        currentVersion: existingRep?.pdfVersion,
+        cloudPdfUrl: existingRep?.cloudPdfUrl
+      }
     );
 
     if (result && result.success) {
@@ -65,6 +72,7 @@ export function useExportActions(
         doctorName: resolveDoctorName(doctorName, patient.doctor),
         cloudPdfUrl: result.finalUrl || undefined,
         qrCodeDataUrl: result.finalQrCodeDataUrl || undefined,
+        pdfVersion: result.version,
         status: REPORT_STATUS.EXPORTED
       });
       setCurrentReportId(saved.id);
@@ -72,6 +80,7 @@ export function useExportActions(
     }
   }, [
     onSaveCurrentReport,
+    reports,
     selectedTests,
     patient,
     doctorName,

@@ -1,7 +1,16 @@
 import { MedicalReport, Patient, SelectedTest, ReportStatus } from '../types';
 import { PatientProfile } from '../valueObjects/PatientProfile';
 import { ReportKind, ReportKindResolver } from '../valueObjects/ReportKind';
-import { ReportDocumentState, ReportDocumentStateHelper, DocumentStateNode } from '../valueObjects/ReportDocumentState';
+import {
+  ReportDocumentState,
+  ReportDocumentStateHelper,
+  DocumentStateNode,
+  DraftStateNode,
+  ResultedStateNode,
+  ExportedStateNode,
+  OutdatedStateNode,
+  DeliveredStateNode
+} from '../valueObjects/ReportDocumentState';
 import { Result } from '../utils/Result';
 import { ClinicalStatusVO } from '../valueObjects/ClinicalStatusVO';
 import { DocumentStatusVO } from '../valueObjects/DocumentStatusVO';
@@ -106,19 +115,10 @@ export class LabReportAggregate {
     const hasAnyResult = params.selectedTests.some((t) => String(t.result ?? '').trim() !== '');
     const completedCount = params.selectedTests.filter((t) => String(t.result ?? '').trim() !== '').length;
 
-    const documentState: ReportDocumentState = hasAnyResult
-      ? {
-          status: 'RESULTED',
-          totalTests: params.selectedTests.length,
-          completedTests: completedCount,
-          resultedAt: now
-        }
-      : {
-          status: 'DRAFT',
-          totalTests: params.selectedTests.length,
-          completedTests: 0,
-          hasAnyResult: false
-        };
+    const stateNode: DocumentStateNode = hasAnyResult
+      ? new ResultedStateNode(params.selectedTests.length, completedCount, now)
+      : new DraftStateNode(params.selectedTests.length, 0, false);
+    const documentState: ReportDocumentState = stateNode.toSnapshot();
 
     return new LabReportAggregate({
       id,
@@ -145,48 +145,44 @@ export class LabReportAggregate {
     const hasAnyResult = (report.selectedTests || []).some((t) => String(t.result ?? '').trim() !== '');
     const completedCount = (report.selectedTests || []).filter((t) => String(t.result ?? '').trim() !== '').length;
 
-    let documentState: ReportDocumentState;
+    let stateNode: DocumentStateNode;
     if (report.zaloSentAt || report.status === 'Đã trả kết quả') {
-      documentState = {
-        status: 'DELIVERED',
-        cloudPdfUrl: report.cloudPdfUrl || '',
-        qrCodeDataUrl: report.qrCodeDataUrl,
-        deliveredAt: report.zaloSentAt || report.updatedAt,
-        channel: 'Zalo',
-        msgId: report.zaloMsgId
-      };
+      stateNode = new DeliveredStateNode(
+        report.cloudPdfUrl || '',
+        report.zaloSentAt || report.updatedAt,
+        'Zalo',
+        report.qrCodeDataUrl,
+        report.zaloMsgId
+      );
     } else if (report.isPdfOutdated || report.status === 'Cần cập nhật PDF') {
-      documentState = {
-        status: 'OUTDATED',
-        previousPdfUrl: report.cloudPdfUrl || '',
-        qrCodeDataUrl: report.qrCodeDataUrl,
-        pdfVersion: report.pdfVersion || 1,
-        lastExportedAt: report.pdfGeneratedAt || report.updatedAt,
-        dirtyReasons: ['Dữ liệu đã được chỉnh sửa sau lần xuất PDF gần nhất']
-      };
+      stateNode = new OutdatedStateNode(
+        report.cloudPdfUrl || '',
+        report.qrCodeDataUrl,
+        report.pdfVersion || 1,
+        report.pdfGeneratedAt || report.updatedAt,
+        ['Dữ liệu đã được chỉnh sửa sau lần xuất PDF gần nhất']
+      );
     } else if (report.cloudPdfUrl || report.status === 'Đã xuất Cloud') {
-      documentState = {
-        status: 'EXPORTED',
-        cloudPdfUrl: report.cloudPdfUrl || '',
-        qrCodeDataUrl: report.qrCodeDataUrl || '',
-        pdfVersion: report.pdfVersion || 1,
-        exportedAt: report.pdfGeneratedAt || report.updatedAt
-      };
+      stateNode = new ExportedStateNode(
+        report.cloudPdfUrl || '',
+        report.qrCodeDataUrl || '',
+        report.pdfVersion || 1,
+        report.pdfGeneratedAt || report.updatedAt
+      );
     } else if (hasAnyResult || report.status === 'Đã có kết quả') {
-      documentState = {
-        status: 'RESULTED',
-        totalTests: report.selectedTests?.length || 0,
-        completedTests: completedCount,
-        resultedAt: report.updatedAt
-      };
+      stateNode = new ResultedStateNode(
+        report.selectedTests?.length || 0,
+        completedCount,
+        report.updatedAt
+      );
     } else {
-      documentState = {
-        status: 'DRAFT',
-        totalTests: report.selectedTests?.length || 0,
-        completedTests: 0,
-        hasAnyResult: false
-      };
+      stateNode = new DraftStateNode(
+        report.selectedTests?.length || 0,
+        0,
+        false
+      );
     }
+    const documentState: ReportDocumentState = stateNode.toSnapshot();
 
     return new LabReportAggregate({
       id: report.id,
@@ -234,7 +230,9 @@ export class LabReportAggregate {
       testCount: this._selectedTests.length,
       zaloSentAt: this._zaloSentAt,
       zaloMsgId: this._zaloMsgId,
-      pdfGeneratedAt: this._documentState.status === 'EXPORTED' ? this._documentState.exportedAt : undefined,
+      pdfGeneratedAt: this._documentState.status === 'EXPORTED'
+        ? this._documentState.exportedAt
+        : (this._documentState.status === 'OUTDATED' ? this._documentState.lastExportedAt : undefined),
       pdfVersion: this._pdfVersion,
       isPdfOutdated: isOutdated
     };
@@ -261,18 +259,19 @@ export class LabReportAggregate {
     const completedCount = newTests.filter((t) => String(t.result ?? '').trim() !== '').length;
 
     if (dirtyReasons.length > 0) {
-      this._documentState = {
-        status: 'OUTDATED',
-        previousPdfUrl: this._cloudPdfUrl || '',
-        qrCodeDataUrl: this._qrCodeDataUrl,
-        pdfVersion: this._pdfVersion,
-        lastExportedAt: this._updatedAt,
+      const node = new OutdatedStateNode(
+        this._cloudPdfUrl || '',
+        this._qrCodeDataUrl,
+        this._pdfVersion,
+        this._updatedAt,
         dirtyReasons
-      };
+      );
+      this._documentState = node.toSnapshot();
     } else if (this._documentState.status === 'DRAFT' || this._documentState.status === 'RESULTED') {
-      this._documentState = hasAnyResult
-        ? { status: 'RESULTED', totalTests: newTests.length, completedTests: completedCount, resultedAt: this._updatedAt }
-        : { status: 'DRAFT', totalTests: newTests.length, completedTests: 0, hasAnyResult: false };
+      const node: DocumentStateNode = hasAnyResult
+        ? new ResultedStateNode(newTests.length, completedCount, this._updatedAt)
+        : new DraftStateNode(newTests.length, 0, false);
+      this._documentState = node.toSnapshot();
     }
   }
 
@@ -285,14 +284,14 @@ export class LabReportAggregate {
     this._updatedAt = new Date().toISOString();
 
     if (this._cloudPdfUrl && !this._patientProfile.equals(oldProfile)) {
-      this._documentState = {
-        status: 'OUTDATED',
-        previousPdfUrl: this._cloudPdfUrl,
-        qrCodeDataUrl: this._qrCodeDataUrl,
-        pdfVersion: this._pdfVersion,
-        lastExportedAt: this._updatedAt,
-        dirtyReasons: ['Thông tin hành chính bệnh nhân đã thay đổi']
-      };
+      const node = new OutdatedStateNode(
+        this._cloudPdfUrl,
+        this._qrCodeDataUrl,
+        this._pdfVersion,
+        this._updatedAt,
+        ['Thông tin hành chính bệnh nhân đã thay đổi']
+      );
+      this._documentState = node.toSnapshot();
     }
   }
 
@@ -305,14 +304,14 @@ export class LabReportAggregate {
       this._updatedAt = new Date().toISOString();
 
       if (this._cloudPdfUrl) {
-        this._documentState = {
-          status: 'OUTDATED',
-          previousPdfUrl: this._cloudPdfUrl,
-          qrCodeDataUrl: this._qrCodeDataUrl,
-          pdfVersion: this._pdfVersion,
-          lastExportedAt: this._updatedAt,
-          dirtyReasons: ['Kết luận bác sĩ đã thay đổi']
-        };
+        const node = new OutdatedStateNode(
+          this._cloudPdfUrl,
+          this._qrCodeDataUrl,
+          this._pdfVersion,
+          this._updatedAt,
+          ['Kết luận bác sĩ đã thay đổi']
+        );
+        this._documentState = node.toSnapshot();
       }
     }
   }
@@ -326,14 +325,14 @@ export class LabReportAggregate {
       this._updatedAt = new Date().toISOString();
 
       if (this._cloudPdfUrl) {
-        this._documentState = {
-          status: 'OUTDATED',
-          previousPdfUrl: this._cloudPdfUrl,
-          qrCodeDataUrl: this._qrCodeDataUrl,
-          pdfVersion: this._pdfVersion,
-          lastExportedAt: this._updatedAt,
-          dirtyReasons: ['Bác sĩ chỉ định đã thay đổi']
-        };
+        const node = new OutdatedStateNode(
+          this._cloudPdfUrl,
+          this._qrCodeDataUrl,
+          this._pdfVersion,
+          this._updatedAt,
+          ['Bác sĩ chỉ định đã thay đổi']
+        );
+        this._documentState = node.toSnapshot();
       }
     }
   }
@@ -341,21 +340,25 @@ export class LabReportAggregate {
   /**
    * Ghi nhận đã xuất PDF Cloud & sinh mã QR thành công.
    */
-  public recordCloudExport(cloudPdfUrl: string, qrCodeDataUrl?: string): void {
+  public recordCloudExport(cloudPdfUrl: string, qrCodeDataUrl?: string, explicitVersion?: number): void {
     const now = new Date().toISOString();
-    const isUpgrade = this._documentState.status === 'OUTDATED';
-    this._pdfVersion = isUpgrade ? this._pdfVersion + 1 : this._pdfVersion;
+    if (explicitVersion !== undefined && explicitVersion > 0) {
+      this._pdfVersion = explicitVersion;
+    } else {
+      const isUpgrade = this._documentState.status === 'OUTDATED';
+      this._pdfVersion = isUpgrade ? this._pdfVersion + 1 : this._pdfVersion;
+    }
     this._cloudPdfUrl = cloudPdfUrl;
     this._qrCodeDataUrl = qrCodeDataUrl || this._qrCodeDataUrl;
     this._updatedAt = now;
 
-    this._documentState = {
-      status: 'EXPORTED',
+    const node = new ExportedStateNode(
       cloudPdfUrl,
-      qrCodeDataUrl: this._qrCodeDataUrl || '',
-      pdfVersion: this._pdfVersion,
-      exportedAt: now
-    };
+      this._qrCodeDataUrl || '',
+      this._pdfVersion,
+      now
+    );
+    this._documentState = node.toSnapshot();
   }
 
   /**
@@ -368,14 +371,14 @@ export class LabReportAggregate {
     this._patientProfile = this._patientProfile.withUpdates({ returnedAt: now });
     this._updatedAt = now;
 
-    this._documentState = {
-      status: 'DELIVERED',
-      cloudPdfUrl: this._cloudPdfUrl || '',
-      qrCodeDataUrl: this._qrCodeDataUrl,
-      deliveredAt: now,
-      channel: 'Zalo',
+    const node = new DeliveredStateNode(
+      this._cloudPdfUrl || '',
+      now,
+      'Zalo',
+      this._qrCodeDataUrl,
       msgId
-    };
+    );
+    this._documentState = node.toSnapshot();
   }
 
   /**
@@ -453,32 +456,38 @@ export class LabReportAggregate {
   }
 
   /**
-   * Cập nhật trạng thái thủ công (Legacy status update)
+   * Cập nhật trạng thái phiếu thông qua State Machine class node (DocumentStateNode)
    */
   public updateLegacyStatus(status: ReportStatus): void {
-    if (status === 'Chờ xét nghiệm') {
-      this._documentState = {
-        status: 'DRAFT',
-        totalTests: this._selectedTests.length,
-        completedTests: 0,
-        hasAnyResult: false
-      };
-    } else if (status === 'Đã có kết quả') {
-      this._documentState = {
-        status: 'RESULTED',
-        totalTests: this._selectedTests.length,
-        completedTests: this._selectedTests.filter((t) => String(t.result ?? '').trim() !== '').length,
-        resultedAt: new Date().toISOString()
-      };
-    } else if (status === 'Đã trả kết quả') {
-      this._documentState = {
-        status: 'DELIVERED',
-        cloudPdfUrl: this._cloudPdfUrl || '',
-        qrCodeDataUrl: this._qrCodeDataUrl,
-        deliveredAt: new Date().toISOString(),
-        channel: 'Direct'
-      };
-    }
+    this.transitionTo(status);
+  }
+
+  /**
+   * Chuyển đổi trạng thái theo State Machine (DocumentStateNode)
+   */
+  public transitionTo(status: ReportStatus): void {
+    const now = new Date().toISOString();
+    const totalTests = this._selectedTests.length;
+    const completedTests = this._selectedTests.filter((t) => String(t.result ?? '').trim() !== '').length;
+
+    const nextNode = DocumentStateNode.fromLegacyStatus(status, {
+      totalTests,
+      completedTests,
+      cloudPdfUrl: this._cloudPdfUrl,
+      qrCodeDataUrl: this._qrCodeDataUrl,
+      pdfVersion: this._pdfVersion,
+      timestamp: now
+    });
+
+    this._documentState = nextNode.toSnapshot();
+    this._updatedAt = now;
+  }
+
+  /**
+   * Chuyển trực tiếp sang StateNode cụ thể
+   */
+  public transitionToState(node: DocumentStateNode): void {
+    this._documentState = node.toSnapshot();
     this._updatedAt = new Date().toISOString();
   }
 
@@ -498,13 +507,13 @@ export class LabReportAggregate {
     if (updates.doctorName !== undefined) {
       this.updateDoctor(updates.doctorName);
     }
-    if (updates.cloudPdfUrl && updates.cloudPdfUrl !== this._cloudPdfUrl) {
-      this.recordCloudExport(updates.cloudPdfUrl, updates.qrCodeDataUrl);
+    if (updates.cloudPdfUrl && (updates.status === 'Đã xuất Cloud' || updates.cloudPdfUrl !== this._cloudPdfUrl)) {
+      this.recordCloudExport(updates.cloudPdfUrl, updates.qrCodeDataUrl, updates.pdfVersion);
     }
     if (updates.zaloSentAt && updates.zaloSentAt !== this._zaloSentAt) {
       this.recordZaloSent(updates.zaloMsgId);
     }
-    if (updates.status) {
+    if (updates.status && updates.status !== 'Đã xuất Cloud') {
       this.updateLegacyStatus(updates.status);
     }
   }

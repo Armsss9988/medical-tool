@@ -14,7 +14,7 @@ const INITIAL_PROGRESS: BatchExportProgress = {
 export function useBatchExport(
   clinicInfo: ClinicInfo,
   onSetRenderData: (report: MedicalReport) => Promise<void>,
-  onReportExported?: (report: MedicalReport, cloudUrl: string, qrDataUrl: string) => void
+  onReportExported?: (report: MedicalReport, cloudUrl: string, qrDataUrl: string, version?: number) => void
 ) {
   const [progress, setProgress] = useState<BatchExportProgress>(INITIAL_PROGRESS);
   const [isBatchExporting, setIsBatchExporting] = useState(false);
@@ -41,12 +41,13 @@ export function useBatchExport(
       cancelRef.current
     );
 
-    // Callback cho mỗi phiếu đã export thành công → cập nhật trong reportManager
+    // Callback cho mỗi phiếu đã export thành công → cập nhật điều phối tránh dồn dập connection pool
     if (onReportExported) {
       for (const result of finalProgress.results) {
         const matchReport = reports.find((r) => r.code === result.code);
         if (matchReport) {
-          onReportExported(matchReport, result.cloudUrl, result.qrDataUrl);
+          onReportExported(matchReport, result.cloudUrl, result.qrDataUrl, result.version);
+          await new Promise((resolve) => setTimeout(resolve, 60));
         }
       }
     }

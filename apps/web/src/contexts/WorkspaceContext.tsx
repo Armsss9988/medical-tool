@@ -44,6 +44,8 @@ interface WorkspaceContextValue {
   saveOrUpdateInvoice: ReturnType<typeof useInvoiceManager>['saveOrUpdateInvoice'];
   deleteInvoice: (id: string) => void;
   clearAllInvoices: () => void;
+  payInvoice: ReturnType<typeof useInvoiceManager>['payInvoice'];
+  cancelInvoice: ReturnType<typeof useInvoiceManager>['cancelInvoice'];
 
   // Recent Tests
   recentTests: ReturnType<typeof useRecentTests>['recentTests'];
@@ -87,12 +89,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { recentTests, addToRecent, addMultipleToRecent, clearRecent: _clearRecent } = useRecentTests();
 
   // Reports
-  const { reports, setReports, saveOrUpdateReport, bulkSaveOrUpdateReports, deleteReport, clearAllReports } = useReportManager();
+  const { reports, setReports, saveOrUpdateReport, bulkSaveOrUpdateReports, deleteReport, clearAllReports, handleExternalReportUpdate } = useReportManager();
 
   // Invoices
-  const { invoices, setInvoices, saveOrUpdateInvoice, deleteInvoice, clearAllInvoices } = useInvoiceManager();
+  const { invoices, setInvoices, saveOrUpdateInvoice, deleteInvoice, clearAllInvoices, payInvoice, cancelInvoice } = useInvoiceManager({
+    onReportUpdated: handleExternalReportUpdate
+  });
 
-  // Tự động đồng bộ mã BN ban đầu khi tải xong danh sách phiếu từ Storage
+  // Tự động khởi tạo mã BN ban đầu khi tải xong danh sách phiếu từ Storage
   const initialSyncRef = useRef(false);
   useEffect(() => {
     if (!initialSyncRef.current && reports.length > 0 && !patient.name.trim() && !currentReportId) {
@@ -170,7 +174,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     currentReportId, setCurrentReportId,
     currentLoadedReport,
     reports, setReports, saveOrUpdateReport, bulkSaveOrUpdateReports, deleteReport, clearAllReports,
-    invoices, setInvoices, saveOrUpdateInvoice, deleteInvoice, clearAllInvoices,
+    invoices, setInvoices, saveOrUpdateInvoice, deleteInvoice, clearAllInvoices, payInvoice, cancelInvoice,
     recentTests, addToRecent, addMultipleToRecent,
     nameInputRef, autoFocusName, setAutoFocusName,
     hasUnsavedData,

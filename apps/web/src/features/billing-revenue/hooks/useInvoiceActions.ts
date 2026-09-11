@@ -27,7 +27,8 @@ export function useInvoiceActions(
     setCurrentReportId,
     saveOrUpdateReport,
     saveOrUpdateInvoice,
-    deleteInvoice,
+    payInvoice,
+    cancelInvoice,
     invoices
   } = useWorkspace();
 
@@ -62,12 +63,13 @@ export function useInvoiceActions(
       };
       setPatient(updatedPatient);
 
-      // A. Lưu hóa đơn vào Sổ Doanh Thu
-      const saved = saveOrUpdateInvoice({
+      // A. Lưu hóa đơn vào Sổ Doanh Thu (nếu isPaid, skipRemote=true để payInvoice đảm nhận lưu nguyên tử qua transaction)
+      const invoiceToSave = {
         ...inv,
         reportId: reportIdToLink,
         paidAt: isPaid ? inv.paidAt || new Date().toISOString() : undefined
-      });
+      };
+      const saved = saveOrUpdateInvoice(invoiceToSave, isPaid);
 
       // B. Liên kết ngược lại vào Sổ Lưu Phiếu Xét Nghiệm
       saveOrUpdateReport({
@@ -82,6 +84,15 @@ export function useInvoiceActions(
       });
 
       if (isPaid) {
+        payInvoice(saved.id, {
+          paymentMethod: inv.paymentMethod,
+          cashier: inv.cashierName,
+          paidAt: inv.paidAt || new Date().toISOString(),
+          invoice: saved
+        }).catch((err) => {
+          console.warn('[useInvoiceActions] Lỗi gọi payInvoice transaction:', err);
+        });
+
         showToast(
           `Đã xác nhận THU TIỀN và lưu hóa đơn ${saved.code} (${(saved.finalAmount ?? 0).toLocaleString('vi-VN')} đ) cho bệnh nhân ${saved.patientName}!`,
           'success'
@@ -100,6 +111,7 @@ export function useInvoiceActions(
       setPatient,
       saveOrUpdateInvoice,
       saveOrUpdateReport,
+      payInvoice,
       selectedTests,
       conclusion,
       doctorName,
@@ -152,21 +164,26 @@ export function useInvoiceActions(
 
   // 4. ACTION: HỦY HÓA ĐƠN & HOÀN TRẢ TRẠNG THÁI CHƯA THU
   const handleCancelInvoice = useCallback(
-    (invoiceId: string) => {
-      deleteInvoice(invoiceId);
+    async (invoiceId: string) => {
+      try {
+        await cancelInvoice(invoiceId, { reason: 'Hủy từ giao diện' });
 
-      // Nếu phiếu đang mở là phiếu vừa hủy hóa đơn, giải phóng paidAt trên state
-      const matchingInv = invoices.find((i) => i.id === invoiceId);
-      if (matchingInv && (matchingInv.reportId === currentReportId || matchingInv.patientCode === patient.code)) {
-        setPatient((prev) => ({
-          ...prev,
-          paidAt: undefined
-        }));
+        // Nếu phiếu đang mở là phiếu vừa hủy hóa đơn, giải phóng paidAt trên state
+        const matchingInv = invoices.find((i) => i.id === invoiceId);
+        if (matchingInv && (matchingInv.reportId === currentReportId || matchingInv.patientCode === patient.code)) {
+          setPatient((prev) => ({
+            ...prev,
+            paidAt: undefined
+          }));
+        }
+
+        showToast('Đã hủy hóa đơn và khôi phục trạng thái Chưa Thu Viện Phí cho bệnh nhân.', 'info');
+      } catch (err) {
+        console.error('[useInvoiceActions] Lỗi hủy hóa đơn qua transaction:', err);
+        showToast('Không thể hủy hóa đơn trên máy chủ, vui lòng kiểm tra lại kết nối!', 'error');
       }
-
-      showToast('Đã hủy hóa đơn và khôi phục trạng thái Chưa Thu Viện Phí cho bệnh nhân.', 'info');
     },
-    [deleteInvoice, invoices, currentReportId, patient, setPatient, showToast]
+    [cancelInvoice, invoices, currentReportId, patient.code, setPatient, showToast]
   );
 
   return {

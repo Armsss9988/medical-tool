@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   X, CreditCard, CheckCircle, Printer, Plus, Trash2, QrCode, Copy, Check,
   AlertCircle, Clock, CloudUpload, Download, Loader2, ExternalLink
@@ -6,7 +6,7 @@ import {
 import { 
   Patient, SelectedTest, TestPackage, Doctor, Invoice, InvoiceItem, ClinicInfo, 
   PaymentMethod, BillingStatus, BILLING_STATUS, PAYMENT_METHOD, PAYMENT_METHOD_LIST,
-  InvoiceCode
+  InvoiceCode, InvoiceAggregate
 } from '@domain';
 import { buildInvoiceItems } from '@domain/pricing';
 import { generateHighQualityPdf, downloadPdfDirectly } from '@infra/pdfService';
@@ -25,6 +25,7 @@ interface InvoiceModalProps {
   doctorName?: string;
   clinicInfo?: ClinicInfo;
   currentReportId?: string | null;
+  existingInvoice?: Invoice | null;
   isReportSaved?: boolean;
   onSaveReportFirst?: () => string | null | void;
   onSaveInvoice: (newInvoice: Invoice) => void;
@@ -39,11 +40,20 @@ export default function InvoiceModal({
   doctorName,
   clinicInfo,
   currentReportId,
+  existingInvoice,
   isReportSaved = false,
   onSaveReportFirst,
   onSaveInvoice
 }: InvoiceModalProps) {
   const { showToast } = useToast();
+
+  // Giữ ID ổn định xuyên suốt phiên mở modal chống nhân bản UUID khi form re-render
+  const stableIdRef = useRef<string>(existingInvoice?.id || `inv-${Date.now()}`);
+  useEffect(() => {
+    if (isOpen) {
+      stableIdRef.current = existingInvoice?.id || `inv-${Date.now()}`;
+    }
+  }, [isOpen, existingInvoice?.id]);
 
   const [items, setItems] = useState<InvoiceItem[]>(() => {
     return buildInvoiceItems(selectedTests, testPackages);
@@ -79,7 +89,7 @@ export default function InvoiceModal({
     if (doctorName) setSelectedDoc(doctorName);
   }, [doctorName]);
 
-  // TÍNH TOÁN TỔNG TIỀN
+  // TÍNH TOÁN TỔNG TIỀN VÀ KHỞI TẠO QUA DOMAIN AGGREGATE
   const rawSubtotal = useMemo(() => {
     return items.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
   }, [items]);
@@ -95,20 +105,48 @@ export default function InvoiceModal({
     return Math.min(discountVal || 0, totalWithSurcharge);
   }, [discountType, discountVal, totalWithSurcharge]);
 
-  const discountPercent = useMemo(() => {
-    if (totalWithSurcharge <= 0) return 0;
-    if (discountType === 'percent') return discountVal;
-    return Math.round((calculatedDiscount / totalWithSurcharge) * 100);
-  }, [discountType, discountVal, calculatedDiscount, totalWithSurcharge]);
-
-  const finalAmount = useMemo(() => {
-    return Math.max(0, totalWithSurcharge - calculatedDiscount);
-  }, [totalWithSurcharge, calculatedDiscount]);
-
   // Sinh mã hóa đơn chuẩn qua Value Object InvoiceCode
   const invoiceCode = useMemo(() => {
     return InvoiceCode.fromPatient(patient.code || 'BN001').value;
   }, [patient.code]);
+
+  // Khởi tạo và quản lý trạng thái thông qua Domain Aggregate
+  const invoiceAggregate = useMemo(() => {
+    return InvoiceAggregate.create({
+      id: stableIdRef.current,
+      code: invoiceCode,
+      patientName: patient.name || 'Bệnh nhân',
+      patientDob: patient.dob,
+      patientPhone: patient.phone,
+      patientGender: patient.gender,
+      patientCode: patient.code,
+      doctorName: selectedDoc,
+      cashierName: cashier,
+      items,
+      discountAmount: calculatedDiscount,
+      surchargeAmount: showSurcharge ? surchargeAmount : 0,
+      surchargeNote: showSurcharge ? surchargeNote : undefined,
+      paymentMethod,
+      notes: invoiceNote,
+      reportId: currentReportId || undefined,
+      isPaid: true
+    });
+  }, [
+    invoiceCode, patient, selectedDoc, cashier, items, calculatedDiscount,
+    showSurcharge, surchargeAmount, surchargeNote, paymentMethod, invoiceNote, currentReportId,
+    existingInvoice?.id
+  ]);
+
+  const currentInvoice: Invoice = useMemo(() => {
+    const snap = invoiceAggregate.toSnapshot();
+    return {
+      ...snap,
+      cloudPdfUrl: cloudPdfUrl || undefined
+    };
+  }, [invoiceAggregate, cloudPdfUrl]);
+
+  const discountPercent = currentInvoice.discountPercent || 0;
+  const finalAmount = currentInvoice.finalAmount || 0;
 
   // Cập nhật số lượng hoặc giá từng dòng
   const handleItemChange = <K extends keyof InvoiceItem>(idx: number, field: K, value: InvoiceItem[K]) => {
@@ -152,37 +190,6 @@ export default function InvoiceModal({
     setCopiedField(field);
     setTimeout(() => setCopiedField(null), 2000);
   };
-
-  const currentInvoice: Invoice = useMemo(() => ({
-    id: `inv-${Date.now()}`,
-    code: invoiceCode,
-    patientCode: patient.code,
-    patientName: patient.name,
-    patientPhone: patient.phone,
-    patientDob: patient.dob,
-    patientGender: patient.gender,
-    doctorName: selectedDoc,
-    cashierName: cashier,
-    items,
-    totalAmount: rawSubtotal,
-    surchargeAmount: showSurcharge ? surchargeAmount : 0,
-    surchargeNote: showSurcharge ? surchargeNote : undefined,
-    discountAmount: calculatedDiscount,
-    discountPercent,
-    finalAmount,
-    paymentMethod,
-    status: BILLING_STATUS.PAID,
-    notes: invoiceNote,
-    reportId: currentReportId || undefined,
-    cloudPdfUrl: cloudPdfUrl || undefined,
-    paidAt: new Date().toISOString(),
-    createdAt: new Date().toISOString()
-  }), [
-    invoiceCode, patient, selectedDoc, cashier, items, rawSubtotal,
-    showSurcharge, surchargeAmount, surchargeNote, calculatedDiscount,
-    discountPercent, finalAmount, paymentMethod, invoiceNote,
-    currentReportId, cloudPdfUrl
-  ]);
 
   const pdfFilename = `PhieuThu_${(patient.name || 'BenhNhan').replace(/\s+/g, '_')}_${invoiceCode}.pdf`;
 
@@ -246,12 +253,17 @@ export default function InvoiceModal({
     }
 
     const isPaid = targetStatus === BILLING_STATUS.PAID;
+    const agg = InvoiceAggregate.fromSnapshot(currentInvoice);
+    if (isPaid) {
+      agg.markPaid(paymentMethod, cashier);
+    }
+    const saved = agg.toSnapshot();
 
     onSaveInvoice({
-      ...currentInvoice,
+      ...saved,
       status: targetStatus,
       cloudPdfUrl: cloudPdfUrl || undefined,
-      paidAt: isPaid ? new Date().toISOString() : undefined,
+      paidAt: isPaid ? (saved.paidAt || new Date().toISOString()) : undefined,
       reportId: reportIdToLink
     });
     onClose();
@@ -340,7 +352,7 @@ export default function InvoiceModal({
             <div className="flex items-center space-x-2 text-amber-900 font-medium">
               <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
               <span>
-                <strong>Lưu ý:</strong> Phiếu Xét Nghiệm của bệnh nhân <strong>chưa được lưu</strong> vào Sổ Lưu. Khi bấm xác nhận, hệ thống sẽ tự động lưu phiếu xét nghiệm để đồng bộ và gắn kết với hóa đơn này.
+                <strong>Lưu ý:</strong> Phiếu Xét Nghiệm của bệnh nhân <strong>chưa được lưu</strong> vào Sổ Lưu. Khi bấm xác nhận, hệ thống sẽ tự động lưu phiếu xét nghiệm và gắn kết với hóa đơn này.
               </span>
             </div>
             {onSaveReportFirst && (
