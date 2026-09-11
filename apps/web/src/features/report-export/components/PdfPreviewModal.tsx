@@ -210,8 +210,9 @@ export default function PdfPreviewModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-0 sm:p-3 md:p-6 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-slate-700/80 sm:rounded-2xl shadow-2xl flex flex-col w-full h-full sm:max-w-5xl sm:h-[92vh] overflow-hidden text-slate-100">
+    <>
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-0 sm:p-3 md:p-6 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="bg-slate-900 border border-slate-700/80 sm:rounded-2xl shadow-2xl flex flex-col w-full h-full sm:max-w-5xl sm:h-[92vh] overflow-hidden text-slate-100">
         
         {/* Header Modal */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 sm:px-6 py-3 sm:py-3.5 border-b border-slate-800 gap-2 sm:gap-3 shrink-0 bg-slate-900/90 backdrop-blur">
@@ -655,85 +656,86 @@ export default function PdfPreviewModal({
           </div>
         </div>
 
-        {/* ─── CONFIRMATION MODAL: YÊU CẦU XÁC NHẬN LƯU TRƯỚC KHI XUẤT CLOUD ── */}
-        {showConfirmExport && (
-          <div className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
-            <div className="bg-white text-slate-900 rounded-2xl shadow-2xl max-w-md w-full p-6 border border-slate-200 animate-in zoom-in-95 duration-150 space-y-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
-                  <CloudUpload className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-slate-900">
-                    Xác Nhận Lưu PDF & Đồng Bộ Cloud
-                  </h3>
-                  <p className="text-xs text-slate-500 font-medium">
-                    Lưu dữ liệu kết quả, xuất file PDF và đồng bộ lên máy chủ
-                  </p>
-                </div>
-              </div>
-
-              {/* Thông tin tóm tắt phiếu xét nghiệm */}
-              <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200/80 space-y-2 text-xs">
-                <div className="flex justify-between items-center py-0.5 border-b border-slate-200/60">
-                  <span className="text-slate-500 font-medium">Bệnh nhân:</span>
-                  <span className="font-bold text-slate-900 uppercase">{safePatient.name}</span>
-                </div>
-                <div className="flex justify-between items-center py-0.5 border-b border-slate-200/60">
-                  <span className="text-slate-500 font-medium">Mã BN / Số BP:</span>
-                  <span className="font-mono font-bold text-slate-800">
-                    {safePatient.code} / <span className="text-red-600">{safePatient.sampleCode || safePatient.code}</span>
-                  </span>
-                </div>
-                <div className="flex justify-between items-center py-0.5 border-b border-slate-200/60">
-                  <span className="text-slate-500 font-medium">Loại phiếu:</span>
-                  <span className="font-bold text-sky-700">
-                    {reportBadge.label}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center py-0.5 border-b border-slate-200/60">
-                  <span className="text-slate-500 font-medium">Tổng số chỉ số:</span>
-                  <span className="font-bold text-slate-900">{safeSelectedTests.length} chỉ số</span>
-                </div>
-                <div className="flex justify-between items-center py-0.5 border-b border-slate-200/60">
-                  <span className="text-slate-500 font-medium">Bác sĩ chỉ định:</span>
-                  <span className="font-bold text-slate-900">{safePatient.doctor || doctorName || 'BS. Trần Hoài Long'}</span>
-                </div>
-                <div className="flex justify-between items-center py-0.5">
-                  <span className="text-slate-500 font-medium">Phụ trách chuyên môn:</span>
-                  <span className="font-bold text-slate-900">{clinicInfo.defaultDoctor || 'Nguyễn Thị Thành Trung'}</span>
-                </div>
-              </div>
-
-              <div className="text-[11.5px] text-slate-600 leading-relaxed bg-amber-50 border border-amber-200/70 p-2.5 rounded-lg text-amber-950 font-medium">
-                💡 Hệ thống sẽ tự động lưu phiếu vào <strong>Sổ Lưu Trữ</strong>, kết xuất file PDF chất lượng cao (300 DPI), tạo mã <strong>QR tra cứu trực tuyến</strong> và đồng bộ lên Cloud.
-              </div>
-
-              <div className="flex items-center justify-end space-x-2.5 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmExport(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition cursor-pointer"
-                >
-                  Hủy / Xem lại
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowConfirmExport(false);
-                    onExportPdfAndUpload(chosenTemplate ? PRINT_ELEMENT_ID.DYNAMIC_REPORT : undefined);
-                  }}
-                  className="px-4 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer active:scale-95"
-                >
-                  <CloudUpload className="w-4 h-4" />
-                  <span>Xác Nhận Lưu & Đồng Bộ</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
       </div>
     </div>
-  );
+
+    {/* ─── CONFIRMATION MODAL: YÊU CẦU XÁC NHẬN LƯU TRƯỚC KHI XUẤT CLOUD ── */}
+    {showConfirmExport && (
+      <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+        <div className="bg-white text-slate-900 rounded-2xl shadow-2xl max-w-md w-full p-6 border border-slate-200 animate-in zoom-in-95 duration-150 space-y-4">
+          <div className="flex items-center space-x-3">
+            <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
+              <CloudUpload className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-extrabold text-slate-900">
+                Xác Nhận Lưu PDF & Đồng Bộ Cloud
+              </h3>
+              <p className="text-xs text-slate-500 font-medium">
+                Lưu dữ liệu kết quả, xuất file PDF và đồng bộ lên máy chủ
+              </p>
+            </div>
+          </div>
+
+          {/* Thông tin tóm tắt phiếu xét nghiệm */}
+          <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200/80 space-y-2 text-xs">
+            <div className="flex justify-between items-center py-0.5 border-b border-slate-200/60">
+              <span className="text-slate-500 font-medium">Bệnh nhân:</span>
+              <span className="font-bold text-slate-900 uppercase">{safePatient.name}</span>
+            </div>
+            <div className="flex justify-between items-center py-0.5 border-b border-slate-200/60">
+              <span className="text-slate-500 font-medium">Mã BN / Số BP:</span>
+              <span className="font-mono font-bold text-slate-800">
+                {safePatient.code} / <span className="text-red-600">{safePatient.sampleCode || safePatient.code}</span>
+              </span>
+            </div>
+            <div className="flex justify-between items-center py-0.5 border-b border-slate-200/60">
+              <span className="text-slate-500 font-medium">Loại phiếu:</span>
+              <span className="font-bold text-sky-700">
+                {reportBadge.label}
+              </span>
+            </div>
+            <div className="flex justify-between items-center py-0.5 border-b border-slate-200/60">
+              <span className="text-slate-500 font-medium">Tổng số chỉ số:</span>
+              <span className="font-bold text-slate-900">{safeSelectedTests.length} chỉ số</span>
+            </div>
+            <div className="flex justify-between items-center py-0.5 border-b border-slate-200/60">
+              <span className="text-slate-500 font-medium">Bác sĩ chỉ định:</span>
+              <span className="font-bold text-slate-900">{safePatient.doctor || doctorName || 'BS. Trần Hoài Long'}</span>
+            </div>
+            <div className="flex justify-between items-center py-0.5">
+              <span className="text-slate-500 font-medium">Phụ trách chuyên môn:</span>
+              <span className="font-bold text-slate-900">{clinicInfo.defaultDoctor || 'Nguyễn Thị Thành Trung'}</span>
+            </div>
+          </div>
+
+          <div className="text-[11.5px] text-slate-600 leading-relaxed bg-amber-50 border border-amber-200/70 p-2.5 rounded-lg text-amber-950 font-medium">
+            💡 Hệ thống sẽ tự động lưu phiếu vào <strong>Sổ Lưu Trữ</strong>, kết xuất file PDF chất lượng cao (300 DPI), tạo mã <strong>QR tra cứu trực tuyến</strong> và đồng bộ lên Cloud.
+          </div>
+
+          <div className="flex items-center justify-end space-x-2.5 pt-1">
+            <button
+              type="button"
+              onClick={() => setShowConfirmExport(false)}
+              className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+            >
+              Hủy / Xem lại
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowConfirmExport(false);
+                onExportPdfAndUpload(chosenTemplate ? PRINT_ELEMENT_ID.DYNAMIC_REPORT : undefined);
+              }}
+              className="px-4 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer active:scale-95"
+            >
+              <CloudUpload className="w-4 h-4" />
+              <span>Xác Nhận Lưu & Đồng Bộ</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
+);
 }

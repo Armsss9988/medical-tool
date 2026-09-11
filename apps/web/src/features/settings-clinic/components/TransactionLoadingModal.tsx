@@ -48,7 +48,7 @@ export default function TransactionLoadingModal({
   const progressPercent = Math.min(100, Math.round(((currentIdx + 1) / EXPORT_STEP_ORDER.length) * 100));
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
       <div className="bg-slate-900 border border-sky-800/60 rounded-2xl shadow-2xl w-full max-w-md p-6 text-white flex flex-col space-y-5 animate-in zoom-in-95 duration-150">
         
         {/* Header Modal */}

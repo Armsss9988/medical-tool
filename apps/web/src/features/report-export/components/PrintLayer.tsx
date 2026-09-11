@@ -47,7 +47,7 @@ export function PrintLayer({
 
   return (
     <div
-      className="fixed -left-[9999px] top-0 pointer-events-none overflow-hidden"
+      className="print-layer-container fixed -left-[9999px] top-0 pointer-events-none overflow-hidden"
       style={{ width: '210mm', minWidth: '210mm', maxWidth: '210mm', opacity: 1, zIndex: -100 }}
     >
       {reportKind.type === 'hybrid' ? (

@@ -141,6 +141,8 @@
 #preview-allergen-element,
 #preview-allergen-element * {
   font-family: 'Times New Roman', Times, 'Liberation Serif', serif !important;
+  letter-spacing: 0.02px !important;
+  word-spacing: normal !important;
 }
 
 /* Đảm bảo căn giữa dọc, độ giãn dòng thoáng và không bị đè viền khi render PDF */
@@ -151,7 +153,9 @@
 .report-page th,
 .report-page td {
   vertical-align: middle !important;
-  line-height: 1.35 !important;
+  line-height: 1.25 !important;
+  padding-top: 4px !important;
+  padding-bottom: 7px !important;
   box-sizing: border-box;
 }
 

@@ -252,15 +252,35 @@ export async function generateHighQualityPdf(
   const pdfHeight = 297;
 
   const html2canvasCommonOptions = {
-    scale: 2.5,
+    scale: 2.0,
     useCORS: true,
     allowTaint: true,
     backgroundColor: '#ffffff',
     logging: false,
     imageTimeout: 15000,
     onclone: async (clonedDoc: Document) => {
+      // 1. Đảm bảo các container in ấn trong clone nằm gọn gàng tại tọa độ (0, 0)
+      // Loại bỏ hoàn toàn định vị âm (-left-[9999px]) trong clone để trình duyệt tính toán Range DOM, khoảng trắng và font kerning chuẩn xác
+      const printContainers = Array.from(clonedDoc.querySelectorAll<HTMLElement>('.print-layer-container'));
+      printContainers.forEach((container) => {
+        container.style.position = 'static';
+        container.style.left = '0';
+        container.style.top = '0';
+      });
+
+      // 2. Chờ font chữ tải và đồng bộ hoàn tất trong Document clone
+      if (clonedDoc.fonts && clonedDoc.fonts.ready) {
+        try {
+          await clonedDoc.fonts.ready;
+        } catch {
+          /* ignore font ready error */
+        }
+      }
+
+      // 3. Tiền xử lý màu sắc OKLCH/OKLab sang RGB
       sanitizeDocumentOklch(clonedDoc);
-      // Đảm bảo tất cả <img> SVG Data URI đã load xong trong clone DOM
+
+      // 4. Đảm bảo tất cả <img> SVG Data URI đã load xong trong clone DOM
       const clonedImgs = Array.from(clonedDoc.querySelectorAll('img[src^="data:image/svg"]'));
       await Promise.all(
         clonedImgs.map((img) => {
@@ -281,8 +301,6 @@ export async function generateHighQualityPdf(
     // -------------------------------------------------------------
     for (let i = 0; i < childPages.length; i++) {
       const pageEl = childPages[i];
-      sanitizeDocumentOklch(pageEl);
-
       const canvas = await html2canvas(pageEl, html2canvasCommonOptions);
       const imgData = canvas.toDataURL('image/png', 1.0);
       if (i > 0) {
