@@ -53,8 +53,10 @@ export class ReportPaginationDomainService {
     if (!test) return 28;
     const nameLen = (test.name || '').length;
     const noteLen = (test.note || '').length;
-    if (nameLen > 35 || noteLen > 25) {
-      return 42;
+    // Cột tên xét nghiệm chiếm ~31% (~210px), tên trên 25 ký tự sẽ rớt thành 2 dòng
+    // Cột ghi chú chiếm ~12% (~80px), ghi chú trên 20 ký tự sẽ rớt dòng
+    if (nameLen > 25 || noteLen > 20) {
+      return 44;
     }
     return 28;
   }
@@ -90,19 +92,29 @@ export class ReportPaginationDomainService {
       grouped[cat].push(t);
     });
 
-    // 2. Trải phẳng thành danh sách entries tuần tự
+    // 2. Trải phẳng thành danh sách entries tuần tự (STT đánh số theo từng danh mục)
     const flatEntries: ReportPaginationEntry[] = [];
-    let itemCounter = 0;
     Object.keys(grouped).forEach((cat) => {
       flatEntries.push({ type: 'category', category: cat });
-      grouped[cat].forEach((test) => {
-        itemCounter++;
-        flatEntries.push({ type: 'test', test, idx: itemCounter, category: cat });
+      grouped[cat].forEach((test, i) => {
+        flatEntries.push({ type: 'test', test, idx: i + 1, category: cat });
       });
     });
 
     const conclusionHeight = this.getConclusionHeight(conclusion);
     const totalFinalBlockHeight = (conclusion && conclusion.trim() ? conclusionHeight : 0) + sigHeight;
+
+    // Ước tính tổng chiều cao tất cả các mục để nhận diện kịch bản 2 trang (2-page report)
+    const totalEntriesEstimatedHeight = flatEntries.reduce((sum, e) => sum + this.getEntryHeight(e), 0);
+    const p1Available = maxUsable - p1Static;
+    const p2AvailableWithSignature = maxUsable - p2Static - totalFinalBlockHeight;
+    const canFitInSinglePage = p1Static + totalEntriesEstimatedHeight + totalFinalBlockHeight <= maxUsable;
+    // Báo cáo cần 2 trang nếu không vừa trang 1 nhưng vừa vặn trong sức chứa 2 trang
+    const canFitInTwoPages = !canFitInSinglePage && (totalEntriesEstimatedHeight <= p1Available + p2AvailableWithSignature - 30);
+    // Điểm cân bằng cho Trang 1: phân bổ khoảng 48-52% nội dung để trang 1 và trang 2 đều đẹp mắt
+    const balancedP1TargetHeight = canFitInTwoPages
+      ? Math.min(p1Available, Math.max(p1Available * 0.45, totalEntriesEstimatedHeight * 0.52))
+      : p1Available;
 
     const pages: ReportPaginatedPage[] = [];
     let remaining = [...flatEntries];
@@ -141,15 +153,19 @@ export class ReportPaginationDomainService {
       }
 
       // Chưa vừa: Tính toán số lượng item lấy được trong trang này
-      let currentHeight = initialPageHeight;
+      const maxAllowedContentHeight = (isFirstPage && canFitInTwoPages)
+        ? balancedP1TargetHeight
+        : (maxUsable - initialPageHeight);
+
+      let currentAccumulatedHeight = 0;
       let takeCount = 0;
 
       for (let i = 0; i < remaining.length; i++) {
         const entryH = this.getEntryHeight(remaining[i]);
-        if (currentHeight + entryH > maxUsable) {
+        if (currentAccumulatedHeight + entryH > maxAllowedContentHeight && takeCount > 0) {
           break;
         }
-        currentHeight += entryH;
+        currentAccumulatedHeight += entryH;
         takeCount = i + 1;
       }
 
@@ -160,8 +176,12 @@ export class ReportPaginationDomainService {
 
       takeCount = Math.max(1, Math.min(takeCount, remaining.length));
 
-      // Tránh để trang tiếp theo chỉ có mỗi chữ ký mà không có chỉ số nào
-      if (remaining.length <= takeCount && takeCount > 2) {
+      // Tránh để trang tiếp theo chỉ có mỗi chữ ký hoặc quá ít chỉ số (< 4 mục)
+      const remainingAfterTake = remaining.length - takeCount;
+      if (remainingAfterTake > 0 && remainingAfterTake < 4 && takeCount > 4) {
+        const needToMove = 4 - remainingAfterTake;
+        takeCount = Math.max(1, takeCount - needToMove);
+      } else if (remaining.length <= takeCount && takeCount > 2) {
         const keepBack = Math.min(2, Math.floor(takeCount / 2));
         takeCount = Math.max(1, takeCount - keepBack);
       }

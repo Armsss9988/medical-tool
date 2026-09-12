@@ -5,6 +5,7 @@ import {
   PaginationEntryTest
 } from '../ReportPaginationDomainService';
 import type { SelectedTest } from '../../types';
+import { formatEquipmentForPrint } from '../../types';
 
 describe('ReportPaginationDomainService', () => {
   const createMockTest = (
@@ -45,7 +46,7 @@ describe('ReportPaginationDomainService', () => {
       expect(ReportPaginationDomainService.getEntryHeight(entry)).toBe(28);
     });
 
-    it('should calculate long test entry or long note height as 42px', () => {
+    it('should calculate long test entry or long note height as 44px', () => {
       const longTest = createMockTest('SPEC', 'Định lượng kháng thể đặc hiệu trong huyết thanh bệnh nhân rất dài');
       const entry1: PaginationEntryTest = {
         type: 'test',
@@ -53,7 +54,7 @@ describe('ReportPaginationDomainService', () => {
         idx: 1,
         category: 'Sinh hóa'
       };
-      expect(ReportPaginationDomainService.getEntryHeight(entry1)).toBe(42);
+      expect(ReportPaginationDomainService.getEntryHeight(entry1)).toBe(44);
 
       const noteTest = createMockTest('UR', 'Ure', 'Sinh hóa', 'Mẫu huyết thanh bị vỡ hồng cầu nhẹ cần đối chiếu lâm sàng');
       const entry2: PaginationEntryTest = {
@@ -62,7 +63,7 @@ describe('ReportPaginationDomainService', () => {
         idx: 2,
         category: 'Sinh hóa'
       };
-      expect(ReportPaginationDomainService.getEntryHeight(entry2)).toBe(42);
+      expect(ReportPaginationDomainService.getEntryHeight(entry2)).toBe(44);
     });
 
     it('should calculate conclusion height correctly based on text length', () => {
@@ -166,6 +167,42 @@ describe('ReportPaginationDomainService', () => {
         expect(page2FirstEntry.isContinued).toBe(true);
         expect(page2FirstEntry.category).toContain('(tiếp theo)');
       }
+    });
+
+    it('should split hematology 25 tests evenly across 2 pages without overloading page 1', () => {
+      const tests: SelectedTest[] = [];
+      for (let i = 1; i <= 25; i++) {
+        tests.push(createMockTest(`HEM_${i}`, `Chỉ số huyết học số ${i}`, 'Huyết học'));
+      }
+
+      const pages = ReportPaginationDomainService.paginate(tests, 'Bác sĩ dặn dò');
+      expect(pages).toHaveLength(2);
+      expect(pages[0].pageNumber).toBe(1);
+      expect(pages[1].pageNumber).toBe(2);
+
+      // Page 1 should not have all 23 items squeezed in; it should have between 11 and 15 items
+      expect(pages[0].tests.length).toBeGreaterThanOrEqual(11);
+      expect(pages[0].tests.length).toBeLessThanOrEqual(15);
+
+      // Page 2 should have at least 10 items alongside the signature block
+      expect(pages[1].tests.length).toBeGreaterThanOrEqual(10);
+      expect(pages[1].showSignature).toBe(true);
+
+      expect(pages[0].tests.length + pages[1].tests.length).toBe(25);
+    });
+  });
+
+  describe('formatEquipmentForPrint', () => {
+    it('should strip parenthesized details and verbose prefixes', () => {
+      expect(formatEquipmentForPrint('MS-H630 (Máy Phân Tích Huyết Học)')).toBe('MS-H630');
+      expect(formatEquipmentForPrint('MS-360 (Vi Chất)')).toBe('MS-360');
+      expect(formatEquipmentForPrint('Roche cobas e 801 (Miễn Dịch)')).toBe('cobas e 801');
+      expect(formatEquipmentForPrint('Tosoh HLC-723G11 (Huyết Sắc Tố)')).toBe('Tosoh G11');
+      expect(formatEquipmentForPrint('MEDIWISS AlleisaScreen 44 BLOTrix Reader C1')).toBe('MEDIWISS C1');
+      expect(formatEquipmentForPrint('Máy Đọc Dị Nguyên PROTIA Smart Analyzer')).toBe('PROTIA');
+      expect(formatEquipmentForPrint('Tự động')).toBe('Tự động');
+      expect(formatEquipmentForPrint(null)).toBe('Tự động');
+      expect(formatEquipmentForPrint('')).toBe('Tự động');
     });
   });
 });

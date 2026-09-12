@@ -259,11 +259,15 @@ export class LabReportAggregate {
     const completedCount = newTests.filter((t) => String(t.result ?? '').trim() !== '').length;
 
     if (dirtyReasons.length > 0) {
+      const lastExported = this._documentState.status === 'EXPORTED'
+        ? this._documentState.exportedAt
+        : (this._documentState.status === 'OUTDATED' ? this._documentState.lastExportedAt : this._updatedAt);
+
       const node = new OutdatedStateNode(
         this._cloudPdfUrl || '',
         this._qrCodeDataUrl,
         this._pdfVersion,
-        this._updatedAt,
+        lastExported,
         dirtyReasons
       );
       this._documentState = node.toSnapshot();

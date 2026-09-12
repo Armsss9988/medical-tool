@@ -319,6 +319,23 @@ export function resolveTestEquipmentName(
   return 'Tự động';
 }
 
+/**
+ * Helper: Rút gọn và chuẩn hóa tên thiết bị để in vừa vặn trong cột hẹp (12% ~ 80px)
+ * Lược bỏ chú thích mở rộng trong ngoặc đơn và các tiền tố dài dòng (ví dụ "Roche cobas e 801" -> "Cobas e 801")
+ */
+export function formatEquipmentForPrint(equipmentName?: string | null): string {
+  if (!equipmentName || !equipmentName.trim() || equipmentName === 'Tự động') return 'Tự động';
+  const trimmed = equipmentName.trim();
+  // Bỏ phần chú thích trong ngoặc đơn, ví dụ "MS-H630 (Máy Phân Tích Huyết Học)" -> "MS-H630"
+  let clean = trimmed.replace(/\s*\([^)]*\)/g, '').trim();
+  // Rút gọn các tiền tố phổ biến
+  clean = clean.replace(/^Roche\s+/i, '');
+  clean = clean.replace(/^Tosoh\s+HLC-723G11/i, 'Tosoh G11');
+  clean = clean.replace(/^MEDIWISS AlleisaScreen 44 BLOTrix Reader C1/i, 'MEDIWISS C1');
+  clean = clean.replace(/^Máy Đọc Dị Nguyên PROTIA Smart Analyzer/i, 'PROTIA');
+  return clean || trimmed;
+}
+
 export interface TestGroup {
   id: string;
   name: string;

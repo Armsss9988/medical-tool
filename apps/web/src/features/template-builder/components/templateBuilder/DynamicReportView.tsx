@@ -12,6 +12,7 @@ import {
   ReportTemplate,
   TemplateBlock,
   resolveTestEquipmentName,
+  formatEquipmentForPrint,
   DEFAULT_CLINIC_INFO,
   getSafeClinicInfo,
   HeaderBlockProps,
@@ -499,7 +500,7 @@ export function DynamicReportView({
                     const isAbnormalByNote = t.note ? (t.note.includes('Phát Hiện') && !t.note.includes('Không')) : false;
                     const evaluation = evaluateResult(t.result, t.refMin, t.refMax);
                     const isAbnormal = evaluation.status === 'high' || evaluation.status === 'low' || isAbnormalByNote;
-                    const resolvedEquipment = resolveTestEquipmentName(t, equipments, catalogItemEquipments);
+                    const resolvedEquipment = formatEquipmentForPrint(resolveTestEquipmentName(t, equipments, catalogItemEquipments));
 
                     return (
                       <tr key={`${t.code}-${entry.idx}`} className={`hover:bg-slate-50 ${isAbnormal && p.highlightAbnormal !== false ? 'bg-red-50/40' : ''}`}>
@@ -544,7 +545,7 @@ export function DynamicReportView({
                         const isAbnormalByNote = t.note ? (t.note.includes('Phát Hiện') && !t.note.includes('Không')) : false;
                         const evaluation = evaluateResult(t.result, t.refMin, t.refMax);
                         const isAbnormal = evaluation.status === 'high' || evaluation.status === 'low' || isAbnormalByNote;
-                        const resolvedEquipment = resolveTestEquipmentName(t, equipments, catalogItemEquipments);
+                        const resolvedEquipment = formatEquipmentForPrint(resolveTestEquipmentName(t, equipments, catalogItemEquipments));
 
                         return (
                           <tr key={`${t.code}-${idx}`} className={`hover:bg-slate-50 ${isAbnormal && p.highlightAbnormal !== false ? 'bg-red-50/40' : ''}`}>
@@ -583,7 +584,7 @@ export function DynamicReportView({
                     const isAbnormalByNote = t.note ? (t.note.includes('Phát Hiện') && !t.note.includes('Không')) : false;
                     const evaluation = evaluateResult(t.result, t.refMin, t.refMax);
                     const isAbnormal = evaluation.status === 'high' || evaluation.status === 'low' || isAbnormalByNote;
-                    const resolvedEquipment = resolveTestEquipmentName(t, equipments, catalogItemEquipments);
+                    const resolvedEquipment = formatEquipmentForPrint(resolveTestEquipmentName(t, equipments, catalogItemEquipments));
 
                     return (
                       <tr key={`${t.code}-${idx}`} className={`hover:bg-slate-50 ${isAbnormal && p.highlightAbnormal !== false ? 'bg-red-50/40' : ''}`}>

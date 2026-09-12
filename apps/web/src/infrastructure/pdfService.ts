@@ -191,6 +191,9 @@ export function sanitizeDocumentOklch(doc: Document | HTMLElement) {
     'textDecorationColor'
   ];
 
+  const targetDoc = (doc as Document).defaultView ? (doc as Document) : doc.ownerDocument || document;
+  const targetView = targetDoc.defaultView || window;
+
   allEls.forEach((el) => {
     // Check inline style attribute
     const inlineStyle = el.getAttribute('style');
@@ -199,7 +202,7 @@ export function sanitizeDocumentOklch(doc: Document | HTMLElement) {
     }
 
     try {
-      const comp = window.getComputedStyle(el);
+      const comp = targetView.getComputedStyle(el);
       for (const prop of colorProps) {
         const val = comp[prop];
         if (typeof val === 'string' && (val.includes('okl') || val.includes('lab(') || val.includes('lch('))) {
@@ -259,16 +262,49 @@ export async function generateHighQualityPdf(
     logging: false,
     imageTimeout: 15000,
     onclone: async (clonedDoc: Document) => {
-      // 1. Đảm bảo các container in ấn trong clone nằm gọn gàng tại tọa độ (0, 0)
+      // 1. Đảm bảo các container in ấn trong clone nằm gọn gàng tại tọa độ (0, 0) và hiển thị trọn vẹn
       // Loại bỏ hoàn toàn định vị âm (-left-[9999px]) trong clone để trình duyệt tính toán Range DOM, khoảng trắng và font kerning chuẩn xác
       const printContainers = Array.from(clonedDoc.querySelectorAll<HTMLElement>('.print-layer-container'));
       printContainers.forEach((container) => {
         container.style.position = 'static';
         container.style.left = '0';
         container.style.top = '0';
+        container.style.overflow = 'visible';
+        container.style.pointerEvents = 'auto';
       });
 
-      // 2. Chờ font chữ tải và đồng bộ hoàn tất trong Document clone
+      // 2. Đồng bộ toàn bộ CSS rules từ Document gốc sang Document clone dưới dạng thẻ <style> inline
+      // Khắc phục triệt để việc Next.js nạp layout.css qua <link rel="stylesheet"> bất đồng bộ khiến iframe của html2canvas mất toàn bộ CSS Tailwind (border, flex, colgroup)
+      for (const sheet of Array.from(document.styleSheets)) {
+        try {
+          if (sheet.cssRules && sheet.cssRules.length > 0) {
+            const styleTag = clonedDoc.createElement('style');
+            let cssText = '';
+            for (const rule of Array.from(sheet.cssRules)) {
+              cssText += rule.cssText + '\n';
+            }
+            styleTag.textContent = sanitizeAllModernColors(cssText);
+            clonedDoc.head.appendChild(styleTag);
+          }
+        } catch {
+          // Bỏ qua lỗi cross-origin stylesheet (ví dụ Google Fonts link)
+        }
+      }
+
+      // 3. Bơm CSS bổ trợ kiên cố cho phiếu xét nghiệm thường để đảm bảo không bị rớt viền hay co bảng
+      const bulletproofStyle = clonedDoc.createElement('style');
+      bulletproofStyle.textContent = `
+        .header-section { display: flex !important; justify-content: space-between !important; align-items: center !important; }
+        .header-section > div { display: flex !important; }
+        .patient-table-section { border: 1px solid #cbd5e1 !important; border-collapse: collapse !important; }
+        .patient-table-section table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; }
+        .patient-table-section td, .patient-table-section th { border-right: 1px solid #cbd5e1 !important; border-bottom: 1px solid #cbd5e1 !important; vertical-align: middle !important; }
+        #printable-medical-report table, #preview-print-element table, #batch-medical-report table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; }
+        #printable-medical-report th, #printable-medical-report td, #preview-print-element th, #preview-print-element td, #batch-medical-report th, #batch-medical-report td { border-right: 1px solid #cbd5e1 !important; border-bottom: 1px solid #cbd5e1 !important; vertical-align: middle !important; }
+      `;
+      clonedDoc.head.appendChild(bulletproofStyle);
+
+      // 4. Chờ font chữ tải và đồng bộ hoàn tất trong Document clone
       if (clonedDoc.fonts && clonedDoc.fonts.ready) {
         try {
           await clonedDoc.fonts.ready;
@@ -277,11 +313,11 @@ export async function generateHighQualityPdf(
         }
       }
 
-      // 3. Tiền xử lý màu sắc OKLCH/OKLab sang RGB
+      // 5. Tiền xử lý màu sắc OKLCH/OKLab sang RGB trên Document clone
       sanitizeDocumentOklch(clonedDoc);
 
-      // 4. Đảm bảo tất cả <img> SVG Data URI đã load xong trong clone DOM
-      const clonedImgs = Array.from(clonedDoc.querySelectorAll('img[src^="data:image/svg"]'));
+      // 6. Đảm bảo tất cả <img> SVG Data URI đã load xong trong clone DOM
+      const clonedImgs = Array.from(clonedDoc.querySelectorAll('img'));
       await Promise.all(
         clonedImgs.map((img) => {
           const el = img as HTMLImageElement;
