@@ -383,6 +383,7 @@ export interface Invoice {
   totalAmount: number;
   discountPercent: number;
   discountAmount?: number;
+  discountType?: 'amount' | 'percent';
   surchargeAmount?: number;
   surchargeNote?: string;
   finalAmount: number;
@@ -394,6 +395,7 @@ export interface Invoice {
   cashierName?: string;
   reportId?: string;
   paidAt?: string;
+  cancelledAt?: string;
   cloudPdfUrl?: string;
   qrCodeDataUrl?: string;
 }
@@ -406,6 +408,7 @@ export interface ClinicInfo {
   defaultDoctor: string;
   logoUrl?: string;
   stampUrl?: string;
+  headquartersAddress?: string; // Trụ sở chính hệ thống (VD: Số 36 BT5, Khu đô thị Pháp Vân, phường Hoàng Liệt, thành phố Hà Nội)
   bankId?: string;          // Mã định danh ngân hàng (VD: VBA, ICB, VCB, MB, TCB...)
   bankName?: string;        // Tên ngân hàng (VD: Agribank, VietinBank, Vietcombank...)
   bankAccountNo?: string;   // Số tài khoản
@@ -419,6 +422,7 @@ export interface ClinicInfo {
 export const DEFAULT_CLINIC_INFO: ClinicInfo = {
   name: 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH',
   address: 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị',
+  headquartersAddress: 'Số 36 BT5, Khu đô thị Pháp Vân, phường Hoàng Liệt, thành phố Hà Nội',
   phone: '032.855.3773',
   website: 'golab.com.vn',
   defaultDoctor: 'Nguyễn Thị Thành Trung',
@@ -455,6 +459,7 @@ export function getSafeClinicInfo(info?: ClinicInfo | null): ClinicInfo {
     ...info,
     name: info.name && !isCorruptedClinicInfo(info) ? info.name : DEFAULT_CLINIC_INFO.name,
     address: info.address && !isCorruptedClinicInfo(info) ? info.address : DEFAULT_CLINIC_INFO.address,
+    headquartersAddress: info.headquartersAddress && !isCorruptedClinicInfo(info) ? info.headquartersAddress : DEFAULT_CLINIC_INFO.headquartersAddress,
     phone: info.phone && info.phone !== 'IU/ml' ? info.phone : DEFAULT_CLINIC_INFO.phone,
     website: info.website && !info.website.includes('+00') && !info.website.includes('T') ? info.website : DEFAULT_CLINIC_INFO.website,
   };
@@ -521,6 +526,8 @@ export interface MedicalReport {
   pdfVersion?: number;
   /** Cờ đánh dấu dữ liệu đã bị chỉnh sửa sau lần xuất PDF gần nhất */
   isPdfOutdated?: boolean;
+  /** Danh sách chi tiết các trường hoặc chỉ số đã thay đổi sau lần xuất PDF gần nhất (ví dụ: 'Sửa giới tính: Nam → Nữ') */
+  dirtyReasons?: string[];
 }
 
 // ─── BATCH IMPORT / EXPORT TYPES ─────────────────────────────────────────────

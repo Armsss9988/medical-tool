@@ -8,8 +8,10 @@ import {
 import {
   MedicalReport, CatalogItem, ClinicInfo, BatchImportRow, BatchExportProgress, ToastType,
   TestGroup, TestEquipment, TestPackage, Doctor, CatalogItemEquipmentLink, Invoice, getPkgCodes,
-  AllergenGradingScale, AiTemplateTarget, ReportKindResolver
+  AllergenGradingScale, AiTemplateTarget, ReportKindResolver, STORAGE_KEYS
 } from '@domain';
+import { saveState } from '@infra/storage';
+import { putTable } from '@infra/apiClient';
 import {
   exportBatchTemplateExcel,
   parseExcelBatchPatients,
@@ -204,6 +206,8 @@ export default function BatchExportModal({
         });
         const merged = Array.from(map.values());
         setCatalog(merged);
+        saveState(STORAGE_KEYS.CATALOG, merged);
+        putTable('catalog', merged).catch((err) => console.warn('[BatchExportModal] Lỗi lưu catalog lên server:', err));
         showToast(`Đã cập nhật ${updatedCount} chỉ số cũ và thêm mới ${addedCount} chỉ số từ Excel (tổng ${merged.length} chỉ số)!`, 'success');
       } else {
         showToast('Không tìm thấy dữ liệu hợp lệ trong file Excel.', 'error');
@@ -246,6 +250,8 @@ export default function BatchExportModal({
         });
         const merged = Array.from(map.values());
         setCatalogItemEquipments(merged);
+        saveState(STORAGE_KEYS.CATALOG_ITEM_EQUIPMENTS, merged);
+        putTable('catalog-item-equipments', merged).catch((err) => console.warn('[BatchExportModal] Lỗi lưu equipment links lên server:', err));
         showToast(`Đã cập nhật ${updatedCount} cấu hình cũ và thêm mới ${addedCount} cấu hình máy đo (tổng ${merged.length} liên kết)!`, 'success');
       } else {
         showToast('Không tìm thấy dữ liệu hợp lệ trong file Excel.', 'error');
@@ -289,6 +295,8 @@ export default function BatchExportModal({
         });
         const merged = Array.from(map.values());
         setTestPackages(merged);
+        saveState(STORAGE_KEYS.TEST_PACKAGES, merged);
+        putTable('test-packages', merged).catch((err) => console.warn('[BatchExportModal] Lỗi lưu packages lên server:', err));
         showToast(`Đã cập nhật ${updatedCount} gói cũ và thêm mới ${addedCount} gói xét nghiệm (tổng ${merged.length} gói)!`, 'success');
       } else {
         showToast('Không tìm thấy dữ liệu hợp lệ trong file Excel.', 'error');
@@ -329,6 +337,8 @@ export default function BatchExportModal({
         });
         const merged = Array.from(map.values());
         setDoctorsList(merged);
+        saveState(STORAGE_KEYS.DOCTORS, merged);
+        putTable('doctors', merged).catch((err) => console.warn('[BatchExportModal] Lỗi lưu doctors lên server:', err));
         showToast(`Đã cập nhật ${updatedCount} bác sĩ cũ và thêm mới ${addedCount} bác sĩ (tổng ${merged.length} bác sĩ)!`, 'success');
       } else {
         showToast('Không tìm thấy dữ liệu hợp lệ trong file Excel.', 'error');
@@ -368,6 +378,8 @@ export default function BatchExportModal({
         });
         const merged = Array.from(map.values());
         setEquipments(merged);
+        saveState(STORAGE_KEYS.EQUIPMENTS, merged);
+        putTable('equipments', merged).catch((err) => console.warn('[BatchExportModal] Lỗi lưu equipments lên server:', err));
         showToast(`Đã cập nhật ${updatedCount} thiết bị cũ và thêm mới ${addedCount} thiết bị (tổng ${merged.length} máy)!`, 'success');
       } else {
         showToast('Không tìm thấy dữ liệu hợp lệ trong file Excel.', 'error');
@@ -406,6 +418,8 @@ export default function BatchExportModal({
         });
         const merged = Array.from(map.values());
         setTestGroups(merged);
+        saveState(STORAGE_KEYS.TEST_GROUPS, merged);
+        putTable('test-groups', merged).catch((err) => console.warn('[BatchExportModal] Lỗi lưu test groups lên server:', err));
         showToast(`Đã cập nhật ${updatedCount} nhóm cũ và thêm mới ${addedCount} nhóm xét nghiệm (tổng ${merged.length} nhóm)!`, 'success');
       } else {
         showToast('Không tìm thấy dữ liệu hợp lệ trong file Excel.', 'error');
@@ -447,6 +461,8 @@ export default function BatchExportModal({
         });
         const merged = Array.from(map.values());
         setAllergenScales(merged);
+        saveState(STORAGE_KEYS.ALLERGEN_SCALES, merged);
+        putTable('allergen-scales', merged).catch((err) => console.warn('[BatchExportModal] Lỗi lưu allergen scales lên server:', err));
         showToast(`Đã cập nhật ${updatedCount} thang đo cũ và thêm mới ${addedCount} thang đo (tổng ${merged.length} thang đo)!`, 'success');
       } else {
         showToast('Không tìm thấy dữ liệu hợp lệ trong file Excel.', 'error');

@@ -10,7 +10,7 @@ export interface PortalTestItem {
   note: string;
   evaluationType?: 'range' | 'scale' | string;
   scaleId?: string | null;
-  evaluation: 'NORMAL' | 'ABNORMAL';
+  evaluation: 'NORMAL' | 'ABNORMAL' | 'PENDING';
 }
 
 export interface PortalPaymentInfo {

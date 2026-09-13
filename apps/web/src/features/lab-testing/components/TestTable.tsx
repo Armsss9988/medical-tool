@@ -114,16 +114,13 @@ export default function TestTable({
   }, [selectedTests, setSelectedTests, onAddToRecent, equipments, catalogItemEquipments, referenceRanges, allergenScales]);
 
   const handleRemoveTest = (code: string) => {
-    if (window.confirm(`Bạn có chắc muốn xóa chỉ số [${code}] khỏi bảng xét nghiệm?`)) {
-      setSelectedTests((prev) => prev.filter((t) => t.code !== code));
-    }
+    setSelectedTests((prev) => prev.filter((t) => t.code !== code));
   };
 
   const handleClearAllTests = () => {
     if (selectedTests.length === 0) return;
-    if (window.confirm('Bạn có chắc muốn xóa toàn bộ danh sách chỉ số xét nghiệm đang chọn?')) {
-      setSelectedTests([]);
-    }
+    setSelectedTests([]);
+    showToast?.('Đã xóa toàn bộ chỉ số xét nghiệm.', 'info');
   };
 
   // Auto-fill typical normal values for quick test/demo
@@ -151,19 +148,8 @@ export default function TestTable({
       prev.map((t) => {
         if (t.code !== code) return t;
 
-        const resolved = resolveIndicatorReference(t, {
-          equipmentId: t.equipmentId,
-          catalogItemEquipments,
-          referenceRanges,
-          allergenScales,
-          equipments
-        });
-        const isDetection = (t.evaluationType || resolved.evaluationType) === 'detection';
+        // Hỗ trợ cả kết quả định lượng (số) và định tính ("Âm tính", "Dương tính", "Không phát hiện"...)
 
-        // Lựa chọn B: Chỉ cho nhập số, không cho nhập chữ
-        if (isDetection && rawVal !== '' && !/^[-+]?[0-9]*[.,]?[0-9]*$/.test(rawVal.trim())) {
-          return t;
-        }
 
         const evaluated = evaluateIndicatorChange(t, rawVal, {
           catalogItemEquipments,
@@ -390,22 +376,7 @@ export default function TestTable({
         if (idx >= lines.length) return t;
         const rawVal = lines[idx];
 
-        const resolved = resolveIndicatorReference(t, {
-          equipmentId: t.equipmentId,
-          catalogItemEquipments,
-          referenceRanges,
-          allergenScales,
-          equipments
-        });
-        const isDetection = (t.evaluationType || resolved.evaluationType) === 'detection';
-
-        let sanitizedVal = rawVal;
-        if (isDetection) {
-          if (!/^[-+]?[0-9]*[.,]?[0-9]*$/.test(rawVal.trim())) {
-            const match = rawVal.match(/[-+]?[0-9]+([.,][0-9]+)?/);
-            sanitizedVal = match ? match[0] : '';
-          }
-        }
+        const sanitizedVal = rawVal;
 
         const evaluated = evaluateIndicatorChange(t, sanitizedVal, {
           catalogItemEquipments,

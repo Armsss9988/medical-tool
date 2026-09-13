@@ -368,8 +368,8 @@ export function evaluateIndicatorChange(
     undefined,
     effectiveEvalType
   );
-  const isDetection = effectiveEvalType === 'detection';
-  const autoNote = evalRes.label || (isDetection && (!rawVal || rawVal.trim() === '') ? '' : test.note);
+  const isEmptyValue = rawVal === null || rawVal === undefined || String(rawVal).trim() === '';
+  const autoNote = isEmptyValue ? '' : (evalRes.label || test.note);
 
   return {
     result: rawVal,

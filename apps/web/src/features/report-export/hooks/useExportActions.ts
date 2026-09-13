@@ -2,11 +2,11 @@ import { useCallback } from 'react';
 import { useWorkspace } from '../../../contexts/WorkspaceContext';
 import { useModal } from '../../../contexts/ModalContext';
 import { useToast } from '../../../contexts/ToastContext';
-import { REPORT_STATUS } from '@domain/constants';
+import { REPORT_STATUS, PRINT_ELEMENT_ID } from '@domain/constants';
 import { ReportClassificationDomainService, formatReportPdfFilename } from '@domain';
 import { buildCurrentReport, resolveDoctorName } from '@domain/reportFactory';
 import { generateZaloTextMessage, openZaloChat } from '@infra/zaloService';
-import type { ClinicInfo, MedicalReport, ToastType } from '@domain';
+import type { ClinicInfo, MedicalReport, ToastType, ReportTemplate } from '@domain';
 import type { useReportExport } from './useReportExport';
 
 // ─── EXPORT ACTIONS HOOK ────────────────────────────────────────────────────
@@ -15,7 +15,8 @@ import type { useReportExport } from './useReportExport';
 export function useExportActions(
   clinicInfo: ClinicInfo,
   exportHook: ReturnType<typeof useReportExport>,
-  onSaveCurrentReport: () => string | null
+  onSaveCurrentReport: () => string | null,
+  activeTemplate?: ReportTemplate
 ) {
   const {
     patient,
@@ -47,9 +48,12 @@ export function useExportActions(
     const existingRep = reports.find((r) => r.id === reportId || r.code === patient.code);
 
     const reportType = ReportClassificationDomainService.classify(selectedTests);
+    const defaultElementId = activeTemplate
+      ? PRINT_ELEMENT_ID.DYNAMIC_REPORT
+      : ReportClassificationDomainService.resolvePrintElementId(reportType);
     const elementId = (customElementId && typeof customElementId === 'string')
       ? customElementId
-      : ReportClassificationDomainService.resolvePrintElementId(reportType);
+      : defaultElementId;
     const filename = formatReportPdfFilename(patient.name, patient.code);
 
     const result = await handleExportPdfAndUploadCloud(
@@ -82,6 +86,7 @@ export function useExportActions(
     onSaveCurrentReport,
     reports,
     selectedTests,
+    activeTemplate,
     patient,
     doctorName,
     conclusion,
@@ -91,13 +96,20 @@ export function useExportActions(
     showToast
   ]);
 
-  // 2. ACTION: TẢI FILE PDF TRỰC TIẾP VỀ MÁY
-  const handleDownloadPdfDirect = useCallback(() => {
+  // 2. ACTION: TẢI FILE PDF TRỰC TIẾP VỀ MÁY (Đồng bộ tuyệt đối PrintLayer với xem trước)
+  const handleDownloadPdfDirect = useCallback((customElementId?: string, customFilename?: string) => {
     const reportType = ReportClassificationDomainService.classify(selectedTests);
-    const elementId = ReportClassificationDomainService.resolvePrintElementId(reportType);
-    const filename = formatReportPdfFilename(patient.name, patient.code);
+    const defaultElementId = activeTemplate
+      ? PRINT_ELEMENT_ID.DYNAMIC_REPORT
+      : ReportClassificationDomainService.resolvePrintElementId(reportType);
+    const elementId = (customElementId && typeof customElementId === 'string')
+      ? customElementId
+      : defaultElementId;
+    const filename = (customFilename && typeof customFilename === 'string')
+      ? customFilename
+      : formatReportPdfFilename(patient.name, patient.code);
     handleDownloadPdf(elementId, filename);
-  }, [selectedTests, patient, handleDownloadPdf]);
+  }, [selectedTests, activeTemplate, patient, handleDownloadPdf]);
 
   // 3. ACTION: GỬI KẾT QUẢ TRỰC TIẾP QUA ZALO CHAT / WEB
   const handleDirectSendZalo = useCallback(async () => {

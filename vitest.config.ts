@@ -9,6 +9,7 @@ export default defineConfig({
     alias: {
       '@': path.resolve(import.meta.dirname, 'apps/web'),
       '@domain': path.resolve(import.meta.dirname, 'packages/shared/src/domain'),
+      '@schemas': path.resolve(import.meta.dirname, 'packages/shared/src/schemas'),
       '@data': path.resolve(import.meta.dirname, 'packages/shared/src/data'),
       '@infra': path.resolve(import.meta.dirname, 'apps/web/src/infrastructure'),
       '@components': path.resolve(import.meta.dirname, 'apps/web/src/components'),

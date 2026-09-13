@@ -57,3 +57,4 @@ pnpm-debug.log*
 *.tsbuildinfo
 .vercel
 .playwright-mcp
+/*.png

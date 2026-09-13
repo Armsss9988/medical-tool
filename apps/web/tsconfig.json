@@ -47,6 +47,12 @@
       "@data/*": [
         "../../packages/shared/src/data/*"
       ],
+      "@schemas": [
+        "../../packages/shared/src/schemas"
+      ],
+      "@schemas/*": [
+        "../../packages/shared/src/schemas/*"
+      ],
       "@components": [
         "./src/components"
       ],

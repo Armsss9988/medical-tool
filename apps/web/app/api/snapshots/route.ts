@@ -18,6 +18,7 @@ const ALL_TABLE_NAMES: TableName[] = [
   'reference-ranges',
   'catalog-item-equipments',
   'allergen-scales',
+  'report-templates',
   'medical-reports',
   'invoices'
 ];

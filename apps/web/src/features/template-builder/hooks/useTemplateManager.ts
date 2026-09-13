@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, useContext } from 'react';
 import {
   ReportTemplate,
   TemplateBlock,
@@ -9,23 +9,45 @@ import {
   fetchReportTemplatesFromSupabase
 } from '@infra/cloudDbService';
 import { putReportTemplatesApi } from '@infra/apiClient';
+import { TemplateContext } from '../../../contexts/TemplateContext';
 
 const STORAGE_KEY_TEMPLATES = 'golab_report_templates_v2';
 const STORAGE_KEY_ACTIVE = 'golab_active_template_id_v2';
+const STORAGE_KEY_DELETED_PRESETS = 'golab_deleted_preset_ids_v1';
 
-export function useTemplateManager() {
+function getDeletedPresetIds(): Set<string> {
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_DELETED_PRESETS) : null;
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr);
+    }
+  } catch {
+    // ignore
+  }
+  return new Set();
+}
+
+export function useTemplateManagerInternal() {
   // Load templates from localStorage or fallback to PRESET_TEMPLATES
   const [templates, setTemplates] = useState<ReportTemplate[]>(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY_TEMPLATES);
+      const deletedPresetIds = getDeletedPresetIds();
+      const availablePresets = PRESET_TEMPLATES.filter((p) => !deletedPresetIds.has(p.id));
+
+      const stored = localStorage.getItem(STORAGE_KEY_TEMPLATES) || localStorage.getItem('golab_report_templates');
       if (stored) {
         const parsed = JSON.parse(stored) as ReportTemplate[];
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Keep user custom templates (not presets) and merge with latest PRESET_TEMPLATES
-          const customTemplates = parsed.filter((t) => !PRESET_TEMPLATES.some((p) => p.id === t.id));
-          return [...PRESET_TEMPLATES, ...customTemplates];
+          const userTemplateMap = new Map(parsed.map((t) => [t.id, t]));
+          // Duyệt qua preset còn hiệu lực: Nếu user đã tùy biến preset nào thì lấy bản tùy biến của user
+          const mergedPresets = availablePresets.map((preset) => userTemplateMap.get(preset.id) || preset);
+          // Lấy thêm các template hoàn toàn mới do user tự tạo (loại trừ các id đã bị xóa)
+          const customOnly = parsed.filter((t) => !PRESET_TEMPLATES.some((p) => p.id === t.id) && !deletedPresetIds.has(t.id));
+          return [...mergedPresets, ...customOnly];
         }
       }
+      return availablePresets.length > 0 ? availablePresets : PRESET_TEMPLATES;
     } catch (e) {
       console.warn('[useTemplateManager] Lỗi đọc templates từ localStorage:', e);
     }
@@ -46,6 +68,12 @@ export function useTemplateManager() {
   // Undo / Redo History Stacks (tối đa 30 bước)
   const [undoStack, setUndoStack] = useState<ReportTemplate[]>([]);
   const [redoStack, setRedoStack] = useState<ReportTemplate[]>([]);
+  const hasUserEditedRef = useRef(false);
+
+  const setUserTemplates = useCallback((updater: React.SetStateAction<ReportTemplate[]>) => {
+    hasUserEditedRef.current = true;
+    setTemplates(updater);
+  }, []);
 
   const pushHistory = useCallback((currentTpl: ReportTemplate) => {
     setUndoStack((prev) => [...prev.slice(-29), JSON.parse(JSON.stringify(currentTpl))]);
@@ -61,10 +89,12 @@ export function useTemplateManager() {
         if (!isMounted || !cloudTemplates || cloudTemplates.length === 0) return;
 
         setTemplates((prev) => {
+          const deletedPresetIds = getDeletedPresetIds();
           const mergedMap = new Map<string, ReportTemplate>();
-          PRESET_TEMPLATES.forEach((p) => mergedMap.set(p.id, p));
-          cloudTemplates.forEach((c) => mergedMap.set(c.id, c));
+          PRESET_TEMPLATES.filter((p) => !deletedPresetIds.has(p.id)).forEach((p) => mergedMap.set(p.id, p));
+          cloudTemplates.filter((c) => !deletedPresetIds.has(c.id)).forEach((c) => mergedMap.set(c.id, c));
           prev.forEach((l) => {
+            if (deletedPresetIds.has(l.id)) return;
             const existing = mergedMap.get(l.id);
             if (!existing || new Date(l.updatedAt).getTime() >= new Date(existing.updatedAt).getTime()) {
               mergedMap.set(l.id, l);
@@ -84,7 +114,6 @@ export function useTemplateManager() {
   }, []);
 
   // Sync to localStorage & Cloud Database
-  const isInitialLoadRef = useRef(true);
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_TEMPLATES, JSON.stringify(templates));
@@ -92,8 +121,7 @@ export function useTemplateManager() {
       console.warn('[useTemplateManager] Lỗi lưu templates vào localStorage:', e);
     }
 
-    if (isInitialLoadRef.current) {
-      isInitialLoadRef.current = false;
+    if (!hasUserEditedRef.current) {
       return;
     }
 
@@ -143,29 +171,48 @@ export function useTemplateManager() {
       blocks: base?.blocks ? JSON.parse(JSON.stringify(base.blocks)) : JSON.parse(JSON.stringify(PRESET_TEMPLATES[0].blocks))
     };
 
-    setTemplates((prev) => [...prev, newTemplate]);
+    setUserTemplates((prev) => [...prev, newTemplate]);
     setActiveTemplateId(newId);
     setUndoStack([]);
     setRedoStack([]);
     return newTemplate;
-  }, []);
+  }, [setUserTemplates]);
 
   const updateTemplate = useCallback((template: ReportTemplate) => {
     const target = templates.find((t) => t.id === template.id);
     if (target) pushHistory(target);
-    setTemplates((prev) =>
+    setUserTemplates((prev) =>
       prev.map((t) => (t.id === template.id ? { ...template, updatedAt: new Date().toISOString() } : t))
     );
-  }, [templates, pushHistory]);
+  }, [templates, pushHistory, setUserTemplates]);
 
   const deleteTemplate = useCallback((id: string) => {
-    setTemplates((prev) => {
+    if (PRESET_TEMPLATES.some((p) => p.id === id)) {
+      try {
+        const deletedPresetIds = getDeletedPresetIds();
+        deletedPresetIds.add(id);
+        localStorage.setItem(STORAGE_KEY_DELETED_PRESETS, JSON.stringify(Array.from(deletedPresetIds)));
+      } catch (e) {
+        console.warn('[useTemplateManager] Lỗi lưu deleted presets:', e);
+      }
+    }
+
+    setUserTemplates((prev) => {
       const filtered = prev.filter((t) => t.id !== id);
-      if (filtered.length === 0) return PRESET_TEMPLATES;
+      if (filtered.length === 0) {
+        const remainingPresets = PRESET_TEMPLATES.filter((p) => p.id !== id);
+        return remainingPresets.length > 0 ? remainingPresets : PRESET_TEMPLATES;
+      }
       return filtered;
     });
-    setActiveTemplateId((prev) => (prev === id ? PRESET_TEMPLATES[0].id : prev));
-  }, []);
+    setActiveTemplateId((prev) => {
+      if (prev === id) {
+        const remaining = templates.filter((t) => t.id !== id);
+        return remaining[0]?.id || PRESET_TEMPLATES[0].id;
+      }
+      return prev;
+    });
+  }, [setUserTemplates, templates]);
 
   const duplicateTemplate = useCallback((id: string): ReportTemplate => {
     const target = templates.find((t) => t.id === id) || templates[0];
@@ -179,13 +226,13 @@ export function useTemplateManager() {
       updatedAt: new Date().toISOString()
     };
 
-    setTemplates((prev) => [...prev, cloned]);
+    setUserTemplates((prev) => [...prev, cloned]);
     setActiveTemplateId(newId);
     return cloned;
-  }, [templates]);
+  }, [templates, setUserTemplates]);
 
   const setDefaultTemplate = useCallback((id: string) => {
-    setTemplates((prev) =>
+    setUserTemplates((prev) =>
       prev.map((t) => ({
         ...t,
         isDefault: t.id === id,
@@ -193,12 +240,12 @@ export function useTemplateManager() {
       }))
     );
     setActiveTemplateId(id);
-  }, []);
+  }, [setUserTemplates]);
 
   const addBlockToTemplate = useCallback((templateId: string, blockType: TemplateBlockType, afterBlockId?: string) => {
     const target = templates.find((t) => t.id === templateId);
     if (target) pushHistory(target);
-    setTemplates((prev) =>
+    setUserTemplates((prev) =>
       prev.map((t) => {
         if (t.id !== templateId) return t;
 
@@ -334,12 +381,12 @@ export function useTemplateManager() {
         };
       })
     );
-  }, [templates, pushHistory]);
+  }, [templates, pushHistory, setUserTemplates]);
 
   const removeBlockFromTemplate = useCallback((templateId: string, blockId: string) => {
     const target = templates.find((t) => t.id === templateId);
     if (target) pushHistory(target);
-    setTemplates((prev) =>
+    setUserTemplates((prev) =>
       prev.map((t) => {
         if (t.id !== templateId) return t;
         return {
@@ -349,13 +396,13 @@ export function useTemplateManager() {
         };
       })
     );
-  }, [templates, pushHistory]);
+  }, [templates, pushHistory, setUserTemplates]);
 
   const reorderBlockInTemplate = useCallback(
     (templateId: string, blockId: string, direction: 'up' | 'down') => {
       const target = templates.find((t) => t.id === templateId);
       if (target) pushHistory(target);
-      setTemplates((prev) =>
+      setUserTemplates((prev) =>
         prev.map((t) => {
           if (t.id !== templateId) return t;
           const blocks = [...t.blocks].sort((a, b) => a.order - b.order);
@@ -378,14 +425,14 @@ export function useTemplateManager() {
         })
       );
     },
-    [templates, pushHistory]
+    [templates, pushHistory, setUserTemplates]
   );
 
   const updateBlockInTemplate = useCallback(
     (templateId: string, blockId: string, updates: Partial<TemplateBlock>) => {
       const target = templates.find((t) => t.id === templateId);
       if (target) pushHistory(target);
-      setTemplates((prev) =>
+      setUserTemplates((prev) =>
         prev.map((t) => {
           if (t.id !== templateId) return t;
           return {
@@ -396,7 +443,7 @@ export function useTemplateManager() {
         })
       );
     },
-    [templates, pushHistory]
+    [templates, pushHistory, setUserTemplates]
   );
 
   const exportTemplateJson = useCallback((template: ReportTemplate) => {
@@ -427,19 +474,27 @@ export function useTemplateManager() {
         updatedAt: new Date().toISOString()
       };
 
-      setTemplates((prev) => [...prev, imported]);
+      setUserTemplates((prev) => [...prev, imported]);
       setActiveTemplateId(imported.id);
       return imported;
     } catch (err) {
       console.error('[useTemplateManager] Lỗi nạp JSON template:', err);
       return null;
     }
-  }, []);
+  }, [setUserTemplates]);
 
   const resetToPresets = useCallback(() => {
-    setTemplates(PRESET_TEMPLATES);
+    if (typeof window !== 'undefined' && !window.confirm('Bạn có chắc chắn muốn khôi phục danh sách mẫu in về mặc định? Các tùy chỉnh cá nhân sẽ bị ghi đè.')) {
+      return;
+    }
+    try {
+      localStorage.removeItem(STORAGE_KEY_DELETED_PRESETS);
+    } catch {
+      // ignore
+    }
+    setUserTemplates(PRESET_TEMPLATES);
     setActiveTemplateId(PRESET_TEMPLATES[0].id);
-  }, []);
+  }, [setUserTemplates]);
 
 
   const undo = useCallback(() => {
@@ -450,8 +505,8 @@ export function useTemplateManager() {
 
     setRedoStack((prev) => [...prev, JSON.parse(JSON.stringify(current))]);
     setUndoStack(newUndo);
-    setTemplates((prev) => prev.map((t) => (t.id === previous.id ? previous : t)));
-  }, [undoStack, templates, activeTemplate]);
+    setUserTemplates((prev) => prev.map((t) => (t.id === previous.id ? previous : t)));
+  }, [undoStack, templates, activeTemplate, setUserTemplates]);
 
   const redo = useCallback(() => {
     if (redoStack.length === 0) return;
@@ -461,8 +516,8 @@ export function useTemplateManager() {
 
     setUndoStack((prev) => [...prev, JSON.parse(JSON.stringify(current))]);
     setRedoStack(newRedo);
-    setTemplates((prev) => prev.map((t) => (t.id === next.id ? next : t)));
-  }, [redoStack, templates, activeTemplate]);
+    setUserTemplates((prev) => prev.map((t) => (t.id === next.id ? next : t)));
+  }, [redoStack, templates, activeTemplate, setUserTemplates]);
 
   return {
     templates,
@@ -487,3 +542,15 @@ export function useTemplateManager() {
     resetToPresets
   };
 }
+
+export type TemplateManagerReturn = ReturnType<typeof useTemplateManagerInternal>;
+
+export function useTemplateManager(): TemplateManagerReturn {
+  const context = useContext(TemplateContext);
+  if (!context) {
+    throw new Error('useTemplateManager must be used within a TemplateProvider');
+  }
+  return context;
+}
+
+

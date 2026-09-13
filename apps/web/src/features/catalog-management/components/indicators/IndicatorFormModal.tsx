@@ -14,6 +14,13 @@ interface IndicatorFormModalProps {
   onSave: (item: CatalogItem, initialEquipId?: string) => void;
 }
 
+function parseDecimal(val: string): number | null {
+  const clean = val.trim().replace(',', '.');
+  if (clean === '') return null;
+  const num = Number(clean);
+  return Number.isNaN(num) ? null : num;
+}
+
 export function IndicatorFormModal({
   isOpen,
   onClose,
@@ -105,8 +112,8 @@ export function IndicatorFormModal({
       return;
     }
 
-    const minNum = refMin !== '' ? Number(refMin) : null;
-    const maxNum = refMax !== '' ? Number(refMax) : null;
+    const minNum = parseDecimal(refMin);
+    const maxNum = parseDecimal(refMax);
     let finalRefText = refText.trim();
 
     if (!finalRefText) {

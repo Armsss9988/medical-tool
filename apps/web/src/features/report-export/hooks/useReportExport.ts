@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { ToastType } from '@domain/types';
 import { downloadDataUrlAsImage } from '@infra/qrService';
-import { downloadPdfDirectly } from '@infra/pdfService';
+import { downloadPdfDirectly, type PdfProgressInfo } from '@infra/pdfService';
 import { PdfExportTransaction } from '@infra/pdfExportTransaction';
 import {
   ExportStepName,
@@ -29,6 +29,8 @@ export function useReportExport(
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [currentStep, setCurrentStep] = useState<ExportStepName | null>(null);
+  const [isDownloading, setIsDownloading] = useState<boolean>(false);
+  const [downloadProgress, setDownloadProgress] = useState<PdfProgressInfo | null>(null);
   const [lastError, setLastError] = useState<ExportErrorDetail | null>(null);
   const [lastTransactionResult, setLastTransactionResult] = useState<ExportTransactionResult | null>(null);
 
@@ -124,15 +126,37 @@ export function useReportExport(
   // ─── Tải trực tiếp file PDF về máy (1-Click Download) ────────────────────────
   const handleDownloadPdf = async (
     elementId: string,
-    filename: string
+    filename: string,
+    onProgress?: (progress: PdfProgressInfo) => void
   ): Promise<void> => {
+    setIsDownloading(true);
+    const initialProg: PdfProgressInfo = {
+      step: 'preparing',
+      message: 'Đang chuẩn hóa màu sắc & khởi tạo bản in...',
+      percent: 10
+    };
+    setDownloadProgress(initialProg);
+    onProgress?.(initialProg);
+
+    // Đảm bảo browser đã vẽ xong giao diện tiến trình tải trước khi xử lý CPU nặng
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
     try {
       showToast('Đang tạo và tải file PDF chất lượng cao...', 'info');
-      await downloadPdfDirectly(elementId, filename);
+      await downloadPdfDirectly(elementId, filename, {
+        onProgress: (prog) => {
+          setDownloadProgress(prog);
+          onProgress?.(prog);
+        }
+      });
       showToast(`Đã tải file PDF "${filename}" về máy tính thành công!`, 'success');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Lỗi xuất PDF';
       showToast(`Không thể tải file PDF: ${msg}`, 'error');
+      throw err;
+    } finally {
+      setIsDownloading(false);
+      setDownloadProgress(null);
     }
   };
 
@@ -161,6 +185,8 @@ export function useReportExport(
   const resetExport = () => {
     setCloudLink('');
     setQrCodeDataUrl('');
+    setIsDownloading(false);
+    setDownloadProgress(null);
     setLastError(null);
     setLastTransactionResult(null);
     lastParamsRef.current = null;
@@ -171,6 +197,8 @@ export function useReportExport(
     qrCodeDataUrl,
     isExporting,
     currentStep,
+    isDownloading,
+    downloadProgress,
     lastError,
     lastTransactionResult,
     handleExportPdfAndUploadCloud,

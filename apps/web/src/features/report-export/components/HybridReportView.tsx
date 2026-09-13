@@ -10,13 +10,15 @@ import {
   TestEquipment,
   CatalogItemEquipmentLink,
   resolveTestEquipmentName,
+  formatEquipmentForPrint,
   DEFAULT_CLINIC_INFO,
   getSafeClinicInfo
 } from '@domain/types';
 import { isAllergenTest } from '@domain/allergenDetector';
-import { evaluateResult } from '@domain/testResult';
+import { evaluateTestIndicator } from '@domain/testResult';
 import { computeHybridReportTotalPrice } from '@domain/pricing';
 import { AllergenReportDomainService } from '@domain/services/AllergenReportDomainService';
+import { ReportPaginationDomainService } from '@domain/services/ReportPaginationDomainService';
 import { sortTestsByPackageOrder } from '@domain/services/packageOrderResolver';
 import { generateQrCodeDataUrl, buildPortalUrl } from '@infra/qrService';
 import AllergenSummaryPage from './allergenReport/AllergenSummaryPage';
@@ -57,7 +59,7 @@ export interface HybridReportViewProps {
  */
 function HybridReportView({
   elementId = 'preview-hybrid-element',
-  patient,
+  patient: rawPatient,
   selectedTests = [],
   currentDateStr = new Date().toLocaleDateString('vi-VN'),
   doctorName,
@@ -72,6 +74,22 @@ function HybridReportView({
   catalogItemEquipments = []
 }: HybridReportViewProps) {
   const safeClinic = getSafeClinicInfo(clinicInfo);
+  const patient: Patient = rawPatient || {
+    code: 'BN-GOLAB',
+    secretToken: '',
+    name: 'Bệnh nhân mới',
+    dob: '',
+    gender: 'Nam',
+    phone: '',
+    address: '',
+    diagnosis: '',
+    sampleCode: 'BN-GOLAB',
+    sampleStatus: 'Đạt',
+    orderedAt: '',
+    paidAt: undefined,
+    receivedAt: '',
+    returnedAt: ''
+  };
   const allTests = useMemo(() => selectedTests || [], [selectedTests]);
 
   // Phân loại: Chỉ số thường vs Chỉ số dị nguyên (đã sắp xếp theo order_index của package_items)
@@ -162,191 +180,31 @@ function HybridReportView({
   }
 
   const regularPages: RegularPageChunk[] = useMemo(() => {
-    // 1. Hàm đo chiều cao động của một dòng xét nghiệm thường
-    const getTestRowHeight = (t: SelectedTest): number => {
-      let h = 32; // Chiều cao cơ bản: font 12px, line-height 17px, py-1.5 (12px), border 1px
-      if (t.scientific && t.scientific.trim()) {
-        h += 15; // Dòng tên khoa học in nghiêng 10.5px
-      }
-      const nameLen = (t.name || '').length;
-      if (nameLen > 30) {
-        h += Math.ceil((nameLen - 30) / 22) * 16; // Tên dài rớt dòng
-      }
-      const noteLen = (t.note || '').length;
-      if (noteLen > 22) {
-        h += Math.ceil((noteLen - 22) / 18) * 16; // Ghi chú dài rớt dòng
-      }
-      return h;
-    };
+    // Đo chiều cao khối kết thúc chuyên biệt của Hybrid Report (Bảng Gói Dị Nguyên + Lời Dặn + Tổng Giá + Chữ Ký & Con Dấu)
+    const pkgNameLen = (matchedPackageName || '').length;
+    const pkgRowH = pkgNameLen > 40 ? 52 : 38;
+    const pkgTableH = 36 + pkgRowH + 16;
+    const totalPriceH = 40;
+    const signatureH = 186;
+    const hybridSignatureBlockHeight = pkgTableH + totalPriceH + signatureH;
 
-    // 2. Hàm đo chiều cao khối tĩnh Trang 1
-    const getP1StaticHeight = (): number => {
-      let headerH = 95;
-      if ((clinicInfo?.name || '').length > 40) headerH += 22;
-      if ((clinicInfo?.address || '').length > 65) headerH += 18;
+    const pages = ReportPaginationDomainService.paginate(regularTests, conclusion, {
+      signatureBlockHeight: hybridSignatureBlockHeight
+    });
 
-      const titleH = 48;
-
-      let patientH = 170;
-      if ((patient.address || '').length > 35) patientH += 18;
-
-      const tableHeaderH = 36;
-      return headerH + titleH + patientH + tableHeaderH;
-    };
-
-    // 3. Hàm đo chiều cao khối tĩnh Trang 2+
-    const getP2StaticHeight = (): number => {
-      let miniH = 62;
-      if ((clinicInfo?.name || '').length > 45) miniH += 18;
-      const tableHeaderH = 36;
-      return miniH + tableHeaderH;
-    };
-
-    // 4. Hàm đo chiều cao khối kết thúc (Bảng Gói Dị Nguyên + Lời Dặn + Tổng Giá + Chữ Ký & Con Dấu)
-    const getFinalBlockHeight = (): number => {
-      const pkgNameLen = (matchedPackageName || '').length;
-      const pkgRowH = pkgNameLen > 40 ? 52 : 38;
-      const pkgTableH = 36 + pkgRowH + 16;
-
-      let conclusionH = 0;
-      if (conclusion && conclusion.trim()) {
-        const lines = Math.ceil(conclusion.trim().length / 60) || 1;
-        conclusionH = 28 + lines * 18 + 8;
-      }
-
-      const totalPriceH = 40;
-      const signatureH = 186;
-
-      return pkgTableH + conclusionH + totalPriceH + signatureH;
-    };
-
-    // Chiều cao nội dung khả dụng trên 1 trang A4 (297mm ≈ 1122.5px, trừ padding in 48px + footer 30px + buffer an toàn)
-    const PAGE_MAX_USABLE_HEIGHT = 900;
-
-    const p1StaticH = getP1StaticHeight();
-    const p2StaticH = getP2StaticHeight();
-    const finalBlockH = getFinalBlockHeight();
-
-    const testHeights = regularTests.map(getTestRowHeight);
-    const totalAllTestsHeight = testHeights.reduce((a, b) => a + b, 0);
-
-    // ─── TRƯỜNG HỢP 1: TẤT CẢ VỪA TRỌN VẸN TRÊN TRANG 1 ───
-    if (p1StaticH + totalAllTestsHeight + finalBlockH <= PAGE_MAX_USABLE_HEIGHT) {
-      return [{
-        pageIdx: 0,
-        tests: regularTests,
-        isFirstPage: true,
-        isLastRegularPage: true,
-        startRowIndex: 1
-      }];
-    }
-
-    // ─── TRƯỜNG HỢP 2: KHÔNG VỪA TRANG 1 -> TÁCH TRANG DYNAMIC DỰA TRÊN DUNG LƯỢNG PIXEL ───
-    const p1UsableForTests = PAGE_MAX_USABLE_HEIGHT - p1StaticH;
-    const p2UsableWithFinal = PAGE_MAX_USABLE_HEIGHT - p2StaticH - finalBlockH;
-
-    // Kiểm tra xem liệu có thể gói gọn trong 2 trang không:
-    const canFitIn2Pages = totalAllTestsHeight <= (p1UsableForTests + p2UsableWithFinal);
-
-    if (canFitIn2Pages) {
-      // Cân đối chiều cao động (Dynamic Balancing) giữa Trang 1 và Trang 2:
-      // Tìm điểm ngắt sao cho cả 2 trang đều thoáng đãng, không bị trang thì kín mít trang thì trơ trọi
-      let p1Height = 0;
-      let splitIdx = 0;
-
-      for (let i = 0; i < regularTests.length; i++) {
-        const h = testHeights[i];
-        const remainingH = testHeights.slice(i + 1).reduce((a, b) => a + b, 0);
-
-        p1Height += h;
-        splitIdx = i + 1;
-
-        const p1CurrentTotal = p1StaticH + p1Height;
-        const p2EstimatedTotal = p2StaticH + remainingH + finalBlockH;
-
-        // Điểm ngắt tối ưu: phần còn lại chắc chắn vừa Trang 2 VÀ chiều cao Trang 1 đã cân bằng với Trang 2
-        if (remainingH <= p2UsableWithFinal && (p1CurrentTotal >= p2EstimatedTotal || p1Height >= p1UsableForTests * 0.7)) {
-          break;
-        }
-      }
-
-      // Đảm bảo không để Trang 2 trống dòng xét nghiệm nào
-      if (splitIdx >= regularTests.length && regularTests.length > 1) {
-        splitIdx = regularTests.length - 1;
-      }
-
-      const p1Tests = regularTests.slice(0, splitIdx);
-      const p2Tests = regularTests.slice(splitIdx);
-
-      return [
-        {
-          pageIdx: 0,
-          tests: p1Tests,
-          isFirstPage: true,
-          isLastRegularPage: false,
-          startRowIndex: 1
-        },
-        {
-          pageIdx: 1,
-          tests: p2Tests,
-          isFirstPage: false,
-          isLastRegularPage: true,
-          startRowIndex: splitIdx + 1
-        }
-      ];
-    }
-
-    // ─── TRƯỜNG HỢP 3: DANH SÁCH RẤT NHIỀU CHỈ SỐ (> 2 TRANG) ───
-    // Thuật toán dồn dòng theo dung lượng pixel thực tế từng trang:
-    const chunks: RegularPageChunk[] = [];
-    let remaining = [...regularTests];
     let currentStart = 1;
-    let pIdx = 0;
-
-    while (remaining.length > 0) {
-      const isFirst = pIdx === 0;
-      const initialH = isFirst ? p1StaticH : p2StaticH;
-      const remainingH = remaining.map(getTestRowHeight).reduce((a, b) => a + b, 0);
-
-      // Nếu toàn bộ phần còn lại vừa vặn cùng khối cuối trang trên trang này:
-      if (initialH + remainingH + finalBlockH <= PAGE_MAX_USABLE_HEIGHT) {
-        chunks.push({
-          pageIdx: pIdx,
-          tests: remaining,
-          isFirstPage: isFirst,
-          isLastRegularPage: true,
-          startRowIndex: currentStart
-        });
-        break;
-      }
-
-      // Chưa vừa, lấp đầy trang hiện tại dựa trên chiều cao khả dụng
-      let currentH = initialH;
-      let take = 0;
-
-      for (let i = 0; i < remaining.length; i++) {
-        const h = getTestRowHeight(remaining[i]);
-        if (currentH + h > PAGE_MAX_USABLE_HEIGHT) break;
-        currentH += h;
-        take = i + 1;
-      }
-
-      take = Math.max(1, Math.min(take, remaining.length));
-      chunks.push({
-        pageIdx: pIdx,
-        tests: remaining.slice(0, take),
-        isFirstPage: isFirst,
-        isLastRegularPage: remaining.length === take,
+    return pages.map((p, idx) => {
+      const chunk: RegularPageChunk = {
+        pageIdx: idx,
+        tests: [...p.tests],
+        isFirstPage: p.isFirstPage,
+        isLastRegularPage: p.isLastPage,
         startRowIndex: currentStart
-      });
-
-      currentStart += take;
-      remaining = remaining.slice(take);
-      pIdx++;
-    }
-
-    return chunks;
-  }, [regularTests, clinicInfo, patient, matchedPackageName, conclusion]);
+      };
+      currentStart += p.tests.length;
+      return chunk;
+    });
+  }, [regularTests, matchedPackageName, conclusion]);
 
   // Tổng số trang = Số trang thường + 1 (Trang tổng hợp thang đo) + N (Trang chi tiết) + 1 (Trang phòng ngừa)
   const totalPages = regularPages.length + 1 + reportDTO.detailPages.length + 1;
@@ -360,14 +218,17 @@ function HybridReportView({
         <div 
           key={`reg-page-${pIdx}`}
           data-page="true"
-          className="report-page bg-white text-slate-900 p-8 mb-4 shadow-xl print:shadow-none print:mb-0 print:p-6 flex flex-col justify-between"
+          className="report-page bg-white text-slate-900 mx-auto text-[13px] leading-normal flex flex-col justify-between shadow-lg print:shadow-none"
           style={{
             fontFamily: '"Times New Roman", Times, "Liberation Serif", serif',
             width: '210mm',
             minWidth: '210mm',
             maxWidth: '210mm',
             minHeight: '297mm',
-            boxSizing: 'border-box'
+            padding: '10mm 14mm 10mm 14mm',
+            boxSizing: 'border-box',
+            pageBreakAfter: pIdx < regularPages.length - 1 ? 'always' : 'auto',
+            breakAfter: pIdx < regularPages.length - 1 ? 'page' : 'auto'
           }}
         >
           <div className="flex-1 flex flex-col justify-start">
@@ -375,16 +236,55 @@ function HybridReportView({
               <>
                 {/* Header Phòng Khám & QR Tra Cứu */}
                 <div 
-                  className="flex items-center justify-between border-b-2 border-sky-600 pb-3 mb-3"
-                  style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2px solid #0284c7' }}
+                  data-avoid-break="true"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    borderBottom: '2px solid #38bdf8',
+                    paddingBottom: '8px',
+                    marginBottom: '6px',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}
+                  className="header-section relative flex items-center justify-between border-b-2 border-sky-400 pb-2 mb-1.5 overflow-hidden"
                 >
-                  <div className="flex items-center space-x-4" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
-                    <div className="h-[74px] w-[142px] max-h-[74px] max-w-[142px] flex items-center justify-center shrink-0 overflow-hidden">
+                  {/* Họa tiết lượn sóng trang trí nền header (hạ thấp sát đáy, độ mờ nhẹ nhàng không che chữ) */}
+                  <div
+                    style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}
+                    className="absolute inset-0 pointer-events-none -z-10 overflow-hidden"
+                  >
+                    <svg
+                      viewBox="0 0 800 120"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      style={{ width: '100%', height: '100%', position: 'absolute', bottom: 0, left: 0 }}
+                      preserveAspectRatio="none"
+                    >
+                      <path
+                        d="M0,106 C160,115 260,100 420,108 C560,115 680,102 800,107 L800,120 L0,120 Z"
+                        fill="#f0f9ff"
+                        opacity="0.45"
+                      />
+                      <path
+                        d="M0,112 C140,117 240,107 390,114 C540,118 670,109 800,113 L800,120 L0,120 Z"
+                        fill="#e0f2fe"
+                        opacity="0.3"
+                      />
+                    </svg>
+                  </div>
+
+                  {/* Cột trái: Logo GoLab + Slogan "Vì sức khỏe người Việt" */}
+                  <div
+                    style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '130px', flexShrink: 0, zIndex: 1 }}
+                    className="flex flex-col items-center justify-center w-[130px] shrink-0 z-1 relative"
+                  >
+                    <div className="h-[62px] w-[125px] max-h-[62px] max-w-[125px] flex items-center justify-center shrink-0 overflow-hidden">
                       <img
                         src={currentLogo}
                         alt="GoLab Logo"
-                        style={{ maxHeight: '74px', maxWidth: '142px', height: '74px', width: 'auto', objectFit: 'contain' }}
-                        className="h-[74px] max-w-[142px] w-auto object-contain object-center shrink-0"
+                        style={{ maxHeight: '62px', maxWidth: '125px', height: 'auto', width: 'auto', objectFit: 'contain' }}
+                        className="max-h-[62px] max-w-[125px] h-auto w-auto object-contain object-center shrink-0"
                         loading="eager"
                         decoding="sync"
                         onError={(e) => {
@@ -394,34 +294,175 @@ function HybridReportView({
                         }}
                       />
                     </div>
-                    <div>
-                      <p className="text-[13px] font-bold text-sky-800 uppercase tracking-widest leading-none mb-1">
-                        HỆ THỐNG XÉT NGHIỆM GOLAB
-                      </p>
-                      <h1 className="text-[18px] font-black text-sky-950 uppercase tracking-tight">
-                        {safeClinic.name}
-                      </h1>
-                      <p className="text-[13px] text-slate-700 font-medium">
-                        Địa chỉ: {safeClinic.address}
-                      </p>
-                      <p className="text-[12.5px] text-slate-700 font-medium">
-                        Website: <strong className="text-sky-800">{safeClinic.website}</strong> – Hotline: <strong className="text-sky-800">{safeClinic.phone}</strong>
-                      </p>
+                    <span
+                      style={{ fontSize: '11px', color: '#0284c7', fontStyle: 'italic', fontWeight: 600, textAlign: 'center', marginTop: '2px', lineHeight: 1.1, whiteSpace: 'nowrap' }}
+                      className="text-[11px] font-semibold text-sky-600 italic tracking-tight text-center mt-0.5 whitespace-nowrap"
+                    >
+                      Vì sức khỏe người Việt
+                    </span>
+                  </div>
+
+                  {/* Cột giữa: Badge hệ thống, Tên chi nhánh, Địa chỉ, Trụ sở chính & Liên hệ */}
+                  <div
+                    style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, paddingLeft: '8px', paddingRight: '8px', zIndex: 1 }}
+                    className="flex-1 flex flex-col items-center justify-center px-2 z-1 relative"
+                  >
+                    {/* Badge: HỆ THỐNG XÉT NGHIỆM GOLAB - 69 CHI NHÁNH TRÊN TOÀN QUỐC */}
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', marginBottom: '2px' }}
+                      className="flex items-center justify-center gap-2 w-full mb-0.5"
+                    >
+                      <div style={{ height: '1px', width: '36px', backgroundColor: '#94a3b8' }} className="h-[1px] w-9 bg-slate-400" />
+                      <div
+                        style={{
+                          backgroundColor: '#e0f2fe',
+                          padding: '5px 18px 6px 18px',
+                          borderRadius: '9999px',
+                          textAlign: 'center',
+                          display: 'inline-flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxSizing: 'border-box'
+                        }}
+                        className="bg-sky-100/80 px-4.5 py-1.5 rounded-full text-center inline-flex flex-col items-center justify-center shadow-2xs"
+                      >
+                        <span
+                          style={{ fontSize: '11px', fontWeight: 800, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1.25, display: 'block' }}
+                          className="text-[11px] font-extrabold text-sky-800 uppercase tracking-wider leading-tight block"
+                        >
+                          HỆ THỐNG XÉT NGHIỆM GOLAB
+                        </span>
+                        <span
+                          style={{ fontSize: '10px', fontWeight: 700, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.02em', lineHeight: 1.25, display: 'block' }}
+                          className="text-[10px] font-bold text-sky-800 uppercase tracking-wide leading-tight block"
+                        >
+                          69 CHI NHÁNH TRÊN TOÀN QUỐC
+                        </span>
+                      </div>
+                      <div style={{ height: '1px', width: '36px', backgroundColor: '#94a3b8' }} className="h-[1px] w-9 bg-slate-400" />
+                    </div>
+
+                    {/* Tên cơ sở phòng khám (Serif, Đậm, Xanh đen) */}
+                    <h1
+                      style={{
+                        fontFamily: '"Times New Roman", Times, "Liberation Serif", serif',
+                        fontSize: '17.5px',
+                        fontWeight: 900,
+                        color: '#082f49',
+                        textTransform: 'uppercase',
+                        letterSpacing: '-0.01em',
+                        lineHeight: '1.2',
+                        textAlign: 'center',
+                        marginTop: '2px',
+                        marginBottom: '3px'
+                      }}
+                      className="font-serif text-[17.5px] font-black text-sky-950 uppercase tracking-tight text-center mt-0.5 mb-1 leading-tight"
+                    >
+                      {safeClinic.name || 'TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH'}
+                    </h1>
+
+                    {/* Chi nhánh / Điểm tiếp nhận */}
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', fontSize: '11px', color: '#1e293b', lineHeight: 1.3 }}
+                      className="flex items-center justify-center gap-1.5 text-[11px] text-slate-800"
+                    >
+                      <svg style={{ width: '13px', height: '13px', color: '#0284c7', flexShrink: 0 }} viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+                      </svg>
+                      <span>
+                        <strong style={{ fontWeight: 700, color: '#0f172a' }}>Chi nhánh/điểm tiếp nhận:</strong>{' '}
+                        {safeClinic.address || 'Cổng BV-VNCB-ĐH, phường Đồng Hới, tỉnh Quảng Trị'}
+                      </span>
+                    </div>
+
+                    {/* Trụ sở chính hệ thống */}
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', fontSize: '10.5px', color: '#334155', lineHeight: 1.3, marginTop: '1px' }}
+                      className="flex items-center justify-center gap-1.5 text-[10.5px] text-slate-700 mt-0.5"
+                    >
+                      <svg style={{ width: '13px', height: '13px', color: '#0284c7', flexShrink: 0 }} viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z" />
+                      </svg>
+                      <span style={{ textAlign: 'center' }}>
+                        <strong style={{ fontWeight: 700, color: '#0f172a' }}>Trụ sở chính hệ thống:</strong>{' '}
+                        {safeClinic.headquartersAddress || 'Số 36 BT5, Khu đô thị Pháp Vân, phường Hoàng Liệt, thành phố Hà Nội'}
+                      </span>
+                    </div>
+
+                    {/* Website & Hotline */}
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontSize: '11px', color: '#334155', lineHeight: 1.3, marginTop: '1px' }}
+                      className="flex items-center justify-center gap-2.5 text-[11px] text-slate-700 mt-0.5"
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }} className="flex items-center gap-1">
+                        <svg style={{ width: '12px', height: '12px', color: '#0284c7', flexShrink: 0 }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="2" y1="12" x2="22" y2="12" />
+                          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                        </svg>
+                        <span>
+                          Website: <strong style={{ fontWeight: 700, color: '#0369a1' }}>{safeClinic.website || 'golab.com.vn'}</strong>
+                        </span>
+                      </div>
+                      <span style={{ color: '#94a3b8' }}>|</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }} className="flex items-center gap-1">
+                        <svg style={{ width: '12px', height: '12px', color: '#0c4a6e', flexShrink: 0 }} viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
+                        </svg>
+                        <span>
+                          Hotline: <strong style={{ fontWeight: 700, color: '#0c4a6e' }}>{safeClinic.phone || '032.855.3773'}</strong>
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  {finalQrCode && (
-                    <div className="flex flex-col items-center justify-center p-1 bg-white border border-slate-300 rounded shadow-2xs shrink-0 min-w-[62px]" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                  {/* Cột phải: Khung QR Code Tra Cứu */}
+                  <div
+                    style={{
+                      position: 'relative',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '4px 6px',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      minWidth: '68px',
+                      flexShrink: 0,
+                      zIndex: 1
+                    }}
+                    className="flex flex-col items-center justify-center p-1 px-1.5 bg-white border border-slate-300 rounded-md shadow-2xs shrink-0 min-w-[68px] z-1 relative"
+                  >
+                    {finalQrCode ? (
                       <img
                         src={finalQrCode}
                         alt="QR Code Tra Cứu"
                         data-qr="true"
-                        style={{ width: '56px', height: '56px', objectFit: 'contain' }}
-                        className="w-14 h-14 object-contain shrink-0"
+                        style={{ width: '50px', height: '50px', objectFit: 'contain' }}
+                        className="w-[50px] h-[50px] object-contain shrink-0"
+                        loading="eager"
+                        decoding="sync"
                       />
-                      <span className="text-[9.5px] font-mono text-sky-800 font-extrabold mt-0.5 tracking-tight">QR Tra Cứu</span>
-                    </div>
-                  )}
+                    ) : (
+                      <div className="w-[50px] h-[50px] flex items-center justify-center bg-slate-50 text-[10px] text-slate-400 font-mono">
+                        QR
+                      </div>
+                    )}
+                    <span
+                      style={{ fontSize: '9.5px', fontWeight: 800, color: '#0369a1', marginTop: '3px', letterSpacing: '-0.02em', lineHeight: 1.1, whiteSpace: 'nowrap' }}
+                      className="text-[9.5px] font-extrabold text-sky-800 mt-0.5 tracking-tight leading-none whitespace-nowrap"
+                    >
+                      QR Tra Cứu
+                    </span>
+                    <span
+                      style={{ fontSize: '8px', color: '#64748b', marginTop: '1px', lineHeight: 1, whiteSpace: 'nowrap' }}
+                      className="text-[8px] text-slate-500 mt-0.5 leading-none whitespace-nowrap"
+                    >
+                      kết quả xét nghiệm
+                    </span>
+                  </div>
                 </div>
 
                 {/* Tiêu Đề Phiếu */}
@@ -451,7 +492,7 @@ function HybridReportView({
                         <td className="py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle leading-snug" style={{ borderRight: '1px solid #cbd5e1', borderBottom: '1px solid #cbd5e1' }}>Năm sinh:</td>
                         <td className="py-1.5 px-3 font-medium text-slate-800 border-r border-b border-slate-300 align-middle leading-snug" style={{ borderRight: '1px solid #cbd5e1', borderBottom: '1px solid #cbd5e1' }}>{patient.dob || '---'}</td>
                         <td className="py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle leading-snug" style={{ borderRight: '1px solid #cbd5e1', borderBottom: '1px solid #cbd5e1' }}>T/G đóng phí:</td>
-                        <td className="py-1.5 px-3 font-medium text-slate-800 border-b border-slate-300 align-middle leading-snug" style={{ borderBottom: '1px solid #cbd5e1' }}>{patient.paidAt || patient.orderedAt || currentDateStr}</td>
+                        <td className="py-1.5 px-3 font-medium text-slate-800 border-b border-slate-300 align-middle leading-snug" style={{ borderBottom: '1px solid #cbd5e1' }}>{patient.paidAt || 'Chưa thu phí'}</td>
                       </tr>
                       <tr>
                         <td className="py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle leading-snug" style={{ borderRight: '1px solid #cbd5e1', borderBottom: '1px solid #cbd5e1' }}>Giới tính:</td>
@@ -538,10 +579,27 @@ function HybridReportView({
                   </thead>
                   <tbody className="divide-y divide-slate-200">
                     {page.tests.map((t, idx) => {
-                      const isAbnormalByNote = t.note ? (t.note.includes('Phát Hiện') && !t.note.includes('Không')) : false;
-                      const evaluation = evaluateResult(t.result, t.refMin, t.refMax);
-                      const isAbnormal = evaluation.status === 'high' || evaluation.status === 'low' || isAbnormalByNote;
-                      const resolvedEquipment = resolveTestEquipmentName(t, equipments, catalogItemEquipments);
+                      const evaluation = evaluateTestIndicator(
+                        t.code,
+                        t.category,
+                        t.unit,
+                        t.result,
+                        t.refMin,
+                        t.refMax,
+                        undefined,
+                        undefined,
+                        t.evaluationType
+                      );
+                      const isAbnormalByNote = t.note
+                        ? t.note.includes('CAO') ||
+                          t.note.includes('THẤP') ||
+                          t.note.includes('Dương') ||
+                          (t.note.includes('Phát Hiện') && !t.note.includes('Không'))
+                        : false;
+                      const isAbnormal = evaluation.isAbnormal || isAbnormalByNote;
+                      const resolvedEquipment = formatEquipmentForPrint(
+                        resolveTestEquipmentName(t, equipments, catalogItemEquipments)
+                      );
                       const sttNumber = page.startRowIndex + idx;
 
                       return (

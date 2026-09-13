@@ -9,6 +9,13 @@ interface ReferenceRangeFormModalProps {
   onSave: (item: ReferenceRangeItem) => void;
 }
 
+function parseDecimal(val: string): number | null {
+  const clean = val.trim().replace(',', '.');
+  if (clean === '') return null;
+  const num = Number(clean);
+  return Number.isNaN(num) ? null : num;
+}
+
 export function ReferenceRangeFormModal({
   isOpen,
   onClose,
@@ -31,7 +38,7 @@ export function ReferenceRangeFormModal({
       setRefMax(rangeToEdit.refMax !== null && rangeToEdit.refMax !== undefined ? String(rangeToEdit.refMax) : '');
       setUnit(rangeToEdit.unit || '');
       setRefText(rangeToEdit.refText || '');
-      setGender((rangeToEdit.gender as 'Tất cả' | 'Nam' | 'Nữ') || 'Tất cả');
+      setGender(rangeToEdit.gender || 'Tất cả');
       setAgeGroup(rangeToEdit.ageGroup || 'Người lớn');
     } else {
       setName('');
@@ -50,8 +57,8 @@ export function ReferenceRangeFormModal({
   const handleMinMaxChange = (newMin: string, newMax: string) => {
     setRefMin(newMin);
     setRefMax(newMax);
-    const minNum = newMin.trim() !== '' ? Number(newMin) : null;
-    const maxNum = newMax.trim() !== '' ? Number(newMax) : null;
+    const minNum = parseDecimal(newMin);
+    const maxNum = parseDecimal(newMax);
     if (minNum !== null && maxNum !== null) {
       setRefText(`${minNum} - ${maxNum}`);
     } else if (minNum !== null) {
@@ -69,8 +76,8 @@ export function ReferenceRangeFormModal({
       return;
     }
 
-    const minNum = refMin.trim() !== '' ? Number(refMin) : null;
-    const maxNum = refMax.trim() !== '' ? Number(refMax) : null;
+    const minNum = parseDecimal(refMin);
+    const maxNum = parseDecimal(refMax);
 
     let text = refText.trim();
     if (!text) {

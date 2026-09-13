@@ -137,6 +137,28 @@ export async function GET(req: NextRequest) {
         invoiceCode: payment.invoiceCode,
         payment,
         tests: tests.map((t) => {
+          const isItemPending =
+            report.status === 'Chờ xét nghiệm' ||
+            !t.result ||
+            t.result.trim() === '';
+
+          if (isItemPending) {
+            return {
+              testCode: t.testCode,
+              testName: t.testName,
+              category: t.category || 'Xét nghiệm chung',
+              result: t.result || '',
+              unit: t.unit || '',
+              refMin: t.refMin ?? null,
+              refMax: t.refMax ?? null,
+              refText: t.refText || '',
+              note: t.note ? t.note.trim() : (report.status === 'Chờ xét nghiệm' ? 'Chờ xét nghiệm' : 'Đang xử lý'),
+              evaluationType: t.evaluationType || (t.scaleId ? 'scale' : 'range'),
+              scaleId: t.scaleId || null,
+              evaluation: 'PENDING' as const
+            };
+          }
+
           const evalRes = evaluateResult(t.result, t.refMin, t.refMax);
           const displayNote = t.note ? t.note.trim() : evalRes.label;
           const isAbnormalByNote = displayNote
@@ -161,7 +183,7 @@ export async function GET(req: NextRequest) {
             note: displayNote || '',
             evaluationType: t.evaluationType || (t.scaleId ? 'scale' : 'range'),
             scaleId: t.scaleId || null,
-            evaluation: isAbnormal ? 'ABNORMAL' : 'NORMAL'
+            evaluation: isAbnormal ? ('ABNORMAL' as const) : ('NORMAL' as const)
           };
         })
       },

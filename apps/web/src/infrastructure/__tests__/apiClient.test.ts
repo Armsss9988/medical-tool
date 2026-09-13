@@ -213,7 +213,7 @@ describe('apiClient', () => {
     const result = await recordPdfExportApi('rep-123', {
       cloudPdfUrl: 'https://cdn.example.com/rep.pdf',
       version: 2,
-      report: { id: 'rep-123', patientName: 'Nguyen Van A' } as any
+      report: { id: 'rep-123', patientName: 'Nguyen Van A' } as unknown as Parameters<typeof recordPdfExportApi>[1]['report']
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -234,7 +234,7 @@ describe('apiClient', () => {
     vi.stubGlobal('fetch', fetchMock);
     setPassword('secret');
 
-    const fallbackInv = { id: 'inv-123', code: 'HD01' } as any;
+    const fallbackInv = { id: 'inv-123', code: 'HD01' } as unknown as NonNullable<Parameters<typeof payInvoice>[1]>['invoice'];
     await payInvoice('inv-123', { paymentMethod: 'Tiền mặt', invoice: fallbackInv });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -250,7 +250,7 @@ describe('apiClient', () => {
     vi.stubGlobal('fetch', fetchMock);
     setPassword('secret');
 
-    const templates = [{ id: 'tpl-1', name: 'Mẫu test' }] as any;
+    const templates = [{ id: 'tpl-1', name: 'Mẫu test' }] as unknown as Parameters<typeof putReportTemplatesApi>[0];
     const res = await putReportTemplatesApi(templates);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);

@@ -70,18 +70,31 @@ export default function PatientForm({
     if (onPatientChange) {
       onPatientChange(field, value);
     } else if (setPatient) {
-      setPatient((prev) => ({ ...prev, [field]: value }));
+      setPatient((prev) => {
+        const updated = { ...prev, [field]: value };
+        if (field === 'code') {
+          updated.sampleCode = value as string;
+        } else if (field === 'sampleCode') {
+          updated.code = value as string;
+        }
+        return updated;
+      });
     }
   }, [onPatientChange, setPatient]);
 
-  // Đảm bảo Bác sĩ chỉ định luôn có giá trị hợp lệ ưu tiên từ danh sách
+  const hasInitializedDoctorRef = useRef(false);
+
+  // Khởi tạo Bác sĩ chỉ định mặc định lúc ban đầu (chỉ chạy 1 lần khi mount hoặc khi chưa khởi tạo)
   useEffect(() => {
-    const defaultDoc = (doctorsList && doctorsList.length > 0 && doctorsList[0]?.name) || 'BS. Trần Hoài Long';
-    if (!patient.doctor) {
-      handleChange('doctor', defaultDoc);
-    }
-    if (!doctorName && setDoctorName) {
-      setDoctorName(patient.doctor || defaultDoc);
+    if (!hasInitializedDoctorRef.current) {
+      const defaultDoc = (doctorsList && doctorsList.length > 0 && doctorsList[0]?.name) || 'BS. Trần Hoài Long';
+      if (!patient.doctor) {
+        handleChange('doctor', defaultDoc);
+      }
+      if (!doctorName && setDoctorName) {
+        setDoctorName(patient.doctor || defaultDoc);
+      }
+      hasInitializedDoctorRef.current = true;
     }
   }, [doctorsList, patient.doctor, doctorName, setDoctorName, handleChange]);
 

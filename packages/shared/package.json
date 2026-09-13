@@ -8,9 +8,12 @@
     "./domain": "./src/domain/index.ts",
     "./domain/*": "./src/domain/*.ts",
     "./data/*": "./src/data/*.ts",
+    "./schemas": "./src/schemas/index.ts",
     "./schemas/*": "./src/schemas/*.ts"
   },
   "dependencies": {
+    "immer": "^11.1.18",
+    "ts-pattern": "^5.9.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {

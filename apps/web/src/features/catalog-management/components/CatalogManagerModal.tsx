@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { X, Save, Layers, Stethoscope, FlaskConical, Activity, Cpu, FolderTree, Sliders } from 'lucide-react';
 import { autoResolveItemLinks } from '@data';
 import {
@@ -118,9 +118,13 @@ export default function CatalogManagerModal({
 
 
 
+  // Chuẩn hóa dữ liệu gốc để so sánh dirty checking chính xác, tránh báo ảo khi vừa mở modal
+  const normalizedCatalog = useMemo(() => catalog.map(autoResolveItemLinks), [catalog]);
+  const normalizedPackages = useMemo(() => testPackages.map(normalizeTestPackage), [testPackages]);
+
   // Xác định chính xác những bảng có dữ liệu thay đổi thực sự
-  const hasCatalogChanged = JSON.stringify(items) !== JSON.stringify(catalog);
-  const hasPackagesChanged = JSON.stringify(packages) !== JSON.stringify(testPackages);
+  const hasCatalogChanged = JSON.stringify(items) !== JSON.stringify(normalizedCatalog);
+  const hasPackagesChanged = JSON.stringify(packages) !== JSON.stringify(normalizedPackages);
   const hasGroupsChanged = JSON.stringify(groups) !== JSON.stringify(testGroups);
   const hasEqChanged = JSON.stringify(eqList) !== JSON.stringify(equipments);
   const hasDocsChanged = JSON.stringify(docsList) !== JSON.stringify(doctorsList);
@@ -176,7 +180,9 @@ export default function CatalogManagerModal({
     if (hasPackagesChanged) {
       const invalidPkg = packages.find((p) => !p.name || !p.name.trim());
       if (invalidPkg) {
-        alert('Tên gói xét nghiệm không được để trống! Vui lòng nhập tên cho tất cả các gói trước khi lưu.');
+        if (showToast) {
+          showToast('Tên gói xét nghiệm không được để trống! Vui lòng nhập tên cho tất cả các gói trước khi lưu.', 'error');
+        }
         return;
       }
     }
@@ -223,8 +229,6 @@ export default function CatalogManagerModal({
       const msg = err instanceof Error ? err.message : 'Không thể kết nối đến cơ sở dữ liệu';
       if (showToast) {
         showToast(`Lỗi khi lưu vào Database: ${msg}`, 'error');
-      } else {
-        alert(`Lỗi khi lưu vào Database: ${msg}`);
       }
     } finally {
       setIsSaving(false);

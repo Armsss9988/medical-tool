@@ -3,7 +3,7 @@ import type { MedicalReport, Patient } from '../types';
 export interface PatientMatchCriteria {
   id?: string;
   code?: string;
-  patient?: Patient;
+  patient?: Partial<Patient>;
   hasExplicitCode?: boolean;
   allowIdentityMerge?: boolean;
 }
@@ -23,10 +23,53 @@ export class PatientIdentityDomainService {
 
   /**
    * Chuẩn hóa ngày sinh phục vụ nhận diện định danh bệnh nhân
+   * Phân tích các thành phần ngày/tháng/năm để DD/MM/YYYY và YYYY-MM-DD khớp nhau (chuẩn YYYYMMDD)
    */
   public static normalizeDob(raw: string | undefined): string {
     if (!raw) return '';
-    return raw.trim().replace(/[^\d]/g, '');
+    const trimmed = raw.trim();
+    if (!trimmed) return '';
+
+    // Match YYYY-MM-DD hoặc YYYY/MM/DD
+    const isoMatch = trimmed.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+    if (isoMatch) {
+      const year = isoMatch[1];
+      const month = isoMatch[2].padStart(2, '0');
+      const day = isoMatch[3].padStart(2, '0');
+      return `${year}${month}${day}`;
+    }
+
+    // Match DD/MM/YYYY hoặc DD-MM-YYYY
+    const dmyMatch = trimmed.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+    if (dmyMatch) {
+      const day = dmyMatch[1].padStart(2, '0');
+      const month = dmyMatch[2].padStart(2, '0');
+      const year = dmyMatch[3];
+      return `${year}${month}${day}`;
+    }
+
+    // Match chỉ năm YYYY
+    if (/^\d{4}$/.test(trimmed)) {
+      return trimmed;
+    }
+
+    // Chuẩn hóa chuỗi số thô
+    const digits = trimmed.replace(/[^\d]/g, '');
+    if (digits.length === 8) {
+      const first4 = parseInt(digits.slice(0, 4), 10);
+      const last4 = parseInt(digits.slice(4), 10);
+      if (first4 >= 1900 && first4 <= 2100) {
+        return digits;
+      }
+      if (last4 >= 1900 && last4 <= 2100) {
+        const dd = digits.slice(0, 2);
+        const mm = digits.slice(2, 4);
+        const yyyy = digits.slice(4);
+        return `${yyyy}${mm}${dd}`;
+      }
+    }
+
+    return digits;
   }
 
   /**

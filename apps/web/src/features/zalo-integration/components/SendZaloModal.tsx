@@ -89,7 +89,7 @@ export default function SendZaloModal({
     showToast('Đang gửi thông báo kết quả qua Zalo ZNS...', 'info');
 
     try {
-      const res = await sendZaloZnsMessage(report, clinicInfo, zaloConfig);
+      const res = await sendZaloZnsMessage(report, clinicInfo, zaloConfig, customMessage, phoneNumber);
       setIsSendingZns(false);
 
       if (res.success) {

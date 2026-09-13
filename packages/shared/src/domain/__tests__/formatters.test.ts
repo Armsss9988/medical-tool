@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { removeVietnameseTones, formatCurrency, formatReportPdfFilename } from '../formatters';
+import { removeVietnameseTones, formatCurrency, formatReportPdfFilename, formatDisplayDate } from '../formatters';
 
 describe('formatters domain utility', () => {
   describe('removeVietnameseTones', () => {
@@ -52,6 +52,26 @@ describe('formatters domain utility', () => {
       expect(formatReportPdfFilename('', 'XN001')).toBe('PhieuXN_BenhNhan_XN001.pdf');
       expect(formatReportPdfFilename('Nguyễn Văn C', '')).toBe('PhieuXN_Nguyễn_Văn_C_BN.pdf');
       expect(formatReportPdfFilename(null, null)).toBe('PhieuXN_BenhNhan_BN.pdf');
+    });
+  });
+
+  describe('formatDisplayDate', () => {
+    it('should format ISO timestamp to DD/MM/YYYY HH:mm', () => {
+      // 2026-09-13T10:30:00.000Z
+      const iso = new Date(2026, 8, 13, 10, 30).toISOString();
+      const formatted = formatDisplayDate(iso);
+      expect(formatted).toBe('13/09/2026 10:30');
+    });
+
+    it('should return fallback when input is empty, null or undefined', () => {
+      expect(formatDisplayDate('', 'Chưa thu phí')).toBe('Chưa thu phí');
+      expect(formatDisplayDate(null, '---')).toBe('---');
+      expect(formatDisplayDate(undefined, '---')).toBe('---');
+    });
+
+    it('should preserve already formatted strings', () => {
+      expect(formatDisplayDate('13/09/2026')).toBe('13/09/2026');
+      expect(formatDisplayDate('Chưa thu phí')).toBe('Chưa thu phí');
     });
   });
 });

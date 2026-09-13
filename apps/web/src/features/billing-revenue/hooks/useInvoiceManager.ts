@@ -1,81 +1,45 @@
-import { useState, useEffect, useRef } from 'react';
+import { useRef, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Invoice, InvoiceStatus, STORAGE_KEYS, BILLING_STATUS, CloudDbConfig, MedicalReport } from '@domain';
-import { loadState } from '@infra/storage';
-import { syncInvoicesToSupabase, fetchInvoicesFromSupabase, DEFAULT_CLOUD_DB_CONFIG } from '@infra/cloudDbService';
-import { postInvoice, deleteInvoiceApi, payInvoice as apiClientPayInvoice, cancelInvoice as apiClientCancelInvoice } from '@infra/apiClient';
+import { loadState, saveState } from '@infra/storage';
+import { syncInvoicesToSupabase, DEFAULT_CLOUD_DB_CONFIG } from '@infra/cloudDbService';
+import { putTable } from '@infra/apiClient';
 import { domainEventBus } from '@domain/events/DomainEventBus';
+import { INVOICE_EVENT_TYPES } from '@domain/events/DomainEvent';
 import {
-  INVOICE_EVENT_TYPES,
-  REPORT_EVENT_TYPES,
-  ReportDeletedPayload
-} from '@domain/events/DomainEvent';
+  useInvoicesQuery,
+  useSaveInvoiceMutation,
+  usePayInvoiceMutation,
+  useCancelInvoiceMutation,
+  useDeleteInvoiceMutation,
+  INVOICES_QUERY_KEY
+} from './useInvoicesQuery';
 
 export interface UseInvoiceManagerOptions {
   onReportUpdated?: (report: MedicalReport) => void;
 }
 
 export function useInvoiceManager(options?: UseInvoiceManagerOptions) {
-  // 1. Khởi tạo danh sách hóa đơn
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  // 1. Quản lý danh sách hóa đơn bằng TanStack Query v5 (Server State)
+  const { invoices, refetch } = useInvoicesQuery();
+  const qc = useQueryClient();
+  const saveMutation = useSaveInvoiceMutation();
+  const payMutation = usePayInvoiceMutation();
+  const cancelMutation = useCancelInvoiceMutation();
+  const deleteMutation = useDeleteInvoiceMutation();
+
   const invoicesRef = useRef(invoices);
   invoicesRef.current = invoices;
 
-  // 2. Nạp trực tiếp từ Cloud Database (PostgreSQL)
-  useEffect(() => {
-    async function initInvoices() {
-      try {
-        const cloudConfig = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
-        if (cloudConfig?.enabled !== false && cloudConfig?.supabaseUrl) {
-          const cloudInvoices = await fetchInvoicesFromSupabase(cloudConfig).catch(() => null);
-          if (Array.isArray(cloudInvoices)) {
-            setInvoices(cloudInvoices);
-          }
-        }
-      } catch (err) {
-        console.error('Lỗi khi nạp danh sách hóa đơn từ Cloud DB:', err);
-      }
-    }
-    initInvoices();
-  }, []);
+  const setInvoices = useCallback((updater: Invoice[] | ((prev: Invoice[]) => Invoice[])) => {
+    qc.setQueryData<Invoice[]>(INVOICES_QUERY_KEY, (prev = []) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      invoicesRef.current = next;
+      return next;
+    });
+  }, [qc]);
 
-  // 4. LẮNG NGHE DOMAIN EVENTS TỪ CÁC THỰC THỂ KHÁC
-  useEffect(() => {
-    // Khi một phiếu xét nghiệm bị xóa -> Giải phóng reportId trên hóa đơn để không bị ID mồ côi
-    const unsubReportDeleted = domainEventBus.subscribe<ReportDeletedPayload>(
-      REPORT_EVENT_TYPES.DELETED,
-      ({ payload }) => {
-        const prev = invoicesRef.current;
-        const hasLinked = prev.some((inv) => inv.reportId === payload.reportId);
-        if (!hasLinked) return;
-
-        const affectedInvoices: Invoice[] = [];
-        const next = prev.map((inv) => {
-          if (inv.reportId === payload.reportId) {
-            const unlinked = { ...inv, reportId: undefined };
-            affectedInvoices.push(unlinked);
-            return unlinked;
-          }
-          return inv;
-        });
-
-        invoicesRef.current = next;
-        setInvoices(next);
-
-        // Lưu cập nhật các hóa đơn bị ảnh hưởng xuống cơ sở dữ liệu
-        for (const unlinkedInv of affectedInvoices) {
-          postInvoice(unlinkedInv).catch((err) => {
-            console.warn('[useInvoiceManager] Lỗi lưu giải phóng liên kết hóa đơn:', err);
-          });
-        }
-      }
-    );
-
-    return () => {
-      unsubReportDeleted();
-    };
-  }, []);
-
-  // Helper: Lưu ngay lập tức và trực tiếp lên Cloud DB
+  // Helper: Lưu ngay lập tức và trực tiếp lên Cloud DB nếu bật
   const syncInvoicesDirectly = (nextList: Invoice[]) => {
     const cloudConfig = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
     if (cloudConfig?.enabled !== false && cloudConfig?.supabaseUrl) {
@@ -85,7 +49,7 @@ export function useInvoiceManager(options?: UseInvoiceManagerOptions) {
     }
   };
 
-  // 5. Thêm mới hoặc cập nhật hóa đơn & Phát Domain Events
+  // 2. Thêm mới hoặc cập nhật hóa đơn & Phát Domain Events
   const saveOrUpdateInvoice = (invoice: Invoice, skipRemote: boolean = false): Invoice => {
     const prev = invoicesRef.current;
     const idx = prev.findIndex((inv) => inv.id === invoice.id || (inv.code && inv.code === invoice.code));
@@ -100,14 +64,10 @@ export function useInvoiceManager(options?: UseInvoiceManagerOptions) {
     setInvoices(next);
 
     if (!skipRemote) {
-      // Lưu đơn lẻ lên server bên ngoài state updater
-      postInvoice(invoice).catch((err) => {
-        console.warn('[useInvoiceManager] Lỗi lưu đơn lẻ hóa đơn, fallback:', err);
-        syncInvoicesDirectly(next);
-      });
+      saveMutation.mutate(invoice);
     }
 
-    // Phát sự kiện tương ứng với trạng thái hóa đơn
+    // Phát sự kiện tương ứng với trạng thái hóa đơn cho UI
     if (invoice.status === BILLING_STATUS.PAID) {
       domainEventBus.emit(INVOICE_EVENT_TYPES.PAID, {
         invoice,
@@ -128,7 +88,7 @@ export function useInvoiceManager(options?: UseInvoiceManagerOptions) {
     return invoice;
   };
 
-  // 6. Xóa 1 hóa đơn & Phát Event
+  // 3. Xóa 1 hóa đơn & Phát Event
   const deleteInvoice = (id: string) => {
     const prev = invoicesRef.current;
     const deletedInvoice = prev.find((inv) => inv.id === id);
@@ -136,11 +96,7 @@ export function useInvoiceManager(options?: UseInvoiceManagerOptions) {
     invoicesRef.current = next;
     setInvoices(next);
 
-    // Xóa đơn lẻ trên server bên ngoài state updater
-    deleteInvoiceApi(id).catch((err) => {
-      console.warn('[useInvoiceManager] Lỗi xóa đơn lẻ hóa đơn, fallback:', err);
-      syncInvoicesDirectly(next);
-    });
+    deleteMutation.mutate(id);
 
     // Phát Domain Event: INVOICE_DELETED
     domainEventBus.emit(INVOICE_EVENT_TYPES.DELETED, {
@@ -149,14 +105,18 @@ export function useInvoiceManager(options?: UseInvoiceManagerOptions) {
     });
   };
 
-  // 7. Xóa tất cả hóa đơn
+  // 4. Xóa tất cả hóa đơn
   const clearAllInvoices = () => {
     invoicesRef.current = [];
     setInvoices([]);
+    saveState(STORAGE_KEYS.INVOICES, []);
+    putTable('invoices', []).catch((err) => {
+      console.warn('[useInvoiceManager] Lỗi xóa sạch invoices trên server:', err);
+    });
     syncInvoicesDirectly([]);
   };
 
-  // 8. Cập nhật trạng thái hóa đơn
+  // 5. Cập nhật trạng thái hóa đơn
   const updateInvoiceStatus = (id: string, status: InvoiceStatus) => {
     const prev = invoicesRef.current;
     let updatedInv: Invoice | undefined;
@@ -171,13 +131,8 @@ export function useInvoiceManager(options?: UseInvoiceManagerOptions) {
     setInvoices(next);
 
     if (updatedInv) {
-      postInvoice(updatedInv).catch((err) => {
-        console.warn('[useInvoiceManager] Lỗi cập nhật trạng thái hóa đơn, fallback:', err);
-        syncInvoicesDirectly(next);
-      });
-    }
+      saveMutation.mutate(updatedInv);
 
-    if (updatedInv) {
       if (status === 'Đã thanh toán') {
         domainEventBus.emit(INVOICE_EVENT_TYPES.PAID, {
           invoice: updatedInv,
@@ -194,13 +149,19 @@ export function useInvoiceManager(options?: UseInvoiceManagerOptions) {
     }
   };
 
-  // 9. Thu tiền hóa đơn qua Backend Command (Transaction)
+  // 6. Thu tiền hóa đơn qua Backend Command (Transaction)
+  // Tự động đồng bộ nguyên tử cả Hóa đơn và Phiếu khám qua TanStack Query Invalidation
   const payInvoice = async (
     id: string,
     paymentData: { paymentMethod?: string; cashier?: string; paidAt?: string; discount?: number; invoice?: Invoice }
   ) => {
     try {
-      const res = await apiClientPayInvoice(id, paymentData);
+      const res = await payMutation.mutateAsync({
+        id,
+        paymentMethod: paymentData.paymentMethod,
+        cashier: paymentData.cashier,
+        paidAt: paymentData.paidAt
+      });
       if (res.success) {
         if (res.invoice) {
           saveOrUpdateInvoice(res.invoice, true);
@@ -216,13 +177,18 @@ export function useInvoiceManager(options?: UseInvoiceManagerOptions) {
     }
   };
 
-  // 10. Hủy hóa đơn qua Backend Command (Transaction)
+  // 7. Hủy hóa đơn qua Backend Command (Transaction)
   const cancelInvoice = async (
     id: string,
-    cancelData: { reason?: string; cancelledBy?: string }
+    cancelData: { reason?: string; cancelledBy?: string; fallbackInvoice?: Invoice }
   ) => {
     try {
-      const res = await apiClientCancelInvoice(id, cancelData);
+      const res = await cancelMutation.mutateAsync({
+        id,
+        reason: cancelData.reason,
+        cancelledBy: cancelData.cancelledBy,
+        fallbackInvoice: cancelData.fallbackInvoice
+      });
       if (res.success) {
         if (res.invoice) {
           saveOrUpdateInvoice(res.invoice, true);
@@ -246,6 +212,7 @@ export function useInvoiceManager(options?: UseInvoiceManagerOptions) {
     clearAllInvoices,
     updateInvoiceStatus,
     payInvoice,
-    cancelInvoice
+    cancelInvoice,
+    refetch
   };
 }

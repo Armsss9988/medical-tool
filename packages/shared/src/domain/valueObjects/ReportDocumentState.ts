@@ -207,6 +207,7 @@ export abstract class DocumentStateNode {
       cloudPdfUrl?: string;
       qrCodeDataUrl?: string;
       pdfVersion?: number;
+      lastExportedAt?: string;
       dirtyReasons?: ReadonlyArray<string>;
       channel?: 'Zalo' | 'Print' | 'Direct';
       timestamp?: string;
@@ -224,14 +225,14 @@ export abstract class DocumentStateNode {
           context.cloudPdfUrl || '',
           context.qrCodeDataUrl || '',
           context.pdfVersion || 1,
-          now
+          context.lastExportedAt || now
         );
       case 'Cần cập nhật PDF':
         return new OutdatedStateNode(
           context.cloudPdfUrl || '',
           context.qrCodeDataUrl,
           context.pdfVersion || 1,
-          now,
+          context.lastExportedAt || now,
           context.dirtyReasons || ['Cập nhật trạng thái yêu cầu cập nhật bản in PDF']
         );
       case 'Đã trả kết quả':
@@ -388,7 +389,7 @@ export class ExportedStateNode extends DocumentStateNode {
         this.cloudPdfUrl,
         this.qrCodeDataUrl,
         this.pdfVersion,
-        new Date().toISOString(),
+        this.exportedAt,
         ['Dữ liệu xét nghiệm đã thay đổi sau khi xuất PDF Cloud']
       )
     );
@@ -464,7 +465,7 @@ export class OutdatedStateNode extends DocumentStateNode {
   }
 }
 
-/** Trạng thái 5: Đã trả kết quả cho bệnh nhân */
+/** Trạng thái 5: Đã gửi kết quả thành công cho bệnh nhân */
 export class DeliveredStateNode extends DocumentStateNode {
   readonly status = 'DELIVERED';
   readonly label = 'Đã trả kết quả';
@@ -479,9 +480,8 @@ export class DeliveredStateNode extends DocumentStateNode {
     super();
   }
 
-  // Cho phép gửi lại kết quả qua Zalo nếu cần
   override get canSendZalo(): boolean {
-    return true;
+    return true; // Cho phép gửi lại nếu cần
   }
 
   override get canModifyTests(): boolean {
@@ -502,7 +502,6 @@ export class DeliveredStateNode extends DocumentStateNode {
       )
     );
   }
-
   // Sửa kết quả sau khi đã giao bệnh nhân -> Bắt buộc đánh dấu OUTDATED kèm cảnh báo
   override modifyTests(
     _hasAnyResult: boolean,
@@ -514,8 +513,23 @@ export class DeliveredStateNode extends DocumentStateNode {
         this.cloudPdfUrl,
         this.qrCodeDataUrl,
         1,
-        new Date().toISOString(),
-        ['Dữ liệu xét nghiệm đã bị chỉnh sửa sau khi trả kết quả cho bệnh nhân']
+        this.deliveredAt,
+        ['Phiếu đã trả kết quả nhưng vừa có chỉnh sửa thông số xét nghiệm']
+      )
+    );
+  }
+
+  override exportPdf(cloudPdfUrl: string, qrCodeDataUrl?: string): Result<DocumentStateNode, string> {
+    if (!cloudPdfUrl) {
+      return Result.fail('Cần cung cấp đường dẫn Cloud PDF hợp lệ.');
+    }
+    const now = new Date().toISOString();
+    return Result.ok(
+      new ExportedStateNode(
+        cloudPdfUrl,
+        qrCodeDataUrl || this.qrCodeDataUrl || '',
+        1,
+        now
       )
     );
   }

@@ -39,8 +39,17 @@ export async function GET(
     const rows = await repo.getTableRows(db, name);
     return NextResponse.json({ rows, count: rows.length, updatedAt: new Date().toISOString() });
   } catch (err) {
-    console.warn(`[API /api/tables/${name}] Warning: Không thể đọc bảng từ Postgres (${(err as Error).message}), fallback dữ liệu rỗng`);
-    return NextResponse.json({ rows: [], count: 0, updatedAt: new Date().toISOString(), warning: (err as Error).message });
+    console.error(`[API /api/tables/${name}] Error reading table from Postgres:`, err);
+    return NextResponse.json(
+      {
+        error: `Failed to read table ${name}: ${(err as Error).message}`,
+        warning: (err as Error).message,
+        rows: [],
+        count: 0,
+        updatedAt: new Date().toISOString()
+      },
+      { status: 500 }
+    );
   }
 }
 
@@ -88,6 +97,7 @@ export async function PUT(
     const replaced = await repo.replaceTable(db, name, rowsParse.data);
     return NextResponse.json({ replaced });
   } catch (err) {
+    console.error(`[API PUT /api/tables/${name}] Error replacing table:`, err);
     return NextResponse.json({ error: 'failed to replace table', message: (err as Error).message }, { status: 500 });
   }
 }

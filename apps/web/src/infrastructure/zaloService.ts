@@ -123,9 +123,10 @@ export async function sendZaloZnsNotification(
   config: ZaloZnsConfig,
   report: MedicalReport,
   clinicInfo: ClinicInfo,
-  customNote?: string
+  customNote?: string,
+  targetPhone?: string
 ): Promise<ZaloSendResult> {
-  const phone = formatZaloPhone(report.patient.phone);
+  const phone = formatZaloPhone(targetPhone || report.patient.phone);
   if (!phone || phone.length < 9) {
     return {
       success: false,
@@ -247,9 +248,10 @@ export async function sendZaloZnsMessage(
   report: MedicalReport,
   clinicInfo: ClinicInfo,
   config: ZaloZnsConfig,
-  customNote?: string
+  customNote?: string,
+  targetPhone?: string
 ): Promise<ZaloSendResult> {
-  return sendZaloZnsNotification(config, report, clinicInfo, customNote);
+  return sendZaloZnsNotification(config, report, clinicInfo, customNote, targetPhone);
 }
 
 /**

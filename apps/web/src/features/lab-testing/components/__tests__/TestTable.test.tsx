@@ -201,7 +201,7 @@ describe('TestTable - Package Selection with Default Values', () => {
       expect(selectedTests[0].note).toBe('Phát Hiện');
     });
 
-    it('rejects non-numeric characters for detection indicators (Option B: numeric only)', () => {
+    it('supports qualitative text characters for detection indicators (e.g. "Âm tính", "Dương tính")', () => {
       let selectedTests: SelectedTest[] = [
         {
           ...detectionCatalog[0],
@@ -214,7 +214,7 @@ describe('TestTable - Package Selection with Default Values', () => {
         selectedTests = typeof action === 'function' ? action(selectedTests) : action;
       });
 
-      render(
+      const { rerender } = render(
         <TestTable
           catalog={detectionCatalog}
           selectedTests={selectedTests}
@@ -224,10 +224,23 @@ describe('TestTable - Package Selection with Default Values', () => {
 
       const input = screen.getByPlaceholderText('Nhập KQ...');
 
-      // Attempt to enter letters
-      fireEvent.change(input, { target: { value: 'abc' } });
-      // Should NOT update selectedTests because 'abc' is not numeric
-      expect(selectedTests[0].result).toBe('');
+      // Attempt to enter qualitative text "Âm tính"
+      fireEvent.change(input, { target: { value: 'Âm tính' } });
+      expect(selectedTests[0].result).toBe('Âm tính');
+      expect(selectedTests[0].note).toBe('Không Phát Hiện');
+
+      rerender(
+        <TestTable
+          catalog={detectionCatalog}
+          selectedTests={selectedTests}
+          setSelectedTests={setSelectedTests}
+        />
+      );
+
+      // Attempt to enter qualitative text "Dương tính"
+      fireEvent.change(input, { target: { value: 'Dương tính' } });
+      expect(selectedTests[0].result).toBe('Dương tính');
+      expect(selectedTests[0].note).toBe('Phát Hiện');
     });
 
     it('triggers evaluation correctly when populating default package results for detection indicators', () => {

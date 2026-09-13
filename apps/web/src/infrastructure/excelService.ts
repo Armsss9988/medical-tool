@@ -77,12 +77,17 @@ function sanitizeGender(raw: string): Gender {
  * Chuẩn hóa ngày sinh / năm sinh (hỗ trợ cả dạng ngày Excel serial và chuỗi text)
  */
 function sanitizeDob(raw: unknown): string {
-  if (typeof raw === 'number' && raw > 20000 && raw < 60000) {
-    const d = new Date((raw - 25569) * 86400 * 1000);
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    return `${day}/${month}/${year}`;
+  if (typeof raw === 'number') {
+    if (raw >= 1900 && raw <= 2100) {
+      return String(raw);
+    }
+    if (raw > 2000 && raw < 70000) {
+      const d = new Date((raw - 25569) * 86400 * 1000);
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
   }
   return String(raw || '').trim();
 }

@@ -1,5 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import React from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useReportManager } from '../useReportManager';
 import { Patient, SelectedTest, domainEventBus, INVOICE_EVENT_TYPES } from '@domain';
 import { postReport } from '@infra/apiClient';
@@ -12,11 +14,30 @@ vi.mock('@infra/cloudDbService', () => ({
 }));
 
 vi.mock('@infra/apiClient', () => ({
+  getTable: vi.fn().mockResolvedValue({ rows: [] }),
+  putTable: vi.fn().mockResolvedValue(true),
   postReport: vi.fn().mockResolvedValue({ success: true, id: 'mock-id' }),
   deleteReportApi: vi.fn().mockResolvedValue({ success: true, id: 'mock-id' })
 }));
 
+function makeWrapper() {
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false }
+    }
+  });
+  return ({ children }: { children: React.ReactNode }) =>
+    React.createElement(QueryClientProvider, { client }, children);
+}
+
 describe('useReportManager - Batch Import & Identity Resolution', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    vi.clearAllMocks();
+  });
+
   const dummyTest: SelectedTest = {
     code: 'GLU',
     name: 'Glucose máu',
@@ -41,7 +62,7 @@ describe('useReportManager - Batch Import & Identity Resolution', () => {
   });
 
   it('1. bulkSaveOrUpdateReports saves all patients without stale state dropping', () => {
-    const { result } = renderHook(() => useReportManager());
+    const { result } = renderHook(() => useReportManager(), { wrapper: makeWrapper() });
 
     const batchRows = [
       {
@@ -79,7 +100,7 @@ describe('useReportManager - Batch Import & Identity Resolution', () => {
   });
 
   it('2. Detects existing patient by Composite Identity (Name + DOB + Gender) when code is generated/empty', () => {
-    const { result } = renderHook(() => useReportManager());
+    const { result } = renderHook(() => useReportManager(), { wrapper: makeWrapper() });
 
     // Bước 1: Lưu bệnh nhân ban đầu với mã chính thức
     act(() => {
@@ -120,7 +141,7 @@ describe('useReportManager - Batch Import & Identity Resolution', () => {
   });
 
   it('3. Does NOT overwrite old report when saving a new visit for returning patient with generated BN- code', () => {
-    const { result } = renderHook(() => useReportManager());
+    const { result } = renderHook(() => useReportManager(), { wrapper: makeWrapper() });
 
     // Lần khám 1: Nguyễn Văn A đến khám ngày hôm qua, hệ thống sinh mã BN-20260905-001
     act(() => {
@@ -152,8 +173,8 @@ describe('useReportManager - Batch Import & Identity Resolution', () => {
     expect(codes).toContain('BN-20260912-002');
   });
 
-  it('4. Persists report payment status via postReport when INVOICE_PAID domain event is received', () => {
-    const { result } = renderHook(() => useReportManager());
+  it('4. Updates in-memory report payment status optimistically when INVOICE_PAID event is received without triggering postReport (Rule 9.3)', () => {
+    const { result } = renderHook(() => useReportManager(), { wrapper: makeWrapper() });
 
     act(() => {
       result.current.saveOrUpdateReport({
@@ -178,13 +199,10 @@ describe('useReportManager - Batch Import & Identity Resolution', () => {
       });
     });
 
-    // Kiểm tra report state đã cập nhật
+    // Kiểm tra report state đã cập nhật lạc quan trên giao diện
     expect(result.current.reports[0].patient.paidAt).toBe('2026-09-12T00:00:00Z');
-    // Kiểm tra postReport đã được gọi để lưu xuống DB
-    expect(mockPostReport).toHaveBeenCalledTimes(1);
-    expect(mockPostReport).toHaveBeenCalledWith(expect.objectContaining({
-      id: 'rep-test-paid'
-    }));
+    // Tuân thủ Rule 9.3: Không tự động gọi postReport chéo bảng qua Event Bus trình duyệt
+    expect(mockPostReport).not.toHaveBeenCalled();
   });
 });
 

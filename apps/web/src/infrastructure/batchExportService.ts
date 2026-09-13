@@ -151,8 +151,25 @@ export async function downloadBatchZip(
  */
 function waitForDomRender(ms: number = 300): Promise<void> {
   return new Promise((resolve) => {
+    let resolved = false;
+    const done = () => {
+      if (!resolved) {
+        resolved = true;
+        resolve();
+      }
+    };
+
+    // Khi tab chạy nền, requestAnimationFrame bị trình duyệt tạm dừng -> dùng thẳng setTimeout
+    if (typeof document !== 'undefined' && document.hidden) {
+      setTimeout(done, ms);
+      return;
+    }
+
+    const fallbackTimer = setTimeout(done, ms + 150);
+
     requestAnimationFrame(() => {
-      setTimeout(resolve, ms);
+      clearTimeout(fallbackTimer);
+      setTimeout(done, ms);
     });
   });
 }

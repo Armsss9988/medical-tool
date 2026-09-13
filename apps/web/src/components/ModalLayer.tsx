@@ -1,5 +1,5 @@
 import { SettingsModal, TransactionLoadingModal, UnsavedChangesModal } from '@features/settings-clinic';
-import { PdfPreviewModal, type DynamicReportRenderProps } from '@features/report-export';
+import { PdfPreviewModal, type DynamicReportRenderProps, type PdfProgressInfo } from '@features/report-export';
 import { CatalogManagerModal } from '@features/catalog-management';
 import { InvoiceModal, RevenueManagerModal } from '@features/billing-revenue';
 import { ReportManagerModal } from '@features/report-history';
@@ -29,7 +29,8 @@ import type {
   BatchExportProgress,
   CatalogItemEquipmentLink,
   AllergenGradingScale,
-  ReferenceRangeItem
+  ReferenceRangeItem,
+  ReportTemplate
 } from '@domain';
 
 // ─── MODAL LAYER COMPONENT ──────────────────────────────────────────────────
@@ -65,12 +66,14 @@ interface ModalLayerProps {
   cloudLink?: string;
   qrCodeDataUrl?: string;
   isExporting: boolean;
+  isDownloading?: boolean;
+  downloadProgress?: PdfProgressInfo | null;
   currentStep: ExportStepName | null;
   lastError: ExportErrorDetail | null;
   batchProgress: BatchExportProgress;
   isBatchExportRunning: boolean;
   onExportPdfAndUpload: (customElementId?: string) => void;
-  onDownloadPdf: (elementId: string, filename: string) => void;
+  onDownloadPdf: (elementId: string, filename: string, onProgress?: (p: PdfProgressInfo) => void) => void | Promise<void>;
   onPrintDirect: () => void;
   onDownloadQrCode: (name: string, code: string) => void;
   onSaveCurrentReport: () => string | null;
@@ -99,6 +102,7 @@ interface ModalLayerProps {
     allergenScales?: AllergenGradingScale[];
     referenceRanges?: ReferenceRangeItem[];
   }) => Promise<void>;
+  onPreviewTemplateChange?: (template: ReportTemplate | null) => void;
 }
 
 export function ModalLayer({
@@ -127,6 +131,8 @@ export function ModalLayer({
   cloudLink,
   qrCodeDataUrl,
   isExporting,
+  isDownloading = false,
+  downloadProgress = null,
   currentStep,
   lastError,
   batchProgress,
@@ -151,7 +157,8 @@ export function ModalLayer({
   onUnsavedSaveAndProceed,
   onUnsavedDiscardAndProceed,
   onUnsavedCancel,
-  onSaveAllCatalogData
+  onSaveAllCatalogData,
+  onPreviewTemplateChange
 }: ModalLayerProps) {
   const {
     patient,
@@ -235,6 +242,8 @@ export function ModalLayer({
         qrCodeDataUrl={previewTargetReport ? previewTargetReport.qrCodeDataUrl : qrCodeDataUrl}
         cloudLink={previewTargetReport ? previewTargetReport.cloudPdfUrl : cloudLink}
         isExporting={isExporting}
+        isDownloading={isDownloading}
+        downloadProgress={downloadProgress}
         currentStep={currentStep}
         lastError={lastError}
         showToast={showToast}
@@ -254,6 +263,7 @@ export function ModalLayer({
         equipments={equipments}
         catalogItemEquipments={catalogItemEquipments}
         allergenScales={allergenScales}
+        onSelectedTemplateChange={onPreviewTemplateChange}
       />
 
       {/* 3. CATALOG MANAGER MODAL */}
@@ -292,8 +302,7 @@ export function ModalLayer({
         doctorsList={doctorsList}
         doctorName={doctorName}
         clinicInfo={clinicInfo}
-        currentReportId={currentReportId}
-        existingInvoice={invoices.find((inv) => (currentReportId && inv.reportId === currentReportId) || (patient.code && inv.patientCode === patient.code))}
+        existingInvoice={invoices.find((inv) => Boolean(currentReportId && inv.reportId === currentReportId))}
         isReportSaved={Boolean(currentReportId && reports.some((r) => r.id === currentReportId))}
         onSaveReportFirst={onSaveCurrentReport}
         onSaveInvoice={onSaveInvoice}

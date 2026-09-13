@@ -8,6 +8,9 @@ import type {
   AllergenGradingScale,
   ReportTemplate
 } from '@domain';
+import type { PdfProgressInfo } from '@infra/pdfService';
+
+export type { PdfProgressInfo };
 
 export interface DynamicReportRenderProps {
   template: ReportTemplate;

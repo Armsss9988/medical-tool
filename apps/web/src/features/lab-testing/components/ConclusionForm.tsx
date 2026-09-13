@@ -22,6 +22,8 @@ interface ConclusionFormProps {
   selectedTests?: SelectedTest[];
   /** Phiếu hiện tại có bị outdated so với bản PDF cũ không */
   isPdfOutdated?: boolean;
+  /** Danh sách chi tiết các trường/kết quả đã thay đổi */
+  dirtyReasons?: string[];
   /** Phiên bản PDF hiện tại */
   pdfVersion?: number;
   /** Trạng thái thu phí của phiếu đang mở */
@@ -58,6 +60,7 @@ export default function ConclusionForm({
   onOpenInvoiceModal,
   selectedTests = [],
   isPdfOutdated = false,
+  dirtyReasons = [],
   pdfVersion,
   isPaid = false,
   isReportSaved = false,
@@ -162,16 +165,28 @@ export default function ConclusionForm({
 
         {/* ═══ CẢNH BÁO PDF OUTDATED (NẾU ĐÃ SỬA DỮ LIỆU) ═══ */}
         {isPdfOutdated && (
-          <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-xl flex items-center justify-between text-xs text-amber-900 animate-in fade-in duration-150">
-            <div className="flex items-center space-x-2">
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
-              <span className="font-semibold">
-                Dữ liệu đã sửa so với bản PDF Cloud trước ({pdfVersion ? `v${pdfVersion}` : 'cũ'}).
+          <div className="p-3 bg-gradient-to-r from-amber-50 to-orange-50/60 border border-amber-300 rounded-xl space-y-1.5 text-xs text-amber-900 animate-in fade-in duration-150 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center space-x-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping shrink-0" />
+                <span className="font-extrabold text-amber-950">
+                  Dữ liệu đã sửa so với bản PDF Cloud trước ({pdfVersion ? `v${pdfVersion}` : 'cũ'}):
+                </span>
+              </div>
+              <span className="text-[10.5px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded-md font-extrabold shrink-0 border border-amber-300">
+                Cần Cập Nhật PDF
               </span>
             </div>
-            <span className="text-[10.5px] bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-md font-extrabold shrink-0">
-              Cần Cập Nhật PDF
-            </span>
+            {dirtyReasons && dirtyReasons.length > 0 && (
+              <div className="pl-3.5 border-l-2 border-amber-400/80 space-y-0.5 pt-0.5">
+                {dirtyReasons.map((r, i) => (
+                  <p key={i} className="text-[11px] font-semibold text-amber-900 flex items-center gap-1.5">
+                    <span className="text-amber-600 font-bold">•</span>
+                    <span>{r}</span>
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -244,15 +259,15 @@ export default function ConclusionForm({
               <button
                 type="button"
                 onClick={onDownloadPdf}
-                disabled={!cloudLink || isExporting}
+                disabled={isExporting}
                 className={`py-2.5 px-3 rounded-xl border shadow-2xs transition-all active:scale-95 flex items-center justify-center space-x-1.5 font-bold ${
-                  cloudLink && !isExporting
-                    ? 'bg-teal-50 hover:bg-teal-100 text-teal-800 border-teal-300'
+                  !isExporting
+                    ? 'bg-teal-50 hover:bg-teal-100 text-teal-800 border-teal-300 cursor-pointer'
                     : 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
                 }`}
-                title={cloudLink ? "Tải file PDF về máy tính" : "Vui lòng Xuất File PDF & Tải Lên Cloud trước khi tải"}
+                title="Tải trực tiếp file PDF chất lượng cao về máy tính"
               >
-                <Download className={`w-3.5 h-3.5 ${cloudLink ? 'text-teal-600' : 'text-slate-400'}`} />
+                <Download className={`w-3.5 h-3.5 ${!isExporting ? 'text-teal-600' : 'text-slate-400'}`} />
                 <span>Tải File PDF Về Máy</span>
               </button>
             ) : null}

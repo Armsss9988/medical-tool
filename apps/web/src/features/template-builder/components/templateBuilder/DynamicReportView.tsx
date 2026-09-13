@@ -1,6 +1,7 @@
-import { memo, useMemo, useCallback, Fragment } from 'react';
+import { useState, useEffect, useMemo, useCallback, Fragment, memo } from 'react';
 import golabLogo from '@assets/golabLogoDataUrl';
 import doctorStamp from '@assets/doctorStampDataUrl';
+import { generateQrCodeDataUrl, buildPortalUrl } from '@infra/qrService';
 import {
   Patient,
   SelectedTest,
@@ -41,7 +42,7 @@ import {
   sortTestsByPackageOrder
 } from '@domain';
 import { evaluateResult } from '@domain/testResult';
-import { AllergenReportDomainService } from '@domain/services/AllergenReportDomainService';
+import { AllergenReportDomainService, AllergenReportItemDTO } from '@domain/services/AllergenReportDomainService';
 import { isAllergenTest, getAllergenBadgeSvg, getAllergenGradeClasses } from '@domain/allergenDetector';
 
 const MOCK_DESIGN_REGULAR_TESTS: SelectedTest[] = [
@@ -183,7 +184,7 @@ const MOCK_DESIGN_ALLERGEN_TESTS: SelectedTest[] = [
 
 interface DynamicReportViewProps {
   template: ReportTemplate;
-  patient: Patient;
+  patient?: Patient;
   selectedTests?: SelectedTest[];
   clinicInfo?: ClinicInfo;
   doctorName?: string;
@@ -205,7 +206,7 @@ interface DynamicReportViewProps {
 
 export function DynamicReportView({
   template,
-  patient,
+  patient: rawPatient,
   selectedTests = [],
   clinicInfo = DEFAULT_CLINIC_INFO,
   doctorName,
@@ -224,8 +225,37 @@ export function DynamicReportView({
   onDropBlock
 }: DynamicReportViewProps) {
   const safeClinic = getSafeClinicInfo(clinicInfo);
+  const patient: Patient = rawPatient || {
+    code: 'BN-GOLAB',
+    secretToken: '',
+    name: 'Bệnh nhân mới',
+    dob: '',
+    gender: 'Nam',
+    phone: '',
+    address: '',
+    diagnosis: '',
+    sampleCode: 'BN-GOLAB',
+    sampleStatus: 'Đạt',
+    orderedAt: '',
+    paidAt: undefined,
+    receivedAt: '',
+    returnedAt: ''
+  };
   const currentLogo = clinicInfo?.logoUrl || golabLogo;
   const currentStamp = clinicInfo?.stampUrl || doctorStamp;
+
+  const [autoQrCode, setAutoQrCode] = useState<string>('');
+
+  useEffect(() => {
+    if (qrCodeDataUrl) return;
+    const code = patient.code || patient.sampleCode || 'BN-GOLAB';
+    const portalUrl = buildPortalUrl(code, safeClinic.website);
+    generateQrCodeDataUrl(portalUrl).then((res) => {
+      if (res) setAutoQrCode(res);
+    });
+  }, [qrCodeDataUrl, patient.code, patient.sampleCode, safeClinic.website]);
+
+  const finalQrCode = qrCodeDataUrl || autoQrCode;
 
   const effectiveTests = useMemo(() => {
     if (selectedTests && selectedTests.length > 0) return selectedTests;
@@ -333,50 +363,128 @@ export function DynamicReportView({
 
   const renderBlockContent = (
     block: TemplateBlock,
-    tableChunkEntries?: ReadonlyArray<ReportPaginationEntry>
+    tableChunkEntries?: ReadonlyArray<ReportPaginationEntry>,
+    allergenTableChunkEntries?: AllergenReportItemDTO[],
+    allergenChunkInfo?: { pageIdx: number; totalDetailPages: number; totalCount: number }
   ) => {
     switch (block.type) {
       case 'header': {
         const p = block.props as HeaderBlockProps;
         return (
-          <div className={`flex items-center justify-between ${p.borderBottom !== false ? 'border-b-2 border-sky-600 pb-3 mb-3' : 'pb-2 mb-2'}`}>
-            <div className="flex items-center space-x-4">
-              {p.showLogo !== false && (
-                <div className="h-[68px] w-[130px] flex items-center justify-center shrink-0">
+          <div
+            className={`relative flex items-center justify-between overflow-hidden ${p.borderBottom !== false ? 'border-b-2 border-sky-400 pb-2 mb-2' : 'pb-1.5 mb-1.5'}`}
+          >
+            {/* Họa tiết lượn sóng trang trí (hạ thấp sát đáy, độ mờ nhẹ nhàng không che chữ) */}
+            <div className="absolute inset-0 pointer-events-none -z-10 overflow-hidden">
+              <svg viewBox="0 0 800 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full absolute bottom-0 left-0" preserveAspectRatio="none">
+                <path d="M0,106 C160,115 260,100 420,108 C560,115 680,102 800,107 L800,120 L0,120 Z" fill="#f0f9ff" opacity="0.45" />
+                <path d="M0,112 C140,117 240,107 390,114 C540,118 670,109 800,113 L800,120 L0,120 Z" fill="#e0f2fe" opacity="0.3" />
+              </svg>
+            </div>
+
+            {p.showLogo !== false && (
+              <div className="flex flex-col items-center justify-center w-[125px] shrink-0 z-1 relative">
+                <div className="h-[60px] w-[120px] flex items-center justify-center shrink-0">
                   <img src={currentLogo} alt="Logo" className="max-h-full max-w-full object-contain" />
                 </div>
-              )}
-              <div>
-                <p className="text-[12px] font-bold text-sky-800 uppercase tracking-widest leading-none mb-1">
-                  HỆ THỐNG XÉT NGHIỆM GOLAB
-                </p>
-                {p.showClinicName !== false && (
-                  <h1 className={`${p.clinicNameSize === 'lg' ? 'text-[18px]' : p.clinicNameSize === 'sm' ? 'text-[14px]' : 'text-[16px]'} font-black text-sky-950 uppercase tracking-tight`}>
-                    {safeClinic.name}
-                  </h1>
-                )}
-                {p.showAddress !== false && (
-                  <p className="text-[12px] text-slate-700 font-medium">
-                    Địa chỉ: {safeClinic.address}
-                  </p>
-                )}
-                {p.showContact !== false && (
-                  <p className="text-[11.5px] text-slate-700 font-medium">
-                    Website: <strong className="text-sky-800">{safeClinic.website}</strong> – Hotline: <strong className="text-sky-800">{safeClinic.phone}</strong>
-                  </p>
-                )}
+                <span className="text-[10.5px] font-semibold text-sky-600 italic tracking-tight text-center mt-0.5 whitespace-nowrap">
+                  Vì sức khỏe người Việt
+                </span>
               </div>
+            )}
+
+            <div className="flex-1 flex flex-col items-center justify-center px-2 z-1 relative">
+              <div className="flex items-center justify-center gap-2 w-full mb-0.5">
+                <div className="h-[1px] w-8 bg-slate-400" />
+                <div
+                  style={{
+                    backgroundColor: '#e0f2fe',
+                    padding: '5px 18px 6px 18px',
+                    borderRadius: '9999px',
+                    textAlign: 'center',
+                    display: 'inline-flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxSizing: 'border-box'
+                  }}
+                  className="bg-sky-100/80 px-4.5 py-1.5 rounded-full text-center inline-flex flex-col items-center justify-center shadow-2xs"
+                >
+                  <span
+                    style={{ fontSize: '10.5px', fontWeight: 800, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1.25, display: 'block' }}
+                    className="text-[10.5px] font-extrabold text-sky-800 uppercase tracking-wider leading-tight block"
+                  >
+                    HỆ THỐNG XÉT NGHIỆM GOLAB
+                  </span>
+                  <span
+                    style={{ fontSize: '9.5px', fontWeight: 700, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.02em', lineHeight: 1.25, display: 'block' }}
+                    className="text-[9.5px] font-bold text-sky-800 uppercase tracking-wide leading-tight block"
+                  >
+                    69 CHI NHÁNH TRÊN TOÀN QUỐC
+                  </span>
+                </div>
+                <div className="h-[1px] w-8 bg-slate-400" />
+              </div>
+
+              {p.showClinicName !== false && (
+                <h1 className={`font-serif ${p.clinicNameSize === 'lg' ? 'text-[18px]' : p.clinicNameSize === 'sm' ? 'text-[14px]' : 'text-[16.5px]'} font-black text-sky-950 uppercase tracking-tight text-center mt-0.5 mb-0.5 leading-tight`}>
+                  {safeClinic.name}
+                </h1>
+              )}
+
+              {p.showAddress !== false && (
+                <>
+                  <div className="flex items-center justify-center gap-1.5 text-[10.5px] text-slate-800">
+                    <svg className="w-3 h-3 text-sky-600 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+                    </svg>
+                    <span>
+                      <strong className="font-bold text-slate-900">Chi nhánh/điểm tiếp nhận:</strong> {safeClinic.address}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-700 mt-0.5">
+                    <svg className="w-3 h-3 text-sky-600 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z" />
+                    </svg>
+                    <span>
+                      <strong className="font-bold text-slate-900">Trụ sở chính hệ thống:</strong> {safeClinic.headquartersAddress || 'Số 36 BT5, Khu đô thị Pháp Vân, phường Hoàng Liệt, thành phố Hà Nội'}
+                    </span>
+                  </div>
+                </>
+              )}
+
+              {p.showContact !== false && (
+                <div className="flex items-center justify-center gap-2 text-[10.5px] text-slate-700 mt-0.5">
+                  <div className="flex items-center gap-1">
+                    <svg className="w-3 h-3 text-sky-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="2" y1="12" x2="22" y2="12" />
+                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                    </svg>
+                    <span>Website: <strong className="font-bold text-sky-900">{safeClinic.website}</strong></span>
+                  </div>
+                  <span className="text-slate-300">|</span>
+                  <div className="flex items-center gap-1">
+                    <svg className="w-3 h-3 text-sky-900 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
+                    </svg>
+                    <span>Hotline: <strong className="font-bold text-sky-900">{safeClinic.phone}</strong></span>
+                  </div>
+                </div>
+              )}
             </div>
+
             {p.showQr !== false && (
-              <div className="flex flex-col items-center justify-center p-1 bg-white border border-slate-300 rounded shadow-2xs shrink-0 min-w-[58px]">
-                {qrCodeDataUrl ? (
-                  <img src={qrCodeDataUrl} alt="QR Code" className="w-12 h-12 object-contain" />
+              <div className="flex flex-col items-center justify-center p-1 bg-white border border-slate-300 rounded-md shadow-2xs shrink-0 min-w-[64px] z-1 relative">
+                {finalQrCode ? (
+                  <img src={finalQrCode} alt="QR Code" className="w-12 h-12 object-contain" />
                 ) : (
                   <div className="w-12 h-12 flex items-center justify-center bg-slate-50 text-[9px] text-slate-400 font-mono">
                     QR
                   </div>
                 )}
-                <span className="text-[8.5px] font-mono text-sky-800 font-extrabold mt-0.5 tracking-tight">Tra Cứu</span>
+                <span className="text-[9px] font-extrabold text-sky-800 mt-0.5 tracking-tight leading-none whitespace-nowrap">QR Tra Cứu</span>
+                <span className="text-[7.5px] text-slate-500 mt-0.5 leading-none whitespace-nowrap">kết quả xét nghiệm</span>
               </div>
             )}
           </div>
@@ -429,7 +537,7 @@ export function DynamicReportView({
                   <td className="w-32 py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle">Năm sinh:</td>
                   <td className="py-1.5 px-3 font-medium text-slate-800 border-r border-b border-slate-300 align-middle">{patient.dob || '---'}</td>
                   <td className="w-32 py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle">T/G đóng phí</td>
-                  <td className="py-1.5 px-3 font-medium text-slate-800 border-b border-slate-300 align-middle">{patient.paidAt || new Date().toLocaleDateString('vi-VN')}</td>
+                  <td className="py-1.5 px-3 font-medium text-slate-800 border-b border-slate-300 align-middle">{patient.paidAt || 'Chưa thu phí'}</td>
                 </tr>
                 <tr>
                   <td className="w-32 py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle">Địa chỉ</td>
@@ -938,7 +1046,7 @@ export function DynamicReportView({
       case 'allergen_detail_table':
       case 'allergen_detail': {
         const p = block.props as AllergenDetailTableBlockProps;
-        const allItems = allergenDTO?.detailPages.flat() || [];
+        const allItems = allergenTableChunkEntries || allergenDTO?.detailPages.flat() || [];
         const cols = p.columns || {
           tt: true,
           code: true,
@@ -951,11 +1059,15 @@ export function DynamicReportView({
           note: true
         };
 
+        const titleText = allergenChunkInfo && allergenChunkInfo.totalDetailPages > 1
+          ? `CHI TIẾT KẾT QUẢ XÉT NGHIỆM ${allergenChunkInfo.totalCount} DỊ NGUYÊN (PHẦN ${allergenChunkInfo.pageIdx + 1})`
+          : (p.title || `CHI TIẾT KẾT QUẢ XÉT NGHIỆM ${allergenDTO?.totalCount || allItems.length} DỊ NGUYÊN`);
+
         return (
           <div className="mb-3">
             <div className="text-center mb-2.5">
               <h2 className="text-[17px] font-black text-slate-900 uppercase tracking-wide">
-                {p.title || `CHI TIẾT KẾT QUẢ XÉT NGHIỆM ${allItems.length} DỊ NGUYÊN`}
+                {titleText}
               </h2>
             </div>
             <div className="border border-slate-300 rounded bg-white overflow-hidden">
@@ -1225,7 +1337,9 @@ export function DynamicReportView({
         isContinuation: false,
         tableChunkEntries: undefined,
         showConclusionOverride: undefined,
-        showSignatureOverride: undefined
+        showSignatureOverride: undefined,
+        allergenTableChunkEntries: undefined,
+        allergenChunkInfo: undefined
       }));
     }
 
@@ -1236,85 +1350,164 @@ export function DynamicReportView({
       tableChunkEntries?: ReadonlyArray<ReportPaginationEntry>;
       showConclusionOverride?: boolean;
       showSignatureOverride?: boolean;
+      allergenTableChunkEntries?: AllergenReportItemDTO[];
+      allergenChunkInfo?: { pageIdx: number; totalDetailPages: number; totalCount: number };
     }> = [];
 
     let currentPageNum = 1;
 
     for (const templatePageBlocks of baseTemplatePages) {
       const hasTestTable = templatePageBlocks.some((b) => b.type === 'test_table');
+      const hasAllergenDetail = templatePageBlocks.some(
+        (b) => b.type === 'allergen_detail_table' || b.type === 'allergen_detail'
+      );
 
-      if (!hasTestTable || regularTests.length === 0) {
-        result.push({
-          pageNumber: currentPageNum++,
-          blocks: templatePageBlocks
-        });
+      if (hasTestTable && regularTests.length > 0) {
+        // Có khối test_table: dùng ReportPaginationDomainService để phân trang thông minh
+        const hasHeader = templatePageBlocks.some((b) => b.type === 'header' || b.type === 'patient_info');
+        const paginatedChunks = ReportPaginationDomainService.paginate(
+          regularTests,
+          conclusion,
+          {
+            page1StaticHeight: hasHeader ? 328 : 90
+          }
+        );
+
+        if (paginatedChunks.length <= 1) {
+          // Vừa vặn trên 1 trang duy nhất
+          result.push({
+            pageNumber: currentPageNum++,
+            blocks: templatePageBlocks,
+            tableChunkEntries: paginatedChunks[0]?.entries
+          });
+        } else {
+          // Cần ngắt thành nhiều trang
+          const tableIdx = templatePageBlocks.findIndex((b) => b.type === 'test_table');
+          const blocksBeforeTable = templatePageBlocks.slice(0, tableIdx);
+          const testTableBlock = templatePageBlocks[tableIdx];
+          const blocksAfterTable = templatePageBlocks.slice(tableIdx + 1);
+
+          for (let chunkIdx = 0; chunkIdx < paginatedChunks.length; chunkIdx++) {
+            const chunk = paginatedChunks[chunkIdx];
+            const isFirstChunk = chunkIdx === 0;
+            const isLastChunk = chunk.isLastPage;
+
+            if (isFirstChunk) {
+              // Trang đầu tiên: Các block trước bảng + Bảng (chunk 1)
+              const firstPageBlocks = [...blocksBeforeTable, testTableBlock];
+              if (isLastChunk) {
+                firstPageBlocks.push(...blocksAfterTable);
+              }
+              result.push({
+                pageNumber: currentPageNum++,
+                blocks: firstPageBlocks,
+                isContinuation: false,
+                tableChunkEntries: chunk.entries,
+                showConclusionOverride: chunk.showConclusion,
+                showSignatureOverride: chunk.showSignature
+              });
+            } else {
+              // Các trang tiếp theo: Mini Header + Bảng (chunk tiếp theo)
+              const continuationBlocks = [testTableBlock];
+              if (isLastChunk) {
+                continuationBlocks.push(...blocksAfterTable);
+              }
+              result.push({
+                pageNumber: currentPageNum++,
+                blocks: continuationBlocks,
+                isContinuation: true,
+                tableChunkEntries: chunk.entries,
+                showConclusionOverride: chunk.showConclusion,
+                showSignatureOverride: chunk.showSignature
+              });
+            }
+          }
+        }
         continue;
       }
 
-      // Có khối test_table: dùng ReportPaginationDomainService để phân trang thông minh
-      const hasHeader = templatePageBlocks.some((b) => b.type === 'header' || b.type === 'patient_info');
-      const paginatedChunks = ReportPaginationDomainService.paginate(
-        regularTests,
-        conclusion,
-        {
-          page1StaticHeight: hasHeader ? 328 : 90
+      if (hasAllergenDetail && allergenDTO && allergenDTO.detailedList.length > 0) {
+        const detailBlock = templatePageBlocks.find(
+          (b) => b.type === 'allergen_detail_table' || b.type === 'allergen_detail'
+        )!;
+        const p = detailBlock.props as AllergenDetailTableBlockProps;
+        const itemsPerPage = p?.itemsPerPage || 14;
+        const detailedList = allergenDTO.detailedList;
+
+        const chunks: AllergenReportItemDTO[][] = [];
+        for (let i = 0; i < detailedList.length; i += itemsPerPage) {
+          chunks.push(detailedList.slice(i, i + itemsPerPage));
         }
-      );
+        if (chunks.length === 0) chunks.push([]);
 
-      if (paginatedChunks.length <= 1) {
-        // Vừa vặn trên 1 trang duy nhất
-        result.push({
-          pageNumber: currentPageNum++,
-          blocks: templatePageBlocks,
-          tableChunkEntries: paginatedChunks[0]?.entries
-        });
-      } else {
-        // Cần ngắt thành nhiều trang
-        const tableIdx = templatePageBlocks.findIndex((b) => b.type === 'test_table');
-        const blocksBeforeTable = templatePageBlocks.slice(0, tableIdx);
-        const testTableBlock = templatePageBlocks[tableIdx];
-        const blocksAfterTable = templatePageBlocks.slice(tableIdx + 1);
-
-        for (let chunkIdx = 0; chunkIdx < paginatedChunks.length; chunkIdx++) {
-          const chunk = paginatedChunks[chunkIdx];
-          const isFirstChunk = chunkIdx === 0;
-          const isLastChunk = chunk.isLastPage;
-
-          if (isFirstChunk) {
-            // Trang đầu tiên: Các block trước bảng + Bảng (chunk 1)
-            const firstPageBlocks = [...blocksBeforeTable, testTableBlock];
-            if (isLastChunk) {
-              firstPageBlocks.push(...blocksAfterTable);
+        if (chunks.length <= 1) {
+          result.push({
+            pageNumber: currentPageNum++,
+            blocks: templatePageBlocks,
+            allergenTableChunkEntries: chunks[0],
+            allergenChunkInfo: {
+              pageIdx: 0,
+              totalDetailPages: 1,
+              totalCount: detailedList.length
             }
+          });
+        } else {
+          const tableIdx = templatePageBlocks.findIndex(
+            (b) => b.type === 'allergen_detail_table' || b.type === 'allergen_detail'
+          );
+          const blocksBeforeTable = templatePageBlocks.slice(0, tableIdx);
+          const blocksAfterTable = templatePageBlocks.slice(tableIdx + 1);
+
+          for (let chunkIdx = 0; chunkIdx < chunks.length; chunkIdx++) {
+            const isFirstChunk = chunkIdx === 0;
+            const chunk = chunks[chunkIdx];
+
+            if (isFirstChunk) {
+              result.push({
+                pageNumber: currentPageNum++,
+                blocks: [...blocksBeforeTable, detailBlock],
+                isContinuation: false,
+                allergenTableChunkEntries: chunk,
+                allergenChunkInfo: {
+                  pageIdx: chunkIdx,
+                  totalDetailPages: chunks.length,
+                  totalCount: detailedList.length
+                }
+              });
+            } else {
+              result.push({
+                pageNumber: currentPageNum++,
+                blocks: [detailBlock],
+                isContinuation: true,
+                allergenTableChunkEntries: chunk,
+                allergenChunkInfo: {
+                  pageIdx: chunkIdx,
+                  totalDetailPages: chunks.length,
+                  totalCount: detailedList.length
+                }
+              });
+            }
+          }
+
+          if (blocksAfterTable.length > 0) {
             result.push({
               pageNumber: currentPageNum++,
-              blocks: firstPageBlocks,
-              isContinuation: false,
-              tableChunkEntries: chunk.entries,
-              showConclusionOverride: chunk.showConclusion,
-              showSignatureOverride: chunk.showSignature
-            });
-          } else {
-            // Các trang tiếp theo: Mini Header + Bảng (chunk tiếp theo)
-            const continuationBlocks = [testTableBlock];
-            if (isLastChunk) {
-              continuationBlocks.push(...blocksAfterTable);
-            }
-            result.push({
-              pageNumber: currentPageNum++,
-              blocks: continuationBlocks,
-              isContinuation: true,
-              tableChunkEntries: chunk.entries,
-              showConclusionOverride: chunk.showConclusion,
-              showSignatureOverride: chunk.showSignature
+              blocks: blocksAfterTable,
+              isContinuation: true
             });
           }
         }
+        continue;
       }
+
+      result.push({
+        pageNumber: currentPageNum++,
+        blocks: templatePageBlocks
+      });
     }
 
     return result;
-  }, [baseTemplatePages, isDesignMode, regularTests, conclusion]);
+  }, [baseTemplatePages, isDesignMode, regularTests, allergenDTO, conclusion]);
 
   const isA5 = template.paperSize === 'A5';
   const isLandscape = template.orientation === 'landscape';
@@ -1499,7 +1692,12 @@ export function DynamicReportView({
                         )}
                       </div>
                     )}
-                    {renderBlockContent(block, renderedPage.tableChunkEntries)}
+                    {renderBlockContent(
+                      block,
+                      renderedPage.tableChunkEntries,
+                      renderedPage.allergenTableChunkEntries,
+                      renderedPage.allergenChunkInfo
+                    )}
                   </div>
                 </div>
               );

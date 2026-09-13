@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   X,
   Printer,
@@ -24,6 +24,7 @@ import HybridReportView from './HybridReportView';
 import { PRINT_ELEMENT_ID } from '@domain/constants';
 import { ClinicInfo, Patient, SelectedTest, ToastType, TestPackage, TestEquipment, CatalogItemEquipmentLink, AllergenGradingScale, ReportClassificationDomainService, ReportTemplate, TemplateCompatibilityDomainService, formatReportPdfFilename } from '@domain';
 import type { DynamicReportRenderProps } from '../types';
+import type { PdfProgressInfo } from '@infra/pdfService';
 import {
   ExportStepName,
   ExportErrorDetail,
@@ -43,11 +44,13 @@ interface PdfPreviewModalProps {
   qrCodeDataUrl?: string;
   cloudLink?: string;
   isExporting?: boolean;
+  isDownloading?: boolean;
+  downloadProgress?: PdfProgressInfo | null;
   currentStep?: ExportStepName | null;
   lastError?: ExportErrorDetail | null;
   showToast: (msg: string, type?: ToastType) => void;
   onExportPdfAndUpload: (customElementId?: string) => void;
-  onDownloadPdf?: (elementId: string, filename: string) => void;
+  onDownloadPdf?: (elementId: string, filename: string, onProgress?: (p: PdfProgressInfo) => void) => void | Promise<void>;
   onRetryExport?: () => void;
   onPrintDirect: () => void;
   onDownloadQrCode: () => void;
@@ -59,6 +62,7 @@ interface PdfPreviewModalProps {
   equipments?: TestEquipment[];
   catalogItemEquipments?: CatalogItemEquipmentLink[];
   allergenScales?: AllergenGradingScale[];
+  onSelectedTemplateChange?: (template: ReportTemplate | null) => void;
 }
 
 export default function PdfPreviewModal({
@@ -72,6 +76,8 @@ export default function PdfPreviewModal({
   qrCodeDataUrl,
   cloudLink,
   isExporting = false,
+  isDownloading = false,
+  downloadProgress = null,
   currentStep = null,
   lastError = null,
   showToast: _showToast,
@@ -87,7 +93,8 @@ export default function PdfPreviewModal({
   testPackages = [],
   equipments = [],
   catalogItemEquipments = [],
-  allergenScales = []
+  allergenScales = [],
+  onSelectedTemplateChange
 }: PdfPreviewModalProps) {
   // Quản lý Template Mẫu In: nạp các mẫu có sẵn và mẫu tùy biến
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('auto');
@@ -99,6 +106,13 @@ export default function PdfPreviewModal({
   const [historyList] = useState<PdfFileRecord[]>([]);
   // State modal xác nhận trước khi lưu & xuất cloud
   const [showConfirmExport, setShowConfirmExport] = useState<boolean>(false);
+
+  // State theo dõi tiến trình tải PDF cục bộ (đảm bảo phản hồi tức thì 0ms)
+  const [localDownloading, setLocalDownloading] = useState<boolean>(false);
+  const [localProgress, setLocalProgress] = useState<PdfProgressInfo | null>(null);
+
+  const effectiveDownloading = isDownloading || localDownloading;
+  const effectiveDownloadProgress = downloadProgress || localProgress;
 
   const safePatient: Patient = patient || {
     code: 'BN-GOLAB',
@@ -164,7 +178,7 @@ export default function PdfPreviewModal({
     return templateCompatibilityMap.get(chosenTemplate.id);
   }, [chosenTemplate, templateCompatibilityMap]);
 
-  // Phân giải ID phần tử DOM để in ấn và xuất PDF chất lượng cao
+  // Phân giải ID phần tử DOM để hiển thị xem trước trong modal (có zoom scale)
   const activeElementId = useMemo(() => {
     if (chosenTemplate) {
       return 'preview-dynamic-element';
@@ -172,6 +186,16 @@ export default function PdfPreviewModal({
     if (reportType === 'hybrid') return 'preview-hybrid-element';
     if (reportType === 'allergen') return 'preview-allergen-element';
     return 'preview-print-element';
+  }, [chosenTemplate, reportType]);
+
+  // Phân giải ID phần tử DOM của PrintLayer unscaled để xuất PDF chất lượng cao đồng bộ tuyệt đối 100%
+  const printLayerElementId = useMemo(() => {
+    if (chosenTemplate) {
+      return PRINT_ELEMENT_ID.DYNAMIC_REPORT;
+    }
+    if (reportType === 'hybrid') return PRINT_ELEMENT_ID.HYBRID_REPORT;
+    if (reportType === 'allergen') return PRINT_ELEMENT_ID.ALLERGEN_REPORT;
+    return PRINT_ELEMENT_ID.MEDICAL_REPORT;
   }, [chosenTemplate, reportType]);
 
   const computeFitZoom = useCallback(() => {
@@ -191,6 +215,23 @@ export default function PdfPreviewModal({
     }
   }, [isOpen, computeFitZoom]);
 
+  // Đồng bộ chosenTemplate ra PrintLayer bên ngoài an toàn (tránh re-render loop)
+  const prevChosenIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isOpen) {
+      if (prevChosenIdRef.current !== null) {
+        prevChosenIdRef.current = null;
+        onSelectedTemplateChange?.(null);
+      }
+      return;
+    }
+    const currentId = chosenTemplate ? chosenTemplate.id : null;
+    if (prevChosenIdRef.current !== currentId) {
+      prevChosenIdRef.current = currentId;
+      onSelectedTemplateChange?.(chosenTemplate || null);
+    }
+  }, [isOpen, chosenTemplate, onSelectedTemplateChange]);
+
   const handleZoomIn = () => {
     setZoomScale((prev) => Math.min(prev + 0.1, 1.5));
   };
@@ -204,6 +245,31 @@ export default function PdfPreviewModal({
       setZoomScale(computeFitZoom());
     } else {
       setZoomScale(0.85);
+    }
+  };
+
+  const handleDownloadClick = async () => {
+    if (!onDownloadPdf || isExporting || effectiveDownloading) return;
+    const fname = formatReportPdfFilename(safePatient.name, safePatient.code);
+    setLocalDownloading(true);
+    setLocalProgress({
+      step: 'preparing',
+      message: 'Đang chuẩn hóa màu sắc & khởi tạo bản in...',
+      percent: 10
+    });
+    // Ưu tiên phần tử từ PrintLayer (100% unscaled A4) để đồng bộ tuyệt đối chất lượng với xuất bên ngoài
+    const targetElementId = (typeof document !== 'undefined' && document.getElementById(printLayerElementId))
+      ? printLayerElementId
+      : activeElementId;
+    try {
+      await onDownloadPdf(targetElementId, fname, (prog) => {
+        setLocalProgress(prog);
+      });
+    } catch (err) {
+      console.error('[PdfPreviewModal] Lỗi tải PDF:', err);
+    } finally {
+      setLocalDownloading(false);
+      setLocalProgress(null);
     }
   };
 
@@ -327,38 +393,44 @@ export default function PdfPreviewModal({
             {/* Nút In Trực Tiếp */}
             <button
               onClick={onPrintDirect}
-              disabled={isExporting}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-bold shadow transition-all active:scale-95 cursor-pointer"
+              disabled={isExporting || effectiveDownloading}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-bold shadow transition-all active:scale-95 cursor-pointer disabled:cursor-not-allowed"
             >
               <Printer className="w-4 h-4" />
               <span>In Phiếu A4</span>
             </button>
 
-            {/* Nút Tải File PDF Trực Tiếp Về Máy (Chỉ kích hoạt khi đã upload PDF lên Cloud) */}
+            {/* Nút Tải File PDF Trực Tiếp Về Máy (Hỗ trợ cả chế độ Local/Offline và Cloud) */}
             {onDownloadPdf && (
               <button
-                onClick={() => {
-                  const fname = formatReportPdfFilename(safePatient.name, safePatient.code);
-                  onDownloadPdf(activeElementId, fname);
-                }}
-                disabled={!cloudLink || isExporting}
+                onClick={handleDownloadClick}
+                disabled={isExporting || effectiveDownloading}
                 className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold shadow transition-all active:scale-95 ${
-                  cloudLink && !isExporting
+                  !isExporting && !effectiveDownloading
                     ? 'bg-teal-600 hover:bg-teal-500 text-white cursor-pointer'
-                    : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
+                    : 'bg-slate-800 text-teal-400 border border-teal-700/60 cursor-not-allowed opacity-90'
                 }`}
-                title={cloudLink ? "Tải trực tiếp file PDF chất lượng cao về máy tính" : "Vui lòng bấm 'Lưu PDF & Cloud' để tải lên trước"}
+                title="Tải trực tiếp file PDF chất lượng cao về máy tính"
               >
-                <Download className="w-4 h-4" />
-                <span>Tải File PDF</span>
+                {effectiveDownloading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-teal-400" />
+                    <span>Đang Tải PDF ({effectiveDownloadProgress?.percent || 0}%)...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4" />
+                    <span>Tải File PDF</span>
+                  </>
+                )}
               </button>
             )}
 
             {/* Nút Xuất PDF & Cloud (Transaction) */}
             <button
               onClick={() => setShowConfirmExport(true)}
-              disabled={isExporting}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold shadow transition-all active:scale-95 cursor-pointer"
+              disabled={isExporting || effectiveDownloading}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold shadow transition-all active:scale-95 cursor-pointer disabled:cursor-not-allowed"
             >
               {isExporting ? (
                 <>
@@ -392,6 +464,31 @@ export default function PdfPreviewModal({
             </button>
           </div>
         </div>
+
+        {/* ─── DOWNLOAD PDF PROGRESS BAR (KHI ĐANG TẢI FILE PDF VỀ MÁY) ───────── */}
+        {effectiveDownloading && (
+          <div className="bg-slate-950 border-b border-teal-800/80 px-4 sm:px-6 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in slide-in-from-top duration-150">
+            <div className="flex items-center gap-2.5 text-xs font-bold text-teal-300 shrink-0">
+              <Loader2 className="w-4 h-4 animate-spin text-teal-400 shrink-0" />
+              <span>Tiến trình tải PDF:</span>
+              <span className="text-teal-400 font-normal truncate max-w-[280px] sm:max-w-md">
+                {effectiveDownloadProgress?.message || 'Đang kết xuất đồ họa và tối ưu file...'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3 flex-1 max-w-md">
+              <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/80">
+                <div
+                  className="h-full bg-gradient-to-r from-teal-500 via-emerald-400 to-sky-400 transition-all duration-300 rounded-full shadow-[0_0_10px_rgba(45,212,191,0.5)]"
+                  style={{ width: `${Math.max(8, effectiveDownloadProgress?.percent || 10)}%` }}
+                />
+              </div>
+              <span className="font-mono text-xs font-bold text-teal-300 min-w-[36px] text-right">
+                {effectiveDownloadProgress?.percent || 0}%
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* ─── TRANSACTION STEP PROGRESS BAR (KHI ĐANG XUẤT) ────────────────── */}
         {isExporting && (
@@ -544,7 +641,7 @@ export default function PdfPreviewModal({
         )}
 
         {/* Khung Hiển Thị Mẫu In A4 (Với Tỉ Lệ Zoom Linh Hoạt) */}
-        <div className="flex-1 overflow-auto p-2 sm:p-4 md:p-8 bg-slate-950 flex justify-center items-start">
+        <div className="flex-1 overflow-auto p-2 sm:p-4 md:p-8 bg-slate-950 flex justify-center items-start relative">
           <div 
             className="shadow-2xl rounded-sm overflow-hidden bg-white transition-transform duration-150 origin-top"
             style={{ transform: `scale(${zoomScale})` }}
@@ -607,6 +704,58 @@ export default function PdfPreviewModal({
               />
             )}
           </div>
+
+          {/* Overlay hiển thị tiến trình trực tiếp trên bản in khi đang tải hoặc xuất PDF */}
+          {(effectiveDownloading || isExporting) && (
+            <div 
+              data-html2canvas-ignore="true" 
+              className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4 animate-in fade-in duration-200 pointer-events-auto"
+            >
+              <div className="bg-slate-900/95 border border-teal-500/40 rounded-2xl shadow-2xl p-6 max-w-sm w-full text-center flex flex-col items-center space-y-4 animate-in zoom-in-95 duration-150">
+                <div className="relative p-3.5 bg-teal-500/10 border border-teal-500/30 rounded-2xl">
+                  <Loader2 className="w-8 h-8 animate-spin text-teal-400" />
+                  <div className="absolute inset-0 rounded-2xl bg-teal-400/20 blur-md -z-10 animate-pulse" />
+                </div>
+
+                <div className="space-y-1">
+                  <h4 className="text-sm font-extrabold text-white tracking-wide">
+                    {effectiveDownloading ? 'Đang Tạo & Tải File PDF' : 'Đang Xử Lý Giao Dịch Cloud'}
+                  </h4>
+                  <p className="text-xs text-slate-300 font-medium">
+                    {effectiveDownloading
+                      ? (effectiveDownloadProgress?.message || 'Đang chuẩn bị đồ họa và bản in...')
+                      : (currentStep ? EXPORT_STEP_LABELS[currentStep] : 'Vui lòng đợi trong giây lát...')}
+                  </p>
+                </div>
+
+                {/* Thanh tiến trình */}
+                <div className="w-full space-y-1.5">
+                  <div className="flex justify-between text-[11px] text-slate-400 font-medium">
+                    <span>Tiến độ hoàn tất</span>
+                    <span className="font-mono text-teal-300 font-bold">
+                      {effectiveDownloading
+                        ? `${effectiveDownloadProgress?.percent || 10}%`
+                        : `${Math.round(((EXPORT_STEP_ORDER.indexOf(currentStep || 'render_pdf') + 1) / EXPORT_STEP_ORDER.length) * 100)}%`}
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/80">
+                    <div
+                      className="h-full bg-gradient-to-r from-teal-500 via-emerald-400 to-sky-400 transition-all duration-300 rounded-full shadow-[0_0_8px_rgba(45,212,191,0.4)]"
+                      style={{
+                        width: `${effectiveDownloading
+                          ? Math.max(8, effectiveDownloadProgress?.percent || 10)
+                          : Math.round(((EXPORT_STEP_ORDER.indexOf(currentStep || 'render_pdf') + 1) / EXPORT_STEP_ORDER.length) * 100)}%`
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-slate-400 italic">
+                  Đang bảo đảm độ sắc nét chuẩn y khoa và căn lề A4 100%
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer Modal Đóng */}

@@ -190,6 +190,23 @@ describe('ReportPaginationDomainService', () => {
 
       expect(pages[0].tests.length + pages[1].tests.length).toBe(25);
     });
+
+    it('should never produce an empty final page when 2 tests remain and signature does not fit', () => {
+      // Giả lập trường hợp 2 test items mà phần tĩnh trang 1 + 2 test + kết luận + chữ ký vượt quá maxUsable
+      // nhưng 2 test items vẫn fit vừa maxAllowedContentHeight
+      const tests = [
+        createMockTest('T1', 'Test 1', 'Sinh hóa'),
+        createMockTest('T2', 'Test 2', 'Sinh hóa')
+      ];
+      // Kết luận cực dài để tổng chiều cao vượt maxUsable (1000px)
+      const massiveConclusion = 'A'.repeat(5000);
+      const pages = ReportPaginationDomainService.paginate(tests, massiveConclusion);
+      expect(pages.length).toBeGreaterThanOrEqual(2);
+      // Trang cuối có chữ ký phải có ít nhất 1 test hoặc không tạo trang rỗng
+      const lastPage = pages[pages.length - 1];
+      expect(lastPage.showSignature).toBe(true);
+      expect(lastPage.entries.length).toBeGreaterThan(0);
+    });
   });
 
   describe('formatEquipmentForPrint', () => {

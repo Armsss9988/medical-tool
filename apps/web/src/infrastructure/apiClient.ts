@@ -24,13 +24,14 @@ if (savedApiBase) apiBase = savedApiBase;
 
 const SESSION_PASSWORD_KEY = 'golab_app_password';
 
-let password = typeof window !== 'undefined' ? (sessionStorage.getItem(SESSION_PASSWORD_KEY) ?? '') : '';
+let password: string | null = null;
 
 export function getPassword(): string {
-  if (!password && typeof window !== 'undefined') {
-    password = sessionStorage.getItem(SESSION_PASSWORD_KEY) ?? '';
+  if (password === null && typeof window !== 'undefined') {
+    const stored = sessionStorage.getItem(SESSION_PASSWORD_KEY);
+    password = stored !== null ? stored : (import.meta.env.DEV ? 'local-dev' : '');
   }
-  return password;
+  return password ?? '';
 }
 
 export function setPassword(p: string): void {
@@ -75,10 +76,9 @@ async function handleResponse<T>(res: Response): Promise<T> {
   }
   if (!res.ok) {
     const errorBody = await res.json().catch(() => ({}));
-    const message =
-      (errorBody as { error?: string; message?: string }).error ||
-      (errorBody as { error?: string; message?: string }).message ||
-      `Request failed with status ${res.status}`;
+    const errObj = errorBody as { error?: string; message?: string };
+    const detail = errObj.message && errObj.message !== errObj.error ? `: ${errObj.message}` : '';
+    const message = (errObj.error || errObj.message || `Request failed with status ${res.status}`) + detail;
     throw new Error(message);
   }
   return (await res.json()) as T;
@@ -206,7 +206,7 @@ export async function payInvoice(
 
 export async function cancelInvoice(
   id: string,
-  cancelData: { reason?: string; cancelledBy?: string }
+  cancelData: { reason?: string; cancelledBy?: string; fallbackInvoice?: Invoice }
 ): Promise<{ success: boolean; invoice?: Invoice; report?: MedicalReport }> {
   const res = await fetch(resolveUrl(`/invoices/${encodeURIComponent(id)}/cancel`), {
     method: 'POST',

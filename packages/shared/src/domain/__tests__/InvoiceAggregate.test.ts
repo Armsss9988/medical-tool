@@ -54,4 +54,32 @@ describe('InvoiceAggregate', () => {
     expect(restored.finalAmount.amount).toBe(80000);
     expect(restored.isPaid).toBe(true);
   });
+
+  it('[Bug 7 - FIX VERIFY] InvoiceAggregate bảo toàn cloudPdfUrl và qrCodeDataUrl qua vòng đời fromSnapshot -> toSnapshot', () => {
+    const rawInvoice = {
+      id: 'inv-001',
+      code: 'HD-2026-001',
+      createdAt: '2026-09-13T10:00:00Z',
+      patientName: 'Bệnh nhân Test',
+      patientDob: '1990',
+      patientPhone: '0901234567',
+      patientGender: 'Nam' as const,
+      doctorName: 'BS. Long',
+      items,
+      totalAmount: 100000,
+      discountPercent: 0,
+      discountAmount: 0,
+      finalAmount: 100000,
+      paymentMethod: 'Tiền mặt' as const,
+      status: 'Đã thanh toán' as const,
+      cloudPdfUrl: 'https://storage.supabase.com/invoices/inv-001.pdf',
+      qrCodeDataUrl: 'data:image/png;base64,sampleQrData'
+    };
+
+    const agg = InvoiceAggregate.fromSnapshot(rawInvoice);
+    const snap = agg.toSnapshot();
+
+    expect(snap.cloudPdfUrl).toBe('https://storage.supabase.com/invoices/inv-001.pdf');
+    expect(snap.qrCodeDataUrl).toBe('data:image/png;base64,sampleQrData');
+  });
 });

@@ -29,7 +29,7 @@ interface FullAllergenReportViewProps {
 
 function FullAllergenReportView({
   elementId = 'printable-allergen-report',
-  patient,
+  patient: rawPatient,
   allergenTests,
   selectedTests = [],
   currentDateStr = new Date().toLocaleDateString('vi-VN'),
@@ -44,6 +44,22 @@ function FullAllergenReportView({
   equipments: _equipments,
   catalogItemEquipments: _catalogItemEquipments
 }: FullAllergenReportViewProps) {
+  const patient: Patient = rawPatient || {
+    code: 'BN-GOLAB',
+    secretToken: '',
+    name: 'Bệnh nhân mới',
+    dob: '',
+    gender: 'Nam',
+    phone: '',
+    address: '',
+    diagnosis: '',
+    sampleCode: 'BN-GOLAB',
+    sampleStatus: 'Đạt',
+    orderedAt: '',
+    paidAt: undefined,
+    receivedAt: '',
+    returnedAt: ''
+  };
   const tests = useMemo(() => allergenTests || selectedTests || [], [allergenTests, selectedTests]);
   const [autoQrCode, setAutoQrCode] = useState<string>(qrCodeDataUrl || '');
 

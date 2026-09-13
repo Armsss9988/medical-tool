@@ -186,6 +186,9 @@ export const reportTemplateRowSchema = z.object({
 
 export type ReportTemplateRow = z.infer<typeof reportTemplateRowSchema>;
 
+import { medicalReportSchema } from './reportSchemas';
+import { invoiceSchema } from './invoiceSchemas';
+
 export const documentRowSchema = z.object({ id: z.string().min(1) }).passthrough();
 
 export const ROW_SCHEMAS: Record<TableName, z.ZodTypeAny> = {
@@ -199,7 +202,7 @@ export const ROW_SCHEMAS: Record<TableName, z.ZodTypeAny> = {
   'reference-ranges': referenceRangeRowSchema,
   'catalog-item-equipments': catalogItemEquipmentRowSchema,
   'allergen-scales': allergenScaleRowSchema,
-  'medical-reports': documentRowSchema,
-  invoices: documentRowSchema,
+  'medical-reports': medicalReportSchema,
+  invoices: invoiceSchema,
   'report-templates': reportTemplateRowSchema
 };

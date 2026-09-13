@@ -46,3 +46,35 @@ export function formatReportPdfFilename(
   return `PhieuXN_${cleanName || 'BenhNhan'}_${cleanCode || 'BN'}.pdf`;
 }
 
+/**
+ * Định dạng ngày giờ hiển thị trên phiếu in y khoa và giao diện:
+ * - Chuỗi ISO-8601 hợp lệ -> 'DD/MM/YYYY HH:mm' (hoặc 'DD/MM/YYYY' nếu không có giờ/phút)
+ * - Chuỗi rỗng / null / undefined -> trả về fallback ('---' hoặc 'Chưa thu phí')
+ * - Chuỗi định dạng sẵn hợp lệ -> giữ nguyên
+ */
+export function formatDisplayDate(dateStr: string | null | undefined, fallback: string = '---'): string {
+  if (!dateStr || !dateStr.trim()) return fallback;
+  const trimmed = dateStr.trim();
+  if (trimmed === 'Chưa thu phí' || trimmed === '---') return trimmed;
+
+  // Nếu đã là dạng DD/MM/YYYY hoặc chuỗi thông thường không chứa T/Z
+  if (!trimmed.includes('T') && !trimmed.includes('Z') && !/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+    return trimmed;
+  }
+
+  const d = new Date(trimmed);
+  if (isNaN(d.getTime())) return trimmed;
+
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const day = pad(d.getDate());
+  const month = pad(d.getMonth() + 1);
+  const year = d.getFullYear();
+  const hours = pad(d.getHours());
+  const minutes = pad(d.getMinutes());
+
+  if (trimmed.includes('T') || hours !== '00' || minutes !== '00') {
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
+  }
+  return `${day}/${month}/${year}`;
+}
+

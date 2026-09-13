@@ -16,6 +16,7 @@ import { ClinicalStatusVO } from '../valueObjects/ClinicalStatusVO';
 import { DocumentStatusVO } from '../valueObjects/DocumentStatusVO';
 import { BillingStatusVO } from '../valueObjects/BillingStatusVO';
 import { hasAllergenTests } from '../allergenDetector';
+import { match } from 'ts-pattern';
 
 export interface ReportStatusSummary {
   clinical: ClinicalStatusVO;
@@ -155,12 +156,15 @@ export class LabReportAggregate {
         report.zaloMsgId
       );
     } else if (report.isPdfOutdated || report.status === 'Cần cập nhật PDF') {
+      const reasons = Array.isArray(report.dirtyReasons) && report.dirtyReasons.length > 0
+        ? report.dirtyReasons
+        : ['Dữ liệu đã được chỉnh sửa sau lần xuất PDF gần nhất'];
       stateNode = new OutdatedStateNode(
         report.cloudPdfUrl || '',
         report.qrCodeDataUrl,
         report.pdfVersion || 1,
         report.pdfGeneratedAt || report.updatedAt,
-        ['Dữ liệu đã được chỉnh sửa sau lần xuất PDF gần nhất']
+        reasons
       );
     } else if (report.cloudPdfUrl || report.status === 'Đã xuất Cloud') {
       stateNode = new ExportedStateNode(
@@ -211,6 +215,9 @@ export class LabReportAggregate {
   public toSnapshot(): MedicalReport {
     const legacyStatus: ReportStatus = ReportDocumentStateHelper.getLabel(this._documentState) as ReportStatus;
     const isOutdated = this._documentState.status === 'OUTDATED';
+    const dirtyReasons = this._documentState.status === 'OUTDATED'
+      ? [...this._documentState.dirtyReasons]
+      : undefined;
 
     return {
       id: this._id,
@@ -234,22 +241,46 @@ export class LabReportAggregate {
         ? this._documentState.exportedAt
         : (this._documentState.status === 'OUTDATED' ? this._documentState.lastExportedAt : undefined),
       pdfVersion: this._pdfVersion,
-      isPdfOutdated: isOutdated
+      isPdfOutdated: isOutdated,
+      dirtyReasons
     };
   }
 
   // ─── BEHAVIORS & INVARIANT ENFORCEMENT ────────────────────────────────────
 
   /**
-   * Cập nhật danh sách chỉ số xét nghiệm và tự động chuyển sang OUTDATED nếu đã từng xuất PDF.
+   * Cập nhật danh sách chỉ số xét nghiệm và tự động chuyển sang OUTDATED kèm chi tiết các chỉ số bị thay đổi nếu đã từng xuất PDF.
    */
   public updateTests(newTests: SelectedTest[]): void {
-    const dirtyReasons: string[] = [];
-    const testsChanged = JSON.stringify(newTests.map((t) => ({ c: t.code, r: t.result, n: t.note }))) !==
-                         JSON.stringify(this._selectedTests.map((t) => ({ c: t.code, r: t.result, n: t.note })));
+    const testDiffs: string[] = [];
 
-    if (testsChanged && this._cloudPdfUrl) {
-      dirtyReasons.push('Kết quả hoặc danh sách chỉ số xét nghiệm đã thay đổi');
+    if (this._cloudPdfUrl) {
+      // 1. Kiểm tra các chỉ số cũ bị sửa hoặc bị xóa
+      for (const oldTest of this._selectedTests) {
+        const matching = newTests.find((t) => t.code === oldTest.code);
+        if (!matching) {
+          testDiffs.push(`Bỏ chỉ số: ${oldTest.name || oldTest.code}`);
+        } else {
+          const oldRes = String(oldTest.result ?? '').trim();
+          const newRes = String(matching.result ?? '').trim();
+          if (oldRes !== newRes) {
+            testDiffs.push(`Đổi kết quả ${oldTest.name || oldTest.code}: ${oldRes || 'trống'} → ${newRes || 'trống'}`);
+          } else if ((oldTest.note || '') !== (matching.note || '')) {
+            testDiffs.push(`Sửa ghi chú ${oldTest.name || oldTest.code}`);
+          } else if ((oldTest.unit || '') !== (matching.unit || '')) {
+            testDiffs.push(`Sửa đơn vị ${oldTest.name || oldTest.code}`);
+          } else if ((oldTest.refText || '') !== (matching.refText || '')) {
+            testDiffs.push(`Sửa khoảng tham chiếu ${oldTest.name || oldTest.code}`);
+          }
+        }
+      }
+
+      // 2. Kiểm tra các chỉ số mới được thêm vào
+      for (const newTest of newTests) {
+        if (!this._selectedTests.some((t) => t.code === newTest.code)) {
+          testDiffs.push(`Thêm chỉ số: ${newTest.name || newTest.code}`);
+        }
+      }
     }
 
     this._selectedTests = [...newTests];
@@ -258,17 +289,20 @@ export class LabReportAggregate {
     const hasAnyResult = newTests.some((t) => String(t.result ?? '').trim() !== '');
     const completedCount = newTests.filter((t) => String(t.result ?? '').trim() !== '').length;
 
-    if (dirtyReasons.length > 0) {
-      const lastExported = this._documentState.status === 'EXPORTED'
-        ? this._documentState.exportedAt
-        : (this._documentState.status === 'OUTDATED' ? this._documentState.lastExportedAt : this._updatedAt);
+    if (testDiffs.length > 0) {
+      const lastExported = this.getEffectiveLastExportedAt();
+      const priorReasons = this._documentState.status === 'OUTDATED'
+        ? this._documentState.dirtyReasons.filter(
+            (r) => !testDiffs.includes(r) && r !== 'Dữ liệu đã được chỉnh sửa sau lần xuất PDF gần nhất'
+          )
+        : [];
 
       const node = new OutdatedStateNode(
         this._cloudPdfUrl || '',
         this._qrCodeDataUrl,
         this._pdfVersion,
         lastExported,
-        dirtyReasons
+        [...testDiffs, ...priorReasons]
       );
       this._documentState = node.toSnapshot();
     } else if (this._documentState.status === 'DRAFT' || this._documentState.status === 'RESULTED') {
@@ -279,21 +313,67 @@ export class LabReportAggregate {
     }
   }
 
+  private getEffectiveLastExportedAt(): string {
+    if (this._documentState.status === 'EXPORTED') {
+      return this._documentState.exportedAt;
+    }
+    if (this._documentState.status === 'OUTDATED') {
+      return this._documentState.lastExportedAt;
+    }
+    return this._updatedAt;
+  }
+
   /**
-   * Cập nhật thông tin hành chính bệnh nhân.
+   * Cập nhật thông tin hành chính bệnh nhân và tự động phát hiện chi tiết trường thay đổi.
    */
   public updatePatient(updates: Partial<Patient>): void {
     const oldProfile = this._patientProfile;
+    const oldSnap = oldProfile.toSnapshot();
     this._patientProfile = this._patientProfile.withUpdates(updates);
     this._updatedAt = new Date().toISOString();
 
     if (this._cloudPdfUrl && !this._patientProfile.equals(oldProfile)) {
+      const diffs: string[] = [];
+      if (updates.gender !== undefined && updates.gender !== oldSnap.gender) {
+        diffs.push(`Sửa giới tính: ${oldSnap.gender || '---'} → ${updates.gender}`);
+      }
+      if (updates.name !== undefined && updates.name.trim() !== (oldSnap.name || '').trim()) {
+        diffs.push(`Sửa họ tên: "${oldSnap.name || '---'}" → "${updates.name}"`);
+      }
+      if (updates.dob !== undefined && updates.dob !== oldSnap.dob) {
+        diffs.push(`Sửa năm sinh: ${oldSnap.dob || '---'} → ${updates.dob}`);
+      }
+      if (updates.phone !== undefined && updates.phone !== oldSnap.phone) {
+        diffs.push(`Sửa SĐT: ${oldSnap.phone || '---'} → ${updates.phone}`);
+      }
+      if (updates.address !== undefined && updates.address !== oldSnap.address) {
+        diffs.push(`Sửa địa chỉ: "${oldSnap.address || '---'}" → "${updates.address}"`);
+      }
+      if (updates.diagnosis !== undefined && updates.diagnosis !== oldSnap.diagnosis) {
+        diffs.push(`Sửa chẩn đoán: "${oldSnap.diagnosis || '---'}" → "${updates.diagnosis}"`);
+      }
+      if (updates.doctor !== undefined && updates.doctor !== oldSnap.doctor) {
+        diffs.push(`Sửa BS chỉ định: ${oldSnap.doctor || '---'} → ${updates.doctor}`);
+      }
+      if (updates.sampleCode !== undefined && updates.sampleCode !== oldSnap.sampleCode) {
+        diffs.push(`Sửa số bệnh phẩm: ${oldSnap.sampleCode || '---'} → ${updates.sampleCode}`);
+      }
+      if (diffs.length === 0) {
+        diffs.push('Thông tin hành chính bệnh nhân đã thay đổi');
+      }
+
+      const priorReasons = this._documentState.status === 'OUTDATED'
+        ? this._documentState.dirtyReasons.filter(
+            (r) => !diffs.includes(r) && r !== 'Dữ liệu đã được chỉnh sửa sau lần xuất PDF gần nhất'
+          )
+        : [];
+
       const node = new OutdatedStateNode(
         this._cloudPdfUrl,
         this._qrCodeDataUrl,
         this._pdfVersion,
-        this._updatedAt,
-        ['Thông tin hành chính bệnh nhân đã thay đổi']
+        this.getEffectiveLastExportedAt(),
+        [...diffs, ...priorReasons]
       );
       this._documentState = node.toSnapshot();
     }
@@ -303,17 +383,26 @@ export class LabReportAggregate {
    * Cập nhật kết luận lâm sàng.
    */
   public updateConclusion(conclusion: string): void {
-    if (this._conclusion !== conclusion) {
+    const trimmed = (conclusion || '').trim();
+    const oldTrimmed = (this._conclusion || '').trim();
+    if (oldTrimmed !== trimmed) {
       this._conclusion = conclusion;
       this._updatedAt = new Date().toISOString();
 
       if (this._cloudPdfUrl) {
+        const diff = 'Sửa kết luận bác sĩ';
+        const priorReasons = this._documentState.status === 'OUTDATED'
+          ? this._documentState.dirtyReasons.filter(
+              (r) => r !== diff && r !== 'Dữ liệu đã được chỉnh sửa sau lần xuất PDF gần nhất'
+            )
+          : [];
+
         const node = new OutdatedStateNode(
           this._cloudPdfUrl,
           this._qrCodeDataUrl,
           this._pdfVersion,
-          this._updatedAt,
-          ['Kết luận bác sĩ đã thay đổi']
+          this.getEffectiveLastExportedAt(),
+          [diff, ...priorReasons]
         );
         this._documentState = node.toSnapshot();
       }
@@ -324,17 +413,26 @@ export class LabReportAggregate {
    * Cập nhật bác sĩ chỉ định.
    */
   public updateDoctor(doctorName: string): void {
-    if (this._doctorName !== doctorName) {
+    const trimmed = (doctorName || '').trim();
+    const oldTrimmed = (this._doctorName || '').trim();
+    if (oldTrimmed !== trimmed) {
+      const diff = `Đổi bác sĩ: ${oldTrimmed || '---'} → ${trimmed}`;
       this._doctorName = doctorName;
       this._updatedAt = new Date().toISOString();
 
       if (this._cloudPdfUrl) {
+        const priorReasons = this._documentState.status === 'OUTDATED'
+          ? this._documentState.dirtyReasons.filter(
+              (r) => r !== diff && r !== 'Dữ liệu đã được chỉnh sửa sau lần xuất PDF gần nhất'
+            )
+          : [];
+
         const node = new OutdatedStateNode(
           this._cloudPdfUrl,
           this._qrCodeDataUrl,
           this._pdfVersion,
-          this._updatedAt,
-          ['Bác sĩ chỉ định đã thay đổi']
+          this.getEffectiveLastExportedAt(),
+          [diff, ...priorReasons]
         );
         this._documentState = node.toSnapshot();
       }
@@ -453,10 +551,12 @@ export class LabReportAggregate {
   }
 
   /**
-   * Hủy thu phí hoặc hủy liên kết hóa đơn
+   * Hủy thu phí (giữ nguyên invoiceId cho mục đích kiểm toán/audit trail).
    */
   public markPaymentVoided(): void {
-    this.unlinkInvoice();
+    this._isPaid = false;
+    this._patientProfile = this._patientProfile.withUpdates({ paidAt: undefined });
+    this._updatedAt = new Date().toISOString();
   }
 
   /**
@@ -470,9 +570,25 @@ export class LabReportAggregate {
    * Chuyển đổi trạng thái theo State Machine (DocumentStateNode)
    */
   public transitionTo(status: ReportStatus): void {
+    const current = this._documentState.status;
+
+    // Không cho phép trạng thái legacy hạ cấp FSM từ DELIVERED, EXPORTED, OUTDATED xuống RESULTED hay DRAFT
+    if (
+      (current === 'DELIVERED' || current === 'EXPORTED' || current === 'OUTDATED') &&
+      (status === 'Đã có kết quả' || status === 'Chờ xét nghiệm')
+    ) {
+      return;
+    }
+    if (current === 'DELIVERED' && status !== 'Đã trả kết quả') {
+      return;
+    }
+
     const now = new Date().toISOString();
     const totalTests = this._selectedTests.length;
     const completedTests = this._selectedTests.filter((t) => String(t.result ?? '').trim() !== '').length;
+    const lastExportedAt = this._documentState.status === 'EXPORTED'
+      ? this._documentState.exportedAt
+      : (this._documentState.status === 'OUTDATED' ? this._documentState.lastExportedAt : undefined);
 
     const nextNode = DocumentStateNode.fromLegacyStatus(status, {
       totalTests,
@@ -480,6 +596,7 @@ export class LabReportAggregate {
       cloudPdfUrl: this._cloudPdfUrl,
       qrCodeDataUrl: this._qrCodeDataUrl,
       pdfVersion: this._pdfVersion,
+      lastExportedAt,
       timestamp: now
     });
 
@@ -528,25 +645,19 @@ export class LabReportAggregate {
   public computeStatusSummary(isPaidOverride?: boolean): ReportStatusSummary {
     const isPaid = isPaidOverride !== undefined ? isPaidOverride : (this._isPaid || Boolean(this._patientProfile.paidAt));
 
-    // 1. Clinical Status
-    let clinical: ClinicalStatusVO;
-    if (this._documentState.status === 'DELIVERED') {
-      clinical = ClinicalStatusVO.DELIVERED;
-    } else if (this._documentState.status === 'RESULTED' || this._documentState.status === 'EXPORTED' || this._documentState.status === 'OUTDATED') {
-      clinical = ClinicalStatusVO.RESULTED;
-    } else {
-      clinical = ClinicalStatusVO.DRAFT;
-    }
+    // 1. Clinical Status (Khép kín 100% bằng ts-pattern)
+    const clinical = match(this._documentState.status)
+      .with('DELIVERED', () => ClinicalStatusVO.DELIVERED)
+      .with('RESULTED', 'EXPORTED', 'OUTDATED', () => ClinicalStatusVO.RESULTED)
+      .with('DRAFT', () => ClinicalStatusVO.DRAFT)
+      .exhaustive();
 
-    // 2. Document Status
-    let document: DocumentStatusVO;
-    if (this._documentState.status === 'EXPORTED' || this._documentState.status === 'DELIVERED') {
-      document = DocumentStatusVO.SYNCED;
-    } else if (this._documentState.status === 'OUTDATED') {
-      document = DocumentStatusVO.OUTDATED;
-    } else {
-      document = DocumentStatusVO.UNEXPORTED;
-    }
+    // 2. Document Status (Khép kín 100% bằng ts-pattern)
+    const document = match(this._documentState.status)
+      .with('EXPORTED', 'DELIVERED', () => DocumentStatusVO.SYNCED)
+      .with('OUTDATED', () => DocumentStatusVO.OUTDATED)
+      .with('DRAFT', 'RESULTED', () => DocumentStatusVO.UNEXPORTED)
+      .exhaustive();
 
     // 3. Billing Status
     const billing = isPaid ? BillingStatusVO.PAID : BillingStatusVO.UNPAID;

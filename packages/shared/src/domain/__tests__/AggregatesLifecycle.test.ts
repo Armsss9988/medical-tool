@@ -68,7 +68,11 @@ describe('Domain Aggregates Lifecycle & State Transitions', () => {
     aggregate.markPaymentVoided();
     const voided = aggregate.toSnapshot();
     expect(voided.patient.paidAt).toBeUndefined();
-    expect(voided.invoiceId).toBeUndefined();
+    expect(voided.invoiceId).toBe('inv-123');
+
+    aggregate.unlinkInvoice();
+    const unlinked = aggregate.toSnapshot();
+    expect(unlinked.invoiceId).toBeUndefined();
   });
 
   it('InvoiceAggregate: should mark paid and mark refunded correctly', () => {

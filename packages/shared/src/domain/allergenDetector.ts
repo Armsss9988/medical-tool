@@ -1,4 +1,4 @@
-import type { CatalogItem } from './types';
+import type { CatalogItem } from "./types";
 
 // ─── ALLERGEN DETECTION ─────────────────────────────────────────────────────
 // Single source of truth for allergen identification logic.
@@ -8,10 +8,19 @@ import type { CatalogItem } from './types';
 /**
  * Kiểm tra 1 chỉ số có phải là Tổng IgE (TIgE / Total IgE) hay không.
  */
-export function isTIgETest(test: Pick<CatalogItem, 'code'> & { name?: string }): boolean {
-  const code = (test.code || '').toLowerCase().trim();
-  const name = (test.name || '').toLowerCase().trim();
-  return code === 'tige' || code === 'total_ige' || code === 'total-ige' || code.includes('tige') || name.includes('tổng ige') || name.includes('total ige');
+export function isTIgETest(
+  test: Pick<CatalogItem, "code"> & { name?: string },
+): boolean {
+  const code = (test.code || "").toLowerCase().trim();
+  const name = (test.name || "").toLowerCase().trim();
+  return (
+    code === "tige" ||
+    code === "total_ige" ||
+    code === "total-ige" ||
+    code.includes("tige") ||
+    name.includes("tổng ige") ||
+    name.includes("total ige")
+  );
 }
 
 /**
@@ -19,37 +28,66 @@ export function isTIgETest(test: Pick<CatalogItem, 'code'> & { name?: string }):
  * Áp dụng cho cả CatalogItem và SelectedTest.
  * Bao gồm cả chỉ số Tổng IgE (TIgE) và các dị nguyên đặc hiệu.
  */
-export function isAllergenTest(test: Pick<CatalogItem, 'code' | 'category' | 'unit'> & { name?: string }): boolean {
+export function isAllergenTest(
+  test: Pick<CatalogItem, "code" | "category" | "unit"> & { name?: string },
+): boolean {
   if (isTIgETest(test)) return true;
-  return (test.category?.includes('Dị Nguyên') === true) || test.unit === 'IU/mL';
+  const category = (test.category || "").toLowerCase();
+  if (
+    category.includes("dị nguyên") ||
+    category.includes("allergen") ||
+    category.includes("dị ứng")
+  ) {
+    return true;
+  }
+  const code = (test.code || "").toLowerCase().trim();
+  const name = (test.name || "").toLowerCase().trim();
+  if (
+    code.startsWith("allerg") ||
+    name.includes("dị nguyên") ||
+    name.includes("allergen")
+  ) {
+    return true;
+  }
+  return false;
 }
 
 /**
  * Kiểm tra danh sách chỉ số có chứa ít nhất 1 dị nguyên không.
  * Dùng để quyết định render FullAllergenReportView vs PrintReportView.
  */
-export function hasAllergenTests(tests: ReadonlyArray<Pick<CatalogItem, 'code' | 'category' | 'unit'>>): boolean {
+export function hasAllergenTests(
+  tests: ReadonlyArray<Pick<CatalogItem, "code" | "category" | "unit">>,
+): boolean {
   return tests.some(isAllergenTest);
 }
 
 /**
  * Kiểm tra danh sách chỉ số có chứa ít nhất 1 chỉ số thường (Huyết học, Sinh hóa, Vi chất...) không.
  */
-export function hasRegularTests(tests: ReadonlyArray<Pick<CatalogItem, 'code' | 'category' | 'unit'>>): boolean {
+export function hasRegularTests(
+  tests: ReadonlyArray<Pick<CatalogItem, "code" | "category" | "unit">>,
+): boolean {
   return tests.some((t) => !isAllergenTest(t));
 }
 
 /**
  * Kiểm tra danh sách có phải dạng Hỗn Hợp (chứa cả chỉ số thường và chỉ số dị nguyên) không.
  */
-export function hasMixedTests(tests: ReadonlyArray<Pick<CatalogItem, 'code' | 'category' | 'unit'>>): boolean {
+export function hasMixedTests(
+  tests: ReadonlyArray<Pick<CatalogItem, "code" | "category" | "unit">>,
+): boolean {
   return hasRegularTests(tests) && hasAllergenTests(tests);
 }
 
 /**
  * Phân loại danh sách chỉ số thành 2 mảng: thường và dị nguyên
  */
-export function classifyTests<T extends Pick<CatalogItem, 'code' | 'category' | 'unit'>>(tests: ReadonlyArray<T>): {
+export function classifyTests<
+  T extends Pick<CatalogItem, "code" | "category" | "unit">,
+>(
+  tests: ReadonlyArray<T>,
+): {
   regularTests: T[];
   allergenTests: T[];
   isMixed: boolean;
@@ -76,7 +114,7 @@ export function classifyTests<T extends Pick<CatalogItem, 'code' | 'category' | 
     allergenTests,
     isMixed,
     isAllergenOnly,
-    isRegularOnly
+    isRegularOnly,
   };
 }
 
@@ -84,8 +122,30 @@ export function classifyTests<T extends Pick<CatalogItem, 'code' | 'category' | 
  * Kiểm tra 1 chỉ số bất kỳ thuộc dạng dị nguyên (bao gồm cả category check lỏng).
  * Dùng khi phân loại item trong danh mục (CatalogManagerModal).
  */
-export function isAllergenCatalogItem(item: Pick<CatalogItem, 'category' | 'unit'>): boolean {
-  return (item.category?.includes('Dị Nguyên') === true) || item.unit === 'IU/mL';
+export function isAllergenCatalogItem(
+  item: Pick<CatalogItem, "category" | "unit"> & {
+    code?: string;
+    name?: string;
+  },
+): boolean {
+  const category = (item.category || "").toLowerCase();
+  if (
+    category.includes("dị nguyên") ||
+    category.includes("allergen") ||
+    category.includes("dị ứng")
+  ) {
+    return true;
+  }
+  const code = (item.code || "").toLowerCase().trim();
+  const name = (item.name || "").toLowerCase().trim();
+  if (
+    code.startsWith("allerg") ||
+    name.includes("dị nguyên") ||
+    name.includes("allergen")
+  ) {
+    return true;
+  }
+  return false;
 }
 
 export interface AllergenGradeStyle {
@@ -106,85 +166,89 @@ export interface AllergenGradeStyle {
  * - Độ 5: Rất mạnh (50,00 - 99,99) -> Đỏ đậm
  * - Độ 6: Cực mạnh (>100,0) -> Đỏ rất đậm
  */
-export function getAllergenGradeClasses(grade: number, isTIgE?: boolean, isTIgEPositive?: boolean): AllergenGradeStyle {
+export function getAllergenGradeClasses(
+  grade: number,
+  isTIgE?: boolean,
+  isTIgEPositive?: boolean,
+): AllergenGradeStyle {
   if (isTIgE) {
     if (isTIgEPositive) {
       return {
-        rowBg: 'bg-red-50/70',
-        textColor: 'text-red-800',
-        badgeBg: 'bg-red-100 text-red-800 border-red-300',
-        nameColor: 'text-red-900',
-        borderClass: 'border-red-300'
+        rowBg: "bg-red-50/70",
+        textColor: "text-red-800",
+        badgeBg: "bg-red-100 text-red-800 border-red-300",
+        nameColor: "text-red-900",
+        borderClass: "border-red-300",
       };
     }
     return {
-      rowBg: 'bg-sky-50/50',
-      textColor: 'text-sky-800',
-      badgeBg: 'bg-sky-100 text-sky-800 border-sky-300',
-      nameColor: 'text-sky-900',
-      borderClass: 'border-sky-300'
+      rowBg: "bg-sky-50/50",
+      textColor: "text-sky-800",
+      badgeBg: "bg-sky-100 text-sky-800 border-sky-300",
+      nameColor: "text-sky-900",
+      borderClass: "border-sky-300",
     };
   }
   if (grade >= 6) {
     return {
-      rowBg: 'bg-red-100',
-      textColor: 'text-red-950',
-      badgeBg: 'bg-red-200 text-red-950 border-red-500',
-      nameColor: 'text-red-950',
-      borderClass: 'border-red-400'
+      rowBg: "bg-red-100",
+      textColor: "text-red-950",
+      badgeBg: "bg-red-200 text-red-950 border-red-500",
+      nameColor: "text-red-950",
+      borderClass: "border-red-400",
     };
   }
   if (grade >= 5) {
     return {
-      rowBg: 'bg-red-100/60',
-      textColor: 'text-red-900',
-      badgeBg: 'bg-red-200 text-red-900 border-red-400',
-      nameColor: 'text-red-900',
-      borderClass: 'border-red-300'
+      rowBg: "bg-red-100/60",
+      textColor: "text-red-900",
+      badgeBg: "bg-red-200 text-red-900 border-red-400",
+      nameColor: "text-red-900",
+      borderClass: "border-red-300",
     };
   }
   if (grade >= 4) {
     return {
-      rowBg: 'bg-red-50/70',
-      textColor: 'text-red-800',
-      badgeBg: 'bg-red-100 text-red-800 border-red-300',
-      nameColor: 'text-red-900',
-      borderClass: 'border-red-300'
+      rowBg: "bg-red-50/70",
+      textColor: "text-red-800",
+      badgeBg: "bg-red-100 text-red-800 border-red-300",
+      nameColor: "text-red-900",
+      borderClass: "border-red-300",
     };
   }
   if (grade >= 3) {
     return {
-      rowBg: 'bg-red-50/50',
-      textColor: 'text-red-700',
-      badgeBg: 'bg-red-50 text-red-700 border-red-200',
-      nameColor: 'text-red-800',
-      borderClass: 'border-red-200'
+      rowBg: "bg-red-50/50",
+      textColor: "text-red-700",
+      badgeBg: "bg-red-50 text-red-700 border-red-200",
+      nameColor: "text-red-800",
+      borderClass: "border-red-200",
     };
   }
   if (grade >= 2) {
     return {
-      rowBg: 'bg-amber-50/70',
-      textColor: 'text-amber-900',
-      badgeBg: 'bg-amber-100 text-amber-900 border-amber-300',
-      nameColor: 'text-amber-950',
-      borderClass: 'border-amber-300'
+      rowBg: "bg-amber-50/70",
+      textColor: "text-amber-900",
+      badgeBg: "bg-amber-100 text-amber-900 border-amber-300",
+      nameColor: "text-amber-950",
+      borderClass: "border-amber-300",
     };
   }
   if (grade >= 1) {
     return {
-      rowBg: 'bg-amber-50/50',
-      textColor: 'text-amber-800',
-      badgeBg: 'bg-amber-50 text-amber-800 border-amber-200',
-      nameColor: 'text-amber-900',
-      borderClass: 'border-amber-200'
+      rowBg: "bg-amber-50/50",
+      textColor: "text-amber-800",
+      badgeBg: "bg-amber-50 text-amber-800 border-amber-200",
+      nameColor: "text-amber-900",
+      borderClass: "border-amber-200",
     };
   }
   return {
-    rowBg: 'bg-white',
-    textColor: 'text-slate-800',
-    badgeBg: 'bg-slate-100 text-slate-700 border-slate-200',
-    nameColor: 'text-slate-900',
-    borderClass: 'border-slate-300'
+    rowBg: "bg-white",
+    textColor: "text-slate-800",
+    badgeBg: "bg-slate-100 text-slate-700 border-slate-200",
+    nameColor: "text-slate-900",
+    borderClass: "border-slate-300",
   };
 }
 
@@ -194,34 +258,34 @@ export function getAllergenGradeClasses(grade: number, isTIgE?: boolean, isTIgEP
  * đảm bảo con số luôn nằm chính giữa 100% trong khung vuông khi render trên DOM và xuất PDF qua html2canvas.
  */
 export function getAllergenBadgeSvg(grade: number, size: number = 20): string {
-  let bg = '#f1f5f9';
-  let text = '#334155';
-  let border = '#cbd5e1';
+  let bg = "#f1f5f9";
+  let text = "#334155";
+  let border = "#cbd5e1";
 
   if (grade >= 6) {
-    bg = '#fee2e2';
-    text = '#450a0a';
-    border = '#ef4444';
+    bg = "#fee2e2";
+    text = "#450a0a";
+    border = "#ef4444";
   } else if (grade >= 5) {
-    bg = '#fee2e2';
-    text = '#7f1d1d';
-    border = '#f87171';
+    bg = "#fee2e2";
+    text = "#7f1d1d";
+    border = "#f87171";
   } else if (grade >= 4) {
-    bg = '#fee2e2';
-    text = '#991b1b';
-    border = '#fca5a5';
+    bg = "#fee2e2";
+    text = "#991b1b";
+    border = "#fca5a5";
   } else if (grade >= 3) {
-    bg = '#fef2f2';
-    text = '#b91c1c';
-    border = '#fecaca';
+    bg = "#fef2f2";
+    text = "#b91c1c";
+    border = "#fecaca";
   } else if (grade >= 2) {
-    bg = '#fef3c7';
-    text = '#78350f';
-    border = '#fcd34d';
+    bg = "#fef3c7";
+    text = "#78350f";
+    border = "#fcd34d";
   } else if (grade >= 1) {
-    bg = '#fffbeb';
-    text = '#92400e';
-    border = '#fde68a';
+    bg = "#fffbeb";
+    text = "#92400e";
+    border = "#fde68a";
   }
 
   const radius = Math.round(size * 0.2);
@@ -237,4 +301,3 @@ export function getAllergenBadgeSvg(grade: number, size: number = 20): string {
 
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.trim())}`;
 }
-

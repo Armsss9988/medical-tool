@@ -8,9 +8,10 @@ describe('PatientIdentityDomainService', () => {
     expect(PatientIdentityDomainService.normalizeName('  Trần Thị Bích Ngọc - 123! ')).toBe('tranthibichngoc123');
   });
 
-  it('normalizes DOB to numeric digits', () => {
-    expect(PatientIdentityDomainService.normalizeDob('12/05/1990')).toBe('12051990');
+  it('normalizes DOB to canonical YYYYMMDD digits across formats', () => {
+    expect(PatientIdentityDomainService.normalizeDob('12/05/1990')).toBe('19900512');
     expect(PatientIdentityDomainService.normalizeDob('1990-05-12')).toBe('19900512');
+    expect(PatientIdentityDomainService.normalizeDob('1995')).toBe('1995');
     expect(PatientIdentityDomainService.normalizeDob('')).toBe('');
     expect(PatientIdentityDomainService.normalizeDob(undefined)).toBe('');
   });
@@ -47,7 +48,7 @@ describe('PatientIdentityDomainService', () => {
     ] as unknown as MedicalReport[];
 
     const index = PatientIdentityDomainService.findMatchingIndex(reports, {
-      patient: { name: 'nguyen van a', dob: '1995' } as any,
+      patient: { name: 'nguyen van a', dob: '1995' },
       allowIdentityMerge: true
     });
     expect(index).toBe(0);

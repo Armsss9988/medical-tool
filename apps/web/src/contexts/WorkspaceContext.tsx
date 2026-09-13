@@ -1,6 +1,7 @@
 import { createContext, useState, useContext, useRef, useCallback, useMemo, useEffect, type ReactNode, type Dispatch, type SetStateAction } from 'react';
 import type { Patient, SelectedTest, MedicalReport } from '@domain/types';
 import { PatientCode } from '@domain/valueObjects/PatientCode';
+import { domainEventBus, INVOICE_EVENT_TYPES } from '@domain';
 import { usePatientManager } from '../hooks/usePatientManager';
 import { useReportManager } from '../hooks/useReportManager';
 import { useInvoiceManager } from '../hooks/useInvoiceManager';
@@ -59,6 +60,7 @@ interface WorkspaceContextValue {
 
   // Dirty state tracking
   hasUnsavedData: boolean;
+  generateNewPatientCode: () => string;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
@@ -111,6 +113,26 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
   }, [reports, patient.name, currentReportId, setPatient]);
 
+  // Lắng nghe sự kiện INVOICE_PAID để cập nhật tức thì patient.paidAt trên form khám nếu hóa đơn của phiếu này được thanh toán
+  useEffect(() => {
+    const unsub = domainEventBus.subscribe(INVOICE_EVENT_TYPES.PAID, (event: unknown) => {
+      const e = event as { payload?: { reportId?: string; patientCode?: string; paidAt?: string }; reportId?: string; patientCode?: string; paidAt?: string };
+      const p = (e && typeof e === 'object' && 'payload' in e && e.payload) ? e.payload : e;
+      const targetReportId = p?.reportId;
+      const targetPatientCode = p?.patientCode;
+      const paidAt = p?.paidAt || new Date().toISOString();
+
+      if ((targetReportId && currentReportId === targetReportId) || (targetPatientCode && patient.code === targetPatientCode)) {
+        setPatient((prev) => ({
+          ...prev,
+          paidAt
+        }));
+      }
+    });
+
+    return unsub;
+  }, [currentReportId, patient.code, setPatient]);
+
   // Computed: phiếu đang mở trên workspace
   const currentLoadedReport = useMemo(() => {
     if (!currentReportId) return null;
@@ -136,13 +158,21 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (patientChanged) return true;
 
     if ((conclusion || '') !== (orig.conclusion || '')) return true;
-    if (doctorName && doctorName !== orig.doctorName) return true;
+    if ((doctorName || '') !== (orig.doctorName || '')) return true;
 
     if (selectedTests.length !== orig.selectedTests.length) return true;
     for (let i = 0; i < selectedTests.length; i++) {
       const cur = selectedTests[i];
       const o = orig.selectedTests[i];
-      if (!o || cur.code !== o.code || cur.result !== o.result || cur.note !== o.note || cur.equipmentId !== o.equipmentId) {
+      if (
+        !o ||
+        cur.code !== o.code ||
+        cur.result !== o.result ||
+        cur.note !== o.note ||
+        cur.equipmentId !== o.equipmentId ||
+        (cur.unit || '') !== (o.unit || '') ||
+        (cur.refText || '') !== (o.refText || '')
+      ) {
         return true;
       }
     }
@@ -166,8 +196,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     return PatientCode.generateNextCode(existingCodes);
   }, [reports]);
 
-  const value: WorkspaceContextValue = {
-    patient, setPatient, resetPatient: (customCode) => resetPatient(customCode || generateNewPatientCode()),
+  const handleResetPatient = useCallback(
+    (customCode?: string) => resetPatient(customCode || generateNewPatientCode()),
+    [resetPatient, generateNewPatientCode]
+  );
+
+  const value = useMemo<WorkspaceContextValue>(() => ({
+    patient, setPatient, resetPatient: handleResetPatient,
     selectedTests, setSelectedTests,
     conclusion, setConclusion,
     doctorName, setDoctorName,
@@ -178,7 +213,21 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     recentTests, addToRecent, addMultipleToRecent,
     nameInputRef, autoFocusName, setAutoFocusName,
     hasUnsavedData,
-  };
+    generateNewPatientCode,
+  }), [
+    patient, setPatient, handleResetPatient,
+    selectedTests, setSelectedTests,
+    conclusion, setConclusion,
+    doctorName, setDoctorName,
+    currentReportId, setCurrentReportId,
+    currentLoadedReport,
+    reports, setReports, saveOrUpdateReport, bulkSaveOrUpdateReports, deleteReport, clearAllReports,
+    invoices, setInvoices, saveOrUpdateInvoice, deleteInvoice, clearAllInvoices, payInvoice, cancelInvoice,
+    recentTests, addToRecent, addMultipleToRecent,
+    nameInputRef, autoFocusName, setAutoFocusName,
+    hasUnsavedData,
+    generateNewPatientCode,
+  ]);
 
   return (
     <WorkspaceContext.Provider value={value}>

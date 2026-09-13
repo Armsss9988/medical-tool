@@ -7,6 +7,9 @@ import {
   deleteMedicalReport
 } from '../../../lib/repo';
 
+type MockDb = Parameters<typeof payInvoiceTransaction>[0];
+type FallbackInvoice = NonNullable<Parameters<typeof payInvoiceTransaction>[3]>;
+
 describe('Repo Transaction Functions', () => {
   it('should export single-entity query and transaction functions', () => {
     expect(typeof getInvoiceById).toBe('function');
@@ -29,7 +32,7 @@ describe('Repo Transaction Functions', () => {
     };
 
     await expect(
-      payInvoiceTransaction(mockDb as any, 'non-existing', { paymentMethod: 'Tiền mặt', cashier: 'Thu ngân A' })
+      payInvoiceTransaction(mockDb as unknown as MockDb, 'non-existing', { paymentMethod: 'Tiền mặt', cashier: 'Thu ngân A' })
     ).rejects.toThrow('Invoice not found: non-existing');
   });
 
@@ -47,18 +50,18 @@ describe('Repo Transaction Functions', () => {
     };
 
     await expect(
-      cancelInvoiceTransaction(mockDb as any, 'non-existing', { reason: 'Sai sót', cancelledBy: 'Thu ngân A' })
+      cancelInvoiceTransaction(mockDb as unknown as MockDb, 'non-existing', { reason: 'Sai sót', cancelledBy: 'Thu ngân A' })
     ).rejects.toThrow('Invoice not found: non-existing');
   });
 
   it('payInvoiceTransaction uses fallbackInvoice when invoice is not found in DB', async () => {
-    const mockInvoice: any = {
+    const mockInvoice = {
       id: 'inv-new',
       code: 'HD-001',
       status: 'Chưa thu phí',
       finalAmount: 100000,
       items: []
-    };
+    } as unknown as FallbackInvoice;
 
     const mockTx = {
       select: () => ({
@@ -83,7 +86,7 @@ describe('Repo Transaction Functions', () => {
     };
 
     const result = await payInvoiceTransaction(
-      mockDb as any,
+      mockDb as unknown as MockDb,
       'inv-new',
       { paymentMethod: 'Chuyển khoản', cashier: 'Thu ngân B' },
       mockInvoice
@@ -95,21 +98,21 @@ describe('Repo Transaction Functions', () => {
   });
 
   it('payInvoiceTransaction updates linked report using saveMedicalReportInternal without throwing', async () => {
-    const mockInvoice: any = {
+    const mockInvoice = {
       id: 'inv-1',
       code: 'HD-001',
       status: 'Chưa thu phí',
       finalAmount: 100000,
       reportId: 'rep-1',
       items: []
-    };
+    } as unknown as FallbackInvoice;
 
-    const mockReport: any = {
+    const mockReport = {
       id: 'rep-1',
       code: 'BN001',
       patient: { name: 'Nguyen Van A' },
       selectedTests: []
-    };
+    } as unknown as NonNullable<Awaited<ReturnType<typeof payInvoiceTransaction>>['report']>;
 
     const mockTx = {
       select: vi.fn().mockReturnValue({
@@ -158,7 +161,7 @@ describe('Repo Transaction Functions', () => {
     };
 
     const result = await payInvoiceTransaction(
-      mockDb as any,
+      mockDb as unknown as MockDb,
       'inv-1',
       { paymentMethod: 'Tiền mặt', cashier: 'Thu ngân' }
     );
@@ -184,7 +187,7 @@ describe('Repo Transaction Functions', () => {
       })
     };
 
-    const res = await deleteMedicalReport(mockDb as any, 'rep-del');
+    const res = await deleteMedicalReport(mockDb as unknown as MockDb, 'rep-del');
     expect(res).toBe(true);
     expect(mockTx.update).toHaveBeenCalledTimes(1);
     expect(updateSet).toHaveBeenCalledWith({ reportId: null });

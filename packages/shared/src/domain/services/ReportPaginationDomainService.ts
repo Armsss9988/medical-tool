@@ -181,8 +181,8 @@ export class ReportPaginationDomainService {
       if (remainingAfterTake > 0 && remainingAfterTake < 4 && takeCount > 4) {
         const needToMove = 4 - remainingAfterTake;
         takeCount = Math.max(1, takeCount - needToMove);
-      } else if (remaining.length <= takeCount && takeCount > 2) {
-        const keepBack = Math.min(2, Math.floor(takeCount / 2));
+      } else if (remaining.length <= takeCount && takeCount >= 2) {
+        const keepBack = Math.min(2, Math.max(1, Math.floor(takeCount / 2)));
         takeCount = Math.max(1, takeCount - keepBack);
       }
 
@@ -199,25 +199,48 @@ export class ReportPaginationDomainService {
 
       const isLastItemTaken = remaining.length === 0;
       if (isLastItemTaken) {
-        // Trang áp chót
-        pages.push({
-          pageNumber: pageIdx,
-          isFirstPage,
-          isLastPage: false,
-          entries: chunk,
-          tests: extractTests(chunk),
-          showConclusion: false,
-          showSignature: false
-        });
+        // Đảm bảo trang cuối cùng có chữ ký không bao giờ bị rỗng entries
+        let lastPageChunk: ReportPaginationEntry[] = [];
+        if (chunk.length > 1) {
+          lastPageChunk = chunk.splice(chunk.length - 1, 1);
+        } else if (chunk.length === 1 && pages.length > 0 && pages[pages.length - 1].entries.length > 1) {
+          const prevPage = pages[pages.length - 1];
+          const prevEntries = [...prevPage.entries];
+          const moved = prevEntries.pop();
+          if (moved) {
+            pages[pages.length - 1] = {
+              ...prevPage,
+              entries: prevEntries,
+              tests: extractTests(prevEntries)
+            };
+            lastPageChunk = [moved];
+          }
+        } else {
+          lastPageChunk = [...chunk];
+          chunk.length = 0;
+        }
 
-        // Trang cuối cùng chứa kết luận & chữ ký
-        pageIdx++;
+        // Trang áp chót (chỉ render khi chunk còn phần tử)
+        if (chunk.length > 0) {
+          pages.push({
+            pageNumber: pageIdx,
+            isFirstPage,
+            isLastPage: false,
+            entries: chunk,
+            tests: extractTests(chunk),
+            showConclusion: false,
+            showSignature: false
+          });
+          pageIdx++;
+        }
+
+        // Trang cuối cùng chứa kết luận & chữ ký và luôn có ít nhất 1 test đi kèm
         pages.push({
           pageNumber: pageIdx,
-          isFirstPage: false,
+          isFirstPage: pages.length === 0,
           isLastPage: true,
-          entries: [],
-          tests: [],
+          entries: lastPageChunk,
+          tests: extractTests(lastPageChunk),
           showConclusion: Boolean(conclusion && conclusion.trim()),
           showSignature: true
         });

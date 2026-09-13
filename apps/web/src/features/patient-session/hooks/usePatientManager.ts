@@ -15,10 +15,10 @@ export function generateRandomSampleCode(): string {
   return String(Math.floor(10000 + Math.random() * 90000));
 }
 
-export function createDefaultPatient(customCode?: string): Patient {
+export function createDefaultPatient(customCode?: string, existingCodes?: string[]): Patient {
   const today = getTodayFormattedStr();
   const sampleCodeVal = generateRandomSampleCode();
-  const ticketCode = customCode || PatientCode.create().value || sampleCodeVal;
+  const ticketCode = customCode || (existingCodes && existingCodes.length > 0 ? PatientCode.generateNextCode(existingCodes) : PatientCode.create().value) || sampleCodeVal;
 
   return {
     code: ticketCode,
@@ -53,8 +53,8 @@ export function usePatientManager() {
     });
   };
 
-  const resetPatient = (customCode?: string) => {
-    setPatient(createDefaultPatient(customCode));
+  const resetPatient = (customCode?: string, existingCodes?: string[]) => {
+    setPatient(createDefaultPatient(customCode, existingCodes));
   };
 
   return {

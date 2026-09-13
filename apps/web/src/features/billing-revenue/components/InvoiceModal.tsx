@@ -31,12 +31,14 @@ interface InvoiceModalProps {
   onSaveInvoice: (newInvoice: Invoice) => void;
 }
 
+const EMPTY_TEST_PACKAGES: TestPackage[] = [];
+
 export default function InvoiceModal({
   isOpen,
   onClose,
   patient,
   selectedTests,
-  testPackages = [],
+  testPackages = EMPTY_TEST_PACKAGES,
   doctorName,
   clinicInfo,
   currentReportId,
@@ -49,45 +51,111 @@ export default function InvoiceModal({
 
   // Giữ ID ổn định xuyên suốt phiên mở modal chống nhân bản UUID khi form re-render
   const stableIdRef = useRef<string>(existingInvoice?.id || `inv-${Date.now()}`);
-  useEffect(() => {
-    if (isOpen) {
-      stableIdRef.current = existingInvoice?.id || `inv-${Date.now()}`;
-    }
-  }, [isOpen, existingInvoice?.id]);
+  const prevIsOpenRef = useRef<boolean>(isOpen);
+  const prevInvoiceIdRef = useRef<string | undefined>(existingInvoice?.id);
 
   const [items, setItems] = useState<InvoiceItem[]>(() => {
+    if (existingInvoice?.items && existingInvoice.items.length > 0) {
+      return existingInvoice.items;
+    }
     return buildInvoiceItems(selectedTests, testPackages);
   });
 
   // 2. STATE PHỤ PHÍ & CHIẾT KHẤU
-  const [surchargeAmount, setSurchargeAmount] = useState<number>(0);
-  const [surchargeNote, setSurchargeNote] = useState<string>('Phụ phí lấy mẫu tận nơi');
-  const [showSurcharge, setShowSurcharge] = useState<boolean>(false);
+  const [surchargeAmount, setSurchargeAmount] = useState<number>(existingInvoice?.surchargeAmount || 0);
+  const [surchargeNote, setSurchargeNote] = useState<string>(existingInvoice?.surchargeNote || 'Phụ phí lấy mẫu tận nơi');
+  const [showSurcharge, setShowSurcharge] = useState<boolean>(Boolean(existingInvoice?.surchargeAmount));
 
-  const [discountType, setDiscountType] = useState<'percent' | 'amount'>('percent');
-  const [discountVal, setDiscountVal] = useState<number>(0);
+  const [discountType, setDiscountType] = useState<'percent' | 'amount'>(() => {
+    if (existingInvoice?.discountAmount) {
+      return (existingInvoice.discountPercent && existingInvoice.discountPercent > 0) ? 'percent' : 'amount';
+    }
+    return 'percent';
+  });
+  const [discountVal, setDiscountVal] = useState<number>(
+    existingInvoice?.discountPercent && existingInvoice.discountPercent > 0
+      ? existingInvoice.discountPercent
+      : (existingInvoice?.discountAmount || 0)
+  );
 
   // 3. HÌNH THỨC THANH TOÁN & BÁC SĨ
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PAYMENT_METHOD.BANK_TRANSFER);
-  const [selectedDoc, setSelectedDoc] = useState<string>(doctorName || 'BS. Trần Hoài Long');
-  const [cashier, setCashier] = useState<string>(clinicInfo?.cashierName || 'Lê Phan Anh');
-  const [invoiceNote, setInvoiceNote] = useState<string>('');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(
+    existingInvoice?.paymentMethod || PAYMENT_METHOD.BANK_TRANSFER
+  );
+  const [selectedDoc, setSelectedDoc] = useState<string>(
+    existingInvoice?.doctorName || doctorName || 'BS. Trần Hoài Long'
+  );
+  const [cashier, setCashier] = useState<string>(
+    existingInvoice?.cashierName || clinicInfo?.cashierName || 'Lê Phan Anh'
+  );
+  const [invoiceNote, setInvoiceNote] = useState<string>(existingInvoice?.notes || '');
 
   // 4. STATE XUẤT PDF & CLOUD
   const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
   const [cloudPdfUrl, setCloudPdfUrl] = useState<string>('');
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  // Cập nhật khi selectedTests hoặc testPackages thay đổi
+  // Khởi tạo/đồng bộ dữ liệu khi modal chuyển từ đóng sang mở hoặc chuyển sang hóa đơn khác
   useEffect(() => {
-    if (selectedTests.length > 0) {
-      setItems(buildInvoiceItems(selectedTests, testPackages));
-    }
-  }, [selectedTests, testPackages]);
+    const isOpening = !prevIsOpenRef.current && isOpen;
+    const isInvoiceChanged = isOpen && existingInvoice?.id !== prevInvoiceIdRef.current;
 
-  useEffect(() => {
-    if (doctorName) setSelectedDoc(doctorName);
-  }, [doctorName]);
+    prevIsOpenRef.current = isOpen;
+    prevInvoiceIdRef.current = existingInvoice?.id;
+
+    if (isOpening || isInvoiceChanged) {
+      stableIdRef.current = existingInvoice?.id || `inv-${Date.now()}`;
+      if (existingInvoice) {
+        if (existingInvoice.items && existingInvoice.items.length > 0) {
+          setItems(existingInvoice.items);
+        } else if (selectedTests.length > 0) {
+          setItems(buildInvoiceItems(selectedTests, testPackages));
+        }
+        if (existingInvoice.surchargeAmount) {
+          setSurchargeAmount(existingInvoice.surchargeAmount);
+          setShowSurcharge(true);
+          if (existingInvoice.surchargeNote) setSurchargeNote(existingInvoice.surchargeNote);
+        } else {
+          setSurchargeAmount(0);
+          setShowSurcharge(false);
+        }
+        if (existingInvoice.discountAmount) {
+          if (existingInvoice.discountPercent && existingInvoice.discountPercent > 0) {
+            setDiscountType('percent');
+            setDiscountVal(existingInvoice.discountPercent);
+          } else {
+            setDiscountType('amount');
+            setDiscountVal(existingInvoice.discountAmount);
+          }
+        } else {
+          setDiscountType('percent');
+          setDiscountVal(0);
+        }
+        if (existingInvoice.paymentMethod) {
+          setPaymentMethod(existingInvoice.paymentMethod);
+        }
+        if (existingInvoice.doctorName) {
+          setSelectedDoc(existingInvoice.doctorName);
+        }
+        if (existingInvoice.cashierName) {
+          setCashier(existingInvoice.cashierName);
+        }
+        if (existingInvoice.notes) {
+          setInvoiceNote(existingInvoice.notes);
+        }
+      } else {
+        setItems(buildInvoiceItems(selectedTests, testPackages));
+        setSurchargeAmount(0);
+        setShowSurcharge(false);
+        setDiscountType('percent');
+        setDiscountVal(0);
+        setPaymentMethod(PAYMENT_METHOD.BANK_TRANSFER);
+        setSelectedDoc(doctorName || 'BS. Trần Hoài Long');
+        setCashier(clinicInfo?.cashierName || 'Lê Phan Anh');
+        setInvoiceNote('');
+      }
+    }
+  }, [isOpen, existingInvoice, selectedTests, testPackages, doctorName, clinicInfo?.cashierName]);
 
   // TÍNH TOÁN TỔNG TIỀN VÀ KHỞI TẠO QUA DOMAIN AGGREGATE
   const rawSubtotal = useMemo(() => {
@@ -111,7 +179,34 @@ export default function InvoiceModal({
   }, [patient.code]);
 
   // Khởi tạo và quản lý trạng thái thông qua Domain Aggregate
+  const isInvoiceAlreadyPaid = Boolean(
+    existingInvoice &&
+    (existingInvoice.status === BILLING_STATUS.PAID || Boolean(existingInvoice.paidAt))
+  );
+
   const invoiceAggregate = useMemo(() => {
+    if (existingInvoice) {
+      return InvoiceAggregate.fromSnapshot({
+        ...existingInvoice,
+        patientName: patient.name || existingInvoice.patientName || 'Bệnh nhân',
+        patientDob: patient.dob || existingInvoice.patientDob,
+        patientPhone: patient.phone || existingInvoice.patientPhone,
+        patientGender: patient.gender || existingInvoice.patientGender,
+        patientCode: patient.code || existingInvoice.patientCode,
+        doctorName: selectedDoc || existingInvoice.doctorName,
+        cashierName: cashier || existingInvoice.cashierName,
+        items,
+        discountAmount: calculatedDiscount,
+        surchargeAmount: showSurcharge ? surchargeAmount : undefined,
+        surchargeNote: showSurcharge ? surchargeNote : undefined,
+        paymentMethod: paymentMethod || existingInvoice.paymentMethod,
+        notes: invoiceNote,
+        reportId: currentReportId || existingInvoice.reportId,
+        cloudPdfUrl: cloudPdfUrl || existingInvoice.cloudPdfUrl,
+        qrCodeDataUrl: existingInvoice.qrCodeDataUrl
+      });
+    }
+
     return InvoiceAggregate.create({
       id: stableIdRef.current,
       code: invoiceCode,
@@ -129,19 +224,18 @@ export default function InvoiceModal({
       paymentMethod,
       notes: invoiceNote,
       reportId: currentReportId || undefined,
-      isPaid: true
+      isPaid: isInvoiceAlreadyPaid
     });
   }, [
-    invoiceCode, patient, selectedDoc, cashier, items, calculatedDiscount,
-    showSurcharge, surchargeAmount, surchargeNote, paymentMethod, invoiceNote, currentReportId,
-    existingInvoice?.id
+    existingInvoice, invoiceCode, patient, selectedDoc, cashier, items, calculatedDiscount,
+    showSurcharge, surchargeAmount, surchargeNote, paymentMethod, invoiceNote, currentReportId, isInvoiceAlreadyPaid, cloudPdfUrl
   ]);
 
   const currentInvoice: Invoice = useMemo(() => {
     const snap = invoiceAggregate.toSnapshot();
     return {
       ...snap,
-      cloudPdfUrl: cloudPdfUrl || undefined
+      cloudPdfUrl: cloudPdfUrl || snap.cloudPdfUrl || undefined
     };
   }, [invoiceAggregate, cloudPdfUrl]);
 
@@ -158,10 +252,7 @@ export default function InvoiceModal({
   };
 
   const handleRemoveItem = (idx: number) => {
-    const item = items[idx];
-    if (window.confirm(`Bạn có chắc muốn xóa dịch vụ "${item?.name || item?.code}" khỏi hóa đơn?`)) {
-      setItems((prev) => prev.filter((_, i) => i !== idx));
-    }
+    setItems((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const handleAddCustomItem = () => {
@@ -248,7 +339,7 @@ export default function InvoiceModal({
     }
 
     if (!reportIdToLink) {
-      alert("Hóa đơn không thể được lưu khi chưa lưu Phiếu Kết Quả Xét Nghiệm vào hệ thống!");
+      showToast("Hóa đơn không thể được lưu khi chưa lưu Phiếu Kết Quả Xét Nghiệm vào hệ thống!", "error");
       return;
     }
 
@@ -382,7 +473,8 @@ export default function InvoiceModal({
                 <button
                   type="button"
                   onClick={handleAddCustomItem}
-                  className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] border border-indigo-200 flex items-center space-x-1 transition"
+                  disabled={isInvoiceAlreadyPaid}
+                  className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed text-indigo-700 font-bold text-[11px] border border-indigo-200 flex items-center space-x-1 transition"
                 >
                   <Plus className="w-3 h-3" />
                   <span>Thêm Dịch Vụ</span>
@@ -418,16 +510,18 @@ export default function InvoiceModal({
                               <input
                                 type="text"
                                 value={it.name}
+                                disabled={isInvoiceAlreadyPaid}
                                 onChange={(e) => handleItemChange(idx, 'name', e.target.value)}
-                                className="w-full bg-transparent font-semibold focus:bg-white focus:ring-1 focus:ring-indigo-500 rounded px-1.5 py-0.5 border border-transparent focus:border-slate-300 transition"
+                                className="w-full bg-transparent font-semibold focus:bg-white focus:ring-1 focus:ring-indigo-500 disabled:text-slate-500 rounded px-1.5 py-0.5 border border-transparent focus:border-slate-300 transition"
                               />
                             </td>
                             <td className="py-2 px-3 text-right">
                               <input
                                 type="number"
                                 value={it.price}
+                                disabled={isInvoiceAlreadyPaid}
                                 onChange={(e) => handleItemChange(idx, 'price', Number(e.target.value))}
-                                className="w-24 text-right font-mono bg-transparent focus:bg-white focus:ring-1 focus:ring-indigo-500 rounded px-1.5 py-0.5 border border-transparent focus:border-slate-300 transition font-semibold"
+                                className="w-24 text-right font-mono bg-transparent focus:bg-white focus:ring-1 focus:ring-indigo-500 disabled:text-slate-500 rounded px-1.5 py-0.5 border border-transparent focus:border-slate-300 transition font-semibold"
                               />
                             </td>
                             <td className="py-2 px-2 text-center">
@@ -435,8 +529,9 @@ export default function InvoiceModal({
                                 type="number"
                                 min={1}
                                 value={it.quantity || 1}
+                                disabled={isInvoiceAlreadyPaid}
                                 onChange={(e) => handleItemChange(idx, 'quantity', Math.max(1, Number(e.target.value)))}
-                                className="w-12 text-center font-mono bg-transparent focus:bg-white focus:ring-1 focus:ring-indigo-500 rounded px-1 py-0.5 border border-transparent focus:border-slate-300 transition"
+                                className="w-12 text-center font-mono bg-transparent focus:bg-white focus:ring-1 focus:ring-indigo-500 disabled:text-slate-500 rounded px-1 py-0.5 border border-transparent focus:border-slate-300 transition"
                               />
                             </td>
                             <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
@@ -446,7 +541,8 @@ export default function InvoiceModal({
                               <button
                                 type="button"
                                 onClick={() => handleRemoveItem(idx)}
-                                className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-red-50 transition"
+                                disabled={isInvoiceAlreadyPaid}
+                                className="p-1 text-slate-400 hover:text-red-600 disabled:opacity-30 disabled:cursor-not-allowed rounded hover:bg-red-50 transition"
                                 title="Xóa dịch vụ"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -470,8 +566,9 @@ export default function InvoiceModal({
                   <input
                     type="checkbox"
                     checked={showSurcharge}
+                    disabled={isInvoiceAlreadyPaid}
                     onChange={(e) => setShowSurcharge(e.target.checked)}
-                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <span className="font-bold text-xs text-slate-700">Phụ phí phát sinh / Lấy mẫu tại nhà</span>
                 </label>
@@ -480,15 +577,17 @@ export default function InvoiceModal({
                     <input
                       type="text"
                       value={surchargeNote}
+                      disabled={isInvoiceAlreadyPaid}
                       onChange={(e) => setSurchargeNote(e.target.value)}
                       placeholder="Lý do phụ phí"
-                      className="text-xs px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg w-44"
+                      className="text-xs px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg w-44 disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                     <input
                       type="number"
                       value={surchargeAmount}
+                      disabled={isInvoiceAlreadyPaid}
                       onChange={(e) => setSurchargeAmount(Number(e.target.value))}
-                      className="text-xs font-mono font-bold text-right px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg w-28"
+                      className="text-xs font-mono font-bold text-right px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg w-28 disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                     <span className="text-xs text-slate-500">đ</span>
                   </div>
@@ -502,8 +601,9 @@ export default function InvoiceModal({
                   <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200">
                     <button
                       type="button"
+                      disabled={isInvoiceAlreadyPaid}
                       onClick={() => setDiscountType('percent')}
-                      className={`px-2 py-0.5 text-[11px] font-bold rounded-md transition ${
+                      className={`px-2 py-0.5 text-[11px] font-bold rounded-md transition disabled:opacity-50 disabled:cursor-not-allowed ${
                         discountType === 'percent' ? 'bg-white text-indigo-900 shadow-xs' : 'text-slate-500'
                       }`}
                     >
@@ -511,8 +611,9 @@ export default function InvoiceModal({
                     </button>
                     <button
                       type="button"
+                      disabled={isInvoiceAlreadyPaid}
                       onClick={() => setDiscountType('amount')}
-                      className={`px-2 py-0.5 text-[11px] font-bold rounded-md transition ${
+                      className={`px-2 py-0.5 text-[11px] font-bold rounded-md transition disabled:opacity-50 disabled:cursor-not-allowed ${
                         discountType === 'amount' ? 'bg-white text-indigo-900 shadow-xs' : 'text-slate-500'
                       }`}
                     >
@@ -521,10 +622,11 @@ export default function InvoiceModal({
                   </div>
                   <input
                     type="number"
-                    value={discountVal}
-                    onChange={(e) => setDiscountVal(Math.max(0, Number(e.target.value)))}
+                    value={discountVal || ''}
+                    disabled={isInvoiceAlreadyPaid}
+                    onChange={(e) => setDiscountVal(e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)))}
                     placeholder="0"
-                    className="text-xs font-mono font-bold text-right px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg w-28"
+                    className="text-xs font-mono font-bold text-right px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg w-28 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <span className="text-xs font-bold text-red-600 font-mono">
                     (-{calculatedDiscount.toLocaleString('vi-VN')} đ)
@@ -604,7 +706,11 @@ export default function InvoiceModal({
                     className="w-full h-auto object-contain rounded"
                     loading="eager"
                     onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=GoLab';
+                      const target = e.currentTarget as HTMLImageElement;
+                      if (!target.dataset.hasError) {
+                        target.dataset.hasError = 'true';
+                        target.src = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=GoLab';
+                      }
                     }}
                   />
                 </div>

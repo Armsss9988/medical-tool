@@ -51,7 +51,7 @@ export default function RevenueManagerModal({
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [selectedDoctor, setSelectedDoctor] = useState<string>(DATE_FILTER.ALL);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>(DATE_FILTER.ALL);
-  const [selectedStatus] = useState<string>(DATE_FILTER.ALL);
+  const [selectedStatus, setSelectedStatus] = useState<string>(DATE_FILTER.ALL);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState<boolean>(false);
 
   const activeFilterCount = useMemo(() => {
@@ -59,8 +59,9 @@ export default function RevenueManagerModal({
     if (dateFilter !== DATE_FILTER.ALL) count++;
     if (selectedDoctor !== DATE_FILTER.ALL) count++;
     if (selectedPaymentMethod !== DATE_FILTER.ALL) count++;
+    if (selectedStatus !== DATE_FILTER.ALL) count++;
     return count;
-  }, [dateFilter, selectedDoctor, selectedPaymentMethod]);
+  }, [dateFilter, selectedDoctor, selectedPaymentMethod, selectedStatus]);
 
   const handleResetFilters = useCallback(() => {
     setSearchTerm('');
@@ -69,6 +70,7 @@ export default function RevenueManagerModal({
     setCustomEndDate('');
     setSelectedDoctor(DATE_FILTER.ALL);
     setSelectedPaymentMethod(DATE_FILTER.ALL);
+    setSelectedStatus(DATE_FILTER.ALL);
   }, []);
 
   // Hoa hồng bác sĩ (% mặc định = 10%)
@@ -159,9 +161,7 @@ export default function RevenueManagerModal({
       const isPaid = invoices.some(
         (inv) =>
           inv.status === BILLING_STATUS.PAID &&
-          (inv.id === rep.invoiceId ||
-            inv.reportId === rep.id ||
-            (inv.patientCode && (inv.patientCode === rep.code || inv.patientCode === rep.patient?.code)))
+          (inv.id === rep.invoiceId || inv.reportId === rep.id)
       );
       if (isPaid) return false;
 
@@ -252,6 +252,10 @@ export default function RevenueManagerModal({
     const docMap = new Map<string, { totalRevenue: number; invoiceCount: number; name: string; doctorObj?: Doctor }>();
 
     filteredInvoices.forEach((inv) => {
+      // Chỉ tính hoa hồng trên các hóa đơn đã thực thu tiền (PAID), loại trừ UNPAID và REFUNDED
+      if (inv.status !== BILLING_STATUS.PAID) {
+        return;
+      }
       const docName = inv.doctorName || 'BS. Trần Hoài Long';
       const cur = docMap.get(docName) || {
         name: docName,
@@ -523,11 +527,11 @@ export default function RevenueManagerModal({
           {/* Desktop Search + Filter controls (collapsible on mobile) */}
           <div className={`${isMobileFilterOpen ? 'grid' : 'hidden'} sm:grid grid-cols-1 sm:grid-cols-12 gap-2 pt-1 sm:pt-0`}>
             {/* Desktop search input */}
-            <div className="hidden sm:block sm:col-span-4 relative">
+            <div className="hidden sm:block sm:col-span-3 relative">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
               <input
                 type="text"
-                placeholder="Tìm mã HĐ, tên BN, mã BN, SĐT, Bác sĩ..."
+                placeholder="Tìm mã HĐ, tên BN, mã BN, SĐT..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-8 pr-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs"
@@ -552,13 +556,13 @@ export default function RevenueManagerModal({
             </div>
 
             {/* Lọc Bác sĩ */}
-            <div className="sm:col-span-3">
+            <div className="sm:col-span-2">
               <select
                 value={selectedDoctor}
                 onChange={(e) => setSelectedDoctor(e.target.value)}
                 className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
               >
-                <option value="ALL">Tất cả bác sĩ chỉ định</option>
+                <option value="ALL">Tất cả bác sĩ</option>
                 {doctorsList.map((d) => (
                   <option key={d.id} value={d.name}>
                     {d.name}
@@ -578,6 +582,20 @@ export default function RevenueManagerModal({
                 <option value="Tiền mặt">Tiền mặt</option>
                 <option value="Chuyển khoản (VietQR)">VietQR</option>
                 <option value="Quẹt thẻ">Quẹt thẻ POS</option>
+              </select>
+            </div>
+
+            {/* Lọc Trạng thái */}
+            <div className="sm:col-span-2">
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
+              >
+                <option value="ALL">Tất cả trạng thái</option>
+                <option value="Đã thanh toán">Đã thanh toán</option>
+                <option value="Chưa thanh toán">Chưa thanh toán</option>
+                <option value="Đã hủy / Hoàn tiền">Đã hủy / Hoàn tiền</option>
               </select>
             </div>
           </div>

@@ -48,11 +48,21 @@ export function downloadDataUrlAsImage(dataUrl: string, filename: string): void 
  * Lấy base URL cho cổng tra cứu trực tuyến (hỗ trợ clinic website, biến môi trường, hoặc fallback thông minh khi chạy localhost)
  */
 export function getPortalBaseUrl(customWebsite?: string): string {
-  if (customWebsite && customWebsite.trim()) {
-    const raw = customWebsite.trim();
-    return raw.startsWith('http') ? raw.replace(/\/+$/, '') : `https://${raw.replace(/\/+$/, '')}`;
+  // 1. Tùy biến từ phòng khám nếu được chỉ định và KHÁC giá trị mặc định golab.com.vn
+  const trimmed = (customWebsite || '').trim();
+  const isDefaultGolabDomain =
+    !trimmed ||
+    trimmed === 'golab.com.vn' ||
+    trimmed === 'http://golab.com.vn' ||
+    trimmed === 'https://golab.com.vn' ||
+    trimmed === 'http://golab.com.vn/' ||
+    trimmed === 'https://golab.com.vn/';
+
+  if (!isDefaultGolabDomain) {
+    return trimmed.startsWith('http') ? trimmed.replace(/\/+$/, '') : `https://${trimmed.replace(/\/+$/, '')}`;
   }
 
+  // 2. Biến môi trường cấu hình rõ ràng (ưu tiên cao khi customWebsite là mặc định)
   if (typeof process !== 'undefined' && process.env) {
     const envUrl = process.env.NEXT_PUBLIC_PORTAL_URL || process.env.NEXT_PUBLIC_APP_URL;
     if (envUrl && envUrl.trim()) {
@@ -60,10 +70,11 @@ export function getPortalBaseUrl(customWebsite?: string): string {
     }
   }
 
-  if (typeof window !== 'undefined') {
+  // 3. Trình duyệt thực tế (ưu tiên origin nếu không phải localhost)
+  if (typeof window !== 'undefined' && window.location) {
     const { hostname, origin } = window.location;
-    if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1' && !hostname.startsWith('192.168.')) {
-      return origin;
+    if (origin && origin !== 'null' && hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      return origin.replace(/\/+$/, '');
     }
   }
 

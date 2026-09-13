@@ -24,6 +24,8 @@ export interface CreateInvoiceAggregateParams {
   reportId?: string;
   isPaid?: boolean;
   paidAt?: string;
+  cloudPdfUrl?: string;
+  qrCodeDataUrl?: string;
 }
 
 export class InvoiceAggregate {
@@ -41,6 +43,8 @@ export class InvoiceAggregate {
   private _cashierName: string;
   private _notes: string;
   private _reportId?: string;
+  private _cloudPdfUrl?: string;
+  private _qrCodeDataUrl?: string;
 
   private _items: InvoiceItem[];
   private _discountAmount: Money;
@@ -70,6 +74,8 @@ export class InvoiceAggregate {
     surchargeNote?: string;
     paymentState: InvoicePaymentState;
     paymentMethod?: PaymentMethod;
+    cloudPdfUrl?: string;
+    qrCodeDataUrl?: string;
   }) {
     this._id = params.id;
     this._code = params.code;
@@ -84,6 +90,8 @@ export class InvoiceAggregate {
     this._cashierName = params.cashierName;
     this._notes = params.notes;
     this._reportId = params.reportId;
+    this._cloudPdfUrl = params.cloudPdfUrl;
+    this._qrCodeDataUrl = params.qrCodeDataUrl;
     this._items = [...params.items];
     this._discountAmount = params.discountAmount;
     this._surchargeAmount = params.surchargeAmount;
@@ -139,7 +147,9 @@ export class InvoiceAggregate {
       surchargeAmount: surcharge,
       surchargeNote: params.surchargeNote,
       paymentState,
-      paymentMethod: params.paymentMethod
+      paymentMethod: params.paymentMethod,
+      cloudPdfUrl: params.cloudPdfUrl,
+      qrCodeDataUrl: params.qrCodeDataUrl
     });
   }
 
@@ -178,7 +188,9 @@ export class InvoiceAggregate {
       surchargeAmount: surcharge,
       surchargeNote: invoice.surchargeNote,
       paymentState,
-      paymentMethod: invoice.paymentMethod
+      paymentMethod: invoice.paymentMethod,
+      cloudPdfUrl: invoice.cloudPdfUrl,
+      qrCodeDataUrl: invoice.qrCodeDataUrl
     });
   }
 
@@ -220,7 +232,10 @@ export class InvoiceAggregate {
       finalAmount: finalMoney.amount,
       paymentMethod,
       status: legacyStatus,
-      paidAt
+      paidAt,
+      cancelledAt: this._paymentState.status === 'REFUNDED' ? this._paymentState.refundedAt : undefined,
+      cloudPdfUrl: this._cloudPdfUrl,
+      qrCodeDataUrl: this._qrCodeDataUrl
     };
   }
 
@@ -235,7 +250,9 @@ export class InvoiceAggregate {
       finalCashier = cashierOrPaidAt || this._cashierName;
       finalPaidAt = paidAt;
     } else if (cashierOrPaidAt) {
-      if (/^\d{4}-\d{2}-\d{2}/.test(cashierOrPaidAt)) {
+      const isDateString = /^\d{4}[-/.]\d{2}[-/.]\d{2}/.test(cashierOrPaidAt) ||
+                           /^\d{1,2}\/\d{1,2}\/\d{4}/.test(cashierOrPaidAt);
+      if (isDateString) {
         finalPaidAt = cashierOrPaidAt;
       } else {
         finalCashier = cashierOrPaidAt;
@@ -275,11 +292,17 @@ export class InvoiceAggregate {
   }
 
   public applyDiscount(amount: number): void {
+    if (this.isPaid) {
+      throw new Error('Không thể thay đổi chiết khấu trên hóa đơn đã thanh toán');
+    }
     this._discountAmount = new Money(Math.max(0, amount));
     this.refreshPaymentDue();
   }
 
   public applySurcharge(amount: number, note?: string): void {
+    if (this.isPaid) {
+      throw new Error('Không thể thay đổi phụ phí trên hóa đơn đã thanh toán');
+    }
     this._surchargeAmount = new Money(Math.max(0, amount));
     this._surchargeNote = note;
     this.refreshPaymentDue();
@@ -311,4 +334,6 @@ export class InvoiceAggregate {
   public get items(): ReadonlyArray<InvoiceItem> { return this._items; }
   public get finalAmount(): Money { return this.computeFinalAmount(); }
   public get reportId(): string | undefined { return this._reportId; }
+  public get cloudPdfUrl(): string | undefined { return this._cloudPdfUrl; }
+  public get qrCodeDataUrl(): string | undefined { return this._qrCodeDataUrl; }
 }

@@ -23,7 +23,8 @@ import {
 } from 'lucide-react';
 import { 
   MedicalReport, Doctor, ToastType, Invoice, 
-  BILLING_STATUS, REPORT_STATUS, DATE_FILTER, DateFilterType 
+  BILLING_STATUS, REPORT_STATUS, DATE_FILTER, DateFilterType,
+  DEFAULTS
 } from '@domain';
 import { LabReportAggregate } from '@domain/aggregates/LabReportAggregate';
 import { ReportKindResolver } from '@domain/valueObjects/ReportKind';
@@ -109,9 +110,14 @@ export default function ReportManagerModal({
       const byId = invoices.find((i) => i.id === rep.invoiceId);
       if (byId) return byId;
     }
-    return invoices.find(
-      (i) => i.reportId === rep.id || (i.patientCode && (i.patientCode === rep.code || i.patientCode === rep.patient?.code))
-    );
+    const byReportId = invoices.find((i) => i.reportId === rep.id);
+    if (byReportId) return byReportId;
+
+    const patientCode = rep.code?.trim() || rep.patient?.code?.trim();
+    if (patientCode && patientCode !== DEFAULTS.PATIENT_CODE_FALLBACK && !patientCode.startsWith('BN-TEMP')) {
+      return invoices.find((i) => i.patientCode && i.patientCode.trim() === patientCode);
+    }
+    return undefined;
   }, [invoices]);
 
   // 1. Thống kê KPI tổng quan (bao gồm số phiếu PDF Outdated & Tình trạng Thu Phí)
@@ -578,7 +584,9 @@ export default function ReportManagerModal({
                   {allOutdatedReports.slice(0, 5).map((rep) => {
                     const agg = LabReportAggregate.fromSnapshot(rep);
                     const docState = agg.documentState;
-                    const reason = docState.status === 'OUTDATED' && docState.dirtyReasons.length > 0 ? docState.dirtyReasons[0] : null;
+                    const reasons = docState.status === 'OUTDATED' ? docState.dirtyReasons : [];
+                    const primaryReason = reasons.length > 0 ? reasons[0] : null;
+                    const allReasonsTooltip = reasons.length > 0 ? reasons.map((r) => `• ${r}`).join('\n') : undefined;
 
                     return (
                       <div
@@ -596,9 +604,12 @@ export default function ReportManagerModal({
                         <span className="font-bold text-white uppercase truncate max-w-[130px]" title={rep.patient.name}>
                           {rep.patient.name || '---'}
                         </span>
-                        {reason && (
-                          <span className="text-[10px] text-amber-300/80 hidden sm:inline" title={reason}>
-                            • {reason}
+                        {primaryReason && (
+                          <span
+                            className="text-[10px] text-amber-300/90 hidden sm:inline max-w-[240px] truncate cursor-help"
+                            title={allReasonsTooltip}
+                          >
+                            • {primaryReason}{reasons.length > 1 ? ` (+${reasons.length - 1})` : ''}
                           </span>
                         )}
                         <div className="flex items-center gap-0.5 ml-1 border-l border-amber-500/30 pl-1">
@@ -704,9 +715,9 @@ export default function ReportManagerModal({
                     const { clinical, document, billing } = agg.computeStatusSummary(isPaid);
                     const isOutdated = document.isOutdated();
                     const versionStr = rep.pdfVersion ? `v${rep.pdfVersion}` : 'v1';
-                    const dirtyReason = isOutdated && agg.documentState.status === 'OUTDATED' && agg.documentState.dirtyReasons.length > 0
-                      ? agg.documentState.dirtyReasons[0]
-                      : 'Dữ liệu đã sửa đổi';
+                    const reasonsList = isOutdated && agg.documentState.status === 'OUTDATED' ? agg.documentState.dirtyReasons : [];
+                    const primaryDirtyReason = reasonsList.length > 0 ? reasonsList[0] : 'Dữ liệu đã sửa đổi';
+                    const dirtyTooltip = reasonsList.length > 0 ? reasonsList.map((r) => `• ${r}`).join('\n') : 'Dữ liệu đã sửa đổi';
 
                     return (
                       <tr key={rep.id} className={`hover:bg-slate-800/40 transition-colors ${isOutdated ? 'bg-amber-950/30 border-l-4 border-l-amber-500' : ''}`}>
@@ -803,7 +814,12 @@ export default function ReportManagerModal({
                                 <AlertTriangle className="w-3 h-3 text-amber-400" />
                                 <span>{document.label()} ({versionStr})</span>
                               </span>
-                              <span className="block text-[9.5px] text-amber-400/90 font-medium" title={dirtyReason}>{dirtyReason}</span>
+                              <span
+                                className="block text-[9.5px] text-amber-400/90 font-medium truncate max-w-[170px] cursor-help"
+                                title={dirtyTooltip}
+                              >
+                                {primaryDirtyReason}{reasonsList.length > 1 ? ` (+${reasonsList.length - 1})` : ''}
+                              </span>
                             </div>
                           ) : document.isSynced() ? (
                             <div className="space-y-0.5">
@@ -926,9 +942,9 @@ export default function ReportManagerModal({
                 const { clinical, document, billing } = agg.computeStatusSummary(isPaid);
                 const isOutdated = document.isOutdated();
                 const versionStr = rep.pdfVersion ? `v${rep.pdfVersion}` : 'v1';
-                const dirtyReason = isOutdated && agg.documentState.status === 'OUTDATED' && agg.documentState.dirtyReasons.length > 0
-                  ? agg.documentState.dirtyReasons[0]
-                  : 'Dữ liệu đã sửa đổi';
+                const reasonsList = isOutdated && agg.documentState.status === 'OUTDATED' ? agg.documentState.dirtyReasons : [];
+                const primaryDirtyReason = reasonsList.length > 0 ? reasonsList[0] : 'Dữ liệu đã sửa đổi';
+                const dirtyTooltip = reasonsList.length > 0 ? reasonsList.map((r) => `• ${r}`).join('\n') : 'Dữ liệu đã sửa đổi';
 
                 return (
                   <div
@@ -988,7 +1004,12 @@ export default function ReportManagerModal({
                           <span>{document.label()} ({versionStr})</span>
                         </span>
                         {isOutdated && (
-                          <span className="text-[9.5px] text-amber-400/90 font-medium text-right" title={dirtyReason}>{dirtyReason}</span>
+                          <span
+                            className="text-[9.5px] text-amber-400/90 font-medium text-right max-w-[160px] truncate"
+                            title={dirtyTooltip}
+                          >
+                            {primaryDirtyReason}{reasonsList.length > 1 ? ` (+${reasonsList.length - 1})` : ''}
+                          </span>
                         )}
                       </div>
                     </div>
@@ -1196,7 +1217,11 @@ export default function ReportManagerModal({
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="block text-xs font-bold text-white">Cập nhật PDF mới lên Cloud</span>
-                    <span className="block text-[10px] text-amber-400/80">Cập nhật lại bản in khi dữ liệu đã sửa</span>
+                    <span className="block text-[10px] text-amber-400/90 truncate" title={activeActionSheetReport.dirtyReasons?.join(', ')}>
+                      {activeActionSheetReport.dirtyReasons && activeActionSheetReport.dirtyReasons.length > 0
+                        ? `Thay đổi: ${activeActionSheetReport.dirtyReasons.join(', ')}`
+                        : 'Cập nhật lại bản in khi dữ liệu đã sửa'}
+                    </span>
                   </div>
                 </button>
               )}

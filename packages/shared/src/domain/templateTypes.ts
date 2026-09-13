@@ -508,7 +508,7 @@ export const PRESET_TEMPLATES: ReportTemplate[] = [
         order: 13,
         props: {
           title: 'CHI TIẾT KẾT QUẢ XÉT NGHIỆM DỊ NGUYÊN',
-          itemsPerPage: 13,
+          itemsPerPage: 15,
           columns: {
             tt: true,
             code: true,
@@ -524,11 +524,21 @@ export const PRESET_TEMPLATES: ReportTemplate[] = [
         }
       },
       {
-        id: 'block_allergen_scale_table_p3',
-        type: 'allergen_scale_table',
-        title: 'Trang 3: Bảng Diễn Giải Thang Đo (+)',
+        id: 'block_pagebreak_allergen_p4',
+        type: 'page_break',
+        title: '--- Ngắt sang Trang Thang Đo & Triệu Chứng ---',
         visible: true,
         order: 14,
+        props: {
+          label: 'Trang 4: Thang Đo & Triệu Chứng Dị Ứng'
+        }
+      },
+      {
+        id: 'block_allergen_scale_table_p3',
+        type: 'allergen_scale_table',
+        title: 'Trang 4: Bảng Diễn Giải Thang Đo (+)',
+        visible: true,
+        order: 15,
         props: {
           title: 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH',
           showBadges: true,
@@ -539,9 +549,9 @@ export const PRESET_TEMPLATES: ReportTemplate[] = [
       {
         id: 'block_allergen_symptoms_p3',
         type: 'allergen_symptoms_box',
-        title: 'Trang 3: Khung Triệu Chứng Dị Ứng Thường Gặp',
+        title: 'Trang 4: Khung Triệu Chứng Dị Ứng Thường Gặp',
         visible: true,
-        order: 15,
+        order: 16,
         props: {
           title: 'MỘT SỐ TRIỆU CHỨNG THƯỜNG GẶP KHI DỊ ỨNG',
           showSkin: true,
@@ -554,9 +564,9 @@ export const PRESET_TEMPLATES: ReportTemplate[] = [
       {
         id: 'block_allergen_tige_p3',
         type: 'allergen_tige_note',
-        title: 'Trang 3: Ghi Chú Nồng Độ IgE Toàn Phần (TIgE)',
+        title: 'Trang 4: Ghi Chú Nồng Độ IgE Toàn Phần (TIgE)',
         visible: true,
-        order: 16,
+        order: 17,
         props: {
           title: 'Ghi chú: Tổng nồng độ IgE (TIgE)',
           normalRange: '<15,0',

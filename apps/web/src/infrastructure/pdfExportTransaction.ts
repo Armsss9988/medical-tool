@@ -83,13 +83,17 @@ export class PdfExportTransaction {
       const portalUrl = buildPortalUrl(this.patientCode);
       qrDataUrl = await generateQrCodeDataUrl(portalUrl);
 
-      // 1.4. Bơm trực tiếp mã QR vào DOM trước khi chụp PDF để bản in chứa đúng 100% QR Portal
+      // 1.4. Bơm trực tiếp mã QR vào DOM và đợi giải mã xong trước khi chụp PDF để bản in chứa đúng 100% QR Portal
       const container = document.getElementById(this.elementId);
       if (container && qrDataUrl) {
-        const qrImgs = container.querySelectorAll<HTMLImageElement>('img[alt*="QR"], img[data-qr="true"]');
+        const qrImgs = Array.from(container.querySelectorAll<HTMLImageElement>('img[alt*="QR"], img[data-qr="true"]'));
         qrImgs.forEach((img) => {
           img.src = qrDataUrl!;
         });
+        // Chờ toàn bộ ảnh QR giải mã xong để tránh chụp canvas khi ảnh chưa sẵn sàng
+        await Promise.all(
+          qrImgs.map((img) => (img.decode ? img.decode().catch(() => {}) : Promise.resolve()))
+        );
       }
 
       this.executedSteps.push({

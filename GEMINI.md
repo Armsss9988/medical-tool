@@ -164,5 +164,25 @@
    - Khi thực hiện hành động nghiệp vụ có giao dịch, BẮT BUỘC gọi Command Route Handler tương ứng (`/api/invoices/[id]/pay`, `/api/invoices/[id]/cancel`, `/api/reports/[id]/export-pdf`) thay vì chỉ gửi POST JSON thô vào các CRUD endpoints.
    - Frontend tiếp nhận phản hồi nguyên tử `{ invoice, report }` từ Server để cập nhật UI ngay lập tức.
 
+---
+
+### 10. Kỷ Luật Chống Bug Ngầm & Chuẩn Hóa Thư Viện Chống AI Gà (Anti-Amateur Harness)
+
+1. **Quy Tắc "Sửa Gốc Tại Domain, Cấm Sửa Ngọn Tại UI (No Superficial Hacks)"**:
+   - Khi gặp lỗi tràn trang in, vỡ bảng hoặc chữ quá dài: **TUYỆT ĐỐI CẤM** dùng CSS `scale` hay co dãn để nhồi nhét nội dung nhiều trang vào 1 trang A4. BẮT BUỘC xử lý bằng thuật toán phân trang tại Domain (`ReportPaginationDomainService`) và chuẩn hóa chuỗi dữ liệu (`formatEquipmentForPrint`).
+   - Mọi CSS bổ trợ cho việc in ấn BẮT BUỘC phải scoped theo ID cụ thể (`#printable-medical-report`, `#preview-print-element`), **TUYỆT ĐỐI CẤM** áp đặt `!important` lên các thẻ toàn cục (`table`, `th`, `td`) gây hỏng layout của các gói khác (Báo cáo Dị nguyên, Mẫu in động).
+
+2. **Bắt Buộc Sử Dụng `ts-pattern` Cho Mọi Biến Thể Trạng Thái (Exhaustive Pattern Matching)**:
+   - Khi xử lý Discriminated Unions / State Machines trong Domain và Presenter, **BẮT BUỘC** dùng `match(state)...exhaustive()` từ thư viện `ts-pattern` để bảo đảm trình biên dịch TypeScript bắt lỗi ngay lập tức nếu bất kỳ trạng thái nào bị bỏ quên.
+
+3. **Bảo Toàn Tính Toàn Vẹn Của Trạng Thái (Zero State Regression)**:
+   - Khi chuyển trạng thái trong Aggregate (`LabReportAggregate`, `InvoiceAggregate`), **TUYỆT ĐỐI KHÔNG ĐƯỢC PHÉP** làm rơi rớt các thuộc tính quan trọng đã có trước đó (như `lastExportedAt`, `cloudPdfUrl`, `qrCodeDataUrl`, `dirtyReasons`). Sử dụng `produce` từ `immer` hoặc sao chép đầy đủ snapshot khi cần thiết.
+
+4. **Bộ Ba Kiểm Tra Bắt Buộc Trước Khi Báo Cáo Xong (The Three-Tier Verification)**:
+   - Trước khi tuyên bố hoàn thành hoặc bàn giao cho người dùng, Agent **BẮT BUỘC** phải chạy và đạt kết quả xanh (Clean) ở cả 3 công cụ:
+     1. `npm run typecheck` $\rightarrow$ 0 lỗi kiểu dữ liệu.
+     2. `npm run lint` $\rightarrow$ 0 lỗi, 0 cảnh báo (bao gồm việc kiểm tra ranh giới kiến trúc `boundaries/dependencies`).
+     3. `npm run test` $\rightarrow$ 100% test suites vượt qua.
+
 
 

@@ -24,6 +24,7 @@ interface MainWorkspaceProps {
   currentStep: ExportStepName | null;
   totalFee: number;
   isCurrentPdfOutdated: boolean;
+  currentPdfDirtyReasons?: string[];
   isCurrentReportPaid: boolean;
   currentInvoiceForReport: Invoice | null;
   onOpenDoctorModal: () => void;
@@ -52,6 +53,7 @@ export function MainWorkspace({
   currentStep,
   totalFee,
   isCurrentPdfOutdated,
+  currentPdfDirtyReasons = [],
   isCurrentReportPaid,
   currentInvoiceForReport,
   onOpenDoctorModal,
@@ -68,7 +70,6 @@ export function MainWorkspace({
   const {
     patient,
     setPatient,
-    resetPatient,
     selectedTests,
     setSelectedTests,
     conclusion,
@@ -76,14 +77,14 @@ export function MainWorkspace({
     doctorName,
     setDoctorName,
     currentReportId,
-    setCurrentReportId,
     currentLoadedReport,
     reports,
     recentTests,
     addToRecent,
     addMultipleToRecent,
     nameInputRef,
-    autoFocusName
+    autoFocusName,
+    generateNewPatientCode
   } = useWorkspace();
 
   const { showToast } = useToast();
@@ -148,8 +149,13 @@ export function MainWorkspace({
               patient={patient}
               setPatient={setPatient}
               onGenerateNewCode={() => {
-                resetPatient();
-                setCurrentReportId(null);
+                const newCode = generateNewPatientCode();
+                setPatient((prev) => ({
+                  ...prev,
+                  code: newCode,
+                  sampleCode: newCode
+                }));
+                showToast(`Đã đổi số bệnh phẩm mới: ${newCode}`, 'info');
               }}
               doctorsList={doctorsList}
               onOpenDoctorModal={onOpenDoctorModal}
@@ -173,7 +179,7 @@ export function MainWorkspace({
               <ConclusionForm
                 conclusion={conclusion}
                 setConclusion={setConclusion}
-                cloudLink={cloudLink || ''}
+                cloudLink={cloudLink || currentLoadedReport?.cloudPdfUrl || ''}
                 isExporting={isExporting}
                 currentStep={currentStep}
                 onExportPdfAndUpload={onExportPdfAndUpload}
@@ -187,6 +193,7 @@ export function MainWorkspace({
                 onOpenInvoiceModal={onOpenInvoiceModal}
                 selectedTests={selectedTests}
                 isPdfOutdated={isCurrentPdfOutdated}
+                dirtyReasons={currentPdfDirtyReasons}
                 pdfVersion={currentLoadedReport?.pdfVersion || 1}
                 isPaid={isCurrentReportPaid}
                 isReportSaved={Boolean(currentReportId)}
@@ -228,7 +235,7 @@ export function MainWorkspace({
             <ConclusionForm
               conclusion={conclusion}
               setConclusion={setConclusion}
-              cloudLink={cloudLink || ''}
+              cloudLink={cloudLink || currentLoadedReport?.cloudPdfUrl || ''}
               isExporting={isExporting}
               currentStep={currentStep}
               onExportPdfAndUpload={onExportPdfAndUpload}
@@ -242,6 +249,7 @@ export function MainWorkspace({
               onOpenInvoiceModal={onOpenInvoiceModal}
               selectedTests={selectedTests}
               isPdfOutdated={isCurrentPdfOutdated}
+              dirtyReasons={currentPdfDirtyReasons}
               pdfVersion={currentLoadedReport?.pdfVersion || 1}
               isPaid={isCurrentReportPaid}
               isReportSaved={Boolean(currentReportId)}

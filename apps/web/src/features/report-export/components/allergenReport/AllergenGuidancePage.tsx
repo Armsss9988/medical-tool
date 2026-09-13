@@ -8,13 +8,14 @@ function AllergenGuidancePage({ totalPages }: AllergenGuidancePageProps) {
   return (
     <div 
       data-page="true"
-      className="report-page bg-white text-slate-900 p-8 mb-4 shadow-xl print:shadow-none print:mb-0 print:p-6 flex flex-col justify-between"
+      className="report-page bg-white text-slate-900 mx-auto text-[13px] leading-normal flex flex-col justify-between shadow-lg print:shadow-none"
       style={{
         fontFamily: '"Times New Roman", Times, "Liberation Serif", serif',
         width: '210mm',
         minWidth: '210mm',
         maxWidth: '210mm',
         minHeight: '297mm',
+        padding: '10mm 14mm 10mm 14mm',
         boxSizing: 'border-box'
       }}
     >

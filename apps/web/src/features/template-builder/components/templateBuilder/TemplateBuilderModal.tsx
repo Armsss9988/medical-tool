@@ -107,6 +107,7 @@ export function TemplateBuilderModal({
       const isInput =
         activeEl instanceof HTMLInputElement ||
         activeEl instanceof HTMLTextAreaElement ||
+        activeEl instanceof HTMLSelectElement ||
         (activeEl as HTMLElement)?.isContentEditable;
 
       // Deselect block on Escape

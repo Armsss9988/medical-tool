@@ -377,5 +377,37 @@ describe('LabReportAggregate - Guarded State Machine Transitions', () => {
       expect(report.documentState.status).toBe('DRAFT');
       expect(report.toSnapshot().status).toBe('Chờ xét nghiệm');
     });
+
+    it('Bug 8: should retain lastExportedAt timestamp across modifications and fromLegacyStatus', () => {
+      const exportedAt = '2026-09-10T08:00:00.000Z';
+      const exportedNode = new ExportedStateNode(
+        'https://cloud.com/test.pdf',
+        'data:qr',
+        1,
+        exportedAt
+      );
+
+      const outdatedRes = exportedNode.modifyTests(true, 1, 1);
+      expect(outdatedRes.ok).toBe(true);
+      if (outdatedRes.ok) {
+        expect(outdatedRes.value.status).toBe('OUTDATED');
+        const snap = outdatedRes.value.toSnapshot();
+        if (snap.status === 'OUTDATED') {
+          expect(snap.lastExportedAt).toBe(exportedAt);
+        }
+      }
+
+      const legacyNode = DocumentStateNode.fromLegacyStatus('Cần cập nhật PDF', {
+        totalTests: 2,
+        completedTests: 2,
+        cloudPdfUrl: 'https://cloud.com/test.pdf',
+        lastExportedAt: exportedAt
+      });
+      expect(legacyNode.status).toBe('OUTDATED');
+      const snapLegacy = legacyNode.toSnapshot();
+      if (snapLegacy.status === 'OUTDATED') {
+        expect(snapLegacy.lastExportedAt).toBe(exportedAt);
+      }
+    });
   });
 });

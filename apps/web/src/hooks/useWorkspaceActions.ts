@@ -72,30 +72,74 @@ export function useWorkspaceActions(
 
   const isCurrentReportPaid = Boolean(currentInvoiceForReport && currentInvoiceForReport.status === 'Đã thanh toán');
 
-  // 3. COMPUTED: PHIẾU CÓ BỊ OUTDATED SO VỚI BẢN PDF CLOUD CŨ KHÔNG
+  // 3. COMPUTED: DANH SÁCH CHI TIẾT CÁC THAY ĐỔI SO VỚI BẢN PDF CLOUD CŨ
+  const currentPdfDirtyReasons = useMemo((): string[] => {
+    if (!currentLoadedReport || !currentLoadedReport.cloudPdfUrl) return [];
+
+    const diffs: string[] = [];
+
+    // Kiểm tra thông tin bệnh nhân
+    if (patient.gender && patient.gender !== currentLoadedReport.patient.gender) {
+      diffs.push(`Sửa giới tính: ${currentLoadedReport.patient.gender || '---'} → ${patient.gender}`);
+    }
+    if (patient.name.trim() && patient.name.trim() !== (currentLoadedReport.patient.name || '').trim()) {
+      diffs.push(`Sửa họ tên: "${currentLoadedReport.patient.name || '---'}" → "${patient.name}"`);
+    }
+    if (patient.dob && patient.dob !== currentLoadedReport.patient.dob) {
+      diffs.push(`Sửa năm sinh: ${currentLoadedReport.patient.dob || '---'} → ${patient.dob}`);
+    }
+    if (patient.phone && patient.phone !== currentLoadedReport.patient.phone) {
+      diffs.push(`Sửa SĐT: ${currentLoadedReport.patient.phone || '---'} → ${patient.phone}`);
+    }
+    if (patient.address && patient.address !== currentLoadedReport.patient.address) {
+      diffs.push(`Sửa địa chỉ: "${currentLoadedReport.patient.address || '---'}" → "${patient.address}"`);
+    }
+    if (patient.diagnosis && patient.diagnosis !== currentLoadedReport.patient.diagnosis) {
+      diffs.push(`Sửa chẩn đoán: "${currentLoadedReport.patient.diagnosis || '---'}" → "${patient.diagnosis}"`);
+    }
+    if ((doctorName || '') !== (currentLoadedReport.doctorName || '')) {
+      diffs.push(`Đổi bác sĩ: ${currentLoadedReport.doctorName || '---'} → ${doctorName}`);
+    }
+    if ((conclusion || '') !== (currentLoadedReport.conclusion || '')) {
+      diffs.push(`Sửa kết luận bác sĩ`);
+    }
+
+    // Kiểm tra danh sách chỉ số
+    for (const oldTest of currentLoadedReport.selectedTests) {
+      const cur = selectedTests.find((t) => t.code === oldTest.code);
+      if (!cur) {
+        diffs.push(`Bỏ chỉ số: ${oldTest.name || oldTest.code}`);
+      } else {
+        const oldRes = String(oldTest.result ?? '').trim();
+        const curRes = String(cur.result ?? '').trim();
+        if (oldRes !== curRes) {
+          diffs.push(`Đổi kết quả ${oldTest.name || oldTest.code}: ${oldRes || 'trống'} → ${curRes || 'trống'}`);
+        } else if ((oldTest.note || '') !== (cur.note || '')) {
+          diffs.push(`Sửa ghi chú ${oldTest.name || oldTest.code}`);
+        }
+      }
+    }
+    for (const cur of selectedTests) {
+      if (!currentLoadedReport.selectedTests.some((t) => t.code === cur.code)) {
+        diffs.push(`Thêm chỉ số: ${cur.name || cur.code}`);
+      }
+    }
+
+    // Nếu không có diff mới ngay lúc này nhưng report đã được lưu với trạng thái OUTDATED
+    if (diffs.length === 0 && (currentLoadedReport.isPdfOutdated || currentLoadedReport.status === 'Cần cập nhật PDF')) {
+      return currentLoadedReport.dirtyReasons && currentLoadedReport.dirtyReasons.length > 0
+        ? currentLoadedReport.dirtyReasons
+        : ['Dữ liệu đã được chỉnh sửa sau lần xuất PDF gần nhất'];
+    }
+
+    return diffs;
+  }, [currentLoadedReport, patient, conclusion, doctorName, selectedTests]);
+
   const isCurrentPdfOutdated = useMemo(() => {
     if (!currentLoadedReport || !currentLoadedReport.cloudPdfUrl) return false;
-    if (currentLoadedReport.isPdfOutdated) return true;
-
-    const patientChanged =
-      patient.name !== currentLoadedReport.patient.name ||
-      patient.dob !== currentLoadedReport.patient.dob ||
-      patient.gender !== currentLoadedReport.patient.gender ||
-      patient.phone !== currentLoadedReport.patient.phone ||
-      patient.sampleCode !== currentLoadedReport.patient.sampleCode ||
-      (doctorName && doctorName !== currentLoadedReport.doctorName);
-
-    const conclusionChanged = (conclusion || '') !== (currentLoadedReport.conclusion || '');
-
-    const testsChanged =
-      selectedTests.length !== currentLoadedReport.selectedTests.length ||
-      selectedTests.some((t) => {
-        const orig = currentLoadedReport.selectedTests.find((o) => o.code === t.code);
-        return !orig || orig.result !== t.result || orig.note !== t.note || orig.equipmentId !== t.equipmentId;
-      });
-
-    return patientChanged || conclusionChanged || testsChanged;
-  }, [currentLoadedReport, patient, conclusion, doctorName, selectedTests]);
+    if (currentLoadedReport.isPdfOutdated || currentLoadedReport.status === 'Cần cập nhật PDF') return true;
+    return currentPdfDirtyReasons.length > 0;
+  }, [currentLoadedReport, currentPdfDirtyReasons]);
 
   // 4. ACTION: LƯU PHIẾU HIỆN TẠI (TỰ ĐỘNG UPDATE HOẶC CREATE)
   const handleSaveCurrentReport = useCallback((): string | null => {
@@ -204,6 +248,7 @@ export function useWorkspaceActions(
     currentInvoiceForReport,
     isCurrentReportPaid,
     isCurrentPdfOutdated,
+    currentPdfDirtyReasons,
     handleSaveCurrentReport,
     handleClearAll,
     handleLoadReport,

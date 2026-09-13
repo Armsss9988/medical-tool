@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Settings, Activity, ListChecks, TrendingUp, Clock, Phone, ShieldCheck, ClipboardList, Package, Menu, X, Sparkles, Palette, Lock } from 'lucide-react';
 import { ClinicInfo, CatalogItem, getSafeClinicInfo } from '@domain/types';
 import { setPassword } from '@infra/apiClient';
+import { openPasswordGate } from './PasswordGateModal';
 
 interface HeaderProps {
   clinicInfo: ClinicInfo;
@@ -54,6 +55,7 @@ export default function Header({
 
   const handleLockSystem = () => {
     setPassword('');
+    openPasswordGate(false);
     window.dispatchEvent(new CustomEvent('app-lock'));
   };
 

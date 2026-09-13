@@ -12,7 +12,8 @@ import type { Invoice, MedicalReport } from '@domain';
 export function useInvoiceActions(
   onSaveCurrentReport: () => string | null,
   cloudLink?: string,
-  qrCodeDataUrl?: string
+  qrCodeDataUrl?: string,
+  requestActionWithGuard?: (actionName: string, actionFn: () => void) => void
 ) {
   const {
     patient,
@@ -56,10 +57,10 @@ export function useInvoiceActions(
       }
 
       const isPaid = inv.status === 'Đã thanh toán';
-      const todayStr = new Date().toLocaleDateString('vi-VN');
+      const nowIso = new Date().toISOString();
       const updatedPatient = {
         ...patient,
-        paidAt: isPaid ? patient.paidAt || todayStr : undefined
+        paidAt: isPaid ? patient.paidAt || nowIso : undefined
       };
       setPatient(updatedPatient);
 
@@ -67,11 +68,11 @@ export function useInvoiceActions(
       const invoiceToSave = {
         ...inv,
         reportId: reportIdToLink,
-        paidAt: isPaid ? inv.paidAt || new Date().toISOString() : undefined
+        paidAt: isPaid ? inv.paidAt || nowIso : undefined
       };
       const saved = saveOrUpdateInvoice(invoiceToSave, isPaid);
 
-      // B. Liên kết ngược lại vào Sổ Lưu Phiếu Xét Nghiệm
+      // B. Liên kết ngược lại vào Sổ Lưu Phiếu Xét Nghiệm (bỏ qua remote write nếu isPaid vì payInvoice sẽ ghi nguyên tử)
       saveOrUpdateReport({
         id: reportIdToLink,
         patient: updatedPatient,
@@ -80,7 +81,8 @@ export function useInvoiceActions(
         doctorName: resolveDoctorName(doctorName, patient.doctor),
         cloudPdfUrl: cloudLink || undefined,
         qrCodeDataUrl: qrCodeDataUrl || undefined,
-        invoiceId: saved.id
+        invoiceId: saved.id,
+        skipRemote: isPaid
       });
 
       if (isPaid) {
@@ -141,16 +143,26 @@ export function useInvoiceActions(
   // 3. ACTION: MỞ HÓA ĐƠN CHO 1 PHIẾU CỤ THỂ TỪ SỔ LƯU / SỔ DOANH THU
   const handleOpenInvoiceForReport = useCallback(
     (rep: MedicalReport) => {
-      setCurrentReportId(rep.id);
-      setPatient({ ...rep.patient });
-      setSelectedTests([...rep.selectedTests]);
-      setConclusion(rep.conclusion || '');
-      setDoctorName(rep.doctorName || '');
-      closeReportManager();
-      closeRevenueModal();
-      openInvoiceModal();
+      const performOpen = () => {
+        setCurrentReportId(rep.id);
+        setPatient({ ...rep.patient });
+        setSelectedTests([...rep.selectedTests]);
+        setConclusion(rep.conclusion || '');
+        setDoctorName(rep.doctorName || '');
+        closeReportManager();
+        closeRevenueModal();
+        openInvoiceModal();
+      };
+
+      if (requestActionWithGuard && rep.id !== currentReportId) {
+        requestActionWithGuard(`Mở hóa đơn phiếu [${rep.patient.code}]`, performOpen);
+      } else {
+        performOpen();
+      }
     },
     [
+      currentReportId,
+      requestActionWithGuard,
       setCurrentReportId,
       setPatient,
       setSelectedTests,
@@ -166,10 +178,10 @@ export function useInvoiceActions(
   const handleCancelInvoice = useCallback(
     async (invoiceId: string) => {
       try {
-        await cancelInvoice(invoiceId, { reason: 'Hủy từ giao diện' });
+        const matchingInv = invoices.find((i) => i.id === invoiceId);
+        await cancelInvoice(invoiceId, { reason: 'Hủy từ giao diện', fallbackInvoice: matchingInv });
 
         // Nếu phiếu đang mở là phiếu vừa hủy hóa đơn, giải phóng paidAt trên state
-        const matchingInv = invoices.find((i) => i.id === invoiceId);
         if (matchingInv && (matchingInv.reportId === currentReportId || matchingInv.patientCode === patient.code)) {
           setPatient((prev) => ({
             ...prev,

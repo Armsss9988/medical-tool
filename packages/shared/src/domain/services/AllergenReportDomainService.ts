@@ -127,6 +127,10 @@ export class AllergenReportDomainService {
         ? (t.refText || (t.refMin !== null && t.refMin !== undefined && t.refMax !== null && t.refMax !== undefined ? `${t.refMin} - ${t.refMax}` : `<${maxTIgERef}`.replace('.', ',')))
         : (dbItem?.normalRef || (t.refMin !== null && t.refMin !== undefined && t.refMax !== null && t.refMax !== undefined ? `${t.refMin} - ${t.refMax}` : (scale?.levels[0]?.rangeText || '<0,34')));
 
+      const rawResultStr = (t.result !== undefined && t.result !== null && String(t.result).trim() !== '')
+        ? String(t.result).trim()
+        : '';
+
       return {
         tt: idx + 1,
         code: t.code || dbItem?.code || `DN${idx + 1}`,
@@ -134,7 +138,7 @@ export class AllergenReportDomainService {
         allergenName: ext.allergenName || dbItem?.allergenName || (isTIgE ? 'Total IgE' : t.name),
         route: ext.route || dbItem?.route || (isTIgE ? 'Kháng thể huyết thanh' : 'Đường tiêu hóa / Hô hấp'),
         normalRef,
-        result: t.result || (isTIgE ? '' : (scale?.levels[0]?.rangeText ? `<${scale.levels[1]?.minVal || 0.15}`.replace('.', ',') : '<0,15')),
+        result: rawResultStr,
         unit: t.unit || 'IU/ml',
         grade,
         isPositive,
@@ -181,7 +185,7 @@ export class AllergenReportDomainService {
       ...detailedList.filter((item) => !item.isTIgE && item.isPositive)
     ];
 
-    const totalCount = detailedList.length || 41;
+    const totalCount = detailedList.length;
 
     // Tập hợp toàn bộ mã xét nghiệm để tính giá (gộp cả tests, allTests và tigeItem nếu có)
     const pricingTests = allTests && allTests.length > 0 ? allTests : tests;
@@ -256,7 +260,8 @@ export class AllergenReportDomainService {
       if (sumIndividual > 0) {
         finalPackagePrice = sumIndividual;
       } else {
-        if (totalCount <= 20) finalPackagePrice = 950000;
+        if (totalCount === 0) finalPackagePrice = 0;
+        else if (totalCount <= 20) finalPackagePrice = 950000;
         else if (totalCount <= 44) finalPackagePrice = 1400000;
         else if (totalCount <= 61) finalPackagePrice = 1600000;
         else finalPackagePrice = 1900000;

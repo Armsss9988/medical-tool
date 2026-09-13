@@ -307,5 +307,14 @@ describe('AllergenReportDomainService', () => {
     expect(dto44NoTIgE.packagePrice).toBe(1400000);
     expect(dto44NoTIgE.packageName).toBe(pkg44.name);
   });
+
+  it('should accurately calculate totalCount = 0 and packagePrice = 0 without hardcoding fallback to 41 when tests are empty', () => {
+    const dtoEmpty = AllergenReportDomainService.buildReportDTO({
+      tests: []
+    });
+    expect(dtoEmpty.totalCount).toBe(0);
+    expect(dtoEmpty.packagePrice).toBe(0);
+    expect(dtoEmpty.detailedList).toHaveLength(0);
+  });
 });
 

@@ -22,18 +22,19 @@ function AllergenSummaryPage({
   appliedScales = [],
   pageNumber
 }: AllergenSummaryPageProps) {
-  const scales = appliedScales || [];
+  const scales = (appliedScales || []).slice(0, 2);
 
   return (
     <div 
       data-page="true"
-      className="report-page bg-white text-slate-900 p-6 mb-4 shadow-xl print:shadow-none print:mb-0 print:p-5 flex flex-col justify-between"
+      className="report-page bg-white text-slate-900 mx-auto text-[13px] leading-normal flex flex-col justify-between shadow-lg print:shadow-none"
       style={{
         fontFamily: '"Times New Roman", Times, "Liberation Serif", serif',
         width: '210mm',
         minWidth: '210mm',
         maxWidth: '210mm',
         minHeight: '297mm',
+        padding: '10mm 14mm 10mm 14mm',
         boxSizing: 'border-box'
       }}
     >
@@ -164,50 +165,56 @@ function AllergenSummaryPage({
           </h3>
           
           <div className="grid grid-cols-12 gap-2.5">
-            {/* Cột trái: Diễn giải độ dương tính theo các thang đo áp dụng */}
+            {/* Cột trái: Diễn giải độ dương tính theo các thang đo áp dụng (tối ưu chống tràn A4) */}
             <div className="col-span-5 space-y-1.5">
-              {scales.map((scale, sIdx) => (
-                <div key={scale.id || sIdx} className="border border-slate-300 rounded bg-white">
-                  <div className="bg-slate-100 py-1 px-2 text-center font-bold text-red-700 text-[11.5px] uppercase border-b border-slate-300">
-                    {scale.name || 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH'}
+              {scales.map((scale, sIdx) => {
+                const isCompact = scales.length > 1;
+                const rowHeightClass = isCompact ? 'h-4.5 py-0' : 'h-6 py-0';
+                const fontSizeClass = isCompact ? 'text-[9.5px]' : 'text-[11px]';
+                const badgeSize = isCompact ? 13 : 16;
+                return (
+                  <div key={scale.id || sIdx} className="border border-slate-300 rounded bg-white">
+                    <div className={`bg-slate-100 py-0.5 px-2 text-center font-bold text-red-700 uppercase border-b border-slate-300 ${isCompact ? 'text-[10px]' : 'text-[11.5px]'}`}>
+                      {scale.name || 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH'}
+                    </div>
+                    <table className={`w-full ${fontSizeClass} border-collapse`}>
+                      <thead className="bg-slate-50 font-bold border-b border-slate-300">
+                        <tr>
+                          <th className={`${rowHeightClass} px-1 text-center border-r border-slate-300 align-middle w-10`}>ĐỘ (+)</th>
+                          <th className={`${rowHeightClass} px-1 text-center border-r border-slate-300 align-middle`}>NỒNG ĐỘ ({scale.unit || 'IU/ml'})</th>
+                          <th className={`${rowHeightClass} px-1 text-center align-middle`}>DIỄN GIẢI</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-300">
+                        {scale.levels.map((level) => {
+                          const gradeStyle = getAllergenGradeClasses(level.grade);
+                          return (
+                            <tr key={level.grade} className={gradeStyle.rowBg}>
+                              <td className={`${rowHeightClass} text-center border-r border-slate-300 font-bold align-middle`}>
+                                <div className="flex items-center justify-center">
+                                  <img 
+                                    src={getAllergenBadgeSvg(level.grade, badgeSize)} 
+                                    width={badgeSize} 
+                                    height={badgeSize} 
+                                    alt={`Độ ${level.grade}`} 
+                                    className="inline-block align-middle"
+                                  />
+                                </div>
+                              </td>
+                              <td className={`${rowHeightClass} text-center font-mono border-r border-slate-300 align-middle ${level.isPositive ? gradeStyle.textColor + ' font-bold' : 'text-slate-600'}`}>
+                                {level.rangeText}
+                              </td>
+                              <td className={`${rowHeightClass} text-center align-middle ${level.isPositive ? gradeStyle.textColor + ' font-bold' : 'text-slate-700 font-semibold'}`}>
+                                {level.label}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
-                  <table className="w-full text-[11px] border-collapse">
-                    <thead className="bg-slate-50 font-bold border-b border-slate-300">
-                      <tr>
-                        <th className="h-6 py-0 px-1 text-center border-r border-slate-300 align-middle w-10">ĐỘ (+)</th>
-                        <th className="h-6 py-0 px-1 text-center border-r border-slate-300 align-middle">NỒNG ĐỘ ({scale.unit || 'IU/ml'})</th>
-                        <th className="h-6 py-0 px-1 text-center align-middle">DIỄN GIẢI</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-300">
-                      {scale.levels.map((level) => {
-                        const gradeStyle = getAllergenGradeClasses(level.grade);
-                        return (
-                          <tr key={level.grade} className={gradeStyle.rowBg}>
-                            <td className="h-6 py-0 text-center border-r border-slate-300 font-bold align-middle">
-                              <div className="flex items-center justify-center">
-                                <img 
-                                  src={getAllergenBadgeSvg(level.grade, 16)} 
-                                  width={16} 
-                                  height={16} 
-                                  alt={`Độ ${level.grade}`} 
-                                  className="inline-block align-middle"
-                                />
-                              </div>
-                            </td>
-                            <td className={`h-6 py-0 text-center font-mono border-r border-slate-300 align-middle ${level.isPositive ? gradeStyle.textColor + ' font-bold' : 'text-slate-600'}`}>
-                              {level.rangeText}
-                            </td>
-                            <td className={`h-6 py-0 text-center align-middle ${level.isPositive ? gradeStyle.textColor + ' font-bold' : 'text-slate-700 font-semibold'}`}>
-                              {level.label}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Cột phải: Triệu chứng thường gặp */}

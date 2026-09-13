@@ -75,7 +75,7 @@ export interface IndicatorEvaluationResult {
 export function evaluateTestIndicator(
   code: string | undefined,
   category: string | undefined,
-  unit: string | undefined,
+  _unit: string | undefined,
   val: string | number | null | undefined,
   min?: number | null,
   max?: number | null,
@@ -97,6 +97,8 @@ export function evaluateTestIndicator(
     if (isNaN(num)) {
       const lower = cleanStr.toLowerCase();
       if (
+        cleanStr.startsWith('<') ||
+        cleanStr.startsWith('≤') ||
         lower.includes('không') ||
         lower.includes('khong') ||
         lower.includes('âm') ||
@@ -104,7 +106,9 @@ export function evaluateTestIndicator(
         lower === 'kph' ||
         lower.includes('kph') ||
         lower.includes('neg') ||
-        lower.includes('non')
+        lower.includes('non') ||
+        lower.includes('dưới') ||
+        lower.includes('duoi')
       ) {
         return { status: 'normal', label: 'Không Phát Hiện', isAbnormal: false };
       }
@@ -125,7 +129,14 @@ export function evaluateTestIndicator(
   }
 
   const isTIgE = (code || '').toLowerCase() === 'tige';
-  const isAllergen = !isTIgE && ((category && category.includes('Dị Nguyên')) || unit === 'IU/mL');
+  const cat = (category || '').toLowerCase();
+  const codeLower = (code || '').toLowerCase().trim();
+  const isAllergen = !isTIgE && (
+    cat.includes('dị nguyên') ||
+    cat.includes('allergen') ||
+    cat.includes('dị ứng') ||
+    codeLower.startsWith('allerg')
+  );
 
   if (isTIgE) {
     // TIgE mức bình thường < 15,0 IU/ml, không tính độ

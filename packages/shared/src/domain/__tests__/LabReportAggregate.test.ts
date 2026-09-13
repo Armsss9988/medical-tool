@@ -209,7 +209,7 @@ describe('LabReportAggregate', () => {
 
     report.recordCloudExport('https://cloud.example.com/pdf1.pdf', 'data:image/png;base64,qr123');
     expect(report.documentState.status).toBe('EXPORTED');
-    const exportedAt = (report.documentState as any).exportedAt;
+    const exportedAt = report.documentState.status === 'EXPORTED' ? report.documentState.exportedAt : '';
 
     // Modify test to make it OUTDATED
     report.updateTests([{ ...sampleTests[0], result: '9.0' }]);

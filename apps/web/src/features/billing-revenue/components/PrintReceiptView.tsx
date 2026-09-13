@@ -106,11 +106,12 @@ export default function PrintReceiptView({
   return (
     <div
       id={elementId}
-      className="receipt-print-page bg-white text-slate-900 mx-auto text-[13px] leading-normal flex flex-col justify-between p-6 sm:p-8 font-sans shadow-lg print:shadow-none print:p-4"
+      className="receipt-print-page bg-white text-slate-900 mx-auto text-[13px] leading-normal flex flex-col justify-between font-sans shadow-lg print:shadow-none"
       style={{
         width: '210mm',
         minHeight: '297mm', // Chuẩn A4
         maxHeight: '297mm',
+        padding: '10mm 14mm 10mm 14mm',
         boxSizing: 'border-box',
         color: '#0f172a'
       }}
@@ -412,7 +413,11 @@ export default function PrintReceiptView({
                   className="w-24 h-24 sm:w-28 sm:h-28 object-contain"
                   loading="eager"
                   onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=GoLab';
+                    const target = e.currentTarget as HTMLImageElement;
+                    if (!target.dataset.hasError) {
+                      target.dataset.hasError = 'true';
+                      target.src = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=GoLab';
+                    }
                   }}
                 />
               </div>

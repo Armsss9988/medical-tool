@@ -32,6 +32,8 @@
       "@infra/*": ["apps/web/src/infrastructure/*"],
       "@data": ["packages/shared/src/data"],
       "@data/*": ["packages/shared/src/data/*"],
+      "@schemas": ["packages/shared/src/schemas"],
+      "@schemas/*": ["packages/shared/src/schemas/*"],
       "@components": ["apps/web/src/components"],
       "@components/*": ["apps/web/src/components/*"],
       "@assets": ["apps/web/src/assets"],

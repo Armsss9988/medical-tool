@@ -71,10 +71,55 @@ async function ensureReportTemplatesTable(db: Db) {
         created_at TIMESTAMP NOT NULL DEFAULT now(),
         updated_at TIMESTAMP NOT NULL DEFAULT now()
       );
+      ALTER TABLE report_templates 
+        ADD COLUMN IF NOT EXISTS description TEXT,
+        ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'custom',
+        ADD COLUMN IF NOT EXISTS is_default BOOLEAN DEFAULT false,
+        ADD COLUMN IF NOT EXISTS paper_size TEXT DEFAULT 'A4',
+        ADD COLUMN IF NOT EXISTS orientation TEXT DEFAULT 'portrait',
+        ADD COLUMN IF NOT EXISTS font_family TEXT DEFAULT 'Times New Roman',
+        ADD COLUMN IF NOT EXISTS primary_color TEXT DEFAULT '#0284c7',
+        ADD COLUMN IF NOT EXISTS padding_mm INTEGER DEFAULT 15,
+        ADD COLUMN IF NOT EXISTS blocks JSONB DEFAULT '[]'::jsonb;
     `);
     _reportTemplatesTableChecked = true;
   } catch (err) {
     console.warn('[repo] Failed to ensure report_templates table:', err);
+  }
+}
+
+let _invoicesColumnsChecked = false;
+async function ensureInvoicesColumns(db: Db) {
+  if (_invoicesColumnsChecked) return;
+  try {
+    await db.execute(sql`
+      ALTER TABLE invoices 
+      ADD COLUMN IF NOT EXISTS patient_dob TEXT,
+      ADD COLUMN IF NOT EXISTS patient_gender TEXT DEFAULT 'Nam',
+      ADD COLUMN IF NOT EXISTS package_name TEXT,
+      ADD COLUMN IF NOT EXISTS cloud_pdf_url TEXT,
+      ADD COLUMN IF NOT EXISTS qr_code_data_url TEXT;
+    `);
+    _invoicesColumnsChecked = true;
+  } catch (err) {
+    console.warn('[repo] Failed to ensure invoices columns:', err);
+  }
+}
+
+let _medicalReportsColumnsChecked = false;
+async function ensureMedicalReportsColumns(db: Db) {
+  if (_medicalReportsColumnsChecked) return;
+  try {
+    await db.execute(sql`
+      ALTER TABLE medical_reports 
+      ADD COLUMN IF NOT EXISTS patient_paid_at TEXT,
+      ADD COLUMN IF NOT EXISTS patient_secret_token TEXT,
+      ADD COLUMN IF NOT EXISTS patient_sample_status TEXT,
+      ADD COLUMN IF NOT EXISTS dirty_reasons JSONB;
+    `);
+    _medicalReportsColumnsChecked = true;
+  } catch (err) {
+    console.warn('[repo] Failed to ensure medical_reports columns:', err);
   }
 }
 
@@ -85,6 +130,7 @@ async function ensureReportTemplatesTable(db: Db) {
 export async function getTableRows(db: Db, name: TableName): Promise<unknown[]> {
   switch (name) {
     case 'medical-reports': {
+      await ensureMedicalReportsColumns(db);
       const reports = await db.select().from(tables.medicalReports).orderBy(desc(tables.medicalReports.createdAt));
       const allTests = await db.select().from(tables.medicalReportTests).orderBy(asc(tables.medicalReportTests.testOrder));
 
@@ -112,6 +158,7 @@ export async function getTableRows(db: Db, name: TableName): Promise<unknown[]> 
           qrCodeDataUrl: rep.qrCodeDataUrl || undefined,
           pdfVersion: rep.pdfVersion,
           isPdfOutdated: rep.isPdfOutdated,
+          dirtyReasons: Array.isArray(rep.dirtyReasons) ? (rep.dirtyReasons as string[]) : undefined,
           pdfGeneratedAt: rep.pdfGeneratedAt ? rep.pdfGeneratedAt.toISOString() : undefined,
           zaloSentAt: rep.zaloSentAt ? rep.zaloSentAt.toISOString() : undefined,
           zaloMsgId: rep.zaloMsgId || undefined,
@@ -124,6 +171,7 @@ export async function getTableRows(db: Db, name: TableName): Promise<unknown[]> 
             address: rep.patientAddress || '',
             diagnosis: rep.patientDiagnosis || '',
             orderedAt: rep.patientOrderedAt || '',
+            paidAt: rep.patientPaidAt || undefined,
             receivedAt: rep.patientReceivedAt || '',
             returnedAt: rep.patientReturnedAt || '',
             secretToken: rep.patientSecretToken || '',
@@ -154,6 +202,7 @@ export async function getTableRows(db: Db, name: TableName): Promise<unknown[]> 
     }
 
     case 'invoices': {
+      await ensureInvoicesColumns(db);
       const invList = await db.select().from(tables.invoices).orderBy(desc(tables.invoices.createdAt));
       const allItems = await db.select().from(tables.invoiceItems).orderBy(asc(tables.invoiceItems.itemOrder));
 
@@ -174,8 +223,11 @@ export async function getTableRows(db: Db, name: TableName): Promise<unknown[]> 
           patientCode: inv.patientCode || undefined,
           patientName: inv.patientName || '',
           patientPhone: inv.patientPhone || '',
-          patientDob: '',
-          patientGender: 'Nam' as Gender,
+          patientDob: inv.patientDob || '',
+          patientGender: (inv.patientGender as Gender) || 'Nam',
+          packageName: inv.packageName || undefined,
+          cloudPdfUrl: inv.cloudPdfUrl || undefined,
+          qrCodeDataUrl: inv.qrCodeDataUrl || undefined,
           doctorName: inv.doctorName || '',
           cashierName: inv.cashierName || undefined,
           status: inv.status as Invoice['status'],
@@ -183,9 +235,11 @@ export async function getTableRows(db: Db, name: TableName): Promise<unknown[]> 
           totalAmount: inv.subtotal,
           discountAmount: inv.discountAmount,
           discountPercent: inv.discountPercent,
+          discountType: (inv.discountType as Invoice['discountType']) || 'amount',
           surchargeAmount: inv.surchargeAmount,
           finalAmount: inv.finalAmount,
           paidAt: inv.paidAt ? inv.paidAt.toISOString() : undefined,
+          cancelledAt: inv.cancelledAt ? inv.cancelledAt.toISOString() : undefined,
           notes: inv.notes || undefined,
           items: items.map((it) => ({
             code: it.code,
@@ -306,13 +360,20 @@ export async function getTableRows(db: Db, name: TableName): Promise<unknown[]> 
 export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Promise<number> {
   const BATCH_SIZE = 100;
 
+  if (name === 'report-templates') {
+    await ensureReportTemplatesTable(db);
+  } else if (name === 'test-packages') {
+    await ensurePackageItemsColumns(db);
+  } else if (name === 'catalog-item-equipments') {
+    await ensureCatalogItemEquipmentsColumns(db);
+  } else if (name === 'invoices') {
+    await ensureInvoicesColumns(db);
+  }
+
   return db.transaction(async (tx) => {
     switch (name) {
       case 'medical-reports': {
         const reportList = rows as MedicalReport[];
-        await tx.delete(tables.medicalReportTests);
-        await tx.delete(tables.medicalReports);
-
         if (reportList.length === 0) return 0;
 
         const reportValues = reportList.map((rep) => ({
@@ -338,6 +399,7 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
           patientAddress: rep.patient?.address || null,
           patientDiagnosis: rep.patient?.diagnosis || null,
           patientOrderedAt: rep.patient?.orderedAt || null,
+          patientPaidAt: rep.patient?.paidAt || null,
           patientReceivedAt: rep.patient?.receivedAt || null,
           patientReturnedAt: rep.patient?.returnedAt || null,
           patientSecretToken: rep.patient?.secretToken || null,
@@ -346,8 +408,25 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
           updatedAt: rep.updatedAt ? new Date(rep.updatedAt) : new Date()
         }));
 
+        // Xóa các tests cũ của đúng các phiếu cần thay thế/cập nhật
+        const reportIds = reportList.map((r) => r.id);
+        for (let i = 0; i < reportIds.length; i += BATCH_SIZE) {
+          const idChunk = reportIds.slice(i, i + BATCH_SIZE);
+          await tx.delete(tables.medicalReportTests).where(inArray(tables.medicalReportTests.reportId, idChunk));
+        }
+
+        // Upsert các phiếu khám (không xóa trắng toàn bảng làm hỏng liên kết hóa đơn)
         for (let i = 0; i < reportValues.length; i += BATCH_SIZE) {
-          await tx.insert(tables.medicalReports).values(reportValues.slice(i, i + BATCH_SIZE));
+          const batch = reportValues.slice(i, i + BATCH_SIZE);
+          for (const repVal of batch) {
+            await tx
+              .insert(tables.medicalReports)
+              .values(repVal)
+              .onConflictDoUpdate({
+                target: tables.medicalReports.id,
+                set: repVal
+              });
+          }
         }
 
         const allTests: (typeof tables.medicalReportTests.$inferInsert)[] = [];
@@ -388,9 +467,6 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
 
       case 'invoices': {
         const invoiceList = rows as Invoice[];
-        await tx.delete(tables.invoiceItems);
-        await tx.delete(tables.invoices);
-
         if (invoiceList.length === 0) return 0;
 
         const invValues = invoiceList.map((inv) => {
@@ -402,6 +478,11 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
             patientCode: inv.patientCode || null,
             patientName: inv.patientName || null,
             patientPhone: inv.patientPhone || null,
+            patientDob: inv.patientDob || null,
+            patientGender: inv.patientGender || 'Nam',
+            packageName: inv.packageName || null,
+            cloudPdfUrl: inv.cloudPdfUrl || null,
+            qrCodeDataUrl: inv.qrCodeDataUrl || null,
             doctorName: inv.doctorName || null,
             cashierName: inv.cashierName || null,
             status: inv.status || 'Chưa thu phí',
@@ -409,19 +490,38 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
             subtotal,
             discountAmount: inv.discountAmount || 0,
             discountPercent: inv.discountPercent || 0,
-            discountType: 'amount',
+            discountType: inv.discountType || 'amount',
             surchargeAmount: inv.surchargeAmount || 0,
             finalAmount: inv.finalAmount || 0,
             paidAt: inv.paidAt ? new Date(inv.paidAt) : null,
-            cancelledAt: null,
+            cancelledAt: inv.status === 'Đã hủy / Hoàn tiền'
+              ? (inv.cancelledAt ? new Date(inv.cancelledAt) : new Date())
+              : null,
             notes: inv.notes || null,
             createdAt: inv.createdAt ? new Date(inv.createdAt) : new Date(),
             updatedAt: new Date()
           };
         });
 
+        // Xóa items cũ của đúng các hóa đơn được cập nhật
+        const invoiceIds = invoiceList.map((inv) => inv.id);
+        for (let i = 0; i < invoiceIds.length; i += BATCH_SIZE) {
+          const idChunk = invoiceIds.slice(i, i + BATCH_SIZE);
+          await tx.delete(tables.invoiceItems).where(inArray(tables.invoiceItems.invoiceId, idChunk));
+        }
+
+        // Upsert hóa đơn (bảo vệ các liên kết báo cáo và tránh xóa trắng)
         for (let i = 0; i < invValues.length; i += BATCH_SIZE) {
-          await tx.insert(tables.invoices).values(invValues.slice(i, i + BATCH_SIZE));
+          const batch = invValues.slice(i, i + BATCH_SIZE);
+          for (const invVal of batch) {
+            await tx
+              .insert(tables.invoices)
+              .values(invVal)
+              .onConflictDoUpdate({
+                target: tables.invoices.id,
+                set: invVal
+              });
+          }
         }
 
         const allItems: (typeof tables.invoiceItems.$inferInsert)[] = [];
@@ -785,6 +885,7 @@ async function saveMedicalReportInternal(tx: any, rep: MedicalReport): Promise<v
     qrCodeDataUrl: rep.qrCodeDataUrl || null,
     pdfVersion: rep.pdfVersion || 1,
     isPdfOutdated: rep.isPdfOutdated || false,
+    dirtyReasons: rep.dirtyReasons || null,
     pdfGeneratedAt: rep.pdfGeneratedAt ? new Date(rep.pdfGeneratedAt) : null,
     zaloSentAt: rep.zaloSentAt ? new Date(rep.zaloSentAt) : null,
     zaloMsgId: rep.zaloMsgId || null,
@@ -795,6 +896,7 @@ async function saveMedicalReportInternal(tx: any, rep: MedicalReport): Promise<v
     patientAddress: rep.patient?.address || null,
     patientDiagnosis: rep.patient?.diagnosis || null,
     patientOrderedAt: rep.patient?.orderedAt || null,
+    patientPaidAt: rep.patient?.paidAt || null,
     patientReceivedAt: rep.patient?.receivedAt || null,
     patientReturnedAt: rep.patient?.returnedAt || null,
     patientSecretToken: rep.patient?.secretToken || null,
@@ -885,6 +987,11 @@ async function saveInvoiceInternal(tx: any, inv: Invoice): Promise<void> {
     patientCode: inv.patientCode || null,
     patientName: inv.patientName || null,
     patientPhone: inv.patientPhone || null,
+    patientDob: inv.patientDob || null,
+    patientGender: inv.patientGender || 'Nam',
+    packageName: inv.packageName || null,
+    cloudPdfUrl: inv.cloudPdfUrl || null,
+    qrCodeDataUrl: inv.qrCodeDataUrl || null,
     doctorName: inv.doctorName || null,
     cashierName: inv.cashierName || null,
     status: inv.status || 'Chưa thu phí',
@@ -892,12 +999,14 @@ async function saveInvoiceInternal(tx: any, inv: Invoice): Promise<void> {
     subtotal,
     discountAmount: inv.discountAmount || 0,
     discountPercent: inv.discountPercent || 0,
-    discountType: 'amount',
+    discountType: inv.discountType || 'amount',
     surchargeAmount: inv.surchargeAmount || 0,
     finalAmount: inv.finalAmount || 0,
     notes: inv.notes || null,
     paidAt: inv.paidAt ? new Date(inv.paidAt) : null,
-    cancelledAt: null,
+    cancelledAt: inv.status === 'Đã hủy / Hoàn tiền'
+      ? (inv.cancelledAt ? new Date(inv.cancelledAt) : new Date())
+      : null,
     updatedAt: new Date()
   };
 
@@ -984,8 +1093,11 @@ export async function getInvoiceById(db: Db, id: string): Promise<Invoice | null
     patientCode: inv.patientCode || undefined,
     patientName: inv.patientName || '',
     patientPhone: inv.patientPhone || '',
-    patientDob: '',
-    patientGender: 'Nam' as Gender,
+    patientDob: inv.patientDob || '',
+    patientGender: (inv.patientGender as Gender) || 'Nam',
+    packageName: inv.packageName || undefined,
+    cloudPdfUrl: inv.cloudPdfUrl || undefined,
+    qrCodeDataUrl: inv.qrCodeDataUrl || undefined,
     doctorName: inv.doctorName || '',
     cashierName: inv.cashierName || undefined,
     status: inv.status as Invoice['status'],
@@ -993,8 +1105,11 @@ export async function getInvoiceById(db: Db, id: string): Promise<Invoice | null
     totalAmount: inv.subtotal,
     discountAmount: inv.discountAmount,
     discountPercent: inv.discountPercent,
+    discountType: (inv.discountType as Invoice['discountType']) || 'amount',
+    surchargeAmount: inv.surchargeAmount || 0,
     finalAmount: inv.finalAmount,
     paidAt: inv.paidAt ? inv.paidAt.toISOString() : undefined,
+    cancelledAt: inv.cancelledAt ? inv.cancelledAt.toISOString() : undefined,
     notes: inv.notes || '',
     items: items.map((item) => ({
       code: item.code,
@@ -1047,6 +1162,7 @@ export async function getMedicalReportById(db: Db, id: string): Promise<MedicalR
       address: rep.patientAddress || '',
       diagnosis: rep.patientDiagnosis || '',
       orderedAt: rep.patientOrderedAt || '',
+      paidAt: rep.patientPaidAt || undefined,
       receivedAt: rep.patientReceivedAt || '',
       returnedAt: rep.patientReturnedAt || '',
       secretToken: rep.patientSecretToken || '',
@@ -1127,10 +1243,13 @@ export async function payInvoiceTransaction(
 export async function cancelInvoiceTransaction(
   db: Db,
   invoiceId: string,
-  cancelData: { reason?: string; cancelledBy?: string }
+  cancelData: { reason?: string; cancelledBy?: string; fallbackInvoice?: Invoice }
 ): Promise<{ invoice: Invoice; report?: MedicalReport }> {
   return await db.transaction(async (tx) => {
-    const rawInvoice = await getInvoiceById(tx as unknown as Db, invoiceId);
+    let rawInvoice = await getInvoiceById(tx as unknown as Db, invoiceId);
+    if (!rawInvoice && cancelData.fallbackInvoice) {
+      rawInvoice = cancelData.fallbackInvoice;
+    }
     if (!rawInvoice) {
       throw new Error(`Invoice not found: ${invoiceId}`);
     }

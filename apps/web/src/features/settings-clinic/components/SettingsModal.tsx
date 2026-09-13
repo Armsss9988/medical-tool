@@ -251,11 +251,21 @@ export default function SettingsModal({
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Địa Chỉ</label>
+              <label className="block font-semibold text-slate-700 mb-1">Địa Chỉ Chi Nhánh / Điểm Tiếp Nhận</label>
               <input
                 type="text"
                 value={clinicInfo.address}
                 onChange={(e) => handleClinicChange('address', e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Trụ Sở Chính Hệ Thống</label>
+              <input
+                type="text"
+                value={clinicInfo.headquartersAddress || ''}
+                placeholder="Số 36 BT5, Khu đô thị Pháp Vân, phường Hoàng Liệt, thành phố Hà Nội"
+                onChange={(e) => handleClinicChange('headquartersAddress', e.target.value)}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               />
             </div>

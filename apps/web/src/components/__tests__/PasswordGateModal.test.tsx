@@ -56,7 +56,7 @@ describe('PasswordGateModal', () => {
     expect(getPassword()).toBe('wrong');
   });
 
-  it('allows dismissing modal without password', async () => {
+  it('allows dismissing modal without password when closable', async () => {
     render(<PasswordGateModal />);
 
     const dismissBtn = screen.getByRole('button', { name: /bỏ qua/i });
@@ -65,6 +65,23 @@ describe('PasswordGateModal', () => {
     await waitFor(() =>
       expect(screen.queryByPlaceholderText(/nhập passkey/i)).toBeNull()
     );
+  });
+
+  it('Bug 1: opens non-closable gate upon app-lock event and hides dismiss buttons', async () => {
+    closePasswordGate();
+    render(<PasswordGateModal />);
+    expect(screen.queryByPlaceholderText(/nhập passkey/i)).toBeNull();
+
+    // Dispatch app-lock
+    window.dispatchEvent(new CustomEvent('app-lock'));
+
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText(/nhập passkey/i)).toBeTruthy()
+    );
+    expect(screen.getByText(/hệ thống đang khóa/i)).toBeTruthy();
+    // Dismiss button and close X button should NOT exist when locked
+    expect(screen.queryByRole('button', { name: /bỏ qua/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /đóng/i })).toBeNull();
   });
 });
 

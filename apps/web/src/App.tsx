@@ -6,6 +6,7 @@ import { PasswordGateModal } from '@features/settings-clinic';
 
 import { ToastProvider, useToast } from './contexts/ToastContext';
 import { ModalProvider, useModal } from './contexts/ModalContext';
+import { TemplateProvider } from './contexts/TemplateContext';
 import { WorkspaceProvider, useWorkspace } from './contexts/WorkspaceContext';
 
 import { useCatalogData } from '@features/catalog-management';
@@ -18,7 +19,7 @@ import { PrintLayer, useReportExport, useExportActions, type DynamicReportRender
 import { DynamicReportView, useTemplateManager } from '@features/template-builder';
 
 import { parseExcelCatalog } from '@infra/excelService';
-import type { MedicalReport, BatchImportRow, CatalogTabType } from '@domain';
+import type { MedicalReport, BatchImportRow, CatalogTabType, ReportTemplate } from '@domain';
 
 // ─── MAIN APPLICATION CONTENT ───────────────────────────────────────────────
 function AppContent() {
@@ -69,7 +70,8 @@ function AppContent() {
     openBatchExportModal,
     openAiSmartFillModal,
     openTemplateBuilder,
-    closeAllModals
+    closeAllModals,
+    previewTargetReport
   } = useModal();
 
   // 3. EXPORT HOOK (TRANSACTION PIPELINE)
@@ -78,6 +80,8 @@ function AppContent() {
     cloudLink,
     qrCodeDataUrl,
     isExporting,
+    isDownloading,
+    downloadProgress,
     currentStep,
     lastError,
     resetExport,
@@ -139,13 +143,17 @@ function AppContent() {
     currentInvoiceForReport,
     isCurrentReportPaid,
     isCurrentPdfOutdated,
+    currentPdfDirtyReasons,
     handleSaveCurrentReport,
     handleClearAll,
     handleLoadReport,
     handleDuplicateReport
   } = workspaceActions;
 
-  // Export Actions
+  // Template Manager & Export Actions
+  const { activeTemplate } = useTemplateManager();
+  const [previewSelectedTemplate, setPreviewSelectedTemplate] = useState<ReportTemplate | null>(null);
+
   const {
     handleExportPdfAndUpload,
     handleDownloadPdfDirect,
@@ -154,9 +162,8 @@ function AppContent() {
     handleZnsSuccess,
     handlePrintDirect,
     handleDownloadQrCodeDirect
-  } = useExportActions(clinicInfo, reportExportHook, handleSaveCurrentReport);
+  } = useExportActions(clinicInfo, reportExportHook, handleSaveCurrentReport, activeTemplate);
 
-  const { activeTemplate } = useTemplateManager();
   const renderDynamicReport = useCallback((props: DynamicReportRenderProps) => (
     <DynamicReportView {...props} />
   ), []);
@@ -167,7 +174,7 @@ function AppContent() {
     handleOpenInvoiceModalWithCheck,
     handleOpenInvoiceForReport,
     handleCancelInvoice
-  } = useInvoiceActions(handleSaveCurrentReport, cloudLink, qrCodeDataUrl);
+  } = useInvoiceActions(handleSaveCurrentReport, cloudLink, qrCodeDataUrl, requestActionWithGuard);
 
   // 6. EXCEL CATALOG LOADER (MERGE / UPSERT CHẾ ĐỘ THÔNG MINH)
   const handleLoadExcelFile = async (fileOrBuffer: Blob | ArrayBuffer) => {
@@ -222,7 +229,6 @@ function AppContent() {
   const handleUpdateSingleReportPdf = async (rep: MedicalReport) => {
     try {
       showToast(`Đang cập nhật lại PDF cho bệnh nhân ${rep.patient.name}...`, 'info');
-      openBatchExportModal();
       await handleBatchExport([rep]);
       showToast(`Đã cập nhật PDF mới nhất cho phiếu [${rep.code}]!`, 'success');
     } catch (err) {
@@ -299,6 +305,7 @@ function AppContent() {
         currentStep={currentStep}
         totalFee={totalFee}
         isCurrentPdfOutdated={isCurrentPdfOutdated}
+        currentPdfDirtyReasons={currentPdfDirtyReasons}
         isCurrentReportPaid={isCurrentReportPaid}
         currentInvoiceForReport={currentInvoiceForReport}
         onOpenDoctorModal={() => openCatalogModal('DOCTORS' as CatalogTabType)}
@@ -340,6 +347,8 @@ function AppContent() {
         cloudLink={cloudLink}
         qrCodeDataUrl={qrCodeDataUrl}
         isExporting={isExporting}
+        isDownloading={isDownloading}
+        downloadProgress={downloadProgress}
         currentStep={currentStep}
         lastError={lastError}
         batchProgress={batchProgress}
@@ -365,11 +374,13 @@ function AppContent() {
         onUnsavedDiscardAndProceed={handleUnsavedDiscardAndProceed}
         onUnsavedCancel={handleUnsavedCancel}
         onSaveAllCatalogData={saveAllCatalogData}
+        onPreviewTemplateChange={setPreviewSelectedTemplate}
       />
 
       {/* PRINT & LOSSLESS CAPTURE TEMPLATES */}
       <PrintLayer
         clinicInfo={clinicInfo}
+        previewTargetReport={previewTargetReport}
         qrCodeDataUrl={qrCodeDataUrl}
         batchRenderReport={batchRenderReport}
         testPackages={testPackages}
@@ -377,6 +388,7 @@ function AppContent() {
         catalogItemEquipments={catalogItemEquipments}
         allergenScales={allergenScales}
         activeTemplate={activeTemplate}
+        previewSelectedTemplate={previewSelectedTemplate}
         renderDynamicReport={renderDynamicReport}
       />
 
@@ -391,9 +403,11 @@ export default function App() {
   return (
     <ToastProvider>
       <ModalProvider>
-        <WorkspaceProvider>
-          <AppContent />
-        </WorkspaceProvider>
+        <TemplateProvider>
+          <WorkspaceProvider>
+            <AppContent />
+          </WorkspaceProvider>
+        </TemplateProvider>
       </ModalProvider>
     </ToastProvider>
   );
