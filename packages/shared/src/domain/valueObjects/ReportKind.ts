@@ -1,5 +1,5 @@
 import { CatalogItem } from '../types';
-import { isAllergenTest } from '../allergenDetector';
+import { isSpecificAllergenTest, isTIgETest } from '../allergenDetector';
 import { PRINT_ELEMENT_ID, PrintElementId } from '../constants/uiConstants';
 import { assertNever } from '../utils/assertNever';
 
@@ -58,28 +58,32 @@ export class ReportKindResolver {
     }
 
     let clinicalCount = 0;
-    let allergenCount = 0;
+    let specificAllergenCount = 0;
+    let tigeCount = 0;
 
     for (const t of safeTests) {
-      if (isAllergenTest(t)) {
-        allergenCount++;
+      if (isSpecificAllergenTest(t)) {
+        specificAllergenCount++;
+      } else if (isTIgETest(t)) {
+        tigeCount++;
       } else {
         clinicalCount++;
       }
     }
 
-    if (clinicalCount > 0 && allergenCount > 0) {
-      return {
-        type: 'hybrid',
-        elementId: isBatch ? PRINT_ELEMENT_ID.BATCH_HYBRID : PRINT_ELEMENT_ID.HYBRID_REPORT,
-        badge: this.getBadge('hybrid'),
-        clinicalCount,
-        allergenCount,
-        totalCount: safeTests.length
-      };
-    }
+    if (specificAllergenCount > 0) {
+      const allergenCount = specificAllergenCount + tigeCount;
+      if (clinicalCount > 0) {
+        return {
+          type: 'hybrid',
+          elementId: isBatch ? PRINT_ELEMENT_ID.BATCH_HYBRID : PRINT_ELEMENT_ID.HYBRID_REPORT,
+          badge: this.getBadge('hybrid'),
+          clinicalCount,
+          allergenCount,
+          totalCount: safeTests.length
+        };
+      }
 
-    if (allergenCount > 0 && clinicalCount === 0) {
       return {
         type: 'allergen',
         elementId: isBatch ? PRINT_ELEMENT_ID.BATCH_ALLERGEN : PRINT_ELEMENT_ID.ALLERGEN_REPORT,
@@ -94,7 +98,7 @@ export class ReportKindResolver {
       type: 'clinical',
       elementId: isBatch ? PRINT_ELEMENT_ID.BATCH_MEDICAL : PRINT_ELEMENT_ID.MEDICAL_REPORT,
       badge: this.getBadge('clinical'),
-      totalCount: clinicalCount
+      totalCount: clinicalCount + tigeCount
     };
   }
 

@@ -53,13 +53,32 @@ export function isAllergenTest(
 }
 
 /**
- * Kiểm tra danh sách chỉ số có chứa ít nhất 1 dị nguyên không.
- * Dùng để quyết định render FullAllergenReportView vs PrintReportView.
+ * Kiểm tra 1 chỉ số có phải là Dị nguyên đặc hiệu (Specific Allergen) hay không.
+ * (Không bao gồm Tổng IgE - TIgE).
+ */
+export function isSpecificAllergenTest(
+  test: Pick<CatalogItem, "code" | "category" | "unit"> & { name?: string },
+): boolean {
+  return isAllergenTest(test) && !isTIgETest(test);
+}
+
+/**
+ * Kiểm tra danh sách chỉ số có chứa ít nhất 1 dị nguyên đặc hiệu hay không.
+ */
+export function hasSpecificAllergenTests(
+  tests: ReadonlyArray<Pick<CatalogItem, "code" | "category" | "unit">>,
+): boolean {
+  return tests.some(isSpecificAllergenTest);
+}
+
+/**
+ * Kiểm tra danh sách chỉ số có kích hoạt báo cáo dị nguyên chuyên biệt hay không.
+ * Chỉ kích hoạt khi có ít nhất 1 dị nguyên đặc hiệu (Specific Allergen).
  */
 export function hasAllergenTests(
   tests: ReadonlyArray<Pick<CatalogItem, "code" | "category" | "unit">>,
 ): boolean {
-  return tests.some(isAllergenTest);
+  return hasSpecificAllergenTests(tests);
 }
 
 /**
@@ -73,18 +92,20 @@ export function hasRegularTests(
 
 /**
  * Kiểm tra danh sách có phải dạng Hỗn Hợp (chứa cả chỉ số thường và chỉ số dị nguyên) không.
+ * Chú ý: TIgE khi đi độc lập cùng xét nghiệm thường sẽ in trên bảng tiêu chuẩn, không kích hoạt bảng hỗn hợp.
  */
 export function hasMixedTests(
   tests: ReadonlyArray<Pick<CatalogItem, "code" | "category" | "unit">>,
 ): boolean {
-  return hasRegularTests(tests) && hasAllergenTests(tests);
+  return hasRegularTests(tests) && hasSpecificAllergenTests(tests);
 }
 
 /**
- * Phân loại danh sách chỉ số thành 2 mảng: thường và dị nguyên
+ * Phân loại danh sách chỉ số thành 2 mảng: thường và dị nguyên.
+ * Nếu không có dị nguyên đặc hiệu nào, TIgE được giữ lại trong regularTests để xuất bảng tiêu chuẩn.
  */
 export function classifyTests<
-  T extends Pick<CatalogItem, "code" | "category" | "unit">,
+  T extends Pick<CatalogItem, "code" | "category" | "unit"> & { name?: string },
 >(
   tests: ReadonlyArray<T>,
 ): {
@@ -94,11 +115,13 @@ export function classifyTests<
   isAllergenOnly: boolean;
   isRegularOnly: boolean;
 } {
+  const hasSpecific = tests.some(isSpecificAllergenTest);
+
   const regularTests: T[] = [];
   const allergenTests: T[] = [];
 
   for (const t of tests) {
-    if (isAllergenTest(t)) {
+    if (isSpecificAllergenTest(t) || (hasSpecific && isTIgETest(t))) {
       allergenTests.push(t);
     } else {
       regularTests.push(t);

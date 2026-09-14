@@ -1,5 +1,5 @@
 import type { SelectedTest } from '../types';
-import { hasMixedTests, hasAllergenTests, isAllergenTest } from '../allergenDetector';
+import { hasMixedTests, hasAllergenTests, isSpecificAllergenTest, isTIgETest } from '../allergenDetector';
 import { evaluateTestIndicator } from '../testResult';
 
 export interface TestAnalysisSummary {
@@ -41,10 +41,12 @@ export class AutoConclusionDomainService {
 
     const isMixed = hasMixedTests(safeTests);
     const isAllergenOnly = !isMixed && hasAllergenTests(safeTests);
+    const hasSpecific = hasAllergenTests(safeTests);
     const abnormalRegularTests: string[] = [];
 
     for (const t of testsWithResults) {
-      if (isAllergenTest(t)) {
+      // Chỉ coi là dị nguyên nếu thực sự có panel dị nguyên đặc hiệu
+      if (isSpecificAllergenTest(t) || (hasSpecific && isTIgETest(t))) {
         continue;
       }
       const evalRes = evaluateTestIndicator(t.code, t.category, t.unit, t.result, t.refMin, t.refMax, undefined, undefined, t.evaluationType);
@@ -54,27 +56,29 @@ export class AutoConclusionDomainService {
       }
     }
 
-    const positiveAllergens = testsWithResults
-      .filter((t) => {
-        if (!isAllergenTest(t)) return false;
-        
-        // 1. Kiểm tra qua evaluateTestIndicator chuẩn y khoa
-        const evalRes = evaluateTestIndicator(t.code, t.category, t.unit, t.result, t.refMin, t.refMax, undefined, undefined, t.evaluationType);
-        if (evalRes.isAbnormal) return true;
+    const positiveAllergens = hasSpecific
+      ? testsWithResults
+          .filter((t) => {
+            if (!isSpecificAllergenTest(t) && !isTIgETest(t)) return false;
+            
+            // 1. Kiểm tra qua evaluateTestIndicator chuẩn y khoa
+            const evalRes = evaluateTestIndicator(t.code, t.category, t.unit, t.result, t.refMin, t.refMax, undefined, undefined, t.evaluationType);
+            if (evalRes.isAbnormal) return true;
 
-        // 2. Kiểm tra qua ghi chú người dùng nhập hoặc máy trả về
-        if (t.note) {
-          const lowerNote = t.note.toLowerCase();
-          if (lowerNote.includes('không phát hiện') || lowerNote.includes('âm tính') || lowerNote.includes('độ 0') || lowerNote.includes('bình thường')) {
+            // 2. Kiểm tra qua ghi chú người dùng nhập hoặc máy trả về
+            if (t.note) {
+              const lowerNote = t.note.toLowerCase();
+              if (lowerNote.includes('không phát hiện') || lowerNote.includes('âm tính') || lowerNote.includes('độ 0') || lowerNote.includes('bình thường')) {
+                return false;
+              }
+              if ((lowerNote.includes('phát hiện') && !lowerNote.includes('không')) || lowerNote.includes('dương tính') || lowerNote.includes('tăng') || lowerNote.includes('cao') || /độ\s*[1-6]/i.test(t.note)) {
+                return true;
+              }
+            }
             return false;
-          }
-          if ((lowerNote.includes('phát hiện') && !lowerNote.includes('không')) || lowerNote.includes('dương tính') || lowerNote.includes('tăng') || lowerNote.includes('cao') || /độ\s*[1-6]/i.test(t.note)) {
-            return true;
-          }
-        }
-        return false;
-      })
-      .map((t) => t.name);
+          })
+          .map((t) => t.name)
+      : [];
 
     return {
       hasResults: true,

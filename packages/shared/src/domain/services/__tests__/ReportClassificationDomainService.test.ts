@@ -42,6 +42,10 @@ describe('ReportClassificationDomainService', () => {
 
   it('should classify purely regular tests as clinical', () => {
     expect(ReportClassificationDomainService.classify([regularItem1, regularItem2])).toBe('clinical');
+    // TIgE alone or with regular tests should classify as clinical (standard A4)
+    expect(ReportClassificationDomainService.classify([tigeItem])).toBe('clinical');
+    expect(ReportClassificationDomainService.classify([regularItem1, tigeItem])).toBe('clinical');
+    expect(ReportClassificationDomainService.classify([regularItem1, regularItem2, tigeItem])).toBe('clinical');
   });
 
   it('should classify purely allergen tests as allergen', () => {

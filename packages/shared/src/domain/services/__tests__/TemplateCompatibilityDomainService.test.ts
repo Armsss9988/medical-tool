@@ -201,6 +201,29 @@ describe('TemplateCompatibilityDomainService', () => {
       expect(match.matchScore).toBe(100);
     });
 
+    it('should recognize clinical template as 100% compatible for TIgE alone and clinical + TIgE', () => {
+      const tigeTest: Pick<CatalogItem, 'code' | 'category' | 'unit'> = {
+        code: 'TIgE',
+        category: 'Dị Nguyên & Miễn Dịch',
+        unit: 'IU/mL'
+      };
+
+      // 1. Chỉ có TIgE
+      const matchTIgE = TemplateCompatibilityDomainService.isTemplateCompatibleWithData(clinicalTemplate, [tigeTest]);
+      expect(matchTIgE.isCompatible).toBe(true);
+      expect(matchTIgE.matchScore).toBe(100);
+
+      // 2. Clinical + TIgE (không có specific allergen -> KHÔNG kích hoạt hybrid)
+      const clinicalPlusTIgE = [...clinicalTests, tigeTest];
+      const matchClinTIgE = TemplateCompatibilityDomainService.isTemplateCompatibleWithData(clinicalTemplate, clinicalPlusTIgE);
+      expect(matchClinTIgE.isCompatible).toBe(true);
+      expect(matchClinTIgE.matchScore).toBe(100);
+
+      const allTemplates = [clinicalTemplate, allergenTemplate, hybridTemplate];
+      const rec = TemplateCompatibilityDomainService.getRecommendedTemplate(allTemplates, clinicalPlusTIgE);
+      expect(rec?.id).toBe('tpl_clin');
+    });
+
     it('should pick best recommended template according to data', () => {
       const allTemplates = [clinicalTemplate, allergenTemplate, hybridTemplate];
 

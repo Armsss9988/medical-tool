@@ -42,6 +42,27 @@ describe('ReportKindResolver', () => {
     }
   });
 
+  it('should resolve to clinical when only routine tests and TIgE are present', () => {
+    const kind = ReportKindResolver.resolve([
+      { code: 'GLU', category: 'Sinh Hóa Máu', unit: 'mmol/L' },
+      { code: 'TIgE', category: 'Dị Nguyên & Miễn Dịch', unit: 'IU/mL' }
+    ]);
+
+    expect(kind.type).toBe('clinical');
+    expect(kind.totalCount).toBe(2);
+    expect(kind.elementId).toBe(PRINT_ELEMENT_ID.MEDICAL_REPORT);
+  });
+
+  it('should resolve to clinical when only TIgE is present', () => {
+    const kind = ReportKindResolver.resolve([
+      { code: 'TIgE', category: 'Dị Nguyên & Miễn Dịch', unit: 'IU/mL' }
+    ]);
+
+    expect(kind.type).toBe('clinical');
+    expect(kind.totalCount).toBe(1);
+    expect(kind.elementId).toBe(PRINT_ELEMENT_ID.MEDICAL_REPORT);
+  });
+
   it('should provide batch element ID when isBatch option is true', () => {
     const kind = ReportKindResolver.resolve(
       [

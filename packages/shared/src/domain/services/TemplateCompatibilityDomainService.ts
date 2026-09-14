@@ -4,7 +4,7 @@ import {
   ReportTemplate
 } from '../templateTypes';
 import { CatalogItem } from '../types';
-import { isAllergenTest } from '../allergenDetector';
+import { isSpecificAllergenTest, isTIgETest } from '../allergenDetector';
 
 export type BlockCategory = 'common' | 'clinical' | 'allergen';
 
@@ -185,17 +185,23 @@ export class TemplateCompatibilityDomainService {
   ): DataCompatibilityResult {
     const safeTests = tests || [];
     const targetType = template.targetType || 'clinical';
-
     let clinicalCount = 0;
-    let allergenCount = 0;
+    let specificAllergenCount = 0;
+    let tigeCount = 0;
 
     for (const t of safeTests) {
-      if (isAllergenTest(t)) {
-        allergenCount++;
+      if (isSpecificAllergenTest(t)) {
+        specificAllergenCount++;
+      } else if (isTIgETest(t)) {
+        tigeCount++;
       } else {
         clinicalCount++;
       }
     }
+
+    // Nếu không có dị nguyên đặc hiệu, TIgE được coi là chỉ số lâm sàng thường
+    const allergenCount = specificAllergenCount > 0 ? specificAllergenCount + tigeCount : 0;
+    const finalClinicalCount = specificAllergenCount > 0 ? clinicalCount : clinicalCount + tigeCount;
 
     // Trường hợp 1: Dữ liệu trống
     if (safeTests.length === 0) {
@@ -208,7 +214,7 @@ export class TemplateCompatibilityDomainService {
     }
 
     // Trường hợp 2: Dữ liệu hỗn hợp (vừa có chỉ số thường, vừa có dị nguyên)
-    if (clinicalCount > 0 && allergenCount > 0) {
+    if (finalClinicalCount > 0 && allergenCount > 0) {
       if (targetType === 'hybrid') {
         return {
           isCompatible: true,
@@ -232,7 +238,7 @@ export class TemplateCompatibilityDomainService {
     }
 
     // Trường hợp 3: Chỉ có xét nghiệm dị nguyên
-    if (allergenCount > 0 && clinicalCount === 0) {
+    if (allergenCount > 0 && finalClinicalCount === 0) {
       if (targetType === 'allergen') {
         return {
           isCompatible: true,
@@ -256,7 +262,7 @@ export class TemplateCompatibilityDomainService {
     }
 
     // Trường hợp 4: Chỉ có xét nghiệm thường (Sinh hóa, Huyết học...)
-    if (clinicalCount > 0 && allergenCount === 0) {
+    if (finalClinicalCount > 0 && allergenCount === 0) {
       if (targetType === 'clinical') {
         return {
           isCompatible: true,
