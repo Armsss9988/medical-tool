@@ -4,3 +4,4 @@
 export { default as TemplateBuilderModal } from './components/templateBuilder/TemplateBuilderModal';
 export { default as DynamicReportView } from './components/templateBuilder/DynamicReportView';
 export { useTemplateManager } from './hooks/useTemplateManager';
+export { TemplateProvider, TemplateContext, useTemplateContext } from './contexts/TemplateContext';

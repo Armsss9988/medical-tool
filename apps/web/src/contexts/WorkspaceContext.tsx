@@ -1,12 +1,11 @@
-import { createContext, useContext, useRef, useCallback, useMemo, useEffect, type ReactNode, type Dispatch, type SetStateAction } from 'react';
+import { createContext, useContext, useRef, useCallback, useMemo, useEffect, useState, type ReactNode, type Dispatch, type SetStateAction } from 'react';
 import type { Patient, SelectedTest, MedicalReport } from '@domain/types';
 import { PatientCode } from '@domain/valueObjects/PatientCode';
 import { domainEventBus, INVOICE_EVENT_TYPES } from '@domain';
-import { usePatientManager } from '../hooks/usePatientManager';
-import { useReportManager } from '../hooks/useReportManager';
-import { useInvoiceManager } from '../hooks/useInvoiceManager';
+import { usePatientManager } from '@features/patient-session';
+import { useReportManager } from '@features/report-history';
+import { useInvoiceManager } from '@features/billing-revenue';
 import { useRecentTests } from '../hooks/useRecentTests';
-import { useWorkspaceStore } from '../stores/useWorkspaceStore';
 
 // ─── WORKSPACE CONTEXT ──────────────────────────────────────────────────────
 // Core workspace state: patient data, selected tests, conclusion, doctor,
@@ -82,22 +81,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   // Patient
   const { patient, setPatient, resetPatient } = usePatientManager();
 
-  // Tests & Conclusion from useWorkspaceStore
-  const selectedTests = useWorkspaceStore((s) => s.selectedTests);
-  const setSelectedTests = useWorkspaceStore((s) => s.setSelectedTests) as Dispatch<SetStateAction<SelectedTest[]>>;
-  const conclusion = useWorkspaceStore((s) => s.conclusion);
-  const setConclusion = useWorkspaceStore((s) => s.setConclusion) as Dispatch<SetStateAction<string>>;
-  const doctorName = useWorkspaceStore((s) => s.doctorName);
-  const setDoctorName = useWorkspaceStore((s) => s.setDoctorName) as Dispatch<SetStateAction<string>>;
+  // Tests & Conclusion (workspace form state owned by this provider)
+  const [selectedTests, setSelectedTests] = useState<SelectedTest[]>([]);
+  const [conclusion, setConclusion] = useState<string>('');
+  const [doctorName, setDoctorName] = useState<string>('');
 
   // Current Report ID (phân biệt Update vs Create)
-  const currentReportId = useWorkspaceStore((s) => s.currentReportId);
-  const setCurrentReportId = useWorkspaceStore((s) => s.setCurrentReportId) as Dispatch<SetStateAction<string | null>>;
+  const [currentReportId, setCurrentReportId] = useState<string | null>(null);
 
   // Keyboard-first refs
   const nameInputRef = useRef<HTMLInputElement>(null);
-  const autoFocusName = useWorkspaceStore((s) => s.autoFocusName);
-  const setAutoFocusName = useWorkspaceStore((s) => s.setAutoFocusName) as Dispatch<SetStateAction<boolean>>;
+  const [autoFocusName, setAutoFocusName] = useState<boolean>(true);
 
   // Recent tests
   const { recentTests, addToRecent, addMultipleToRecent, clearRecent: _clearRecent } = useRecentTests();

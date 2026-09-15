@@ -3,7 +3,7 @@ import { Settings, Activity, ListChecks, TrendingUp, Clock, Phone, ShieldCheck, 
 import { useIsFetching, useIsMutating } from '@tanstack/react-query';
 import { ClinicInfo, CatalogItem, getSafeClinicInfo } from '@domain/types';
 import { setPassword } from '@infra/apiClient';
-import { openPasswordGate } from './PasswordGateModal';
+import { openPasswordGate } from '@features/settings-clinic';
 
 interface HeaderProps {
   clinicInfo: ClinicInfo;

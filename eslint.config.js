@@ -17,6 +17,8 @@ export default [
       '**/scripts/**',
       '.agents/**',
       '**/.agents/**',
+      '.kilo/**',
+      '**/.kilo/**',
       '*.config.js',
       '*.config.ts',
       '*.config.cjs',
@@ -52,6 +54,16 @@ export default [
       react: {
         version: 'detect'
       },
+      'import/resolver': {
+        typescript: {
+          alwaysTryTypes: true,
+          project: './apps/web/tsconfig.json'
+        },
+        node: {
+          extensions: ['.js', '.mjs', '.jsx', '.ts', '.tsx', '.mts', '.cts', '.d.ts']
+        }
+      },
+      'import/extensions': ['.js', '.mjs', '.jsx', '.ts', '.tsx', '.mts', '.cts', '.d.ts'],
       'boundaries/elements': [
         {
           type: 'domain',
@@ -79,7 +91,7 @@ export default [
         },
         {
           type: 'features',
-          pattern: '**/src/features/*/**',
+          pattern: 'apps/web/src/features/*/**',
           capture: ['featureName']
         },
         {
@@ -166,7 +178,8 @@ export default [
               ]
             },
             // Contexts layer: Global and feature-level React state providers.
-            // Can depend on Domain, UseCases, Infrastructure, Data, Hooks, Contexts, Stores.
+            // Can depend on Domain, UseCases, Infrastructure, Data, Hooks, Contexts, Stores, Features.
+            // WorkspaceContext là feature-composition root (tổ chức patient-session + report-history + billing-revenue).
             // CANNOT depend on Components or Entry.
             {
               from: { element: { type: 'contexts' } },
@@ -177,7 +190,8 @@ export default [
                 { to: { element: { type: 'hooks' } } },
                 { to: { element: { type: 'data' } } },
                 { to: { element: { type: 'contexts' } } },
-                { to: { element: { type: 'stores' } } }
+                { to: { element: { type: 'stores' } } },
+                { to: { element: { type: 'features' } } }
               ]
             },
             // Stores layer: Zustand and state containers.

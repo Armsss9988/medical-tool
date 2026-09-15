@@ -5,8 +5,7 @@ import { STORAGE_KEYS } from '@domain/constants/storageKeys';
 import { safeParseMedicalReports } from '@schemas/reportSchemas';
 import { getTable, postReport, deleteReportApi } from '@infra/apiClient';
 import { loadState, saveState } from '@infra/storage';
-
-export const REPORTS_QUERY_KEY = ['reports'] as const;
+import { REPORTS_QUERY_KEY } from '@infra/queryClient';
 
 /**
  * Nạp danh sách phiếu xét nghiệm từ Server/DB thông qua TanStack Query v5,

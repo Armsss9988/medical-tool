@@ -7,7 +7,8 @@ import {
   BILLING_STATUS,
   PAYMENT_METHOD,
   DATE_FILTER,
-  DateFilterType
+  DateFilterType,
+  matchesDateFilter
 } from '@domain';
 import { computePricingWithPackages } from '@domain/pricing';
 
@@ -42,16 +43,6 @@ export function useRevenueCalculations({
 }: UseRevenueCalculationsProps) {
   // 1. LỌC DANH SÁCH HÓA ĐƠN
   const filteredInvoices = useMemo(() => {
-    const now = new Date();
-    const todayStr = now.toDateString();
-
-    const yesterday = new Date(now);
-    yesterday.setDate(now.getDate() - 1);
-    const yesterdayStr = yesterday.toDateString();
-
-    const sevenDaysAgo = new Date(now);
-    sevenDaysAgo.setDate(now.getDate() - 7);
-
     const term = searchTerm.toLowerCase().trim();
 
     return (invoices || []).filter((inv) => {
@@ -83,28 +74,11 @@ export function useRevenueCalculations({
         return dateFilter === DATE_FILTER.ALL;
       }
       const invDate = new Date(inv.createdAt);
-      if (isNaN(invDate.getTime())) {
+      if (Number.isNaN(invDate.getTime())) {
         return dateFilter === DATE_FILTER.ALL;
       }
-      if (dateFilter === DATE_FILTER.TODAY) {
-        if (invDate.toDateString() !== todayStr) return false;
-      } else if (dateFilter === DATE_FILTER.YESTERDAY) {
-        if (invDate.toDateString() !== yesterdayStr) return false;
-      } else if (dateFilter === DATE_FILTER.LAST_7_DAYS) {
-        if (invDate < sevenDaysAgo) return false;
-      } else if (dateFilter === DATE_FILTER.THIS_MONTH) {
-        if (invDate.getMonth() !== now.getMonth() || invDate.getFullYear() !== now.getFullYear()) return false;
-      } else if (dateFilter === DATE_FILTER.LAST_MONTH) {
-        const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
-        const lastMonthYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
-        if (invDate.getMonth() !== lastMonth || invDate.getFullYear() !== lastMonthYear) return false;
-      } else if (dateFilter === DATE_FILTER.CUSTOM) {
-        if (customStartDate && new Date(customStartDate) > invDate) return false;
-        if (customEndDate) {
-          const end = new Date(customEndDate);
-          end.setHours(23, 59, 59, 999);
-          if (invDate > end) return false;
-        }
+      if (!matchesDateFilter(invDate, dateFilter, { customStartDate, customEndDate })) {
+        return false;
       }
 
       return true;
@@ -135,26 +109,7 @@ export function useRevenueCalculations({
       }
 
       const repDate = new Date(rep.createdAt);
-      const now = new Date();
-      const todayStr = now.toDateString();
-      const yesterday = new Date(now);
-      yesterday.setDate(now.getDate() - 1);
-      const yesterdayStr = yesterday.toDateString();
-      const sevenDaysAgo = new Date(now);
-      sevenDaysAgo.setDate(now.getDate() - 7);
-
-      if (dateFilter === DATE_FILTER.TODAY && repDate.toDateString() !== todayStr) return false;
-      if (dateFilter === DATE_FILTER.YESTERDAY && repDate.toDateString() !== yesterdayStr) return false;
-      if (dateFilter === DATE_FILTER.LAST_7_DAYS && repDate < sevenDaysAgo) return false;
-      if (dateFilter === DATE_FILTER.THIS_MONTH && (repDate.getMonth() !== now.getMonth() || repDate.getFullYear() !== now.getFullYear())) return false;
-      if (dateFilter === DATE_FILTER.CUSTOM) {
-        if (customStartDate && new Date(customStartDate) > repDate) return false;
-        if (customEndDate) {
-          const end = new Date(customEndDate);
-          end.setHours(23, 59, 59, 999);
-          if (repDate > end) return false;
-        }
-      }
+      if (!matchesDateFilter(repDate, dateFilter, { customStartDate, customEndDate })) return false;
 
       return true;
     });

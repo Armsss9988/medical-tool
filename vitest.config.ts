@@ -13,6 +13,7 @@ export default defineConfig({
       '@data': path.resolve(import.meta.dirname, 'packages/shared/src/data'),
       '@infra': path.resolve(import.meta.dirname, 'apps/web/src/infrastructure'),
       '@components': path.resolve(import.meta.dirname, 'apps/web/src/components'),
+      '@features': path.resolve(import.meta.dirname, 'apps/web/src/features'),
       '@assets': path.resolve(import.meta.dirname, 'apps/web/src/assets')
     }
   },

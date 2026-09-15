@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
-import PasswordGateModal, { openPasswordGate, closePasswordGate } from '@components/PasswordGateModal';
+import PasswordGateModal, { openPasswordGate, closePasswordGate } from '../PasswordGateModal';
 import { setPassword, getPassword } from '@infra/apiClient';
 import * as cloudDb from '@infra/cloudDbService';
 
@@ -84,4 +84,5 @@ describe('PasswordGateModal', () => {
     expect(screen.queryByRole('button', { name: /đóng/i })).toBeNull();
   });
 });
+
 

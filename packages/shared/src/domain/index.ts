@@ -17,6 +17,7 @@ export * from './services/itemResolver';
 export * from './services/packageOrderResolver';
 export * from './utils/assertNever';
 export * from './utils/Result';
+export * from './utils/dateFilter';
 
 // Value Objects (Product Types & Functional ADTs)
 export * from './valueObjects/Money';

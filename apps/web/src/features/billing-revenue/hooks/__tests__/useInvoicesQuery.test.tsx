@@ -4,10 +4,9 @@ import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   useInvoicesQuery,
-  usePayInvoiceMutation,
-  INVOICES_QUERY_KEY
+  usePayInvoiceMutation
 } from '../useInvoicesQuery';
-import { REPORTS_QUERY_KEY } from '../../../report-history/hooks/useReportsQuery';
+import { REPORTS_QUERY_KEY, INVOICES_QUERY_KEY } from '@infra/queryClient';
 
 function makeWrapper(client?: QueryClient) {
   const queryClient = client || new QueryClient({

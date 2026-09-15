@@ -7,7 +7,8 @@ import { syncReportsToSupabase, DEFAULT_CLOUD_DB_CONFIG } from '@infra/cloudDbSe
 import { recordPdfExportApi, putTable } from '@infra/apiClient';
 import { domainEventBus } from '@domain/events/DomainEventBus';
 import { REPORT_EVENT_TYPES } from '@domain/events/DomainEvent';
-import { useReportsQuery, useSaveReportMutation, useDeleteReportMutation, REPORTS_QUERY_KEY } from './useReportsQuery';
+import { useReportsQuery, useSaveReportMutation, useDeleteReportMutation } from './useReportsQuery';
+import { REPORTS_QUERY_KEY } from '@infra/queryClient';
 
 export function useReportManager() {
   // 1. Quản lý danh sách phiếu xét nghiệm bằng TanStack Query v5 (Server State)

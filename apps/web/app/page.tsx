@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Component, type ReactNode, type ErrorInfo } from 'react';
 import dynamic from 'next/dynamic';
-import AdminPasskeyScreen from '../src/components/AdminPasskeyScreen';
+import { AdminPasskeyScreen } from '@features/settings-clinic';
 import { getPassword } from '@infra/apiClient';
 
 // Class ErrorBoundary để bắt lỗi ChunkLoadError hoặc lỗi render

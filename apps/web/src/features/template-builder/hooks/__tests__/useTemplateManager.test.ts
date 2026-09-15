@@ -3,7 +3,7 @@ import React from 'react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useTemplateManager } from '../useTemplateManager';
-import { TemplateProvider } from '../../../../contexts/TemplateContext';
+import { TemplateProvider } from '../../contexts/TemplateContext';
 import { PRESET_TEMPLATES } from '@domain/templateTypes';
 
 vi.mock('@infra/cloudDbService', () => ({

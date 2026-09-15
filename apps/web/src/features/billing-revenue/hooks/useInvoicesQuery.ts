@@ -11,9 +11,7 @@ import {
   cancelInvoice as apiClientCancelInvoice
 } from '@infra/apiClient';
 import { loadState, saveState } from '@infra/storage';
-import { REPORTS_QUERY_KEY } from '../../report-history/hooks/useReportsQuery';
-
-export const INVOICES_QUERY_KEY = ['invoices'] as const;
+import { REPORTS_QUERY_KEY, INVOICES_QUERY_KEY } from '@infra/queryClient';
 
 /**
  * Nạp danh sách hóa đơn từ Server/DB qua TanStack Query v5,

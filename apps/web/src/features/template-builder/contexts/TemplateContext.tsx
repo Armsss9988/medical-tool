@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from 'react';
-import { useTemplateManagerInternal, type TemplateManagerReturn } from '../features/template-builder/hooks/useTemplateManager';
+import { useTemplateManagerInternal, type TemplateManagerReturn } from '../hooks/useTemplateManager';
 
 export const TemplateContext = createContext<TemplateManagerReturn | null>(null);
 

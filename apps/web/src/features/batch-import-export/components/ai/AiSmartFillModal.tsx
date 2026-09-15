@@ -1,5 +1,4 @@
 import React, { useState, useRef } from 'react';
-import * as XLSX from 'xlsx';
 import {
   X, Sparkles, Upload, CheckCircle2,
   Download, ArrowRight, RefreshCw, CheckSquare, Square, Layers,
@@ -20,6 +19,7 @@ import {
 } from '@domain';
 import { executeAiSmartFill } from '@infra/aiService';
 import { exportFilledTemplateExcel, convertAiRowsToBatchImportRows } from '@infra/aiTemplateMapper';
+import { extractExcelWorkbookToText, countExcelSheets } from '@infra/excel';
 
 interface AiSmartFillModalProps {
   isOpen: boolean;
@@ -124,27 +124,10 @@ export default function AiSmartFillModal({
       reader.onload = (event) => {
         try {
           const buffer = event.target?.result as ArrayBuffer;
-          const workbook = XLSX.read(buffer, { type: 'array' });
-          const textParts: string[] = [];
-
-          workbook.SheetNames.forEach((sheetName) => {
-            if (sheetName.startsWith('_DataLookup')) return;
-            const sheet = workbook.Sheets[sheetName];
-            if (!sheet) return;
-            const jsonRows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
-            if (!jsonRows || jsonRows.length === 0) return;
-
-            textParts.push(`\n=== BẢNG / SHEET: ${sheetName} ===`);
-            jsonRows.slice(0, 100).forEach((row) => {
-              if (row && Array.isArray(row) && row.some((c) => c !== null && c !== undefined && String(c).trim() !== '')) {
-                textParts.push(row.map((c) => String(c ?? '').trim()).join(' | '));
-              }
-            });
-          });
-
-          const extractedText = textParts.join('\n').trim();
+          const extractedText = extractExcelWorkbookToText(buffer);
+          const sheetCount = countExcelSheets(buffer);
           setRawText(extractedText || `[File Excel: ${file.name} - Không có dữ liệu văn bản]`);
-          showToast(`Đã trích xuất ${workbook.SheetNames.length} sheet từ file Excel: ${file.name}!`, 'success');
+          showToast(`Đã trích xuất ${sheetCount} sheet từ file Excel: ${file.name}!`, 'success');
         } catch (err) {
           console.error('Lỗi đọc Excel:', err);
           showToast('Lỗi khi đọc file Excel', 'error');

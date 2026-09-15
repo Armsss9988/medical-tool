@@ -11,9 +11,9 @@ import {
   useSaveInvoiceMutation,
   usePayInvoiceMutation,
   useCancelInvoiceMutation,
-  useDeleteInvoiceMutation,
-  INVOICES_QUERY_KEY
+  useDeleteInvoiceMutation
 } from './useInvoicesQuery';
+import { INVOICES_QUERY_KEY } from '@infra/queryClient';
 
 export interface UseInvoiceManagerOptions {
   onReportUpdated?: (report: MedicalReport) => void;

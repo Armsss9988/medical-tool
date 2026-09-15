@@ -1,7 +1,7 @@
 import React from 'react';
 import { CloudUpload } from 'lucide-react';
 import { setPassword } from '@infra/apiClient';
-import { openPasswordGate } from '@components/PasswordGateModal';
+import { openPasswordGate } from './PasswordGateModal';
 
 export const CloudApiPasswordSettings: React.FC = () => {
   return (

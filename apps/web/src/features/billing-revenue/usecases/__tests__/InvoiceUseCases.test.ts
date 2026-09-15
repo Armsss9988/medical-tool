@@ -37,13 +37,10 @@ describe('Invoice UseCases (Collect & Cancel)', () => {
       paidAt: '2026-08-25T11:00:00.000Z'
     });
 
-    // UseCase chỉ thực hiện state transition thuần — không phát event
     expect(result.status).toBe('Đã thanh toán');
     expect(result.paymentMethod).toBe('Chuyển khoản (VietQR)');
     expect(result.paidAt).toBe('2026-08-25T11:00:00.000Z');
 
-    // DESIGN DECISION: Events are emitted by hooks (useInvoiceManager), NOT by UseCases.
-    // This prevents the double-emit bug where both UseCase and Hook emit the same event.
     expect(domainEventBus.getHistory()).toHaveLength(0);
   });
 
@@ -59,11 +56,9 @@ describe('Invoice UseCases (Collect & Cancel)', () => {
       reason: 'Khách hàng hủy dịch vụ'
     });
 
-    // UseCase chỉ thực hiện state transition thuần — không phát event
     expect(result.status).toBe('Đã hủy / Hoàn tiền');
     expect(result.notes).toContain('Khách hàng hủy dịch vụ');
 
-    // DESIGN DECISION: Events are emitted by hooks, NOT by UseCases.
     expect(domainEventBus.getHistory()).toHaveLength(0);
   });
 });

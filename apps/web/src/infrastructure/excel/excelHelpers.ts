@@ -1,5 +1,40 @@
 import ExcelJS from 'exceljs';
+import * as XLSX from 'xlsx';
 import type { Gender } from '@domain/types';
+
+/**
+ * Trích xuất toàn bộ nội dung các sheet của workbook XLSX thành text thuần
+ * (dùng cho AI Smart Fill — bỏ qua các sheet _DataLookup)
+ */
+export function extractExcelWorkbookToText(buffer: ArrayBuffer): string {
+  const workbook = XLSX.read(buffer, { type: 'array' });
+  const textParts: string[] = [];
+
+  workbook.SheetNames.forEach((sheetName) => {
+    if (sheetName.startsWith('_DataLookup')) return;
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) return;
+    const jsonRows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
+    if (!jsonRows || jsonRows.length === 0) return;
+
+    textParts.push(`\n=== BẢNG / SHEET: ${sheetName} ===`);
+    jsonRows.slice(0, 100).forEach((row) => {
+      if (row && Array.isArray(row) && row.some((c) => c !== null && c !== undefined && String(c).trim() !== '')) {
+        textParts.push(row.map((c) => String(c ?? '').trim()).join(' | '));
+      }
+    });
+  });
+
+  return textParts.join('\n').trim();
+}
+
+/**
+ * Số lượng sheet trong workbook XLSX (dùng cho thông báo sau khi trích xuất)
+ */
+export function countExcelSheets(buffer: ArrayBuffer): number {
+  const workbook = XLSX.read(buffer, { type: 'array' });
+  return workbook.SheetNames.length;
+}
 
 /**
  * Lưu Workbook từ ExcelJS thành file tải về trình duyệt

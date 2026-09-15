@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
-import PrintReceiptView from '../../../billing-revenue/components/PrintReceiptView';
+import PrintReceiptView from '../PrintReceiptView';
 import { Invoice, DEFAULT_CLINIC_INFO } from '@domain/types';
 
 describe('PrintReceiptView - Invoice & Billing PDF Generation Tests', () => {

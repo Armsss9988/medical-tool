@@ -2,7 +2,8 @@ import { useState, useMemo, useCallback } from 'react';
 import { 
   MedicalReport, Invoice, 
   BILLING_STATUS, REPORT_STATUS, DATE_FILTER, DateFilterType,
-  DEFAULTS
+  DEFAULTS,
+  matchesDateFilter
 } from '@domain';
 import { ReportKindResolver } from '@domain/valueObjects/ReportKind';
 
@@ -116,15 +117,6 @@ export function useReportFilterAndStats({
   // 2. Lọc danh sách phiếu theo các tiêu chí
   const filteredReports = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
-    const now = new Date();
-    const todayStr = now.toDateString();
-
-    const yesterday = new Date(now);
-    yesterday.setDate(now.getDate() - 1);
-    const yesterdayStr = yesterday.toDateString();
-
-    const sevenDaysAgo = new Date(now);
-    sevenDaysAgo.setDate(now.getDate() - 7);
 
     return reports.filter((rep) => {
       // Tìm kiếm văn bản
@@ -174,17 +166,7 @@ export function useReportFilterAndStats({
 
       // Lọc theo Thời gian
       const repDate = new Date(rep.createdAt);
-      if (dateFilter === DATE_FILTER.TODAY) {
-        if (repDate.toDateString() !== todayStr) return false;
-      } else if (dateFilter === DATE_FILTER.YESTERDAY) {
-        if (repDate.toDateString() !== yesterdayStr) return false;
-      } else if (dateFilter === DATE_FILTER.LAST_7_DAYS) {
-        if (repDate < sevenDaysAgo) return false;
-      } else if (dateFilter === DATE_FILTER.THIS_MONTH) {
-        if (repDate.getMonth() !== now.getMonth() || repDate.getFullYear() !== now.getFullYear()) {
-          return false;
-        }
-      }
+      if (!matchesDateFilter(repDate, dateFilter)) return false;
 
       return true;
     });

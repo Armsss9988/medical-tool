@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
-import { DynamicReportView } from '../../../template-builder/components/templateBuilder/DynamicReportView';
+import { DynamicReportView } from '../DynamicReportView';
 import { PRESET_TEMPLATES } from '@domain/templateTypes';
 import { Patient } from '@domain/types';
 

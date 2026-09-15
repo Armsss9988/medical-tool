@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
-import PrintReportView from '../../features/report-export/components/PrintReportView';
+import PrintReportView from '../PrintReportView';
 import type { Patient, SelectedTest } from '@domain';
 
 describe('PDF Header Wave, Margin & Color Test', () => {

@@ -9,7 +9,7 @@ import {
   fetchReportTemplatesFromSupabase
 } from '@infra/cloudDbService';
 import { putReportTemplatesApi } from '@infra/apiClient';
-import { TemplateContext } from '../../../contexts/TemplateContext';
+import { TemplateContext } from '../contexts/TemplateContext';
 
 const STORAGE_KEY_TEMPLATES = 'golab_report_templates_v2';
 const STORAGE_KEY_ACTIVE = 'golab_active_template_id_v2';

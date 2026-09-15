@@ -6,7 +6,6 @@ import { PasswordGateModal } from '@features/settings-clinic';
 
 import { ToastProvider, useToast } from './contexts/ToastContext';
 import { ModalProvider, useModal } from './contexts/ModalContext';
-import { TemplateProvider } from './contexts/TemplateContext';
 import { WorkspaceProvider, useWorkspace } from './contexts/WorkspaceContext';
 
 import { useCatalogData } from '@features/catalog-management';
@@ -16,7 +15,7 @@ import { useWorkspaceActions } from './hooks/useWorkspaceActions';
 import { useUnsavedGuard } from './hooks/useUnsavedGuard';
 import { useInvoiceActions } from '@features/billing-revenue';
 import { PrintLayer, useReportExport, useExportActions, type DynamicReportRenderProps } from '@features/report-export';
-import { DynamicReportView, useTemplateManager } from '@features/template-builder';
+import { DynamicReportView, useTemplateManager, TemplateProvider } from '@features/template-builder';
 
 import { parseExcelCatalog } from '@infra/excelService';
 import type { MedicalReport, BatchImportRow, CatalogTabType, ReportTemplate } from '@domain';
