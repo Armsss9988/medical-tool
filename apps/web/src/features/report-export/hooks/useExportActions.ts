@@ -3,7 +3,7 @@ import { useWorkspace } from '../../../contexts/WorkspaceContext';
 import { useModal } from '../../../contexts/ModalContext';
 import { useToast } from '../../../contexts/ToastContext';
 import { REPORT_STATUS, PRINT_ELEMENT_ID } from '@domain/constants';
-import { ReportClassificationDomainService, formatReportPdfFilename } from '@domain';
+import { ReportClassificationDomainService, TemplateCompatibilityDomainService, formatReportPdfFilename } from '@domain';
 import { buildCurrentReport, resolveDoctorName } from '@domain/reportFactory';
 import { generateZaloTextMessage, openZaloChat } from '@infra/zaloService';
 import type { ClinicInfo, MedicalReport, ToastType, ReportTemplate } from '@domain';
@@ -48,7 +48,13 @@ export function useExportActions(
     const existingRep = reports.find((r) => r.id === reportId || r.code === patient.code);
 
     const reportType = ReportClassificationDomainService.classify(selectedTests);
-    const defaultElementId = activeTemplate
+    // Chỉ dùng DYNAMIC_REPORT khi template là mẫu tùy biến người dùng chủ động chọn và tương thích dữ liệu
+    const isCustomTemplateActiveAndCompatible = Boolean(
+      activeTemplate &&
+      !activeTemplate.isDefault &&
+      TemplateCompatibilityDomainService.isTemplateCompatibleWithData(activeTemplate, selectedTests).isCompatible
+    );
+    const defaultElementId = isCustomTemplateActiveAndCompatible
       ? PRINT_ELEMENT_ID.DYNAMIC_REPORT
       : ReportClassificationDomainService.resolvePrintElementId(reportType);
     const elementId = (customElementId && typeof customElementId === 'string')
@@ -99,7 +105,12 @@ export function useExportActions(
   // 2. ACTION: TẢI FILE PDF TRỰC TIẾP VỀ MÁY (Đồng bộ tuyệt đối PrintLayer với xem trước)
   const handleDownloadPdfDirect = useCallback((customElementId?: string, customFilename?: string) => {
     const reportType = ReportClassificationDomainService.classify(selectedTests);
-    const defaultElementId = activeTemplate
+    const isCustomTemplateActiveAndCompatible = Boolean(
+      activeTemplate &&
+      !activeTemplate.isDefault &&
+      TemplateCompatibilityDomainService.isTemplateCompatibleWithData(activeTemplate, selectedTests).isCompatible
+    );
+    const defaultElementId = isCustomTemplateActiveAndCompatible
       ? PRINT_ELEMENT_ID.DYNAMIC_REPORT
       : ReportClassificationDomainService.resolvePrintElementId(reportType);
     const elementId = (customElementId && typeof customElementId === 'string')

@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { CatalogItem, CatalogItemEquipmentLink, TestGroup, TestEquipment, AllergenGradingScale, removeVietnameseTones } from '@domain';
 import { exportCatalogItemsTemplate, parseExcelCatalog } from '@infra/excelService';
-import { IndicatorFilterBar } from './IndicatorFilterBar';
+import { IndicatorFilterBar, IndicatorSortOption } from './IndicatorFilterBar';
 import { IndicatorTableRow } from './IndicatorTableRow';
 import { IndicatorFormModal } from './IndicatorFormModal';
 import { IndicatorEquipmentModal } from './IndicatorEquipmentModal';
@@ -36,6 +36,14 @@ export function IndicatorTable({
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [viewFilter, setViewFilter] = useState<'all' | 'general' | 'allergen'>('all');
   const [isQuickEditMode, setIsQuickEditMode] = useState(false);
+
+  // Bộ lọc nâng cao
+  const [equipmentFilter, setEquipmentFilter] = useState<string>('all');
+  const [evalTypeFilter, setEvalTypeFilter] = useState<'all' | 'range' | 'scale' | 'detection'>('all');
+  const [refRangeFilter, setRefRangeFilter] = useState<'all' | 'complete' | 'missing'>('all');
+  const [priceFilter, setPriceFilter] = useState<'all' | 'paid' | 'free'>('all');
+  const [sortBy, setSortBy] = useState<IndicatorSortOption>('default');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   // Search input ref for quick keyboard focus (/ or Ctrl+F)
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -72,7 +80,44 @@ export function IndicatorTable({
   const allergenCount = useMemo(() => items.filter(isAllergenItem).length, [items]);
   const generalCount = useMemo(() => items.filter((i) => !isAllergenItem(i)).length, [items]);
 
-  // Tìm kiếm thông minh hỗ trợ cả tiếng Việt có dấu và không dấu
+  // Đếm số máy đo đang gán cho từng chỉ số và tập hợp equipmentId cho từng chỉ số
+  const { equipmentCountMap, itemEquipmentSetMap } = useMemo(() => {
+    const counts = new Map<string, number>();
+    const sets = new Map<string, Set<string>>();
+    for (const link of catalogItemEquipments) {
+      const raw = link.catalogCode || (link as unknown as { catalog_code?: string }).catalog_code;
+      if (!raw) continue;
+      const key = raw.toUpperCase();
+      counts.set(key, (counts.get(key) || 0) + 1);
+      if (!sets.has(key)) sets.set(key, new Set());
+      sets.get(key)!.add(link.equipmentId);
+    }
+    return { equipmentCountMap: counts, itemEquipmentSetMap: sets };
+  }, [catalogItemEquipments]);
+
+  // Tính số lượng bộ lọc đang kích hoạt khác mặc định
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (selectedGroup !== 'all') count++;
+    if (equipmentFilter !== 'all') count++;
+    if (evalTypeFilter !== 'all') count++;
+    if (refRangeFilter !== 'all') count++;
+    if (priceFilter !== 'all') count++;
+    if (sortBy !== 'default') count++;
+    return count;
+  }, [selectedGroup, equipmentFilter, evalTypeFilter, refRangeFilter, priceFilter, sortBy]);
+
+  const handleResetFilters = () => {
+    setSelectedGroup('all');
+    setEquipmentFilter('all');
+    setEvalTypeFilter('all');
+    setRefRangeFilter('all');
+    setPriceFilter('all');
+    setSortBy('default');
+    setSearchTerm('');
+  };
+
+  // Tìm kiếm thông minh và lọc đa tiêu chí
   const filteredItems = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     const termClean = removeVietnameseTones(term);
@@ -82,9 +127,43 @@ export function IndicatorTable({
       if (viewFilter === 'general' && isAllergen) return false;
       if (viewFilter === 'allergen' && !isAllergen) return false;
 
+      // 1. Lọc theo Nhóm
       const matchGroup = selectedGroup === 'all' || i?.category === selectedGroup;
       if (!matchGroup) return false;
 
+      // 2. Lọc theo Thiết bị / Máy đo
+      const codeUpper = (i?.code || '').trim().toUpperCase();
+      const eqCount = equipmentCountMap.get(codeUpper) || 0;
+      if (equipmentFilter === 'has_equipment' && eqCount === 0) return false;
+      if (equipmentFilter === 'no_equipment' && eqCount > 0) return false;
+      if (equipmentFilter !== 'all' && equipmentFilter !== 'has_equipment' && equipmentFilter !== 'no_equipment') {
+        const eqSet = itemEquipmentSetMap.get(codeUpper);
+        if (!eqSet || !eqSet.has(equipmentFilter)) return false;
+      }
+
+      // 3. Lọc theo Kiểu đánh giá
+      if (evalTypeFilter === 'range') {
+        const isRange = i.evaluationType === 'range' || (!i.evaluationType && (i.refMin != null || i.refMax != null));
+        if (!isRange) return false;
+      } else if (evalTypeFilter === 'scale') {
+        const isScale = i.evaluationType === 'scale' || Boolean(i.scaleId);
+        if (!isScale) return false;
+      } else if (evalTypeFilter === 'detection') {
+        const isDetect = i.evaluationType === 'detection' || i.evaluationType === 'text';
+        if (!isDetect) return false;
+      }
+
+      // 4. Lọc theo Trạng thái khoảng tham chiếu
+      const hasRef = i.refMin != null || i.refMax != null || (Boolean(i.refText) && i.refText.trim() !== '') || Boolean(i.scaleId);
+      if (refRangeFilter === 'complete' && !hasRef) return false;
+      if (refRangeFilter === 'missing' && hasRef) return false;
+
+      // 5. Lọc theo Đơn giá
+      const price = i.price || 0;
+      if (priceFilter === 'paid' && price <= 0) return false;
+      if (priceFilter === 'free' && price > 0) return false;
+
+      // 6. Tìm kiếm từ khóa (mã, tên, scientific, nhóm)
       if (!term) return true;
 
       const codeLower = String(i?.code || '').toLowerCase();
@@ -106,23 +185,49 @@ export function IndicatorTable({
       );
     });
 
-    if (viewFilter === 'allergen') {
-      return [...list].sort((a, b) => parseAllergenOrder(a.code) - parseAllergenOrder(b.code));
+    // Sắp xếp danh mục
+    const sorted = [...list];
+    switch (sortBy) {
+      case 'name_asc':
+        return sorted.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi'));
+      case 'name_desc':
+        return sorted.sort((a, b) => (b.name || '').localeCompare(a.name || '', 'vi'));
+      case 'code_asc':
+        return sorted.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+      case 'code_desc':
+        return sorted.sort((a, b) => (b.code || '').localeCompare(a.code || ''));
+      case 'category':
+        return sorted.sort((a, b) => (a.category || '').localeCompare(b.category || '', 'vi'));
+      case 'price_desc':
+        return sorted.sort((a, b) => (b.price || 0) - (a.price || 0));
+      case 'price_asc':
+        return sorted.sort((a, b) => (a.price || 0) - (b.price || 0));
+      case 'equipment_desc':
+        return sorted.sort((a, b) => {
+          const countA = equipmentCountMap.get((a.code || '').toUpperCase()) || 0;
+          const countB = equipmentCountMap.get((b.code || '').toUpperCase()) || 0;
+          return countB - countA;
+        });
+      case 'default':
+      default:
+        if (viewFilter === 'allergen') {
+          return sorted.sort((a, b) => parseAllergenOrder(a.code) - parseAllergenOrder(b.code));
+        }
+        return sorted;
     }
-    return list;
-  }, [items, viewFilter, searchTerm, selectedGroup]);
-
-  // Đếm số máy đo đang gán cho từng chỉ số
-  const equipmentCountMap = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const link of catalogItemEquipments) {
-      const raw = link.catalogCode || (link as unknown as { catalog_code?: string }).catalog_code;
-      if (!raw) continue;
-      const key = raw.toUpperCase();
-      counts.set(key, (counts.get(key) || 0) + 1);
-    }
-    return counts;
-  }, [catalogItemEquipments]);
+  }, [
+    items,
+    viewFilter,
+    searchTerm,
+    selectedGroup,
+    equipmentFilter,
+    evalTypeFilter,
+    refRangeFilter,
+    priceFilter,
+    sortBy,
+    equipmentCountMap,
+    itemEquipmentSetMap
+  ]);
 
   const handleOpenAdd = () => {
     setEditingItem(null);
@@ -548,6 +653,7 @@ export function IndicatorTable({
         totalCount={items.length}
         generalCount={generalCount}
         allergenCount={allergenCount}
+        filteredCount={filteredItems.length}
         isQuickEditMode={isQuickEditMode}
         onToggleQuickEditMode={() => setIsQuickEditMode((prev) => !prev)}
         searchInputRef={searchInputRef}
@@ -555,6 +661,21 @@ export function IndicatorTable({
         onExportExcel={exportCatalogItemsTemplate}
         onImportExcel={handleImportExcel}
         onDownloadTemplate={exportCatalogItemsTemplate}
+        equipments={equipments}
+        equipmentFilter={equipmentFilter}
+        onEquipmentFilterChange={setEquipmentFilter}
+        evalTypeFilter={evalTypeFilter}
+        onEvalTypeFilterChange={setEvalTypeFilter}
+        refRangeFilter={refRangeFilter}
+        onRefRangeFilterChange={setRefRangeFilter}
+        priceFilter={priceFilter}
+        onPriceFilterChange={setPriceFilter}
+        sortBy={sortBy}
+        onSortByChange={setSortBy}
+        showAdvancedFilters={showAdvancedFilters}
+        onToggleAdvancedFilters={() => setShowAdvancedFilters((prev) => !prev)}
+        onResetFilters={handleResetFilters}
+        activeFilterCount={activeFilterCount}
       />
 
       <div className="flex-1 min-h-0 overflow-auto p-2 sm:p-3">

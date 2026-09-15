@@ -30,6 +30,7 @@ import { LabReportAggregate } from '@domain/aggregates/LabReportAggregate';
 import { ReportKindResolver } from '@domain/valueObjects/ReportKind';
 import { exportReportsExcel } from '@infra/excelService';
 import { downloadDataUrlAsImage } from '@infra/qrService';
+import { ReportTableSkeleton } from './ReportTableSkeleton';
 
 interface ReportManagerModalProps {
   isOpen: boolean;
@@ -49,6 +50,9 @@ interface ReportManagerModalProps {
   onDeleteReport: (id: string) => void;
   onClearAllReports: () => void;
   showToast: (message: string, type?: ToastType) => void;
+  isLoading?: boolean;
+  isFetching?: boolean;
+  onRefetch?: () => void;
 }
 
 type PdfStatusFilterType = 'ALL' | 'OUTDATED' | 'LATEST' | 'NOT_EXPORTED';
@@ -72,7 +76,10 @@ export default function ReportManagerModal({
   isUpdatingPdf = false,
   onDeleteReport,
   onClearAllReports,
-  showToast
+  showToast,
+  isLoading = false,
+  isFetching = false,
+  onRefetch
 }: ReportManagerModalProps) {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [dateFilter, setDateFilter] = useState<DateFilterType>('ALL');
@@ -300,6 +307,15 @@ export default function ReportManagerModal({
                     <span>{stats.outdated} Cần cập nhật PDF</span>
                   </span>
                 )}
+                {isFetching && (
+                  <span
+                    data-testid="reports-syncing-badge"
+                    className="text-[10px] sm:text-[11px] font-bold bg-sky-500/20 text-sky-300 border border-sky-400/30 px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse"
+                  >
+                    <RefreshCw className="w-2.5 h-2.5 text-sky-400 animate-spin" />
+                    <span>Đang đồng bộ...</span>
+                  </span>
+                )}
               </h3>
               <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5 hidden sm:block">
                 Tra cứu, nạp lại dữ liệu, quản lý trạng thái PDF Cloud, mã QR và xuất báo cáo
@@ -329,6 +345,18 @@ export default function ReportManagerModal({
               <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
               <span className="hidden sm:inline">Xuất Excel</span>
             </button>
+
+            {onRefetch && (
+              <button
+                type="button"
+                onClick={onRefetch}
+                disabled={isFetching}
+                className="p-1.5 sm:p-2 text-slate-400 hover:text-sky-300 hover:bg-slate-800 rounded-xl transition disabled:opacity-50"
+                title="Tải lại dữ liệu phiếu từ máy chủ"
+              >
+                <RefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 ${isFetching ? 'animate-spin text-sky-400' : ''}`} />
+              </button>
+            )}
 
             <button
               type="button"
@@ -682,7 +710,9 @@ export default function ReportManagerModal({
 
         {/* DANH SÁCH BẢNG HỒ SƠ PHIẾU XÉT NGHIỆM */}
         <div className="flex-1 overflow-y-auto p-4 text-xs">
-          {filteredReports.length === 0 ? (
+          {isLoading ? (
+            <ReportTableSkeleton />
+          ) : filteredReports.length === 0 ? (
             <div className="py-16 text-center text-slate-400 space-y-3">
               <AlertCircle className="w-10 h-10 mx-auto text-slate-600" />
               <p className="text-sm font-semibold">Không tìm thấy phiếu xét nghiệm nào phù hợp với bộ lọc!</p>

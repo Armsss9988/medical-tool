@@ -39,7 +39,10 @@ export function PrintLayer({
   previewSelectedTemplate,
   renderDynamicReport
 }: PrintLayerProps) {
-  const effectiveTemplate = previewSelectedTemplate || activeTemplate;
+  // Nếu preview chỉ định rõ null (chế độ Tự Động): tuyệt đối không fallback về activeTemplate
+  const effectiveTemplate = previewSelectedTemplate !== undefined
+    ? previewSelectedTemplate
+    : (activeTemplate && !activeTemplate.isDefault ? activeTemplate : null);
   const {
     patient,
     selectedTests,

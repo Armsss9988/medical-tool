@@ -98,11 +98,30 @@
     margin: 0;
   }
 
+  /* Cô lập bản in từ Preview Modal: loại bỏ transform scale, ép chuẩn 210mm x 297mm */
+  #preview-print-modal-container {
+    transform: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 210mm !important;
+    min-width: 210mm !important;
+    max-width: 210mm !important;
+    display: block !important;
+  }
+
+  .print-layer-container {
+    display: none !important;
+  }
+
   .report-page {
     page-break-after: always;
     break-after: page;
     margin: 0 !important;
     box-shadow: none !important;
+    width: 210mm !important;
+    min-width: 210mm !important;
+    max-width: 210mm !important;
   }
 
   .report-page:last-child {
@@ -136,10 +155,18 @@
 #printable-medical-report *,
 #printable-allergen-report,
 #printable-allergen-report *,
+#printable-dynamic-report,
+#printable-dynamic-report *,
+#preview-print-modal-container,
+#preview-print-modal-container *,
 #preview-print-element,
 #preview-print-element *,
 #preview-allergen-element,
-#preview-allergen-element * {
+#preview-allergen-element *,
+#preview-hybrid-element,
+#preview-hybrid-element *,
+#preview-dynamic-element,
+#preview-dynamic-element * {
   font-family: 'Times New Roman', Times, 'Liberation Serif', serif !important;
   letter-spacing: 0.02px !important;
   word-spacing: normal !important;
@@ -163,3 +190,19 @@
   page-break-inside: avoid;
 }
 
+/* TanStack Query Global Loading Bar Keyframes */
+@keyframes queryProgress {
+  0% {
+    transform: translateX(-100%) scaleX(0.2);
+  }
+  50% {
+    transform: translateX(0%) scaleX(0.7);
+  }
+  100% {
+    transform: translateX(100%) scaleX(0.2);
+  }
+}
+
+.animate-query-progress {
+  animation: queryProgress 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}

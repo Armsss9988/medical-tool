@@ -216,11 +216,11 @@ export default function PdfPreviewModal({
   }, [isOpen, computeFitZoom]);
 
   // Đồng bộ chosenTemplate ra PrintLayer bên ngoài an toàn (tránh re-render loop)
-  const prevChosenIdRef = useRef<string | null>(null);
+  const prevChosenIdRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     if (!isOpen) {
-      if (prevChosenIdRef.current !== null) {
-        prevChosenIdRef.current = null;
+      if (prevChosenIdRef.current !== undefined) {
+        prevChosenIdRef.current = undefined;
         onSelectedTemplateChange?.(null);
       }
       return;
@@ -277,11 +277,11 @@ export default function PdfPreviewModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-[60] flex items-center justify-center p-0 sm:p-3 md:p-6 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-        <div className="bg-slate-900 border border-slate-700/80 sm:rounded-2xl shadow-2xl flex flex-col w-full h-full sm:max-w-5xl sm:h-[92vh] overflow-hidden text-slate-100">
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-0 sm:p-3 md:p-6 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200 print:fixed print:inset-0 print:z-[99999] print:bg-white print:p-0 print:m-0 print:block">
+        <div className="bg-slate-900 border border-slate-700/80 sm:rounded-2xl shadow-2xl flex flex-col w-full h-full sm:max-w-5xl sm:h-[92vh] overflow-hidden text-slate-100 print:bg-white print:border-none print:shadow-none print:w-auto print:h-auto print:max-w-none print:overflow-visible print:block">
         
         {/* Header Modal */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 sm:px-6 py-3 sm:py-3.5 border-b border-slate-800 gap-2 sm:gap-3 shrink-0 bg-slate-900/90 backdrop-blur">
+        <div className="no-print flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 sm:px-6 py-3 sm:py-3.5 border-b border-slate-800 gap-2 sm:gap-3 shrink-0 bg-slate-900/90 backdrop-blur">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-sm border border-emerald-500/30">
               <FileText className="w-4 h-4" />
@@ -467,7 +467,7 @@ export default function PdfPreviewModal({
 
         {/* ─── DOWNLOAD PDF PROGRESS BAR (KHI ĐANG TẢI FILE PDF VỀ MÁY) ───────── */}
         {effectiveDownloading && (
-          <div className="bg-slate-950 border-b border-teal-800/80 px-4 sm:px-6 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in slide-in-from-top duration-150">
+          <div className="no-print bg-slate-950 border-b border-teal-800/80 px-4 sm:px-6 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in slide-in-from-top duration-150">
             <div className="flex items-center gap-2.5 text-xs font-bold text-teal-300 shrink-0">
               <Loader2 className="w-4 h-4 animate-spin text-teal-400 shrink-0" />
               <span>Tiến trình tải PDF:</span>
@@ -492,7 +492,7 @@ export default function PdfPreviewModal({
 
         {/* ─── TRANSACTION STEP PROGRESS BAR (KHI ĐANG XUẤT) ────────────────── */}
         {isExporting && (
-          <div className="bg-slate-950 border-b border-slate-800 px-6 py-2.5 flex items-center justify-between gap-4 animate-in slide-in-from-top duration-150">
+          <div className="no-print bg-slate-950 border-b border-slate-800 px-6 py-2.5 flex items-center justify-between gap-4 animate-in slide-in-from-top duration-150">
             <div className="flex items-center gap-2 text-xs font-bold text-sky-400">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
               <span>Tiến trình Transaction:</span>
@@ -535,7 +535,7 @@ export default function PdfPreviewModal({
 
         {/* ─── ERROR NOTIFICATION & MANUAL RETRY BANNER ───────────────────── */}
         {lastError && !isExporting && (
-          <div className="bg-red-950/70 border-b border-red-800/60 px-5 py-2.5 flex items-center justify-between animate-in slide-in-from-top duration-200">
+          <div className="no-print bg-red-950/70 border-b border-red-800/60 px-5 py-2.5 flex items-center justify-between animate-in slide-in-from-top duration-200">
             <div className="flex items-center gap-3">
               <div className="p-1.5 rounded-full bg-red-900/60 text-red-300 shrink-0">
                 <AlertTriangle className="w-4 h-4" />
@@ -566,7 +566,7 @@ export default function PdfPreviewModal({
 
         {/* ─── PANEL LỊCH SỬ VERSION (LEDGER) ────────────────────────────── */}
         {showHistory && (
-          <div className="bg-slate-950 border-b border-purple-900/40 px-5 py-3 animate-in slide-in-from-top duration-200">
+          <div className="no-print bg-slate-950 border-b border-purple-900/40 px-5 py-3 animate-in slide-in-from-top duration-200">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
                 <History className="w-3.5 h-3.5" />
@@ -623,7 +623,7 @@ export default function PdfPreviewModal({
 
         {/* Banner Cảnh Báo Không Khớp Dữ Liệu */}
         {chosenTemplateCompatibility && !chosenTemplateCompatibility.isCompatible && (
-          <div className="bg-amber-950/80 border-b border-amber-600/50 px-6 py-2.5 flex items-center justify-between text-xs text-amber-200 shrink-0 animate-in slide-in-from-top duration-150">
+          <div className="no-print bg-amber-950/80 border-b border-amber-600/50 px-6 py-2.5 flex items-center justify-between text-xs text-amber-200 shrink-0 animate-in slide-in-from-top duration-150">
             <div className="flex items-center space-x-2">
               <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
               <span>
@@ -641,9 +641,10 @@ export default function PdfPreviewModal({
         )}
 
         {/* Khung Hiển Thị Mẫu In A4 (Với Tỉ Lệ Zoom Linh Hoạt) */}
-        <div className="flex-1 overflow-auto p-2 sm:p-4 md:p-8 bg-slate-950 flex justify-center items-start relative">
+        <div className="flex-1 overflow-auto p-2 sm:p-4 md:p-8 bg-slate-950 flex justify-center items-start relative print:p-0 print:m-0 print:overflow-visible print:bg-white print:block">
           <div 
-            className="shadow-2xl rounded-sm overflow-hidden bg-white transition-transform duration-150 origin-top"
+            id="preview-print-modal-container"
+            className="shadow-2xl rounded-sm overflow-hidden bg-white transition-transform duration-150 origin-top print:shadow-none print:transform-none print:m-0 print:p-0 print:w-auto print:block"
             style={{ transform: `scale(${zoomScale})` }}
           >
             {chosenTemplate && renderDynamicReport ? (
@@ -709,7 +710,7 @@ export default function PdfPreviewModal({
           {(effectiveDownloading || isExporting) && (
             <div 
               data-html2canvas-ignore="true" 
-              className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4 animate-in fade-in duration-200 pointer-events-auto"
+              className="no-print absolute inset-0 z-30 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4 animate-in fade-in duration-200 pointer-events-auto"
             >
               <div className="bg-slate-900/95 border border-teal-500/40 rounded-2xl shadow-2xl p-6 max-w-sm w-full text-center flex flex-col items-center space-y-4 animate-in zoom-in-95 duration-150">
                 <div className="relative p-3.5 bg-teal-500/10 border border-teal-500/30 rounded-2xl">
@@ -759,7 +760,7 @@ export default function PdfPreviewModal({
         </div>
 
         {/* Footer Modal Đóng */}
-        <div className="bg-slate-900 px-6 py-2.5 border-t border-slate-800 flex items-center justify-between shrink-0">
+        <div className="no-print bg-slate-900 px-6 py-2.5 border-t border-slate-800 flex items-center justify-between shrink-0">
           <div className="text-[11px] text-slate-400 flex items-center gap-3">
             <span>Danh mục: <strong className="text-sky-400">{safeSelectedTests.length} chỉ số</strong></span>
             {cloudLink && (
@@ -810,7 +811,7 @@ export default function PdfPreviewModal({
 
     {/* ─── CONFIRMATION MODAL: YÊU CẦU XÁC NHẬN LƯU TRƯỚC KHI XUẤT CLOUD ── */}
     {showConfirmExport && (
-      <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+      <div className="no-print fixed inset-0 z-[110] bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
         <div className="bg-white text-slate-900 rounded-2xl shadow-2xl max-w-md w-full p-6 border border-slate-200 animate-in zoom-in-95 duration-150 space-y-4">
           <div className="flex items-center space-x-3">
             <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
@@ -874,7 +875,7 @@ export default function PdfPreviewModal({
               type="button"
               onClick={() => {
                 setShowConfirmExport(false);
-                onExportPdfAndUpload(chosenTemplate ? PRINT_ELEMENT_ID.DYNAMIC_REPORT : undefined);
+                onExportPdfAndUpload(printLayerElementId);
               }}
               className="px-4 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer active:scale-95"
             >

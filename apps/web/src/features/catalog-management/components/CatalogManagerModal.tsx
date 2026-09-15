@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { X, Save, Layers, Stethoscope, FlaskConical, Activity, Cpu, FolderTree, Sliders } from 'lucide-react';
+import { X, Save, Layers, Stethoscope, FlaskConical, Activity, Cpu, FolderTree, Sliders, RefreshCw } from 'lucide-react';
 import { autoResolveItemLinks } from '@data';
 import {
   CatalogItem,
@@ -21,6 +21,7 @@ import { ScalesTable } from './scales/ScalesTable';
 import { EquipmentTable } from './equipments/EquipmentTable';
 import { GroupTable } from './groups/GroupTable';
 import { ReferenceRangeTable } from './ranges/ReferenceRangeTable';
+import { CatalogTableSkeleton } from './CatalogTableSkeleton';
 
 interface CatalogManagerModalProps {
   isOpen: boolean;
@@ -53,6 +54,9 @@ interface CatalogManagerModalProps {
     referenceRanges?: ReferenceRangeItem[];
   }) => Promise<void>;
   showToast?: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
+  isLoading?: boolean;
+  isFetching?: boolean;
+  onRefetch?: () => void;
 }
 
 export default function CatalogManagerModal({ 
@@ -76,7 +80,10 @@ export default function CatalogManagerModal({
   referenceRanges = [],
   onSaveReferenceRanges,
   onSaveAllData,
-  showToast
+  showToast,
+  isLoading = false,
+  isFetching = false,
+  onRefetch
 }: CatalogManagerModalProps) {
   const [activeTab, setActiveTab] = useState<CatalogTabType>(targetTab || CATALOG_TAB.INDICATORS);
   const [items, setItems] = useState<CatalogItem[]>(() => catalog.map(autoResolveItemLinks));
@@ -90,10 +97,27 @@ export default function CatalogManagerModal({
   const [isSaving, setIsSaving] = useState(false);
 
   const prevIsOpenRef = useRef(false);
+  const prevLoadingRef = useRef(isLoading);
+  const prevFetchingRef = useRef(isFetching);
 
-  // Chỉ khởi tạo nạp dữ liệu khi modal chuyển từ đóng sang mở
+  // Khởi tạo và đồng bộ nạp dữ liệu vào UI modal:
+  // 1. Khi modal vừa mở
+  // 2. Khi TanStack Query vừa kết thúc loading (skeleton tắt, dữ liệu server vừa về)
+  // 3. Khi state cục bộ đang rỗng mà props vừa nhận được dữ liệu (chống tình trạng kẹt bảng rỗng)
+  // 4. Khi vừa kết thúc thao tác tải lại / đồng bộ thủ công (onRefetch)
   useEffect(() => {
-    if (isOpen && !prevIsOpenRef.current) {
+    if (!isOpen) {
+      prevIsOpenRef.current = false;
+      prevLoadingRef.current = isLoading;
+      prevFetchingRef.current = isFetching;
+      return;
+    }
+
+    const isOpening = !prevIsOpenRef.current && isOpen;
+    const justFinishedLoading = prevLoadingRef.current && !isLoading;
+    const justFinishedFetching = prevFetchingRef.current && !isFetching;
+
+    if (isOpening || justFinishedLoading) {
       setItems(catalog.map(autoResolveItemLinks));
       setPackages(testPackages.map(normalizeTestPackage));
       setGroups(testGroups);
@@ -102,10 +126,74 @@ export default function CatalogManagerModal({
       setItemEquipments(catalogItemEquipments);
       setScalesList(allergenScales || []);
       setRangesList(referenceRanges || []);
-      setActiveTab(targetTab || CATALOG_TAB.INDICATORS);
+      if (isOpening) {
+        setActiveTab(targetTab || CATALOG_TAB.INDICATORS);
+      }
+    } else {
+      // Tự động nạp từng bảng nếu state cục bộ đang rỗng mà props server đã sẵn sàng dữ liệu
+      if (items.length === 0 && catalog.length > 0) {
+        setItems(catalog.map(autoResolveItemLinks));
+      }
+      if (packages.length === 0 && testPackages.length > 0) {
+        setPackages(testPackages.map(normalizeTestPackage));
+      }
+      if (groups.length === 0 && testGroups.length > 0) {
+        setGroups(testGroups);
+      }
+      if (eqList.length === 0 && equipments.length > 0) {
+        setEqList(equipments);
+      }
+      if (docsList.length === 0 && doctorsList.length > 0) {
+        setDocsList(doctorsList);
+      }
+      if (itemEquipments.length === 0 && (catalogItemEquipments || []).length > 0) {
+        setItemEquipments(catalogItemEquipments);
+      }
+      if (scalesList.length === 0 && (allergenScales || []).length > 0) {
+        setScalesList(allergenScales || []);
+      }
+      if (rangesList.length === 0 && (referenceRanges || []).length > 0) {
+        setRangesList(referenceRanges || []);
+      }
+
+      // Khi người dùng bấm nút làm mới / tải lại và server vừa phản hồi xong
+      if (justFinishedFetching) {
+        setItems(catalog.map(autoResolveItemLinks));
+        setPackages(testPackages.map(normalizeTestPackage));
+        setGroups(testGroups);
+        setEqList(equipments);
+        setDocsList(doctorsList);
+        setItemEquipments(catalogItemEquipments);
+        setScalesList(allergenScales || []);
+        setRangesList(referenceRanges || []);
+      }
     }
+
     prevIsOpenRef.current = isOpen;
-  }, [isOpen, catalog, testPackages, testGroups, equipments, doctorsList, catalogItemEquipments, allergenScales, referenceRanges, targetTab]);
+    prevLoadingRef.current = isLoading;
+    prevFetchingRef.current = isFetching;
+  }, [
+    isOpen,
+    isLoading,
+    isFetching,
+    catalog,
+    testPackages,
+    testGroups,
+    equipments,
+    doctorsList,
+    catalogItemEquipments,
+    allergenScales,
+    referenceRanges,
+    targetTab,
+    items.length,
+    packages.length,
+    groups.length,
+    eqList.length,
+    docsList.length,
+    itemEquipments.length,
+    scalesList.length,
+    rangesList.length
+  ]);
 
   // Nếu targetTab thay đổi từ bên ngoài khi modal đang mở, cập nhật activeTab tương ứng
   const prevTargetTabRef = useRef(targetTab);
@@ -279,6 +367,15 @@ export default function CatalogManagerModal({
                 <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-400/30 px-2 py-0.5 rounded">
                   {items.length} Chỉ Số • {packages.length} Gói • {eqList.length} Máy
                 </span>
+                {isFetching && (
+                  <span
+                    data-testid="catalog-syncing-badge"
+                    className="text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-400/40 px-2 py-0.5 rounded flex items-center gap-1 animate-pulse"
+                  >
+                    <RefreshCw className="w-2.5 h-2.5 text-sky-400 animate-spin" />
+                    <span>Đang đồng bộ...</span>
+                  </span>
+                )}
                 {hasUnsavedChanges && (
                   <span className="text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-400/40 px-2 py-0.5 rounded animate-pulse">
                     ● Có thay đổi chưa lưu
@@ -292,6 +389,17 @@ export default function CatalogManagerModal({
           </div>
 
           <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
+            {onRefetch && (
+              <button
+                type="button"
+                onClick={onRefetch}
+                disabled={isFetching}
+                className="p-1.5 sm:p-2 text-slate-400 hover:text-sky-300 rounded-xl hover:bg-slate-800 transition cursor-pointer disabled:opacity-50"
+                title="Tải lại danh mục từ máy chủ"
+              >
+                <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin text-sky-400' : ''}`} />
+              </button>
+            )}
             <button
               type="button"
               disabled={isSaving}
@@ -425,8 +533,14 @@ export default function CatalogManagerModal({
 
         {/* TAB CONTENT WRAPPER */}
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col relative bg-slate-50">
-          {/* TAB 1: TOÀN BỘ CHỈ SỐ XÉT NGHIỆM */}
-          {(activeTab === 'INDICATORS' || activeTab === 'ALLERGENS') && (
+          {isLoading ? (
+            <div className="p-4 flex-1 overflow-y-auto">
+              <CatalogTableSkeleton />
+            </div>
+          ) : (
+            <>
+              {/* TAB 1: TOÀN BỘ CHỈ SỐ XÉT NGHIỆM */}
+              {(activeTab === 'INDICATORS' || activeTab === 'ALLERGENS') && (
             <IndicatorTable
               items={items}
               setItems={setItems}
@@ -504,6 +618,8 @@ export default function CatalogManagerModal({
               onSaveAllData={onSaveAllData}
               showToast={showToast}
             />
+          )}
+            </>
           )}
         </div>
 

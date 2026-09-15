@@ -204,6 +204,18 @@ describe('TestResult Domain - evaluateResult & evaluateTestIndicator', () => {
       expect(resolveTestEquipmentName({ code: 'URE', category: 'Sinh Hóa' }, mockEquipments, [])).toBe('MS-360 (Vi Chất)');
     });
 
+    it('should resolve equipment by equipmentId or equipment property', () => {
+      expect(resolveTestEquipmentName({ equipmentId: 'eq_1' }, mockEquipments, [])).toBe('MS-H630 (Máy Phân Tích Huyết Học)');
+      expect(resolveTestEquipmentName({ equipment: 'eq_2' }, mockEquipments, [])).toBe('MS-360 (Vi Chất)');
+      expect(resolveTestEquipmentName({ equipment: 'COBAS-E801' }, mockEquipments, [])).toBe('Roche cobas e 801 (Miễn Dịch)');
+    });
+
+    it('should fallback to DEFAULT_TEST_EQUIPMENTS and never return raw IDs', () => {
+      expect(resolveTestEquipmentName({ equipmentId: 'eq_msh630' }, [], [])).toBe('MS-H630 (Máy Phân Tích Huyết Học)');
+      expect(resolveTestEquipmentName({ equipment: 'eq_ms360' }, [], [])).toBe('MS-360 (Vi Chất)');
+      expect(resolveTestEquipmentName({ equipment: 'eq_non_existent' }, [], [])).toBe('Tự động');
+    });
+
     it('should return Tự động for unknown indicators without links', () => {
       expect(resolveTestEquipmentName({ code: 'LEU_U', category: 'Nước Tiểu' }, mockEquipments, [])).toBe('Tự động');
       expect(resolveTestEquipmentName(null, mockEquipments, [])).toBe('Tự động');

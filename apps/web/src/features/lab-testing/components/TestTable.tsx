@@ -30,6 +30,8 @@ interface TestTableProps {
   /** Navigation callback for mobile flow */
   onNavigateNext?: () => void;
   onNavigateBack?: () => void;
+  /** State when catalog is loading from remote/TanStack Query */
+  isCatalogLoading?: boolean;
 }
 
 export default function TestTable({ 
@@ -48,7 +50,8 @@ export default function TestTable({
   onAddToRecent,
   onAddMultipleToRecent,
   onNavigateNext,
-  onNavigateBack
+  onNavigateBack,
+  isCatalogLoading = false
 }: TestTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -576,7 +579,17 @@ export default function TestTable({
       )}
 
       {/* Package Quick Selector & Chips (Swipeable Horizontal Scroll on Mobile) */}
-      {validPackages.length > 0 && (
+      {isCatalogLoading && validPackages.length === 0 ? (
+        <div
+          data-testid="catalog-loading-packages"
+          className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200/80 rounded-xl overflow-x-auto no-scrollbar animate-pulse"
+        >
+          <div className="h-4 w-20 bg-slate-200 rounded" />
+          <div className="h-7 w-32 bg-slate-200 rounded-lg" />
+          <div className="h-7 w-24 bg-slate-200 rounded-lg hidden sm:block" />
+          <div className="h-7 w-28 bg-slate-200 rounded-lg hidden md:block" />
+        </div>
+      ) : validPackages.length > 0 ? (
         <div className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200/80 rounded-xl overflow-x-auto no-scrollbar">
           <div className="flex items-center gap-1.5 shrink-0">
             <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1 px-1">
@@ -634,7 +647,7 @@ export default function TestTable({
             ))}
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Catalog Search & Add Dropdown */}
       <div className="relative">
@@ -646,7 +659,7 @@ export default function TestTable({
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onKeyDown={handleSearchKeyDown}
-            placeholder="Tìm chỉ số → Enter thêm nhanh, ↑↓ chọn, Esc đóng"
+            placeholder={isCatalogLoading ? "Đang đồng bộ danh mục xét nghiệm..." : "Tìm chỉ số → Enter thêm nhanh, ↑↓ chọn, Esc đóng"}
             className="w-full pl-9 pr-8 py-2 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-300 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 rounded-xl text-xs text-slate-900 font-semibold focus:outline-none transition-all shadow-2xs"
           />
           {searchTerm && (

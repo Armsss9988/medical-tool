@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import {
   X, CreditCard, Trash2, Search, Calendar, FileSpreadsheet, Printer,
   TrendingUp, Users, DollarSign, Eye, AlertCircle, CheckCircle, Percent,
-  Clock, Undo2, AlertTriangle, SlidersHorizontal, RotateCcw
+  Clock, Undo2, AlertTriangle, SlidersHorizontal, RotateCcw, RefreshCw
 } from 'lucide-react';
 import { 
   Invoice, Doctor, ClinicInfo, MedicalReport, TestPackage, ToastType,
@@ -13,6 +13,7 @@ import { ReportKindResolver } from '@domain/valueObjects/ReportKind';
 import { computePricingWithPackages } from '@domain/pricing';
 import { exportRevenueExcel } from '@infra/excelService';
 import PrintReceiptView from './PrintReceiptView';
+import { RevenueKpiSkeleton, InvoiceTableSkeleton } from './RevenueSkeleton';
 
 interface RevenueManagerModalProps {
   isOpen: boolean;
@@ -27,6 +28,9 @@ interface RevenueManagerModalProps {
   doctorsList?: Doctor[];
   clinicInfo?: ClinicInfo;
   showToast?: (message: string, type?: ToastType) => void;
+  isLoading?: boolean;
+  isFetching?: boolean;
+  onRefetch?: () => void;
 }
 
 export default function RevenueManagerModal({
@@ -41,7 +45,10 @@ export default function RevenueManagerModal({
   onClearAllInvoices,
   doctorsList = [],
   clinicInfo,
-  showToast
+  showToast,
+  isLoading = false,
+  isFetching = false,
+  onRefetch
 }: RevenueManagerModalProps) {
   const safeClinic = getSafeClinicInfo(clinicInfo);
   const [activeTab, setActiveTab] = useState<RevenueTabType>(REVENUE_TAB.INVOICES);
@@ -329,6 +336,15 @@ export default function RevenueManagerModal({
                 <span className="text-[10px] sm:text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded-full font-mono">
                   {filteredInvoices.length} Hóa Đơn
                 </span>
+                {isFetching && (
+                  <span
+                    data-testid="invoices-syncing-badge"
+                    className="text-[10px] sm:text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse font-sans"
+                  >
+                    <RefreshCw className="w-2.5 h-2.5 text-amber-400 animate-spin" />
+                    <span>Đang đồng bộ...</span>
+                  </span>
+                )}
               </h3>
               <p className="text-[11px] sm:text-xs text-slate-400 hidden sm:block">
                 Theo dõi viện phí, đối soát doanh số bác sĩ, in phiếu thu & xuất báo cáo tài chính
@@ -345,6 +361,18 @@ export default function RevenueManagerModal({
               <FileSpreadsheet className="w-4 h-4" />
               <span className="hidden sm:inline">Xuất Sổ Excel</span>
             </button>
+
+            {onRefetch && (
+              <button
+                type="button"
+                onClick={onRefetch}
+                disabled={isFetching}
+                className="p-1.5 sm:p-2 text-slate-400 hover:text-amber-300 hover:bg-slate-800 rounded-xl transition disabled:opacity-50"
+                title="Tải lại sổ hóa đơn từ máy chủ"
+              >
+                <RefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 ${isFetching ? 'animate-spin text-amber-400' : ''}`} />
+              </button>
+            )}
 
             <button
               type="button"
@@ -408,78 +436,82 @@ export default function RevenueManagerModal({
         </div>
 
         {/* THẺ DASHBOARD KPIS */}
-        <div className="flex overflow-x-auto no-scrollbar touch-pan-x lg:grid lg:grid-cols-6 gap-2 sm:gap-2.5 p-2.5 sm:p-4 bg-slate-950/40 border-b border-slate-800/80 text-xs shrink-0">
-          <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 sm:p-3 flex items-center justify-between shrink-0 min-w-[125px] lg:min-w-0">
-            <div>
-              <p className="text-slate-400 font-medium text-[10px] sm:text-[11px]">Tổng thực thu</p>
-              <p className="text-xs sm:text-sm lg:text-base font-black text-amber-400 font-mono mt-0.5">
-                {kpis.totalFinal.toLocaleString('vi-VN')} đ
-              </p>
+        {isLoading ? (
+          <RevenueKpiSkeleton />
+        ) : (
+          <div className="flex overflow-x-auto no-scrollbar touch-pan-x lg:grid lg:grid-cols-6 gap-2 sm:gap-2.5 p-2.5 sm:p-4 bg-slate-950/40 border-b border-slate-800/80 text-xs shrink-0">
+            <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 sm:p-3 flex items-center justify-between shrink-0 min-w-[125px] lg:min-w-0">
+              <div>
+                <p className="text-slate-400 font-medium text-[10px] sm:text-[11px]">Tổng thực thu</p>
+                <p className="text-xs sm:text-sm lg:text-base font-black text-amber-400 font-mono mt-0.5">
+                  {kpis.totalFinal.toLocaleString('vi-VN')} đ
+                </p>
+              </div>
+              <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400/80" />
             </div>
-            <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400/80" />
-          </div>
 
-          <div
-            onClick={() => setActiveTab('PENDING_PAYMENT')}
-            className={`border rounded-xl p-2.5 sm:p-3 flex items-center justify-between cursor-pointer transition shrink-0 min-w-[125px] lg:min-w-0 ${
-              totalPendingAmount > 0
-                ? 'bg-rose-950/20 border-rose-500/40 hover:bg-rose-950/40'
-                : 'bg-slate-800/60 border-slate-700/60'
-            }`}
-            title="Click để xem danh sách phiếu chờ thu tiền"
-          >
-            <div>
-              <p className="text-rose-300 font-medium text-[10px] sm:text-[11px] flex items-center gap-1">
-                <span>Chờ thu</span>
-                {pendingReports.length > 0 && (
-                  <span className="text-[9px] bg-rose-500 text-white px-1 rounded font-bold">{pendingReports.length}</span>
-                )}
-              </p>
-              <p className="text-xs sm:text-sm lg:text-base font-black text-rose-400 font-mono mt-0.5">
-                {totalPendingAmount.toLocaleString('vi-VN')} đ
-              </p>
+            <div
+              onClick={() => setActiveTab('PENDING_PAYMENT')}
+              className={`border rounded-xl p-2.5 sm:p-3 flex items-center justify-between cursor-pointer transition shrink-0 min-w-[125px] lg:min-w-0 ${
+                totalPendingAmount > 0
+                  ? 'bg-rose-950/20 border-rose-500/40 hover:bg-rose-950/40'
+                  : 'bg-slate-800/60 border-slate-700/60'
+              }`}
+              title="Click để xem danh sách phiếu chờ thu tiền"
+            >
+              <div>
+                <p className="text-rose-300 font-medium text-[10px] sm:text-[11px] flex items-center gap-1">
+                  <span>Chờ thu</span>
+                  {pendingReports.length > 0 && (
+                    <span className="text-[9px] bg-rose-500 text-white px-1 rounded font-bold">{pendingReports.length}</span>
+                  )}
+                </p>
+                <p className="text-xs sm:text-sm lg:text-base font-black text-rose-400 font-mono mt-0.5">
+                  {totalPendingAmount.toLocaleString('vi-VN')} đ
+                </p>
+              </div>
+              <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-rose-400/80" />
             </div>
-            <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-rose-400/80" />
-          </div>
 
-          <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 sm:p-3 flex items-center justify-between shrink-0 min-w-[125px] lg:min-w-0">
-            <div>
-              <p className="text-slate-400 font-medium text-[10px] sm:text-[11px]">Tổng giảm giá</p>
-              <p className="text-xs sm:text-sm lg:text-base font-black text-rose-300 font-mono mt-0.5">
-                {kpis.totalDiscount.toLocaleString('vi-VN')} đ
-              </p>
+            <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 sm:p-3 flex items-center justify-between shrink-0 min-w-[125px] lg:min-w-0">
+              <div>
+                <p className="text-slate-400 font-medium text-[10px] sm:text-[11px]">Tổng giảm giá</p>
+                <p className="text-xs sm:text-sm lg:text-base font-black text-rose-300 font-mono mt-0.5">
+                  {kpis.totalDiscount.toLocaleString('vi-VN')} đ
+                </p>
+              </div>
+              <Percent className="w-4 h-4 sm:w-5 sm:h-5 text-rose-300/80" />
             </div>
-            <Percent className="w-4 h-4 sm:w-5 sm:h-5 text-rose-300/80" />
-          </div>
 
-          <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 sm:p-3 flex items-center justify-between shrink-0 min-w-[125px] lg:min-w-0">
-            <div>
-              <p className="text-slate-400 font-medium text-[10px] sm:text-[11px]">Số ca đã thu</p>
-              <p className="text-xs sm:text-sm lg:text-base font-black text-white font-mono mt-0.5">
-                {kpis.count} lượt
-              </p>
+            <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 sm:p-3 flex items-center justify-between shrink-0 min-w-[125px] lg:min-w-0">
+              <div>
+                <p className="text-slate-400 font-medium text-[10px] sm:text-[11px]">Số ca đã thu</p>
+                <p className="text-xs sm:text-sm lg:text-base font-black text-white font-mono mt-0.5">
+                  {kpis.count} lượt
+                </p>
+              </div>
+              <Users className="w-4 h-4 sm:w-5 sm:h-5 text-sky-400/80" />
             </div>
-            <Users className="w-4 h-4 sm:w-5 sm:h-5 text-sky-400/80" />
-          </div>
 
-          <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 sm:p-3 flex items-center justify-between shrink-0 min-w-[125px] lg:min-w-0">
-            <div>
-              <p className="text-slate-400 font-medium text-[10px] sm:text-[11px]">TB / Lượt (AOV)</p>
-              <p className="text-xs sm:text-sm lg:text-base font-black text-emerald-400 font-mono mt-0.5">
-                {kpis.aov.toLocaleString('vi-VN')} đ
-              </p>
+            <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 sm:p-3 flex items-center justify-between shrink-0 min-w-[125px] lg:min-w-0">
+              <div>
+                <p className="text-slate-400 font-medium text-[10px] sm:text-[11px]">TB / Lượt (AOV)</p>
+                <p className="text-xs sm:text-sm lg:text-base font-black text-emerald-400 font-mono mt-0.5">
+                  {kpis.aov.toLocaleString('vi-VN')} đ
+                </p>
+              </div>
+              <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400/80" />
             </div>
-            <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400/80" />
-          </div>
 
-          <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 flex flex-col justify-between shrink-0 min-w-[125px] lg:min-w-0">
-            <span className="text-[10px] sm:text-[10.5px] font-bold text-slate-400">Cơ cấu:</span>
-            <div className="flex flex-col space-y-0.5 font-mono text-[10px] sm:text-[10.5px]">
-              <span className="text-slate-300">TM: <strong className="text-white">{kpis.cashTotal.toLocaleString('vi-VN')}</strong></span>
-              <span className="text-indigo-300">QR: <strong className="text-white">{kpis.vietQrTotal.toLocaleString('vi-VN')}</strong></span>
+            <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 flex flex-col justify-between shrink-0 min-w-[125px] lg:min-w-0">
+              <span className="text-[10px] sm:text-[10.5px] font-bold text-slate-400">Cơ cấu:</span>
+              <div className="flex flex-col space-y-0.5 font-mono text-[10px] sm:text-[10.5px]">
+                <span className="text-slate-300">TM: <strong className="text-white">{kpis.cashTotal.toLocaleString('vi-VN')}</strong></span>
+                <span className="text-indigo-300">QR: <strong className="text-white">{kpis.vietQrTotal.toLocaleString('vi-VN')}</strong></span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* BỘ LỌC ĐA NĂNG (DÙNG CHUNG CHO CÁC TAB) */}
         <div className="p-3 sm:p-3.5 bg-slate-900 border-b border-slate-800 space-y-2 shrink-0 text-xs">
@@ -627,7 +659,9 @@ export default function RevenueManagerModal({
           {/* ══════════════ TAB 1: SỔ SÁCH HÓA ĐƠN ══════════════ */}
           {activeTab === 'INVOICES' && (
             <div>
-              {filteredInvoices.length === 0 ? (
+              {isLoading ? (
+                <InvoiceTableSkeleton />
+              ) : filteredInvoices.length === 0 ? (
                 <div className="py-16 text-center text-slate-400 space-y-3">
                   <AlertCircle className="w-10 h-10 mx-auto text-slate-600" />
                   <p className="text-sm font-semibold">Không tìm thấy hóa đơn nào phù hợp với bộ lọc!</p>
@@ -867,7 +901,9 @@ export default function RevenueManagerModal({
                 </div>
               </div>
 
-              {pendingReports.length === 0 ? (
+              {isLoading ? (
+                <InvoiceTableSkeleton />
+              ) : pendingReports.length === 0 ? (
                 <div className="py-16 text-center text-slate-400 space-y-3">
                   <CheckCircle className="w-10 h-10 mx-auto text-emerald-500" />
                   <p className="text-sm font-semibold text-emerald-400">Tuyệt vời! Không có phiếu xét nghiệm nào đang nợ viện phí.</p>

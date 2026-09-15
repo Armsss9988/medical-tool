@@ -21,7 +21,7 @@ export interface UseInvoiceManagerOptions {
 
 export function useInvoiceManager(options?: UseInvoiceManagerOptions) {
   // 1. Quản lý danh sách hóa đơn bằng TanStack Query v5 (Server State)
-  const { invoices, refetch } = useInvoicesQuery();
+  const { invoices, isLoading, isFetching, isError, refetch } = useInvoicesQuery();
   const qc = useQueryClient();
   const saveMutation = useSaveInvoiceMutation();
   const payMutation = usePayInvoiceMutation();
@@ -213,6 +213,9 @@ export function useInvoiceManager(options?: UseInvoiceManagerOptions) {
     updateInvoiceStatus,
     payInvoice,
     cancelInvoice,
+    isLoading,
+    isFetching,
+    isError,
     refetch
   };
 }

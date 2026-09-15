@@ -257,61 +257,105 @@ export function normalizeTestPackage(pkg: TestPackage): TestPackage {
   };
 }
 
+export const DEFAULT_TEST_EQUIPMENTS: ReadonlyArray<TestEquipment> = [
+  { id: 'eq_msh630', name: 'MS-H630 (Máy Phân Tích Huyết Học)', code: 'MS-H630' },
+  { id: 'eq_dynex_ds2', name: 'Dynex DS2 (ELISA Reader)', code: 'DYNEX-DS2' },
+  { id: 'eq_cobas_e801', name: 'Roche cobas e 801 (Miễn Dịch)', code: 'COBAS-E801' },
+  { id: 'eq_tosoh_g11', name: 'Tosoh HLC-723G11 (Huyết Sắc Tố)', code: 'TOSOH-G11' },
+  { id: 'eq_ms360', name: 'MS-360 (Vi Chất)', code: 'MS-360' },
+  { id: 'eq_protia_q', name: 'PROTIA Allergy-Q Smart Q-processor (Dị Nguyên)', code: 'PROTIA-ALLERGY-Q' },
+  { id: 'eq_agilent_7850', name: 'Agilent 7850 ICP-MS (Nguyên Tố Vi Lượng)', code: 'AGILENT-7850' },
+  { id: 'eq_mediwiss_c1', name: 'MEDIWISS AlleisaScreen 44 BLOTrix Reader C1', code: 'MEDIWISS-C1' },
+  { id: 'eq_madx_alex2', name: 'MADx ALEX2 MAX 9k (Dị Nguyên Panel)', code: 'MADX-ALEX2' },
+  { id: 'eq_veritipro_pcr', name: 'Applied Biosystems VeritiPro PCR (Di Truyền)', code: 'VERITIPRO-PCR' },
+  { id: 'eq_microscope', name: 'Kính Hiển Vi Quang Học', code: 'MICROSCOPE' },
+  { id: 'eq_abl90_flex', name: 'Radiometer ABL90 FLEX (Khí Máu)', code: 'ABL90-FLEX' },
+  { id: 'eq_protia_smart', name: 'Máy Đọc Dị Nguyên PROTIA Smart Analyzer', code: 'PROTIA-SMART' },
+  { id: 'eq_manual', name: 'Thủ Công / Khác', code: 'MANUAL' }
+];
+
 /**
- * Helper: Tra cứu tên thiết bị đo phù hợp cho một chỉ số xét nghiệm
+ * Helper: Tra cứu tên thiết bị đo phù hợp cho một chỉ số xét nghiệm (luôn trả về tên hiển thị thân thiện, không bao giờ lộ ID thô)
  */
 export function resolveTestEquipmentName(
-  t: { code?: string; category?: string; scaleId?: string; equipment?: string } | undefined | null,
+  t: { code?: string; category?: string; scaleId?: string; equipment?: string; equipmentId?: string | null } | undefined | null,
   equipments: TestEquipment[] = [],
   catalogItemEquipments: CatalogItemEquipmentLink[] = []
 ): string {
   if (!t) return 'Tự động';
 
-  // 1. Nếu đã có tên máy đo cụ thể và không phải là ID thô (eq_...)
-  if (t.equipment && t.equipment.trim() !== '') {
-    const raw = t.equipment.trim();
-    // Nếu trùng tên hoặc code với thiết bị đã có
-    const matched = equipments.find((e) => e.id === raw || e.name.toLowerCase() === raw.toLowerCase() || (e.code && e.code.toLowerCase() === raw.toLowerCase()));
-    if (matched) return matched.name;
-    if (!raw.startsWith('eq_') && raw !== 'Tự động') return raw;
+  const allEquipments: ReadonlyArray<TestEquipment> = equipments.length > 0 ? equipments : DEFAULT_TEST_EQUIPMENTS;
+
+  const findEq = (query?: string | null): TestEquipment | undefined => {
+    if (!query || typeof query !== 'string' || !query.trim() || query === 'Tự động') return undefined;
+    const q = query.trim().toLowerCase();
+    // 1. Tìm trong danh sách truyền vào
+    const inCurrent = allEquipments.find((e) =>
+      e.id.toLowerCase() === q ||
+      (e.code && e.code.toLowerCase() === q) ||
+      e.name.toLowerCase() === q
+    );
+    if (inCurrent) return inCurrent;
+    // 2. Tìm fallback trong DEFAULT_TEST_EQUIPMENTS
+    return DEFAULT_TEST_EQUIPMENTS.find((e) =>
+      e.id.toLowerCase() === q ||
+      (e.code && e.code.toLowerCase() === q) ||
+      e.name.toLowerCase() === q
+    );
+  };
+
+  // 1. Ưu tiên 1: Tra cứu theo `t.equipmentId` (nếu đã có gán máy đo trực tiếp)
+  if (t.equipmentId) {
+    const eq = findEq(t.equipmentId);
+    if (eq) return eq.name;
   }
 
-  // 2. Tra cứu từ liên kết catalog_item_equipments
+  // 2. Ưu tiên 2: Tra cứu theo `t.equipment`
+  if (t.equipment && t.equipment.trim() !== '') {
+    const raw = t.equipment.trim();
+    const eq = findEq(raw);
+    if (eq) return eq.name;
+    // Nếu là tên hiển thị thông thường (không phải ID thô dạng eq_... hoặc uuid)
+    const isRawId = raw.startsWith('eq_') || /^[0-9a-f]{8}-[0-9a-f]{4}/i.test(raw);
+    if (!isRawId && raw !== 'Tự động') return raw;
+  }
+
+  // 3. Ưu tiên 3: Tra cứu từ liên kết catalog_item_equipments
   const code = (t.code || '').trim().toUpperCase();
   if (code && catalogItemEquipments.length > 0) {
-    const links = catalogItemEquipments.filter((l) => l.catalogCode.toUpperCase() === code);
+    const links = catalogItemEquipments.filter((l) => (l.catalogCode || '').toUpperCase() === code);
     const defaultLink = links.find((l) => l.isDefault) || links[0];
-    if (defaultLink) {
-      const eq = equipments.find((e) => e.id === defaultLink.equipmentId);
+    if (defaultLink && defaultLink.equipmentId) {
+      const eq = findEq(defaultLink.equipmentId);
       if (eq) return eq.name;
     }
   }
 
-  // 3. Tra cứu theo nhóm dị nguyên hoặc thang đo
+  // 4. Ưu tiên 4: Tra cứu theo nhóm dị nguyên hoặc thang đo
   if (t.category?.includes('Dị Nguyên') || t.scaleId) {
     if (t.scaleId === 'scale_allergen_44') return 'MEDIWISS AlleisaScreen 44 BLOTrix Reader C1';
     return 'Máy Đọc Dị Nguyên PROTIA Smart Analyzer';
   }
 
-  // 4. Fallback mặc định theo nhóm xét nghiệm phổ biến
+  // 5. Fallback mặc định theo nhóm xét nghiệm phổ biến
   const cat = (t.category || '').toLowerCase();
   if (cat.includes('huyết học') || ['rbc', 'wbc', 'plt', 'hgb', 'hct', 'mcv', 'mch', 'mchc'].includes(code.toLowerCase())) {
-    const eq = equipments.find((e) => e.name.includes('Huyết Học') || e.code === 'MS-H630');
+    const eq = allEquipments.find((e) => e.name.includes('Huyết Học') || e.code === 'MS-H630');
     if (eq) return eq.name;
     return 'MS-H630 (Máy Phân Tích Huyết Học)';
   }
   if (cat.includes('sinh hóa') || ['glu', 'ure', 'creat', 'ast', 'alt', 'cho', 'tri', 'uric', 'crp', 'fe', 'ferr'].includes(code.toLowerCase())) {
-    const eq = equipments.find((e) => e.code === 'MS-360' || e.name.includes('MS-360'));
+    const eq = allEquipments.find((e) => e.code === 'MS-360' || e.name.includes('MS-360'));
     if (eq) return eq.name;
     return 'MS-360 (Vi Chất)';
   }
   if (cat.includes('miễn dịch') || ['e2', 'lh', 'fsh', 'prl', 'prog', 'testo', 'hcg', 'afp', 'cea', 'ca125', 'ca19-9', 'ca15-3', 'tsh', 'ft3', 'ft4', 't3', 't4', 'ferritin'].includes(code.toLowerCase())) {
-    const eq = equipments.find((e) => e.name.includes('cobas') || e.code === 'COBAS-E801');
+    const eq = allEquipments.find((e) => e.name.includes('cobas') || e.code === 'COBAS-E801');
     if (eq) return eq.name;
     return 'Roche cobas e 801 (Miễn Dịch)';
   }
   if (cat.includes('huyết sắc tố') || ['hba1c', 'hba2', 'hbf'].includes(code.toLowerCase())) {
-    const eq = equipments.find((e) => e.code === 'TOSOH-G11' || e.name.includes('Tosoh'));
+    const eq = allEquipments.find((e) => e.code === 'TOSOH-G11' || e.name.includes('Tosoh'));
     if (eq) return eq.name;
     return 'Tosoh HLC-723G11 (Huyết Sắc Tố)';
   }
@@ -321,11 +365,22 @@ export function resolveTestEquipmentName(
 
 /**
  * Helper: Rút gọn và chuẩn hóa tên thiết bị để in vừa vặn trong cột hẹp (12% ~ 80px)
- * Lược bỏ chú thích mở rộng trong ngoặc đơn và các tiền tố dài dòng (ví dụ "Roche cobas e 801" -> "Cobas e 801")
+ * Lược bỏ chú thích mở rộng trong ngoặc đơn và các tiền tố dài dòng (ví dụ "Roche cobas e 801" -> "cobas e 801")
  */
 export function formatEquipmentForPrint(equipmentName?: string | null): string {
   if (!equipmentName || !equipmentName.trim() || equipmentName === 'Tự động') return 'Tự động';
   const trimmed = equipmentName.trim();
+  
+  // Nếu là ID thô (ví dụ "eq_ms360", "eq_msh630", "eq_cobas_e801", uuid), chuyển đổi về tên chuẩn
+  if (trimmed.startsWith('eq_') || /^[0-9a-f]{8}-[0-9a-f]{4}/i.test(trimmed)) {
+    const matched = DEFAULT_TEST_EQUIPMENTS.find((e) =>
+      e.id.toLowerCase() === trimmed.toLowerCase() ||
+      (e.code && e.code.toLowerCase() === trimmed.toLowerCase())
+    );
+    if (matched) return formatEquipmentForPrint(matched.name);
+    return 'Tự động';
+  }
+
   // Bỏ phần chú thích trong ngoặc đơn, ví dụ "MS-H630 (Máy Phân Tích Huyết Học)" -> "MS-H630"
   let clean = trimmed.replace(/\s*\([^)]*\)/g, '').trim();
   // Rút gọn các tiền tố phổ biến
@@ -333,6 +388,7 @@ export function formatEquipmentForPrint(equipmentName?: string | null): string {
   clean = clean.replace(/^Tosoh\s+HLC-723G11/i, 'Tosoh G11');
   clean = clean.replace(/^MEDIWISS AlleisaScreen 44 BLOTrix Reader C1/i, 'MEDIWISS C1');
   clean = clean.replace(/^Máy Đọc Dị Nguyên PROTIA Smart Analyzer/i, 'PROTIA');
+  clean = clean.replace(/^PROTIA Allergy-Q Smart Q-processor/i, 'PROTIA Q');
   return clean || trimmed;
 }
 

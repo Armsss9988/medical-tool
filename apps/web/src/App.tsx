@@ -47,7 +47,10 @@ function AppContent() {
     setCloudDbConfig,
     zaloConfig,
     setZaloConfig,
-    saveAllCatalogData
+    saveAllCatalogData,
+    isLoading: isCatalogLoading,
+    isFetching: isCatalogFetching,
+    refetch: refetchCatalog
   } = useCatalogData();
 
   // 2. CONTEXT CONSUMPTION
@@ -318,6 +321,7 @@ function AppContent() {
         onResetAll={handleClearAll}
         onDownloadQrCode={handleDownloadQrCodeDirect}
         onOpenInvoiceModal={handleOpenInvoiceModalWithCheck}
+        isCatalogLoading={isCatalogLoading}
       />
 
       {/* MODAL POPUPS LAYER */}
@@ -375,6 +379,9 @@ function AppContent() {
         onUnsavedCancel={handleUnsavedCancel}
         onSaveAllCatalogData={saveAllCatalogData}
         onPreviewTemplateChange={setPreviewSelectedTemplate}
+        isCatalogLoading={isCatalogLoading}
+        isCatalogFetching={isCatalogFetching}
+        onRefetchCatalog={refetchCatalog}
       />
 
       {/* PRINT & LOSSLESS CAPTURE TEMPLATES */}

@@ -103,6 +103,9 @@ interface ModalLayerProps {
     referenceRanges?: ReferenceRangeItem[];
   }) => Promise<void>;
   onPreviewTemplateChange?: (template: ReportTemplate | null) => void;
+  isCatalogLoading?: boolean;
+  isCatalogFetching?: boolean;
+  onRefetchCatalog?: () => void;
 }
 
 export function ModalLayer({
@@ -158,7 +161,10 @@ export function ModalLayer({
   onUnsavedDiscardAndProceed,
   onUnsavedCancel,
   onSaveAllCatalogData,
-  onPreviewTemplateChange
+  onPreviewTemplateChange,
+  isCatalogLoading = false,
+  isCatalogFetching = false,
+  onRefetchCatalog
 }: ModalLayerProps) {
   const {
     patient,
@@ -171,7 +177,13 @@ export function ModalLayer({
     clearAllReports,
     invoices,
     deleteInvoice,
-    clearAllInvoices
+    clearAllInvoices,
+    isReportsLoading,
+    isReportsFetching,
+    refetchReports,
+    isInvoicesLoading,
+    isInvoicesFetching,
+    refetchInvoices
   } = useWorkspace();
 
   const {
@@ -289,6 +301,9 @@ export function ModalLayer({
         onSaveReferenceRanges={setReferenceRanges}
         onSaveAllData={onSaveAllCatalogData}
         showToast={showToast}
+        isLoading={isCatalogLoading}
+        isFetching={isCatalogFetching}
+        onRefetch={onRefetchCatalog}
       />
 
       {/* 4. INVOICE MODAL */}
@@ -322,6 +337,9 @@ export function ModalLayer({
         doctorsList={doctorsList}
         clinicInfo={clinicInfo}
         showToast={showToast}
+        isLoading={isInvoicesLoading}
+        isFetching={isInvoicesFetching}
+        onRefetch={refetchInvoices}
       />
 
       {/* 6. REPORT MANAGER MODAL */}
@@ -346,6 +364,9 @@ export function ModalLayer({
         onDeleteReport={deleteReport}
         onClearAllReports={clearAllReports}
         showToast={showToast}
+        isLoading={isReportsLoading}
+        isFetching={isReportsFetching}
+        onRefetch={refetchReports}
       />
 
       {/* 7. BATCH EXPORT MODAL */}

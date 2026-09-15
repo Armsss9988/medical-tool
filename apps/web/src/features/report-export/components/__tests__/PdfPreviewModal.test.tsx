@@ -78,14 +78,13 @@ describe('PdfPreviewModal - PDF Download & Export Progress Display', () => {
 
   it('displays real-time progress indicators and disables buttons when downloading PDF', async () => {
     let progressCallbackHolder: ((progress: PdfProgressInfo) => void) | undefined;
+    let resolveDownload: () => void;
 
     // Simulate async onDownloadPdf that delivers multi-step progress
     const mockDownload = vi.fn((_elementId: string, _filename: string, onProgress?: (p: PdfProgressInfo) => void) => {
       progressCallbackHolder = onProgress;
       return new Promise<void>((resolve) => {
-        setTimeout(() => {
-          resolve();
-        }, 100);
+        resolveDownload = resolve;
       });
     });
 
@@ -134,11 +133,15 @@ describe('PdfPreviewModal - PDF Download & Export Progress Display', () => {
     });
 
     // 5. Verifies other buttons are disabled during download
-    const printBtn = screen.getByRole('button', { name: /In Phiếu A4/i });
-    expect(printBtn.hasAttribute('disabled')).toBe(true);
+    await waitFor(() => {
+      const printBtn = screen.getByRole('button', { name: /In Phiếu A4/i });
+      expect(printBtn.hasAttribute('disabled')).toBe(true);
+      const cloudBtn = screen.getByRole('button', { name: /Lưu PDF & Cloud/i });
+      expect(cloudBtn.hasAttribute('disabled')).toBe(true);
+    });
 
-    const cloudBtn = screen.getByRole('button', { name: /Lưu PDF & Cloud/i });
-    expect(cloudBtn.hasAttribute('disabled')).toBe(true);
+    // Clean up
+    resolveDownload!();
   });
 
   it('renders progress correctly when controlled via isDownloading and downloadProgress props', () => {

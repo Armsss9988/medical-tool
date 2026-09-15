@@ -67,7 +67,7 @@ export function IndicatorTableRow({
   const displayEquipmentName =
     activeEqObj?.name ||
     (item.equipment
-      ? (equipments.find((e) => e.id === item.equipment || e.name === item.equipment || (e.code && e.code === item.equipment))?.name || item.equipment)
+      ? (equipments.find((e) => e.id === item.equipment || e.name === item.equipment || (e.code && e.code === item.equipment))?.name || (!item.equipment.startsWith('eq_') && !/^[0-9a-f]{8}-[0-9a-f]{4}/i.test(item.equipment) ? item.equipment : null))
       : null) ||
     (defaultLink ? equipments.find((e) => e.id === defaultLink.equipmentId)?.name : null) ||
     (linkedCount > 0 ? resolveTestEquipmentName(item, equipments, catalogItemEquipments) : null);

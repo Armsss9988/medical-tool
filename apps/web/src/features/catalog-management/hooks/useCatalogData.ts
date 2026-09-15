@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   CatalogItem, 
   CatalogItemEquipmentLink,
@@ -34,7 +35,8 @@ import {
   syncDoctorsToSupabase,
   syncReferenceRangesToSupabase,
   syncCatalogItemEquipmentsToSupabase,
-  syncScalesToSupabase
+  syncScalesToSupabase,
+  DEFAULT_CLOUD_DB_CONFIG
 } from '@infra/cloudDbService';
 import {
   postCatalogItem,
@@ -42,13 +44,6 @@ import {
   postTestPackage,
   deleteTestPackageApi
 } from '@infra/apiClient';
-
-
-const DEFAULT_CLOUD_DB_CONFIG: CloudDbConfig = {
-  supabaseUrl: import.meta.env.VITE_SUPABASE_URL || '',
-  supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
-  enabled: true
-};
 
 const DEFAULT_ZALO_CONFIG: ZaloZnsConfig = {
   enabled: false,
@@ -59,6 +54,8 @@ const DEFAULT_ZALO_CONFIG: ZaloZnsConfig = {
   accessToken: '',
   autoSendOnExport: false
 };
+
+export const CATALOG_BUNDLE_QUERY_KEY = ['catalog-bundle'] as const;
 
 export function useCatalogData() {
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
@@ -73,7 +70,106 @@ export function useCatalogData() {
   const [cloudDbConfig, setCloudDbConfig] = useState<CloudDbConfig>(DEFAULT_CLOUD_DB_CONFIG);
   const [zaloConfig, setZaloConfig] = useState<ZaloZnsConfig>(DEFAULT_ZALO_CONFIG);
 
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const qc = useQueryClient();
+
+  const catalogQuery = useQuery({
+    queryKey: CATALOG_BUNDLE_QUERY_KEY,
+    queryFn: async () => {
+      const [
+        cloudCatalog, 
+        cloudPackages, 
+        cloudGroups, 
+        cloudEquip, 
+        cloudDocs, 
+        cloudClinic, 
+        cloudRefRanges,
+        cloudItemEquipLinks,
+        cloudScales
+      ] = await Promise.all([
+        fetchCatalogFromSupabase(cloudDbConfig),
+        fetchPackagesFromSupabase(cloudDbConfig),
+        fetchGroupsFromSupabase(cloudDbConfig),
+        fetchEquipmentsFromSupabase(cloudDbConfig),
+        fetchDoctorsFromSupabase(cloudDbConfig),
+        fetchClinicInfoFromSupabase(cloudDbConfig),
+        fetchReferenceRangesFromSupabase(cloudDbConfig),
+        fetchCatalogItemEquipmentsFromSupabase(cloudDbConfig),
+        fetchScalesFromSupabase(cloudDbConfig)
+      ]);
+      return {
+        cloudCatalog, 
+        cloudPackages, 
+        cloudGroups, 
+        cloudEquip, 
+        cloudDocs, 
+        cloudClinic, 
+        cloudRefRanges,
+        cloudItemEquipLinks,
+        cloudScales
+      };
+    },
+    enabled: cloudDbConfig?.enabled !== false,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false
+  });
+
+  const isLoading = cloudDbConfig?.enabled === false ? false : catalogQuery.isLoading;
+  const isFetching = catalogQuery.isFetching;
+
+  useEffect(() => {
+    if (!catalogQuery.data) return;
+    const {
+      cloudCatalog, 
+      cloudPackages, 
+      cloudGroups, 
+      cloudEquip, 
+      cloudDocs, 
+      cloudClinic, 
+      cloudRefRanges,
+      cloudItemEquipLinks,
+      cloudScales
+    } = catalogQuery.data;
+
+    if (cloudCatalog && cloudCatalog.length > 0) {
+      const resolved = cloudCatalog.map(autoResolveItemLinks);
+      setCatalog(resolved);
+    }
+    if (cloudPackages && cloudPackages.length > 0) {
+      const normalized = cloudPackages.map(normalizeTestPackage);
+      setTestPackages(normalized);
+    }
+    if (cloudGroups && cloudGroups.length > 0) {
+      setTestGroups(cloudGroups);
+    }
+    if (cloudEquip && cloudEquip.length > 0) {
+      setEquipments(cloudEquip);
+    }
+    if (cloudDocs && cloudDocs.length > 0) {
+      setDoctorsList(cloudDocs);
+    }
+    if (cloudClinic && cloudClinic.name && !isCorruptedClinicInfo(cloudClinic)) {
+      const safeClinic = getSafeClinicInfo(cloudClinic);
+      setClinicInfo(safeClinic);
+    }
+    if (cloudRefRanges && cloudRefRanges.length > 0) {
+      setReferenceRanges(cloudRefRanges);
+    }
+    if (cloudItemEquipLinks && cloudItemEquipLinks.length > 0) {
+      setCatalogItemEquipments(cloudItemEquipLinks);
+    }
+    if (cloudScales && cloudScales.length > 0) {
+      setAllergenScales(cloudScales);
+    }
+  }, [catalogQuery.data]);
+
+  // Khi user nhập pass thành công, trigger fetch lại toàn bộ dữ liệu
+  useEffect(() => {
+    const handler = () => {
+      qc.invalidateQueries({ queryKey: CATALOG_BUNDLE_QUERY_KEY });
+    };
+    window.addEventListener('password-unlocked', handler);
+    return () => window.removeEventListener('password-unlocked', handler);
+  }, [qc]);
 
   // Lưu trực tiếp toàn bộ dữ liệu danh mục xuống Cloud DB có thể await
   const saveAllCatalogData = useCallback(async (data: {
@@ -128,87 +224,10 @@ export function useCatalogData() {
           console.warn('[CloudDB] Lỗi lưu thành phần danh mục lên Cloud:', err);
         });
       }
+      // Làm mới bộ nhớ cache của TanStack Query sau khi lưu
+      qc.invalidateQueries({ queryKey: CATALOG_BUNDLE_QUERY_KEY, refetchType: 'none' });
     }
-  }, [cloudDbConfig]);
-
-  // Tự động tải dữ liệu từ Cloud Database khi khởi động
-  const loadCloudData = useCallback(async () => {
-    if (cloudDbConfig?.enabled === false) {
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      const [
-        cloudCatalog, 
-        cloudPackages, 
-        cloudGroups, 
-        cloudEquip, 
-        cloudDocs, 
-        cloudClinic, 
-        cloudRefRanges,
-        cloudItemEquipLinks,
-        cloudScales
-      ] = await Promise.all([
-        fetchCatalogFromSupabase(cloudDbConfig),
-        fetchPackagesFromSupabase(cloudDbConfig),
-        fetchGroupsFromSupabase(cloudDbConfig),
-        fetchEquipmentsFromSupabase(cloudDbConfig),
-        fetchDoctorsFromSupabase(cloudDbConfig),
-        fetchClinicInfoFromSupabase(cloudDbConfig),
-        fetchReferenceRangesFromSupabase(cloudDbConfig),
-        fetchCatalogItemEquipmentsFromSupabase(cloudDbConfig),
-        fetchScalesFromSupabase(cloudDbConfig)
-      ]);
-
-      if (cloudCatalog && cloudCatalog.length > 0) {
-        const resolved = cloudCatalog.map(autoResolveItemLinks);
-        setCatalog(resolved);
-      }
-      if (cloudPackages && cloudPackages.length > 0) {
-        const normalized = cloudPackages.map(normalizeTestPackage);
-        setTestPackages(normalized);
-      }
-      if (cloudGroups && cloudGroups.length > 0) {
-        setTestGroups(cloudGroups);
-      }
-      if (cloudEquip && cloudEquip.length > 0) {
-        setEquipments(cloudEquip);
-      }
-      if (cloudDocs && cloudDocs.length > 0) {
-        setDoctorsList(cloudDocs);
-      }
-      if (cloudClinic && cloudClinic.name && !isCorruptedClinicInfo(cloudClinic)) {
-        const safeClinic = getSafeClinicInfo(cloudClinic);
-        setClinicInfo(safeClinic);
-      }
-      if (cloudRefRanges && cloudRefRanges.length > 0) {
-        setReferenceRanges(cloudRefRanges);
-      }
-      if (cloudItemEquipLinks && cloudItemEquipLinks.length > 0) {
-        setCatalogItemEquipments(cloudItemEquipLinks);
-      }
-      if (cloudScales && cloudScales.length > 0) {
-        setAllergenScales(cloudScales);
-      }
-    } catch (err) {
-      console.warn('[CloudDB] Không thể tải dữ liệu từ Cloud:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [cloudDbConfig]);
-
-  useEffect(() => {
-    loadCloudData();
-  }, [loadCloudData]);
-
-  // Khi user nhập pass thành công, trigger fetch lại toàn bộ dữ liệu
-  useEffect(() => {
-    const handler = () => loadCloudData();
-    window.addEventListener('password-unlocked', handler);
-    return () => window.removeEventListener('password-unlocked', handler);
-  }, [loadCloudData]);
+  }, [cloudDbConfig, qc]);
 
   // Lưu đơn lẻ một chỉ số xét nghiệm lên Cloud DB
   const saveSingleCatalogItem = useCallback(async (item: CatalogItem) => {
@@ -305,6 +324,8 @@ export function useCatalogData() {
     zaloConfig,
     setZaloConfig,
     isLoading,
+    isFetching,
+    refetch: catalogQuery.refetch,
     saveAllCatalogData,
     saveSingleCatalogItem,
     deleteSingleCatalogItem,

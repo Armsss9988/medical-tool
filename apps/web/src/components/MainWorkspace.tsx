@@ -37,6 +37,7 @@ interface MainWorkspaceProps {
   onResetAll: () => void;
   onDownloadQrCode: () => void;
   onOpenInvoiceModal: () => void;
+  isCatalogLoading?: boolean;
 }
 
 export function MainWorkspace({
@@ -65,7 +66,8 @@ export function MainWorkspace({
   onOpenSendZaloModal,
   onResetAll,
   onDownloadQrCode,
-  onOpenInvoiceModal
+  onOpenInvoiceModal,
+  isCatalogLoading = false
 }: MainWorkspaceProps) {
   const {
     patient,
@@ -227,6 +229,7 @@ export function MainWorkspace({
               onAddMultipleToRecent={addMultipleToRecent}
               onNavigateNext={() => setActiveMobileTab('CONCLUSION')}
               onNavigateBack={() => setActiveMobileTab('PATIENT')}
+              isCatalogLoading={isCatalogLoading}
             />
           </section>
 

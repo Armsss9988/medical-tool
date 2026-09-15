@@ -38,6 +38,9 @@ interface WorkspaceContextValue {
   bulkSaveOrUpdateReports: ReturnType<typeof useReportManager>['bulkSaveOrUpdateReports'];
   deleteReport: (id: string) => void;
   clearAllReports: () => void;
+  isReportsLoading: boolean;
+  isReportsFetching: boolean;
+  refetchReports: () => void;
 
   // Invoices (Sổ Doanh Thu)
   invoices: ReturnType<typeof useInvoiceManager>['invoices'];
@@ -47,6 +50,9 @@ interface WorkspaceContextValue {
   clearAllInvoices: () => void;
   payInvoice: ReturnType<typeof useInvoiceManager>['payInvoice'];
   cancelInvoice: ReturnType<typeof useInvoiceManager>['cancelInvoice'];
+  isInvoicesLoading: boolean;
+  isInvoicesFetching: boolean;
+  refetchInvoices: () => void;
 
   // Recent Tests
   recentTests: ReturnType<typeof useRecentTests>['recentTests'];
@@ -91,10 +97,32 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { recentTests, addToRecent, addMultipleToRecent, clearRecent: _clearRecent } = useRecentTests();
 
   // Reports
-  const { reports, setReports, saveOrUpdateReport, bulkSaveOrUpdateReports, deleteReport, clearAllReports, handleExternalReportUpdate } = useReportManager();
+  const {
+    reports,
+    setReports,
+    saveOrUpdateReport,
+    bulkSaveOrUpdateReports,
+    deleteReport,
+    clearAllReports,
+    handleExternalReportUpdate,
+    isLoading: isReportsLoading,
+    isFetching: isReportsFetching,
+    refetch: refetchReports
+  } = useReportManager();
 
   // Invoices
-  const { invoices, setInvoices, saveOrUpdateInvoice, deleteInvoice, clearAllInvoices, payInvoice, cancelInvoice } = useInvoiceManager({
+  const {
+    invoices,
+    setInvoices,
+    saveOrUpdateInvoice,
+    deleteInvoice,
+    clearAllInvoices,
+    payInvoice,
+    cancelInvoice,
+    isLoading: isInvoicesLoading,
+    isFetching: isInvoicesFetching,
+    refetch: refetchInvoices
+  } = useInvoiceManager({
     onReportUpdated: handleExternalReportUpdate
   });
 
@@ -209,7 +237,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     currentReportId, setCurrentReportId,
     currentLoadedReport,
     reports, setReports, saveOrUpdateReport, bulkSaveOrUpdateReports, deleteReport, clearAllReports,
+    isReportsLoading, isReportsFetching, refetchReports,
     invoices, setInvoices, saveOrUpdateInvoice, deleteInvoice, clearAllInvoices, payInvoice, cancelInvoice,
+    isInvoicesLoading, isInvoicesFetching, refetchInvoices,
     recentTests, addToRecent, addMultipleToRecent,
     nameInputRef, autoFocusName, setAutoFocusName,
     hasUnsavedData,
@@ -222,7 +252,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     currentReportId, setCurrentReportId,
     currentLoadedReport,
     reports, setReports, saveOrUpdateReport, bulkSaveOrUpdateReports, deleteReport, clearAllReports,
+    isReportsLoading, isReportsFetching, refetchReports,
     invoices, setInvoices, saveOrUpdateInvoice, deleteInvoice, clearAllInvoices, payInvoice, cancelInvoice,
+    isInvoicesLoading, isInvoicesFetching, refetchInvoices,
     recentTests, addToRecent, addMultipleToRecent,
     nameInputRef, autoFocusName, setAutoFocusName,
     hasUnsavedData,

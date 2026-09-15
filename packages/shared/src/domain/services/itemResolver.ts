@@ -5,7 +5,8 @@ import {
   AllergenGradingScale, 
   TestEquipment, 
   EvaluationType,
-  SelectedTest
+  SelectedTest,
+  DEFAULT_TEST_EQUIPMENTS
 } from '../types';
 import { getAllergenScaleById } from '../constants/allergenScales';
 import { evaluateTestIndicator } from '../testResult';
@@ -81,7 +82,7 @@ export interface ResolveIndicatorOptions {
  *    - Lấy refText từ link hoặc item.
  */
 export function resolveIndicatorReference(
-  item: Pick<CatalogItem, 'code' | 'category' | 'unit' | 'refText' | 'evaluationType' | 'scaleId' | 'referenceRangeId' | 'refMin' | 'refMax'>,
+  item: Pick<CatalogItem, 'code' | 'category' | 'unit' | 'refText' | 'evaluationType' | 'scaleId' | 'referenceRangeId' | 'refMin' | 'refMax' | 'equipment'>,
   options: ResolveIndicatorOptions = {}
 ): ResolvedReferenceInfo {
   const {
@@ -121,8 +122,13 @@ export function resolveIndicatorReference(
   const activeEquipmentId = matchedLink?.equipmentId || preferredEquipmentId || undefined;
   let activeEquipmentName: string | undefined;
   if (activeEquipmentId) {
-    const eqObj = equipments.find((e) => e.id === activeEquipmentId || e.code === activeEquipmentId);
-    activeEquipmentName = eqObj?.name || activeEquipmentId;
+    const allEqs = equipments.length > 0 ? equipments : DEFAULT_TEST_EQUIPMENTS;
+    const eqObj = allEqs.find((e) =>
+      e.id.toLowerCase() === activeEquipmentId.toLowerCase() ||
+      (e.code && e.code.toLowerCase() === activeEquipmentId.toLowerCase()) ||
+      e.name.toLowerCase() === activeEquipmentId.toLowerCase()
+    );
+    activeEquipmentName = eqObj?.name || (item.equipment && !item.equipment.startsWith('eq_') && !/^[0-9a-f]{8}-[0-9a-f]{4}/i.test(item.equipment) ? item.equipment : undefined);
   }
 
   // ─── 2. Xác định phương thức đánh giá theo máy đo (hoặc theo item) ─────────
@@ -270,7 +276,7 @@ export function buildSelectedTest(
     ...item,
     evaluationType: resolved.evaluationType,
     equipmentId: resolved.equipmentId,
-    equipment: resolved.equipmentName,
+    equipment: resolved.equipmentName || (item.equipment && !item.equipment.startsWith('eq_') && !/^[0-9a-f]{8}-[0-9a-f]{4}/i.test(item.equipment) ? item.equipment : undefined),
     refMin: resolved.refMin,
     refMax: resolved.refMax,
     refText: resolved.refText,

@@ -11,7 +11,7 @@ import { useReportsQuery, useSaveReportMutation, useDeleteReportMutation, REPORT
 
 export function useReportManager() {
   // 1. Quản lý danh sách phiếu xét nghiệm bằng TanStack Query v5 (Server State)
-  const { reports: queryReports, refetch } = useReportsQuery();
+  const { reports: queryReports, isLoading, isFetching, isError, refetch } = useReportsQuery();
   const qc = useQueryClient();
   const saveMutation = useSaveReportMutation();
   const deleteMutation = useDeleteReportMutation();
@@ -364,6 +364,9 @@ export function useReportManager() {
     clearAllReports,
     updateReportStatus,
     handleExternalReportUpdate,
+    isLoading,
+    isFetching,
+    isError,
     refetch
   };
 }
