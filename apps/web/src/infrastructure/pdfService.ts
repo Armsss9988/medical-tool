@@ -315,9 +315,48 @@ export async function generateHighQualityPdf(
   _filename: string = 'PhieuKetQua.pdf',
   options?: PdfExportOptions
 ): Promise<PdfExportResult> {
-  const element = document.getElementById(elementId);
+  let element = typeof document !== 'undefined' ? document.getElementById(elementId) : null;
+
+  // Nếu phần tử chưa xuất hiện ngay lập tức trong DOM, đợi tới 150ms để React hoàn tất render
+  if (!element && typeof document !== 'undefined') {
+    for (let retry = 0; retry < 3; retry++) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      element = document.getElementById(elementId);
+      if (element) break;
+    }
+  }
+
   if (!element) {
-    throw new Error(`Không tìm thấy phần tử DOM với id="${elementId}" để xuất PDF!`);
+    // Safety net: Tìm phần tử báo cáo đã render thay thế thay vì throw ngay
+    // Thứ tự ưu tiên: allergen → hybrid → medical → dynamic (theo loại hiếm nhất trước)
+    const FALLBACK_ELEMENT_IDS = [
+      'preview-allergen-element',
+      'printable-allergen-report',
+      'preview-hybrid-element',
+      'printable-hybrid-report',
+      'preview-print-element',
+      'printable-medical-report',
+      'preview-dynamic-element',
+      'printable-dynamic-report'
+    ];
+    for (const fallbackId of FALLBACK_ELEMENT_IDS) {
+      if (fallbackId === elementId) continue; // Đã thử rồi
+      const candidate = document.getElementById(fallbackId);
+      if (candidate && candidate.querySelectorAll('tbody tr, .report-page, [data-page-break]').length > 0) {
+        console.warn(`[pdfService] Element "${elementId}" không tồn tại, fallback sang "${fallbackId}"`);
+        element = candidate;
+        break;
+      }
+    }
+    if (!element) {
+      throw new Error(`Không tìm thấy phần tử DOM với id="${elementId}" để xuất PDF!`);
+    }
+  }
+
+  // Chờ bảng có nội dung nếu phát hiện số hàng đang rỗng nhưng có thẻ table
+  const tableRows = element.querySelectorAll('tbody tr');
+  if (tableRows.length === 0) {
+    await new Promise((resolve) => setTimeout(resolve, 60));
   }
 
   const restoreMainWin = patchWindowGetComputedStyle(typeof window !== 'undefined' ? window : null);
@@ -330,7 +369,16 @@ export async function generateHighQualityPdf(
   });
 
   // Nhường 1 macrotask tick để trình duyệt vẽ ngay lập tức modal tiến trình (0ms lag)
-  await new Promise((resolve) => setTimeout(resolve, 30));
+  await new Promise((resolve) => setTimeout(resolve, 40));
+
+  // Chờ font chữ hệ thống sẵn sàng trong document chính
+  if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
+    try {
+      await document.fonts.ready;
+    } catch {
+      /* ignore font ready error */
+    }
+  }
 
   // Tiền xử lý màu sắc trên DOM thực
   sanitizeDocumentOklch(element);
@@ -338,7 +386,9 @@ export async function generateHighQualityPdf(
   const images = Array.from(element.querySelectorAll('img'));
   await Promise.all(
     images.map((img) => {
-      if (img.complete || !img.src || img.src === window.location.href) return Promise.resolve();
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+      if (img.decode) return img.decode().catch(() => {});
+      if (!img.src || img.src === window.location.href) return Promise.resolve();
       return new Promise<void>((resolve) => {
         const timer = setTimeout(() => resolve(), 2500);
         img.onload = () => { clearTimeout(timer); resolve(); };
@@ -724,6 +774,9 @@ export async function downloadPdfDirectly(
   filename: string = 'PhieuKetQua.pdf',
   options?: PdfExportOptions
 ): Promise<Blob> {
+  // Khoảng đệm ổn định DOM trước khi sinh PDF
+  await new Promise((resolve) => setTimeout(resolve, 60));
+
   const res = await generateHighQualityPdf(elementId, filename, options);
   options?.onProgress?.({
     step: 'saving',

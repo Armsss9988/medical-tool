@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCatalogStore } from '../../../stores/useCatalogStore';
 import { 
   CatalogItem, 
   CatalogItemEquipmentLink,
@@ -7,13 +8,9 @@ import {
   TestGroup, 
   TestEquipment, 
   Doctor, 
-  ClinicInfo, 
-  CloudDbConfig, 
-  ZaloZnsConfig,
   ReferenceRangeItem,
   AllergenGradingScale,
   normalizeTestPackage,
-  DEFAULT_CLINIC_INFO,
   getSafeClinicInfo,
   isCorruptedClinicInfo
 } from '@domain';
@@ -35,8 +32,7 @@ import {
   syncDoctorsToSupabase,
   syncReferenceRangesToSupabase,
   syncCatalogItemEquipmentsToSupabase,
-  syncScalesToSupabase,
-  DEFAULT_CLOUD_DB_CONFIG
+  syncScalesToSupabase
 } from '@infra/cloudDbService';
 import {
   postCatalogItem,
@@ -45,30 +41,34 @@ import {
   deleteTestPackageApi
 } from '@infra/apiClient';
 
-const DEFAULT_ZALO_CONFIG: ZaloZnsConfig = {
-  enabled: false,
-  appId: '',
-  secretKey: '',
-  oaId: '',
-  templateId: '',
-  accessToken: '',
-  autoSendOnExport: false
-};
-
 export const CATALOG_BUNDLE_QUERY_KEY = ['catalog-bundle'] as const;
 
 export function useCatalogData() {
-  const [catalog, setCatalog] = useState<CatalogItem[]>([]);
-  const [testPackages, setTestPackages] = useState<TestPackage[]>([]);
-  const [testGroups, setTestGroups] = useState<TestGroup[]>([]);
-  const [equipments, setEquipments] = useState<TestEquipment[]>([]);
-  const [doctorsList, setDoctorsList] = useState<Doctor[]>([]);
-  const [referenceRanges, setReferenceRanges] = useState<ReferenceRangeItem[]>([]);
-  const [catalogItemEquipments, setCatalogItemEquipments] = useState<CatalogItemEquipmentLink[]>([]);
-  const [allergenScales, setAllergenScales] = useState<AllergenGradingScale[]>([]);
-  const [clinicInfo, setClinicInfo] = useState<ClinicInfo>(DEFAULT_CLINIC_INFO);
-  const [cloudDbConfig, setCloudDbConfig] = useState<CloudDbConfig>(DEFAULT_CLOUD_DB_CONFIG);
-  const [zaloConfig, setZaloConfig] = useState<ZaloZnsConfig>(DEFAULT_ZALO_CONFIG);
+  const store = useCatalogStore();
+  const {
+    catalog,
+    setCatalog,
+    testPackages,
+    setTestPackages,
+    testGroups,
+    setTestGroups,
+    equipments,
+    setEquipments,
+    doctorsList,
+    setDoctorsList,
+    referenceRanges,
+    setReferenceRanges,
+    catalogItemEquipments,
+    setCatalogItemEquipments,
+    allergenScales,
+    setAllergenScales,
+    clinicInfo,
+    setClinicInfo,
+    cloudDbConfig,
+    setCloudDbConfig,
+    zaloConfig,
+    setZaloConfig
+  } = store;
 
   const qc = useQueryClient();
 
@@ -160,7 +160,18 @@ export function useCatalogData() {
     if (cloudScales && cloudScales.length > 0) {
       setAllergenScales(cloudScales);
     }
-  }, [catalogQuery.data]);
+  }, [
+    catalogQuery.data,
+    setAllergenScales,
+    setCatalog,
+    setCatalogItemEquipments,
+    setClinicInfo,
+    setDoctorsList,
+    setEquipments,
+    setReferenceRanges,
+    setTestGroups,
+    setTestPackages
+  ]);
 
   // Khi user nhập pass thành công, trigger fetch lại toàn bộ dữ liệu
   useEffect(() => {
@@ -227,7 +238,18 @@ export function useCatalogData() {
       // Làm mới bộ nhớ cache của TanStack Query sau khi lưu
       qc.invalidateQueries({ queryKey: CATALOG_BUNDLE_QUERY_KEY, refetchType: 'none' });
     }
-  }, [cloudDbConfig, qc]);
+  }, [
+    cloudDbConfig,
+    qc,
+    setAllergenScales,
+    setCatalog,
+    setCatalogItemEquipments,
+    setDoctorsList,
+    setEquipments,
+    setReferenceRanges,
+    setTestGroups,
+    setTestPackages
+  ]);
 
   // Lưu đơn lẻ một chỉ số xét nghiệm lên Cloud DB
   const saveSingleCatalogItem = useCallback(async (item: CatalogItem) => {
@@ -251,7 +273,7 @@ export function useCatalogData() {
     if (cloudDbConfig?.enabled) {
       await postCatalogItem(item);
     }
-  }, [cloudDbConfig]);
+  }, [cloudDbConfig, setCatalog, setCatalogItemEquipments]);
 
   // Xóa đơn lẻ một chỉ số xét nghiệm khỏi Cloud DB (có báo lỗi nếu vi phạm ràng buộc gói)
   const deleteSingleCatalogItem = useCallback(async (code: string): Promise<{ success: boolean; message?: string }> => {
@@ -266,7 +288,7 @@ export function useCatalogData() {
       const message = (err as Error).message || 'Không thể xóa chỉ số';
       return { success: false, message };
     }
-  }, [cloudDbConfig]);
+  }, [cloudDbConfig, setCatalog, setCatalogItemEquipments]);
 
   // Lưu đơn lẻ một gói xét nghiệm lên Cloud DB
   const saveSingleTestPackage = useCallback(async (pkg: TestPackage) => {
@@ -284,7 +306,7 @@ export function useCatalogData() {
     if (cloudDbConfig?.enabled) {
       await postTestPackage(normalized);
     }
-  }, [cloudDbConfig]);
+  }, [cloudDbConfig, setTestPackages]);
 
   // Xóa đơn lẻ một gói xét nghiệm khỏi Cloud DB
   const deleteSingleTestPackage = useCallback(async (id: string): Promise<boolean> => {
@@ -298,7 +320,7 @@ export function useCatalogData() {
       console.error('[useCatalogData] Lỗi xóa gói xét nghiệm:', err);
       return false;
     }
-  }, [cloudDbConfig]);
+  }, [cloudDbConfig, setTestPackages]);
 
   return {
     catalog,

@@ -178,7 +178,59 @@ describe('PdfPreviewModal - PDF Download & Export Progress Display', () => {
   });
 
   it('synchronizes target element with PrintLayer (printable-medical-report) when available in document to ensure 100% identical unscaled PDF output', async () => {
-    // Setup PrintLayer element in the DOM (identical to App.tsx runtime environment)
+    // Setup PrintLayer element in the DOM with fully rendered content (identical to App.tsx runtime environment)
+    const printLayerDiv = document.createElement('div');
+    printLayerDiv.id = 'printable-medical-report';
+    printLayerDiv.className = 'print-layer-container';
+    printLayerDiv.innerHTML = `
+      <div class="report-page">
+        <table>
+          <tbody>
+            <tr><td>Header 1</td></tr>
+            <tr><td>Header 2</td></tr>
+            <tr><td>Test Item 1</td></tr>
+            <tr><td>Test Item 2</td></tr>
+            <tr><td>Footer Row</td></tr>
+            <tr><td>Signature Row</td></tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+    document.body.appendChild(printLayerDiv);
+
+    const mockDownload = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <PdfPreviewModal
+        isOpen={true}
+        onClose={vi.fn()}
+        clinicInfo={mockClinicInfo}
+        patient={mockPatient}
+        selectedTests={mockTests}
+        showToast={vi.fn()}
+        onExportPdfAndUpload={vi.fn()}
+        onDownloadPdf={mockDownload}
+        onPrintDirect={vi.fn()}
+        onDownloadQrCode={vi.fn()}
+      />
+    );
+
+    const downloadBtn = screen.getByRole('button', { name: /Tải File PDF/i });
+    fireEvent.click(downloadBtn);
+
+    expect(mockDownload).toHaveBeenCalledTimes(1);
+    // Verifies that PrintLayer's unscaled element is targeted when populated
+    expect(mockDownload).toHaveBeenCalledWith(
+      'printable-medical-report',
+      expect.stringContaining('NGUYỄN_VĂN_AN'),
+      expect.any(Function)
+    );
+
+    document.body.removeChild(printLayerDiv);
+  });
+
+  it('safely falls back to active preview element if PrintLayer in DOM is empty or unpopulated', async () => {
+    // Setup empty PrintLayer element in DOM (simulating race condition or unrendered state)
     const printLayerDiv = document.createElement('div');
     printLayerDiv.id = 'printable-medical-report';
     printLayerDiv.className = 'print-layer-container';
@@ -205,9 +257,9 @@ describe('PdfPreviewModal - PDF Download & Export Progress Display', () => {
     fireEvent.click(downloadBtn);
 
     expect(mockDownload).toHaveBeenCalledTimes(1);
-    // Verifies that PrintLayer's unscaled element is targeted instead of the zoom-scaled preview element
+    // Verifies that active preview element is targeted to prevent blank/empty PDF export
     expect(mockDownload).toHaveBeenCalledWith(
-      'printable-medical-report',
+      'preview-print-element',
       expect.stringContaining('NGUYỄN_VĂN_AN'),
       expect.any(Function)
     );

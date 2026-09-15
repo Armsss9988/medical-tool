@@ -175,7 +175,7 @@ function AllergenSummaryPage({
                 return (
                   <div key={scale.id || sIdx} className="border border-slate-300 rounded bg-white">
                     <div className={`bg-slate-100 py-0.5 px-2 text-center font-bold text-red-700 uppercase border-b border-slate-300 ${isCompact ? 'text-[10px]' : 'text-[11.5px]'}`}>
-                      {scale.name || 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH'}
+                      DIỄN GIẢI ĐỘ DƯƠNG TÍNH
                     </div>
                     <table className={`w-full ${fontSizeClass} border-collapse`}>
                       <thead className="bg-slate-50 font-bold border-b border-slate-300">

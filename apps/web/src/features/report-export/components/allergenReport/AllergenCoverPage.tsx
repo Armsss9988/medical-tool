@@ -14,6 +14,7 @@ interface AllergenCoverPageProps {
   totalCount: number;
   packagePrice: number;
   totalPages: number;
+  packageName?: string;
 }
 
 function AllergenCoverPage({
@@ -26,7 +27,8 @@ function AllergenCoverPage({
   currentStamp = doctorStamp,
   totalCount,
   packagePrice,
-  totalPages
+  totalPages,
+  packageName
 }: AllergenCoverPageProps) {
   const safeClinic = getSafeClinicInfo(clinicInfo);
   return (
@@ -342,7 +344,7 @@ function AllergenCoverPage({
               <tr className="text-[13.5px]">
                 <td className="py-2.5 px-3 text-center border-r border-slate-300 font-medium align-middle leading-snug">1</td>
                 <td className="py-2.5 px-4 font-bold text-slate-900 border-r border-slate-300 align-middle leading-snug">
-                  Panel {totalCount} dị nguyên
+                  {packageName || `Panel ${totalCount} dị nguyên`}
                 </td>
                 <td className="py-2.5 px-3 text-center border-r border-slate-300 text-slate-400 font-mono align-middle leading-snug">---</td>
                 <td className="py-2.5 px-4 text-slate-700 border-r border-slate-300 font-medium align-middle leading-snug">

@@ -59,4 +59,19 @@ describe('AllergenCoverPage - 91 Allergen PDF Report Cover Page Tests', () => {
     expect(screen.getByText('Panel 91 dị nguyên')).toBeDefined();
     expect(screen.getByText(/Nguyễn Thị Thành Trung/i)).toBeDefined();
   });
+
+  it('renders custom packageName on cover page when provided', () => {
+    render(
+      <AllergenCoverPage
+        patient={mockPatient}
+        currentDateStr="13/09/2026"
+        doctorName="Nguyễn Thị Thành Trung"
+        totalCount={91}
+        packageName="Panel 107 Dị Nguyên Chuyên Sâu (PROTIA Allergy-Q 96M)"
+        packagePrice={2220000}
+        totalPages={4}
+      />
+    );
+    expect(screen.getByText('Panel 107 Dị Nguyên Chuyên Sâu (PROTIA Allergy-Q 96M)')).toBeDefined();
+  });
 });

@@ -74,6 +74,10 @@ export default [
           pattern: '**/src/contexts/**'
         },
         {
+          type: 'stores',
+          pattern: '**/src/stores/**'
+        },
+        {
           type: 'features',
           pattern: '**/src/features/*/**',
           capture: ['featureName']
@@ -162,7 +166,7 @@ export default [
               ]
             },
             // Contexts layer: Global and feature-level React state providers.
-            // Can depend on Domain, UseCases, Infrastructure, Data, Hooks, Contexts.
+            // Can depend on Domain, UseCases, Infrastructure, Data, Hooks, Contexts, Stores.
             // CANNOT depend on Components or Entry.
             {
               from: { element: { type: 'contexts' } },
@@ -172,11 +176,26 @@ export default [
                 { to: { element: { type: 'infrastructure' } } },
                 { to: { element: { type: 'hooks' } } },
                 { to: { element: { type: 'data' } } },
-                { to: { element: { type: 'contexts' } } }
+                { to: { element: { type: 'contexts' } } },
+                { to: { element: { type: 'stores' } } }
+              ]
+            },
+            // Stores layer: Zustand and state containers.
+            // Can depend on Domain, UseCases, Infrastructure, Data, Shared Schemas, Stores.
+            // CANNOT depend on UI (Components, Hooks, Features, Entry).
+            {
+              from: { element: { type: 'stores' } },
+              allow: [
+                { to: { element: { type: 'domain' } } },
+                { to: { element: { type: 'usecases' } } },
+                { to: { element: { type: 'infrastructure' } } },
+                { to: { element: { type: 'data' } } },
+                { to: { element: { type: 'shared-schemas' } } },
+                { to: { element: { type: 'stores' } } }
               ]
             },
             // Feature Slices: Vertical Slice Architecture.
-            // Can depend on Domain, Infrastructure, Contexts, Data, Shared Schemas, Components, and its OWN slice.
+            // Can depend on Domain, Infrastructure, Contexts, Stores, Data, Shared Schemas, Components, and its OWN slice.
             // STRICT RULE: Feature slice A CANNOT import Feature slice B (No Cross-Slice Imports).
             {
               from: { element: { type: 'features' } },
@@ -185,6 +204,7 @@ export default [
                 { to: { element: { type: 'usecases' } } },
                 { to: { element: { type: 'infrastructure' } } },
                 { to: { element: { type: 'contexts' } } },
+                { to: { element: { type: 'stores' } } },
                 { to: { element: { type: 'data' } } },
                 { to: { element: { type: 'shared-schemas' } } },
                 { to: { element: { type: 'components' } } },
@@ -199,7 +219,7 @@ export default [
               ]
             },
             // Hooks layer: React presentation controllers.
-            // Can depend on Domain, UseCases, Infrastructure, Data, Hooks, Contexts, Features.
+            // Can depend on Domain, UseCases, Infrastructure, Data, Hooks, Contexts, Stores, Features.
             // CANNOT depend on Components.
             {
               from: { element: { type: 'hooks' } },
@@ -210,6 +230,7 @@ export default [
                 { to: { element: { type: 'data' } } },
                 { to: { element: { type: 'hooks' } } },
                 { to: { element: { type: 'contexts' } } },
+                { to: { element: { type: 'stores' } } },
                 { to: { element: { type: 'features' } } }
               ]
             },
@@ -222,6 +243,7 @@ export default [
                 { to: { element: { type: 'infrastructure' } } },
                 { to: { element: { type: 'hooks' } } },
                 { to: { element: { type: 'contexts' } } },
+                { to: { element: { type: 'stores' } } },
                 { to: { element: { type: 'data' } } },
                 { to: { element: { type: 'components' } } },
                 { to: { element: { type: 'features' } } }
@@ -236,6 +258,7 @@ export default [
                 { to: { element: { type: 'infrastructure' } } },
                 { to: { element: { type: 'hooks' } } },
                 { to: { element: { type: 'contexts' } } },
+                { to: { element: { type: 'stores' } } },
                 { to: { element: { type: 'data' } } },
                 { to: { element: { type: 'components' } } },
                 { to: { element: { type: 'features' } } },

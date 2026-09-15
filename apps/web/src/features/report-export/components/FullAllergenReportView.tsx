@@ -126,6 +126,7 @@ function FullAllergenReportView({
         totalCount={reportDTO.totalCount}
         packagePrice={reportDTO.packagePrice}
         totalPages={reportDTO.totalPages}
+        packageName={reportDTO.packageName}
       />
 
       {/* TRANG 2: ĐỊNH LƯỢNG IgE ĐẶC HIỆU {N} DỊ NGUYÊN (TỔNG HỢP & DƯƠNG TÍNH) */}
@@ -146,6 +147,7 @@ function FullAllergenReportView({
           pageIdx={pageIdx}
           totalDetailPages={reportDTO.detailPages.length}
           totalCount={reportDTO.totalCount}
+          packageName={reportDTO.packageName}
         />
       ))}
 

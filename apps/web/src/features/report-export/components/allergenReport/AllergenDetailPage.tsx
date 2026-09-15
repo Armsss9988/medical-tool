@@ -7,6 +7,7 @@ interface AllergenDetailPageProps {
   pageIdx: number;
   totalDetailPages: number;
   totalCount: number;
+  packageName?: string;
   pageNumber?: number;
 }
 
@@ -15,8 +16,13 @@ function AllergenDetailPage({
   pageIdx,
   totalDetailPages,
   totalCount,
+  packageName,
   pageNumber
 }: AllergenDetailPageProps) {
+  const cleanPackageName = packageName
+    ? packageName.replace(/^[^\p{L}\p{N}]+/u, '').trim().toUpperCase()
+    : `${totalCount} DỊ NGUYÊN`;
+
   return (
     <div 
       data-page="true"
@@ -35,7 +41,7 @@ function AllergenDetailPage({
         {/* Tiêu đề bảng chi tiết */}
         <div className="text-center mb-2.5">
           <h2 className="text-[17px] font-black text-slate-900 uppercase tracking-wide">
-            CHI TIẾT KẾT QUẢ XÉT NGHIỆM {totalCount} DỊ NGUYÊN {totalDetailPages > 1 ? `(PHẦN ${pageIdx + 1})` : ''}
+            CHI TIẾT KẾT QUẢ XÉT NGHIỆM {cleanPackageName} {totalDetailPages > 1 ? `(PHẦN ${pageIdx + 1})` : ''}
           </h2>
         </div>
 

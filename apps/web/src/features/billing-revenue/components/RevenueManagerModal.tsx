@@ -1,19 +1,21 @@
 import { useState, useMemo, useCallback } from 'react';
 import {
-  X, CreditCard, Trash2, Search, Calendar, FileSpreadsheet, Printer,
-  TrendingUp, Users, DollarSign, Eye, AlertCircle, CheckCircle, Percent,
-  Clock, Undo2, AlertTriangle, SlidersHorizontal, RotateCcw, RefreshCw
+  X, Trash2, FileSpreadsheet, TrendingUp, Users, AlertTriangle, RefreshCw
 } from 'lucide-react';
 import { 
   Invoice, Doctor, ClinicInfo, MedicalReport, TestPackage, ToastType,
-  BILLING_STATUS, PAYMENT_METHOD, DATE_FILTER, DateFilterType, REVENUE_TAB, RevenueTabType,
+  DATE_FILTER, DateFilterType, REVENUE_TAB, RevenueTabType,
   getSafeClinicInfo
 } from '@domain';
-import { ReportKindResolver } from '@domain/valueObjects/ReportKind';
-import { computePricingWithPackages } from '@domain/pricing';
 import { exportRevenueExcel } from '@infra/excelService';
 import PrintReceiptView from './PrintReceiptView';
-import { RevenueKpiSkeleton, InvoiceTableSkeleton } from './RevenueSkeleton';
+import { RevenueFilterBar } from './RevenueFilterBar';
+import { RevenueKpiCards } from './RevenueKpiCards';
+import { RevenueInvoiceTable } from './RevenueInvoiceTable';
+import { RevenuePendingReportsTable } from './RevenuePendingReportsTable';
+import { RevenueDoctorTable } from './RevenueDoctorTable';
+import { RevenueDailyReportView } from './RevenueDailyReportView';
+import { useRevenueCalculations } from '../hooks/useRevenueCalculations';
 
 interface RevenueManagerModalProps {
   isOpen: boolean;
@@ -48,7 +50,7 @@ export default function RevenueManagerModal({
   showToast,
   isLoading = false,
   isFetching = false,
-  onRefetch
+  onRefetch: _onRefetch
 }: RevenueManagerModalProps) {
   const safeClinic = getSafeClinicInfo(clinicInfo);
   const [activeTab, setActiveTab] = useState<RevenueTabType>(REVENUE_TAB.INVOICES);
@@ -60,6 +62,8 @@ export default function RevenueManagerModal({
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>(DATE_FILTER.ALL);
   const [selectedStatus, setSelectedStatus] = useState<string>(DATE_FILTER.ALL);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState<boolean>(false);
+  const [doctorCommissionRates, setDoctorCommissionRates] = useState<Record<string, number>>({});
+  const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -80,222 +84,35 @@ export default function RevenueManagerModal({
     setSelectedStatus(DATE_FILTER.ALL);
   }, []);
 
-  // Hoa hồng bác sĩ (% mặc định = 10%)
-  const [doctorCommissionRates, setDoctorCommissionRates] = useState<Record<string, number>>({});
+  const handleCommissionRateChange = useCallback((docName: string, newRate: number) => {
+    setDoctorCommissionRates((prev) => ({
+      ...prev,
+      [docName]: Math.max(0, Math.min(100, newRate))
+    }));
+  }, []);
 
-  // Modal Xem lại & In biên lai
-  const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+  const {
+    filteredInvoices,
+    pendingReports,
+    getEstimatedFee,
+    totalPendingAmount,
+    kpis,
+    doctorStats
+  } = useRevenueCalculations({
+    invoices,
+    reports,
+    testPackages,
+    doctorsList,
+    searchTerm,
+    dateFilter,
+    customStartDate,
+    customEndDate,
+    selectedDoctor,
+    selectedPaymentMethod,
+    selectedStatus,
+    doctorCommissionRates
+  });
 
-  // 1. LỌC DANH SÁCH HÓA ĐƠN
-  const filteredInvoices = useMemo(() => {
-    const now = new Date();
-    const todayStr = now.toDateString();
-
-    const yesterday = new Date(now);
-    yesterday.setDate(now.getDate() - 1);
-    const yesterdayStr = yesterday.toDateString();
-
-    const sevenDaysAgo = new Date(now);
-    sevenDaysAgo.setDate(now.getDate() - 7);
-
-    const term = searchTerm.toLowerCase().trim();
-
-    return (invoices || []).filter((inv) => {
-      if (!inv) return false;
-      // Tìm kiếm từ khóa
-      if (term) {
-        const matchCode = inv.code?.toLowerCase().includes(term);
-        const matchName = inv.patientName?.toLowerCase().includes(term);
-        const matchPhone = inv.patientPhone?.toLowerCase().includes(term);
-        const matchDoc = inv.doctorName?.toLowerCase().includes(term);
-        const matchPatientCode = inv.patientCode?.toLowerCase().includes(term);
-        if (!matchCode && !matchName && !matchPhone && !matchDoc && !matchPatientCode) {
-          return false;
-        }
-      }
-
-      // Lọc theo Bác sĩ
-      if (selectedDoctor !== DATE_FILTER.ALL && inv.doctorName !== selectedDoctor) {
-        return false;
-      }
-
-      // Lọc theo Hình thức thanh toán
-      if (selectedPaymentMethod !== DATE_FILTER.ALL && inv.paymentMethod !== selectedPaymentMethod) {
-        return false;
-      }
-
-      // Lọc theo Trạng thái
-      if (selectedStatus !== DATE_FILTER.ALL && inv.status !== selectedStatus) {
-        return false;
-      }
-
-      // Lọc theo Thời gian
-      if (!inv.createdAt) {
-        return dateFilter === DATE_FILTER.ALL;
-      }
-      const invDate = new Date(inv.createdAt);
-      if (isNaN(invDate.getTime())) {
-        return dateFilter === DATE_FILTER.ALL;
-      }
-      if (dateFilter === DATE_FILTER.TODAY) {
-        if (invDate.toDateString() !== todayStr) return false;
-      } else if (dateFilter === DATE_FILTER.YESTERDAY) {
-        if (invDate.toDateString() !== yesterdayStr) return false;
-      } else if (dateFilter === DATE_FILTER.LAST_7_DAYS) {
-        if (invDate < sevenDaysAgo) return false;
-      } else if (dateFilter === DATE_FILTER.THIS_MONTH) {
-        if (invDate.getMonth() !== now.getMonth() || invDate.getFullYear() !== now.getFullYear()) return false;
-      } else if (dateFilter === DATE_FILTER.LAST_MONTH) {
-        const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
-        const lastMonthYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
-        if (invDate.getMonth() !== lastMonth || invDate.getFullYear() !== lastMonthYear) return false;
-      } else if (dateFilter === DATE_FILTER.CUSTOM) {
-        if (customStartDate && new Date(customStartDate) > invDate) return false;
-        if (customEndDate) {
-          const end = new Date(customEndDate);
-          end.setHours(23, 59, 59, 999);
-          if (invDate > end) return false;
-        }
-      }
-
-      return true;
-    });
-  }, [invoices, searchTerm, selectedDoctor, selectedPaymentMethod, selectedStatus, dateFilter, customStartDate, customEndDate]);
-
-  // 1.5. DANH SÁCH CÁC PHIẾU XÉT NGHIỆM CHƯA THU TIỀN (CÔNG NỢ / CHỜ THU)
-  const pendingReports = useMemo(() => {
-    return reports.filter((rep) => {
-      const isPaid = invoices.some(
-        (inv) =>
-          inv.status === BILLING_STATUS.PAID &&
-          (inv.id === rep.invoiceId || inv.reportId === rep.id)
-      );
-      if (isPaid) return false;
-
-      // Lọc theo từ khóa
-      if (searchTerm.trim()) {
-        const term = searchTerm.toLowerCase().trim();
-        const matchName = rep.patient?.name?.toLowerCase().includes(term);
-        const matchCode = rep.code?.toLowerCase().includes(term);
-        const matchPhone = rep.patient?.phone?.toLowerCase().includes(term);
-        const matchDoc = rep.doctorName?.toLowerCase().includes(term);
-        if (!matchName && !matchCode && !matchPhone && !matchDoc) return false;
-      }
-
-      // Lọc theo Bác sĩ
-      if (selectedDoctor !== DATE_FILTER.ALL && rep.doctorName !== selectedDoctor) {
-        return false;
-      }
-
-      // Lọc theo thời gian
-      const repDate = new Date(rep.createdAt);
-      const now = new Date();
-      const todayStr = now.toDateString();
-      const yesterday = new Date(now);
-      yesterday.setDate(now.getDate() - 1);
-      const yesterdayStr = yesterday.toDateString();
-      const sevenDaysAgo = new Date(now);
-      sevenDaysAgo.setDate(now.getDate() - 7);
-
-      if (dateFilter === DATE_FILTER.TODAY && repDate.toDateString() !== todayStr) return false;
-      if (dateFilter === DATE_FILTER.YESTERDAY && repDate.toDateString() !== yesterdayStr) return false;
-      if (dateFilter === DATE_FILTER.LAST_7_DAYS && repDate < sevenDaysAgo) return false;
-      if (dateFilter === DATE_FILTER.THIS_MONTH && (repDate.getMonth() !== now.getMonth() || repDate.getFullYear() !== now.getFullYear())) return false;
-      if (dateFilter === DATE_FILTER.CUSTOM) {
-        if (customStartDate && new Date(customStartDate) > repDate) return false;
-        if (customEndDate) {
-          const end = new Date(customEndDate);
-          end.setHours(23, 59, 59, 999);
-          if (repDate > end) return false;
-        }
-      }
-
-      return true;
-    });
-  }, [reports, invoices, searchTerm, selectedDoctor, dateFilter, customStartDate, customEndDate]);
-
-  // Tính tiền tạm tính cho từng phiếu chưa thu (ưu tiên giá gói)
-  const getEstimatedFee = useCallback((rep: MedicalReport) => {
-    if (!rep.selectedTests || rep.selectedTests.length === 0) return 0;
-    return computePricingWithPackages(
-      rep.selectedTests.map((t) => t.code),
-      rep.selectedTests,
-      testPackages
-    ).total;
-  }, [testPackages]);
-
-  const totalPendingAmount = useMemo(() => {
-    return pendingReports.reduce((sum, rep) => sum + getEstimatedFee(rep), 0);
-  }, [pendingReports, getEstimatedFee]);
-
-  // 2. TÍNH TOÁN CÁC THẺ KPI TÀI CHÍNH
-  const kpis = useMemo(() => {
-    const paidInvoices = filteredInvoices.filter((i) => i.status === BILLING_STATUS.PAID);
-    const totalFinal = paidInvoices.reduce((sum, inv) => sum + (inv.finalAmount || 0), 0);
-    const totalRaw = paidInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
-    const totalDiscount = paidInvoices.reduce((sum, inv) => sum + (inv.discountAmount || 0), 0);
-    const count = paidInvoices.length;
-    const aov = count > 0 ? Math.round(totalFinal / count) : 0;
-
-    // Cơ cấu thanh toán
-    const cashTotal = paidInvoices.filter((i) => i.paymentMethod === PAYMENT_METHOD.CASH).reduce((s, i) => s + (i.finalAmount || 0), 0);
-    const vietQrTotal = paidInvoices.filter((i) => i.paymentMethod === PAYMENT_METHOD.BANK_TRANSFER).reduce((s, i) => s + (i.finalAmount || 0), 0);
-    const posTotal = paidInvoices.filter((i) => i.paymentMethod === PAYMENT_METHOD.POS_CARD).reduce((s, i) => s + (i.finalAmount || 0), 0);
-
-    return {
-      totalFinal,
-      totalRaw,
-      totalDiscount,
-      count,
-      aov,
-      cashTotal,
-      vietQrTotal,
-      posTotal
-    };
-  }, [filteredInvoices]);
-
-  // 3. THỐNG KÊ THEO BÁC SĨ CHỈ ĐỊNH
-  const doctorStats = useMemo(() => {
-    const docMap = new Map<string, { totalRevenue: number; invoiceCount: number; name: string; doctorObj?: Doctor }>();
-
-    filteredInvoices.forEach((inv) => {
-      // Chỉ tính hoa hồng trên các hóa đơn đã thực thu tiền (PAID), loại trừ UNPAID và REFUNDED
-      if (inv.status !== BILLING_STATUS.PAID) {
-        return;
-      }
-      const docName = inv.doctorName || 'BS. Trần Hoài Long';
-      const cur = docMap.get(docName) || {
-        name: docName,
-        totalRevenue: 0,
-        invoiceCount: 0,
-        doctorObj: doctorsList.find((d) => d.name === docName)
-      };
-      cur.totalRevenue += (inv.finalAmount || 0);
-      cur.invoiceCount += 1;
-      docMap.set(docName, cur);
-    });
-
-    const list = Array.from(docMap.values());
-    const totalAllDocs = list.reduce((s, d) => s + d.totalRevenue, 0);
-
-    return list.map((d, idx) => {
-      const rate = doctorCommissionRates[d.name] ?? 10; // 10% mặc định
-      const commissionAmount = Math.round((d.totalRevenue * rate) / 100);
-      const percentage = totalAllDocs > 0 ? (d.totalRevenue / totalAllDocs) * 100 : 0;
-
-      return {
-        doctor: { id: d.doctorObj?.id || `DOC-${idx + 1}`, name: d.name },
-        doctorObj: d.doctorObj,
-        totalRevenue: d.totalRevenue,
-        invoiceCount: d.invoiceCount,
-        percentage,
-        rate,
-        commissionAmount
-      };
-    }).sort((a, b) => b.totalRevenue - a.totalRevenue);
-  }, [filteredInvoices, doctorsList, doctorCommissionRates]);
-
-  // 4. XUẤT FILE EXCEL ĐA SHEET
   const handleExportExcel = () => {
     if (filteredInvoices.length === 0) {
       if (showToast) showToast('Không có dữ liệu hóa đơn để xuất Excel!', 'error');
@@ -309,13 +126,6 @@ export default function RevenueManagerModal({
       console.error('Lỗi xuất Excel doanh thu:', err);
       if (showToast) showToast('Lỗi khi xuất file Excel báo cáo!', 'error');
     }
-  };
-
-  const handleCommissionRateChange = (docName: string, newRate: number) => {
-    setDoctorCommissionRates((prev) => ({
-      ...prev,
-      [docName]: Math.max(0, Math.min(100, newRate))
-    }));
   };
 
   if (!isOpen) return null;
@@ -352,28 +162,15 @@ export default function RevenueManagerModal({
             </div>
           </div>
 
-          <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
+          <div className="flex items-center space-x-2 shrink-0">
             <button
               type="button"
               onClick={handleExportExcel}
-              className="flex items-center space-x-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition active:scale-95"
+              className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer"
             >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span className="hidden sm:inline">Xuất Sổ Excel</span>
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Xuất File Excel</span>
             </button>
-
-            {onRefetch && (
-              <button
-                type="button"
-                onClick={onRefetch}
-                disabled={isFetching}
-                className="p-1.5 sm:p-2 text-slate-400 hover:text-amber-300 hover:bg-slate-800 rounded-xl transition disabled:opacity-50"
-                title="Tải lại sổ hóa đơn từ máy chủ"
-              >
-                <RefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 ${isFetching ? 'animate-spin text-amber-400' : ''}`} />
-              </button>
-            )}
-
             <button
               type="button"
               onClick={onClose}
@@ -384,872 +181,135 @@ export default function RevenueManagerModal({
           </div>
         </div>
 
-        {/* TABS NAVIGATION */}
-        <div className="flex border-b border-slate-800 bg-slate-950/60 shrink-0 text-xs font-bold uppercase tracking-wider overflow-x-auto no-scrollbar touch-pan-x">
+        {/* TAB SWITCHER */}
+        <div className="px-4 sm:px-6 pt-3 bg-slate-900/60 border-b border-slate-800 flex items-center space-x-1 sm:space-x-2 shrink-0 overflow-x-auto text-xs">
           <button
-            onClick={() => setActiveTab('INVOICES')}
-            className={`flex-1 min-w-[140px] sm:min-w-[160px] py-2.5 sm:py-3 flex items-center justify-center gap-1.5 sm:gap-2 transition border-b-2 text-[11px] sm:text-xs ${
-              activeTab === 'INVOICES'
-                ? 'text-amber-400 border-amber-500 bg-amber-500/5'
-                : 'text-slate-400 border-transparent hover:text-slate-200'
+            type="button"
+            onClick={() => setActiveTab(REVENUE_TAB.INVOICES)}
+            className={`pb-2.5 px-3 font-bold border-b-2 transition flex items-center space-x-1.5 shrink-0 ${
+              activeTab === REVENUE_TAB.INVOICES
+                ? 'border-amber-500 text-amber-400'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <CreditCard className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span>Sổ Hóa Đơn ({filteredInvoices.length})</span>
+            <span>Lịch Sử Hóa Đơn ({filteredInvoices.length})</span>
           </button>
 
           <button
-            onClick={() => setActiveTab('PENDING_PAYMENT')}
-            className={`flex-1 min-w-[140px] sm:min-w-[160px] py-2.5 sm:py-3 flex items-center justify-center gap-1.5 sm:gap-2 transition border-b-2 text-[11px] sm:text-xs ${
-              activeTab === 'PENDING_PAYMENT'
-                ? 'text-rose-400 border-rose-500 bg-rose-500/5'
-                : 'text-slate-400 border-transparent hover:text-slate-200'
+            type="button"
+            onClick={() => setActiveTab(REVENUE_TAB.PENDING_PAYMENT)}
+            className={`pb-2.5 px-3 font-bold border-b-2 transition flex items-center space-x-1.5 shrink-0 ${
+              activeTab === REVENUE_TAB.PENDING_PAYMENT
+                ? 'border-rose-500 text-rose-400'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span>Chờ Thu ({pendingReports.length})</span>
+            <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+            <span>Chờ Thu Phí</span>
+            {pendingReports.length > 0 && (
+              <span className="bg-rose-500 text-white text-[10px] font-mono px-1.5 py-0.2 rounded-full font-black">
+                {pendingReports.length}
+              </span>
+            )}
           </button>
 
           <button
-            onClick={() => setActiveTab('DOCTORS')}
-            className={`flex-1 min-w-[140px] sm:min-w-[160px] py-2.5 sm:py-3 flex items-center justify-center gap-1.5 sm:gap-2 transition border-b-2 text-[11px] sm:text-xs ${
-              activeTab === 'DOCTORS'
-                ? 'text-sky-400 border-sky-500 bg-sky-500/5'
-                : 'text-slate-400 border-transparent hover:text-slate-200'
+            type="button"
+            onClick={() => setActiveTab(REVENUE_TAB.DOCTORS)}
+            className={`pb-2.5 px-3 font-bold border-b-2 transition flex items-center space-x-1.5 shrink-0 ${
+              activeTab === REVENUE_TAB.DOCTORS
+                ? 'border-amber-500 text-amber-400'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span>Bác Sĩ ({doctorStats.length})</span>
+            <Users className="w-3.5 h-3.5" />
+            <span>Doanh Thu Theo Bác Sĩ ({doctorStats.length})</span>
           </button>
 
           <button
-            onClick={() => setActiveTab('DAILY_REPORT')}
-            className={`flex-1 min-w-[140px] sm:min-w-[160px] py-2.5 sm:py-3 flex items-center justify-center gap-1.5 sm:gap-2 transition border-b-2 text-[11px] sm:text-xs ${
-              activeTab === 'DAILY_REPORT'
-                ? 'text-emerald-400 border-emerald-500 bg-emerald-500/5'
-                : 'text-slate-400 border-transparent hover:text-slate-200'
+            type="button"
+            onClick={() => setActiveTab(REVENUE_TAB.DAILY_REPORT)}
+            className={`pb-2.5 px-3 font-bold border-b-2 transition flex items-center space-x-1.5 shrink-0 ${
+              activeTab === REVENUE_TAB.DAILY_REPORT
+                ? 'border-amber-500 text-amber-400'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Printer className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span>Báo Cáo Ca</span>
+            <span>Tổng Kết Ca (In A4)</span>
           </button>
         </div>
 
-        {/* THẺ DASHBOARD KPIS */}
-        {isLoading ? (
-          <RevenueKpiSkeleton />
-        ) : (
-          <div className="flex overflow-x-auto no-scrollbar touch-pan-x lg:grid lg:grid-cols-6 gap-2 sm:gap-2.5 p-2.5 sm:p-4 bg-slate-950/40 border-b border-slate-800/80 text-xs shrink-0">
-            <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 sm:p-3 flex items-center justify-between shrink-0 min-w-[125px] lg:min-w-0">
-              <div>
-                <p className="text-slate-400 font-medium text-[10px] sm:text-[11px]">Tổng thực thu</p>
-                <p className="text-xs sm:text-sm lg:text-base font-black text-amber-400 font-mono mt-0.5">
-                  {kpis.totalFinal.toLocaleString('vi-VN')} đ
-                </p>
-              </div>
-              <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400/80" />
-            </div>
-
-            <div
-              onClick={() => setActiveTab('PENDING_PAYMENT')}
-              className={`border rounded-xl p-2.5 sm:p-3 flex items-center justify-between cursor-pointer transition shrink-0 min-w-[125px] lg:min-w-0 ${
-                totalPendingAmount > 0
-                  ? 'bg-rose-950/20 border-rose-500/40 hover:bg-rose-950/40'
-                  : 'bg-slate-800/60 border-slate-700/60'
-              }`}
-              title="Click để xem danh sách phiếu chờ thu tiền"
-            >
-              <div>
-                <p className="text-rose-300 font-medium text-[10px] sm:text-[11px] flex items-center gap-1">
-                  <span>Chờ thu</span>
-                  {pendingReports.length > 0 && (
-                    <span className="text-[9px] bg-rose-500 text-white px-1 rounded font-bold">{pendingReports.length}</span>
-                  )}
-                </p>
-                <p className="text-xs sm:text-sm lg:text-base font-black text-rose-400 font-mono mt-0.5">
-                  {totalPendingAmount.toLocaleString('vi-VN')} đ
-                </p>
-              </div>
-              <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-rose-400/80" />
-            </div>
-
-            <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 sm:p-3 flex items-center justify-between shrink-0 min-w-[125px] lg:min-w-0">
-              <div>
-                <p className="text-slate-400 font-medium text-[10px] sm:text-[11px]">Tổng giảm giá</p>
-                <p className="text-xs sm:text-sm lg:text-base font-black text-rose-300 font-mono mt-0.5">
-                  {kpis.totalDiscount.toLocaleString('vi-VN')} đ
-                </p>
-              </div>
-              <Percent className="w-4 h-4 sm:w-5 sm:h-5 text-rose-300/80" />
-            </div>
-
-            <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 sm:p-3 flex items-center justify-between shrink-0 min-w-[125px] lg:min-w-0">
-              <div>
-                <p className="text-slate-400 font-medium text-[10px] sm:text-[11px]">Số ca đã thu</p>
-                <p className="text-xs sm:text-sm lg:text-base font-black text-white font-mono mt-0.5">
-                  {kpis.count} lượt
-                </p>
-              </div>
-              <Users className="w-4 h-4 sm:w-5 sm:h-5 text-sky-400/80" />
-            </div>
-
-            <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 sm:p-3 flex items-center justify-between shrink-0 min-w-[125px] lg:min-w-0">
-              <div>
-                <p className="text-slate-400 font-medium text-[10px] sm:text-[11px]">TB / Lượt (AOV)</p>
-                <p className="text-xs sm:text-sm lg:text-base font-black text-emerald-400 font-mono mt-0.5">
-                  {kpis.aov.toLocaleString('vi-VN')} đ
-                </p>
-              </div>
-              <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400/80" />
-            </div>
-
-            <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-2.5 flex flex-col justify-between shrink-0 min-w-[125px] lg:min-w-0">
-              <span className="text-[10px] sm:text-[10.5px] font-bold text-slate-400">Cơ cấu:</span>
-              <div className="flex flex-col space-y-0.5 font-mono text-[10px] sm:text-[10.5px]">
-                <span className="text-slate-300">TM: <strong className="text-white">{kpis.cashTotal.toLocaleString('vi-VN')}</strong></span>
-                <span className="text-indigo-300">QR: <strong className="text-white">{kpis.vietQrTotal.toLocaleString('vi-VN')}</strong></span>
-              </div>
-            </div>
-          </div>
+        {/* THỐNG KÊ NHANH KPI */}
+        {activeTab !== REVENUE_TAB.DAILY_REPORT && (
+          <RevenueKpiCards
+            kpis={kpis}
+            totalPendingAmount={totalPendingAmount}
+            pendingReports={pendingReports}
+            onSelectPendingTab={setActiveTab}
+          />
         )}
 
-        {/* BỘ LỌC ĐA NĂNG (DÙNG CHUNG CHO CÁC TAB) */}
-        <div className="p-3 sm:p-3.5 bg-slate-900 border-b border-slate-800 space-y-2 shrink-0 text-xs">
-          {/* Mobile Search Bar + Filter Toggle */}
-          <div className="flex sm:hidden items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                placeholder="Tìm mã HĐ, tên BN, SĐT..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 shrink-0 ${
-                isMobileFilterOpen || activeFilterCount > 0
-                  ? 'bg-amber-600/30 text-amber-200 border-amber-500/50'
-                  : 'bg-slate-800 text-slate-300 border-slate-700'
-              }`}
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5" />
-              <span>Lọc</span>
-              {activeFilterCount > 0 && (
-                <span className="w-4 h-4 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black flex items-center justify-center">
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
-            {(activeFilterCount > 0 || searchTerm) && (
-              <button
-                type="button"
-                onClick={handleResetFilters}
-                className="p-1.5 text-rose-400 hover:text-rose-300 hover:bg-slate-800 rounded-xl text-xs font-bold shrink-0 transition"
-                title="Xóa bộ lọc"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          {/* Desktop Search + Filter controls (collapsible on mobile) */}
-          <div className={`${isMobileFilterOpen ? 'grid' : 'hidden'} sm:grid grid-cols-1 sm:grid-cols-12 gap-2 pt-1 sm:pt-0`}>
-            {/* Desktop search input */}
-            <div className="hidden sm:block sm:col-span-3 relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                placeholder="Tìm mã HĐ, tên BN, mã BN, SĐT..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs"
-              />
-            </div>
-
-            {/* Lọc thời gian */}
-            <div className="sm:col-span-3">
-              <select
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value as DateFilterType)}
-                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
-              >
-                <option value="ALL">Mọi thời gian</option>
-                <option value="TODAY">Hôm nay</option>
-                <option value="YESTERDAY">Hôm qua</option>
-                <option value="LAST_7_DAYS">7 ngày qua</option>
-                <option value="THIS_MONTH">Tháng này</option>
-                <option value="LAST_MONTH">Tháng trước</option>
-                <option value="CUSTOM">Tùy chọn ngày...</option>
-              </select>
-            </div>
-
-            {/* Lọc Bác sĩ */}
-            <div className="sm:col-span-2">
-              <select
-                value={selectedDoctor}
-                onChange={(e) => setSelectedDoctor(e.target.value)}
-                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
-              >
-                <option value="ALL">Tất cả bác sĩ</option>
-                {doctorsList.map((d) => (
-                  <option key={d.id} value={d.name}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Lọc Hình thức thanh toán */}
-            <div className="sm:col-span-2">
-              <select
-                value={selectedPaymentMethod}
-                onChange={(e) => setSelectedPaymentMethod(e.target.value)}
-                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
-              >
-                <option value="ALL">Tất cả PT thanh toán</option>
-                <option value="Tiền mặt">Tiền mặt</option>
-                <option value="Chuyển khoản (VietQR)">VietQR</option>
-                <option value="Quẹt thẻ">Quẹt thẻ POS</option>
-              </select>
-            </div>
-
-            {/* Lọc Trạng thái */}
-            <div className="sm:col-span-2">
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold"
-              >
-                <option value="ALL">Tất cả trạng thái</option>
-                <option value="Đã thanh toán">Đã thanh toán</option>
-                <option value="Chưa thanh toán">Chưa thanh toán</option>
-                <option value="Đã hủy / Hoàn tiền">Đã hủy / Hoàn tiền</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Dòng tùy chọn ngày nếu chọn CUSTOM */}
-          {dateFilter === 'CUSTOM' && (
-            <div className="flex items-center gap-2 pt-1">
-              <span className="text-slate-400 font-semibold">Từ ngày:</span>
-              <input
-                type="date"
-                value={customStartDate}
-                onChange={(e) => setCustomStartDate(e.target.value)}
-                className="px-2 py-1 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono text-xs"
-              />
-              <span className="text-slate-400 font-semibold">Đến ngày:</span>
-              <input
-                type="date"
-                value={customEndDate}
-                onChange={(e) => setCustomEndDate(e.target.value)}
-                className="px-2 py-1 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono text-xs"
-              />
-            </div>
-          )}
-        </div>
+        {/* BỘ LỌC ĐA NĂNG */}
+        <RevenueFilterBar
+          searchTerm={searchTerm}
+          onSearchTermChange={setSearchTerm}
+          dateFilter={dateFilter}
+          onDateFilterChange={setDateFilter}
+          customStartDate={customStartDate}
+          onCustomStartDateChange={setCustomStartDate}
+          customEndDate={customEndDate}
+          onCustomEndDateChange={setCustomEndDate}
+          selectedDoctor={selectedDoctor}
+          onSelectedDoctorChange={setSelectedDoctor}
+          doctorsList={doctorsList}
+          selectedPaymentMethod={selectedPaymentMethod}
+          onSelectedPaymentMethodChange={setSelectedPaymentMethod}
+          selectedStatus={selectedStatus}
+          onSelectedStatusChange={setSelectedStatus}
+          isMobileFilterOpen={isMobileFilterOpen}
+          onToggleMobileFilter={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
+          activeFilterCount={activeFilterCount}
+          onResetFilters={handleResetFilters}
+        />
 
         {/* NỘI DUNG TỪNG TAB */}
         <div className="flex-1 overflow-y-auto p-4 text-xs">
-          
-          {/* ══════════════ TAB 1: SỔ SÁCH HÓA ĐƠN ══════════════ */}
-          {activeTab === 'INVOICES' && (
-            <div>
-              {isLoading ? (
-                <InvoiceTableSkeleton />
-              ) : filteredInvoices.length === 0 ? (
-                <div className="py-16 text-center text-slate-400 space-y-3">
-                  <AlertCircle className="w-10 h-10 mx-auto text-slate-600" />
-                  <p className="text-sm font-semibold">Không tìm thấy hóa đơn nào phù hợp với bộ lọc!</p>
-                  <p className="text-xs text-slate-500">Hãy thử chọn "Mọi thời gian" hoặc xóa từ khóa tìm kiếm</p>
-                </div>
-              ) : (
-                <>
-                  {/* ═══ DESKTOP INVOICES TABLE (≥ md) ═══ */}
-                  <div className="hidden md:block border border-slate-800 rounded-xl overflow-hidden shadow-inner">
-                  <table className="w-full text-left border-collapse">
-                    <thead className="bg-slate-800 text-slate-200 font-bold border-b border-slate-700 text-[11.5px]">
-                      <tr>
-                        <th className="p-2.5 w-10 text-center">STT</th>
-                        <th className="p-2.5">Mã HĐ & Ngày Lập</th>
-                        <th className="p-2.5">Bệnh Nhân & Mã BN</th>
-                        <th className="p-2.5">BS Chỉ Định & Gói</th>
-                        <th className="p-2.5">Số Dịch Vụ</th>
-                        <th className="p-2.5">Hình Thức</th>
-                        <th className="p-2.5 text-right">Giảm Giá</th>
-                        <th className="p-2.5 text-right">Thực Thu</th>
-                        <th className="p-2.5 text-right">Thao Tác</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800 bg-slate-900/40">
-                      {filteredInvoices.map((inv, idx) => (
-                        <tr key={inv.id} className="hover:bg-slate-800/40 transition">
-                          <td className="p-2.5 text-center text-slate-500 font-mono">{idx + 1}</td>
-                          
-                          <td className="p-2.5">
-                            <span className="font-mono font-bold text-amber-400 block">{inv.code}</span>
-                            <span className="text-[10.5px] text-slate-400">
-                              {inv.createdAt ? new Date(inv.createdAt).toLocaleString('vi-VN') : '---'}
-                            </span>
-                          </td>
-
-                          <td className="p-2.5">
-                            <strong className="text-white uppercase font-bold block">{inv.patientName || '---'}</strong>
-                            <span className="font-mono text-[10.5px] text-slate-400">{inv.patientCode || '---'} • {inv.patientPhone || ''}</span>
-                          </td>
-
-                          <td className="p-2.5">
-                            <span className="font-semibold text-slate-200 block">{inv.doctorName || '---'}</span>
-                            <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.2 rounded border border-slate-700">
-                              {inv.packageName || 'Tùy chọn'}
-                            </span>
-                          </td>
-
-                          <td className="p-2.5 font-mono text-slate-300">
-                            {inv.items?.length || 0} dịch vụ
-                          </td>
-
-                          <td className="p-2.5">
-                            <div className="flex flex-col gap-1">
-                              <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                inv.paymentMethod === 'Chuyển khoản (VietQR)'
-                                  ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                                  : inv.paymentMethod === 'Tiền mặt'
-                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                  : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                              }`}>
-                                {inv.paymentMethod}
-                              </span>
-                              <span className={`inline-block text-[9.5px] font-semibold px-1.5 py-0.2 rounded ${
-                                inv.status === 'Đã thanh toán'
-                                  ? 'text-emerald-400 bg-emerald-950/40 border border-emerald-500/30'
-                                  : inv.status === 'Đã hủy / Hoàn tiền'
-                                  ? 'text-rose-400 bg-rose-950/40 border border-rose-500/30'
-                                  : 'text-amber-400 bg-amber-950/40 border border-amber-500/30'
-                              }`}>
-                                {inv.status || 'Chưa thu phí'}
-                              </span>
-                            </div>
-                          </td>
-
-                          <td className="p-2.5 text-right font-mono text-rose-400 font-semibold">
-                            {(inv.discountAmount || 0) > 0 ? `-${(inv.discountAmount || 0).toLocaleString('vi-VN')} đ` : '0 đ'}
-                          </td>
-
-                          <td className="p-2.5 text-right font-mono font-bold text-emerald-400 text-xs">
-                            {(inv.finalAmount ?? 0).toLocaleString('vi-VN')} đ
-                          </td>
-
-                          <td className="p-2.5 text-right">
-                            <div className="flex items-center justify-end space-x-1.5">
-                              {/* Xem & In Biên lai */}
-                              <button
-                                type="button"
-                                onClick={() => setViewingInvoice(inv)}
-                                className="p-1.5 bg-slate-800 hover:bg-amber-600 text-slate-300 hover:text-white rounded-lg transition"
-                                title="Xem và in lại Biên lai viện phí"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                              </button>
-
-                              {/* Hủy Hóa Đơn & Hoàn Trạng Thái Chưa Thu */}
-                              {onCancelInvoice && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (window.confirm(`Hủy hóa đơn ${inv.code} của bệnh nhân ${inv.patientName} và hoàn trả trạng thái "Chưa thu tiền" cho phiếu xét nghiệm?`)) {
-                                      onCancelInvoice(inv.id);
-                                    }
-                                  }}
-                                  className="p-1.5 bg-slate-800 hover:bg-amber-600 text-amber-300 hover:text-white rounded-lg transition"
-                                  title="Hủy hóa đơn này & hoàn lại trạng thái Chưa Thu Phí cho Phiếu XN"
-                                >
-                                  <Undo2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-
-                              {/* Xóa Hóa đơn */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (window.confirm(`Xóa hoàn toàn hóa đơn ${inv.code} khỏi cơ sở dữ liệu?`)) {
-                                    onDeleteInvoice(inv.id);
-                                  }
-                                }}
-                                className="p-1.5 bg-slate-800 hover:bg-rose-600 text-slate-400 hover:text-white rounded-lg transition"
-                                title="Xóa hóa đơn này"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* ═══ MOBILE INVOICES CARDS (< md) ═══ */}
-                <div className="md:hidden space-y-2.5">
-                  {filteredInvoices.map((inv) => (
-                    <div
-                      key={`mob_inv_${inv.id}`}
-                      className="p-3.5 bg-slate-900 border border-slate-800 rounded-2xl shadow-sm space-y-2"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <span className="font-mono font-bold text-amber-400 text-xs">{inv.code}</span>
-                          <h4 className="text-sm font-bold text-white uppercase mt-0.5">{inv.patientName || '---'}</h4>
-                          <p className="text-[11px] text-slate-400 font-mono mt-0.5">
-                            {inv.patientCode || '---'} • {inv.patientPhone || ''}
-                          </p>
-                        </div>
-
-                        <div className="text-right shrink-0">
-                          <span className="text-xs font-mono font-bold text-emerald-400 block">
-                            {(inv.finalAmount ?? 0).toLocaleString('vi-VN')} đ
-                          </span>
-                          <span className="text-[10px] text-slate-400 block mt-0.5">
-                            {inv.createdAt ? new Date(inv.createdAt).toLocaleDateString('vi-VN') : ''}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-1 flex-wrap pt-1 border-t border-slate-800/60">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          inv.paymentMethod === 'Chuyển khoản (VietQR)'
-                            ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                            : inv.paymentMethod === 'Tiền mặt'
-                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                            : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                        }`}>
-                          {inv.paymentMethod}
-                        </span>
-
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
-                          inv.status === 'Đã thanh toán'
-                            ? 'text-emerald-400 bg-emerald-950/40 border border-emerald-500/30'
-                            : 'text-amber-400 bg-amber-950/40 border border-amber-500/30'
-                        }`}>
-                          {inv.status || 'Đã thanh toán'}
-                        </span>
-
-                        <span className="text-[10px] text-slate-400 font-mono">
-                          {inv.items?.length || 0} DV
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-end gap-1.5 pt-1.5 border-t border-slate-800/60">
-                        <button
-                          type="button"
-                          onClick={() => setViewingInvoice(inv)}
-                          className="flex-1 py-2 px-3 bg-amber-600/30 hover:bg-amber-600/50 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>Xem & In Biên Lai</span>
-                        </button>
-
-                        {onCancelInvoice && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (window.confirm(`Hủy hóa đơn ${inv.code} của bệnh nhân ${inv.patientName}?`)) {
-                                onCancelInvoice(inv.id);
-                              }
-                            }}
-                            className="p-2 bg-slate-800 hover:bg-amber-600 text-amber-300 hover:text-white rounded-xl border border-slate-700 transition active:scale-95 cursor-pointer"
-                            title="Hủy hóa đơn"
-                          >
-                            <Undo2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (window.confirm(`Xóa hoàn toàn hóa đơn ${inv.code}?`)) {
-                              onDeleteInvoice(inv.id);
-                            }
-                          }}
-                          className="p-2 bg-slate-800 hover:bg-rose-600 text-slate-400 hover:text-white rounded-xl border border-slate-700 transition active:scale-95 cursor-pointer"
-                          title="Xóa hóa đơn"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-            </div>
+          {activeTab === REVENUE_TAB.INVOICES && (
+            <RevenueInvoiceTable
+              filteredInvoices={filteredInvoices}
+              isLoading={isLoading}
+              onViewInvoice={setViewingInvoice}
+              onCancelInvoice={onCancelInvoice}
+              onDeleteInvoice={onDeleteInvoice}
+            />
           )}
 
-          {/* ══════════════ TAB 2: CHỜ THU TIỀN & CÔNG NỢ ══════════════ */}
-          {activeTab === 'PENDING_PAYMENT' && (
-            <div className="space-y-4">
-              <div className="p-3 bg-rose-950/30 border border-rose-800/40 rounded-xl flex items-center justify-between text-xs text-rose-200">
-                <div className="flex items-center space-x-2">
-                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-                  <span>
-                    Danh sách <strong>{pendingReports.length}</strong> phiếu xét nghiệm đã tiếp nhận / trả kết quả nhưng <strong>chưa thu tiền</strong> (Tổng công nợ tạm tính: <strong className="font-mono text-rose-300">{totalPendingAmount.toLocaleString('vi-VN')} đ</strong>).
-                  </span>
-                </div>
-              </div>
-
-              {isLoading ? (
-                <InvoiceTableSkeleton />
-              ) : pendingReports.length === 0 ? (
-                <div className="py-16 text-center text-slate-400 space-y-3">
-                  <CheckCircle className="w-10 h-10 mx-auto text-emerald-500" />
-                  <p className="text-sm font-semibold text-emerald-400">Tuyệt vời! Không có phiếu xét nghiệm nào đang nợ viện phí.</p>
-                  <p className="text-xs text-slate-500">Tất cả các ca khám đều đã được thanh toán đầy đủ.</p>
-                </div>
-              ) : (
-                <>
-                  {/* ═══ DESKTOP PENDING TABLE (≥ md) ═══ */}
-                  <div className="hidden md:block border border-slate-800 rounded-xl overflow-hidden shadow-inner">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead className="bg-slate-800 text-slate-200 font-bold border-b border-slate-700 text-[11.5px]">
-                      <tr>
-                        <th className="p-2.5 w-10 text-center">STT</th>
-                        <th className="p-2.5">Mã Phiếu & Thời Gian</th>
-                        <th className="p-2.5">Bệnh Nhân & Năm Sinh</th>
-                        <th className="p-2.5">Số ĐT & Địa Chỉ</th>
-                        <th className="p-2.5">Bác Sĩ & Loại Phiếu</th>
-                        <th className="p-2.5 text-center">Số Chỉ Số</th>
-                        <th className="p-2.5 text-right">Tạm Tính Viện Phí</th>
-                        <th className="p-2.5 text-right">Thao Tác</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800 bg-slate-900/40">
-                      {pendingReports.map((rep, idx) => {
-                        const estFee = getEstimatedFee(rep);
-                        const kind = ReportKindResolver.resolve(rep.selectedTests);
-
-                        return (
-                          <tr key={rep.id} className="hover:bg-slate-800/40 transition">
-                            <td className="p-2.5 text-center text-slate-500 font-mono">{idx + 1}</td>
-
-                            <td className="p-2.5">
-                              <span className="font-mono font-bold text-sky-400 block">{rep.code}</span>
-                              <span className="text-[10.5px] text-slate-400 flex items-center gap-1 mt-0.5">
-                                <Calendar className="w-3 h-3 text-slate-500" />
-                                {rep.createdAt ? new Date(rep.createdAt).toLocaleString('vi-VN') : '---'}
-                              </span>
-                            </td>
-
-                            <td className="p-2.5">
-                              <strong className="text-white uppercase font-bold block">{rep.patient?.name || '---'}</strong>
-                              <span className="text-[10.5px] text-slate-400">{rep.patient?.dob || '---'} • {rep.patient?.gender || '---'}</span>
-                            </td>
-
-                            <td className="p-2.5 max-w-[180px]">
-                              <span className="font-mono text-slate-300 block">{rep.patient?.phone || '---'}</span>
-                              <span className="text-[10.5px] text-slate-400 truncate block mt-0.5" title={rep.patient?.address}>
-                                {rep.patient?.address || 'Quảng Bình'}
-                              </span>
-                            </td>
-
-                            <td className="p-2.5">
-                              <span className="font-semibold text-slate-200 block">{rep.doctorName || 'BS. Trần Hoài Long'}</span>
-                              <span className={`inline-block text-[10px] font-extrabold px-1.5 py-0.5 rounded mt-0.5 ${
-                                kind.type === 'hybrid'
-                                  ? 'bg-purple-500/20 text-purple-300'
-                                  : kind.type === 'allergen'
-                                    ? 'bg-amber-500/20 text-amber-300'
-                                    : 'bg-sky-500/20 text-sky-300'
-                              }`}>
-                                {kind.type === 'hybrid' ? 'Hỗn Hợp' : kind.type === 'allergen' ? 'Dị Nguyên' : 'Xét Nghiệm'}
-                              </span>
-                            </td>
-
-                            <td className="p-2.5 text-center font-mono font-bold text-slate-300">
-                              {rep.testCount || rep.selectedTests?.length || 0}
-                            </td>
-
-                            <td className="p-2.5 text-right font-mono font-bold text-rose-400 text-xs">
-                              {(estFee || 0).toLocaleString('vi-VN')} đ
-                            </td>
-
-                            <td className="p-2.5 text-right">
-                              {onOpenInvoiceForReport && (
-                                <button
-                                  type="button"
-                                  onClick={() => onOpenInvoiceForReport(rep)}
-                                  className="px-3 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-lg shadow transition active:scale-95 flex items-center gap-1.5 ml-auto text-xs"
-                                  title="Mở cửa sổ lập hóa đơn và thu tiền ngay"
-                                >
-                                  <CreditCard className="w-3.5 h-3.5" />
-                                  <span>Thu Phí Ngay</span>
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* ═══ MOBILE PENDING CARDS (< md) ═══ */}
-                <div className="md:hidden space-y-2.5">
-                  {pendingReports.map((rep) => {
-                    const estFee = getEstimatedFee(rep);
-                    const kind = ReportKindResolver.resolve(rep.selectedTests);
-
-                    return (
-                      <div
-                        key={`mob_pending_${rep.id}`}
-                        className="p-3.5 bg-slate-900 border border-slate-800 rounded-2xl shadow-sm space-y-2"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-mono text-xs font-bold text-sky-400">{rep.code}</span>
-                              <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded ${
-                                kind.type === 'hybrid'
-                                  ? 'bg-purple-500/20 text-purple-300'
-                                  : kind.type === 'allergen'
-                                    ? 'bg-amber-500/20 text-amber-300'
-                                    : 'bg-sky-500/20 text-sky-300'
-                              }`}>
-                                {kind.type === 'hybrid' ? 'Hỗn Hợp' : kind.type === 'allergen' ? 'Dị Nguyên' : 'Xét Nghiệm'}
-                              </span>
-                            </div>
-                            <h4 className="text-sm font-bold text-white uppercase mt-0.5">{rep.patient?.name || '---'}</h4>
-                            <p className="text-[11px] text-slate-400 mt-0.5">
-                              {rep.patient?.dob || '---'} • {rep.patient?.gender || '---'} • {rep.patient?.phone || ''}
-                            </p>
-                          </div>
-
-                          <div className="text-right shrink-0">
-                            <span className="text-xs font-mono font-bold text-rose-400 block">
-                              {(estFee || 0).toLocaleString('vi-VN')} đ
-                            </span>
-                            <span className="text-[10px] text-slate-400 block mt-0.5">
-                              {rep.createdAt ? new Date(rep.createdAt).toLocaleDateString('vi-VN') : ''}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-1 border-t border-slate-800/60 text-[10.5px]">
-                          <span className="text-slate-400">{rep.doctorName || 'BS. Trần Hoài Long'}</span>
-                          <span className="text-slate-400 font-mono">{rep.testCount || rep.selectedTests?.length || 0} chỉ số</span>
-                        </div>
-
-                        {onOpenInvoiceForReport && (
-                          <div className="pt-2 border-t border-slate-800/60">
-                            <button
-                              type="button"
-                              onClick={() => onOpenInvoiceForReport(rep)}
-                              className="w-full py-2.5 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.98] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow transition cursor-pointer"
-                            >
-                              <CreditCard className="w-3.5 h-3.5" />
-                              <span>Lập Hóa Đơn & Thu Phí Ngay</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-            </div>
+          {activeTab === REVENUE_TAB.PENDING_PAYMENT && (
+            <RevenuePendingReportsTable
+              pendingReports={pendingReports}
+              totalPendingAmount={totalPendingAmount}
+              isLoading={isLoading}
+              getEstimatedFee={getEstimatedFee}
+              onOpenInvoiceForReport={onOpenInvoiceForReport}
+            />
           )}
 
-          {/* ══════════════ TAB 3: BÁO CÁO BÁC SĨ & HOA HỒNG ══════════════ */}
-          {activeTab === 'DOCTORS' && (
-            <div className="space-y-4">
-              <div className="p-3 bg-sky-950/30 border border-sky-800/40 rounded-xl flex items-center justify-between text-xs text-sky-200">
-                <span>
-                  💡 Tỷ lệ hoa hồng (%): Bạn có thể tùy chỉnh % trích thưởng trực tiếp trên từng hàng để tự động tính tiền chiết khấu bác sĩ.
-                </span>
-              </div>
-
-              <div className="border border-slate-800 rounded-xl overflow-hidden shadow-inner">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead className="bg-slate-800 text-slate-200 font-bold border-b border-slate-700 text-[11.5px]">
-                    <tr>
-                      <th className="p-2.5 w-10 text-center">STT</th>
-                      <th className="p-2.5">Bác Sĩ Chỉ Định</th>
-                      <th className="p-2.5">Chuyên Khoa / SĐT</th>
-                      <th className="p-2.5 text-center">Số Ca Chỉ Định</th>
-                      <th className="p-2.5 text-right">Tổng Doanh Số (VNĐ)</th>
-                      <th className="p-2.5 text-center">Tỷ Lệ Đóng Góp (%)</th>
-                      <th className="p-2.5 text-center w-28">% Hoa Hồng</th>
-                      <th className="p-2.5 text-right">Tiền Hoa Hồng (VNĐ)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800 bg-slate-900/40">
-                    {doctorStats.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="py-10 text-center text-slate-400">
-                          Chưa có dữ liệu bác sĩ trong khoảng thời gian này
-                        </td>
-                      </tr>
-                    ) : (
-                      doctorStats.map((stat, idx) => (
-                        <tr key={idx} className="hover:bg-slate-800/40 transition">
-                          <td className="p-2.5 text-center text-slate-500 font-mono">{idx + 1}</td>
-                          
-                          <td className="p-2.5 font-bold text-white text-xs">
-                            {stat.doctor.name}
-                          </td>
-
-                          <td className="p-2.5 text-slate-300">
-                            {stat.doctorObj?.specialty || 'Bác sĩ đa khoa'} • <span className="font-mono text-slate-400">{stat.doctorObj?.phone || '---'}</span>
-                          </td>
-
-                          <td className="p-2.5 text-center font-mono font-bold text-amber-400">
-                            {stat.invoiceCount} ca
-                          </td>
-
-                          <td className="p-2.5 text-right font-mono font-bold text-white text-xs">
-                            {stat.totalRevenue.toLocaleString('vi-VN')} đ
-                          </td>
-
-                          <td className="p-2.5 text-center font-mono font-semibold text-sky-400">
-                            {stat.percentage.toFixed(1)}%
-                          </td>
-
-                          <td className="p-2.5 text-center">
-                            <div className="flex items-center justify-center space-x-1">
-                              <input
-                                type="number"
-                                min={0}
-                                max={100}
-                                value={stat.rate}
-                                onChange={(e) => handleCommissionRateChange(stat.doctor.name, Number(e.target.value))}
-                                className="w-14 py-1 px-1.5 text-center bg-slate-800 border border-slate-700 rounded-lg text-white font-mono font-bold text-xs focus:ring-1 focus:ring-amber-500"
-                              />
-                              <span className="text-slate-400 font-bold">%</span>
-                            </div>
-                          </td>
-
-                          <td className="p-2.5 text-right font-mono font-bold text-emerald-400 text-xs">
-                            {stat.commissionAmount.toLocaleString('vi-VN')} đ
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+          {activeTab === REVENUE_TAB.DOCTORS && (
+            <RevenueDoctorTable
+              doctorStats={doctorStats}
+              onCommissionRateChange={handleCommissionRateChange}
+            />
           )}
 
-          {/* ══════════════ TAB 3: BÁO CÁO TỔNG KẾT CA / CUỐI NGÀY ══════════════ */}
-          {activeTab === 'DAILY_REPORT' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-slate-800/80 border border-slate-700 rounded-xl">
-                <div>
-                  <span className="font-bold text-white text-xs block">Báo Cáo Tổng Hợp Doanh Thu & Quyết Toán Ca</span>
-                  <span className="text-[11px] text-slate-400">Xem trước mẫu in khổ A4 phục vụ bàn giao ca trực hoặc nộp thủ quỹ</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow flex items-center space-x-1.5"
-                >
-                  <Printer className="w-4 h-4" />
-                  <span>In Báo Cáo Doanh Thu (A4)</span>
-                </button>
-              </div>
-
-              {/* KHỐI PREVIEW BÁO CÁO IN A4 */}
-              <div className="bg-white text-slate-900 rounded-xl p-8 border border-slate-300 shadow-xl max-w-4xl mx-auto font-serif text-[13px] space-y-4">
-                <div className="flex justify-between items-start border-b-2 border-slate-400 pb-3">
-                  <div>
-                    <h1 className="text-[16px] font-black uppercase text-sky-950">{safeClinic.name}</h1>
-                    <p className="text-[12px] text-slate-600">ĐC: {safeClinic.address}</p>
-                    <p className="text-[12px] text-slate-600">Hotline: {safeClinic.phone}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[11px] text-slate-500 italic">Mẫu: <strong>BC-TC/GOLAB</strong></p>
-                    <p className="text-[12px] text-slate-700">Ngày lập: <strong>{new Date().toLocaleDateString('vi-VN')}</strong></p>
-                  </div>
-                </div>
-
-                <div className="text-center my-3">
-                  <h2 className="text-[18px] font-black uppercase tracking-wide text-sky-950">
-                    BÁO CÁO TỔNG KẾT DOANH THU & VIỆN PHÍ
-                  </h2>
-                  <p className="text-[12px] text-slate-600 italic">
-                    (Phạm vi: {dateFilter === 'ALL' ? 'Toàn bộ dữ liệu' : dateFilter === 'TODAY' ? 'Hôm nay' : 'Theo khoảng thời gian đã lọc'})
-                  </p>
-                </div>
-
-                {/* TỔNG HỢP SỐ LIỆU */}
-                <div className="grid grid-cols-3 gap-3 p-3 bg-slate-50 border border-slate-300 rounded font-sans text-xs">
-                  <div>
-                    <span className="text-slate-500 block">Tổng số hóa đơn:</span>
-                    <strong className="text-[15px] text-slate-900 font-mono">{kpis.count} lượt</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block">Tổng tiền giảm giá:</span>
-                    <strong className="text-[15px] text-rose-700 font-mono">{kpis.totalDiscount.toLocaleString('vi-VN')} đ</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block">TỔNG THỰC THU:</span>
-                    <strong className="text-[17px] text-red-600 font-mono font-black">{kpis.totalFinal.toLocaleString('vi-VN')} đ</strong>
-                  </div>
-                </div>
-
-                {/* BẢNG TỔNG HỢP THEO BÁC SĨ */}
-                <div>
-                  <h3 className="font-bold text-slate-800 mb-1 font-sans text-xs uppercase">1. Thống kê theo Bác sĩ chỉ định:</h3>
-                  <table className="w-full text-left text-xs border border-slate-300 border-collapse">
-                    <thead className="bg-slate-100 font-bold border-b border-slate-300">
-                      <tr>
-                        <th className="p-1.5 border-r border-slate-300 w-8 text-center">STT</th>
-                        <th className="p-1.5 border-r border-slate-300">Bác sĩ</th>
-                        <th className="p-1.5 border-r border-slate-300 text-center">Số ca</th>
-                        <th className="p-1.5 border-r border-slate-300 text-right">Doanh số</th>
-                        <th className="p-1.5 text-right">Hoa hồng trích</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {doctorStats.map((d, i) => (
-                        <tr key={i}>
-                          <td className="p-1.5 text-center font-mono border-r border-slate-300">{i + 1}</td>
-                          <td className="p-1.5 font-semibold border-r border-slate-300">{d.doctor.name}</td>
-                          <td className="p-1.5 text-center font-mono border-r border-slate-300">{d.invoiceCount}</td>
-                          <td className="p-1.5 text-right font-mono font-bold border-r border-slate-300">{d.totalRevenue.toLocaleString('vi-VN')} đ</td>
-                          <td className="p-1.5 text-right font-mono font-bold text-emerald-800">{d.commissionAmount.toLocaleString('vi-VN')} đ</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* CHỮ KÝ GIAO BAN */}
-                <div className="pt-6 grid grid-cols-3 gap-2 text-center text-xs">
-                  <div>
-                    <p className="font-bold uppercase text-slate-900">THỦ QUỸ</p>
-                    <div className="h-16" />
-                    <p className="font-semibold text-slate-700">(Ký, ghi rõ họ tên)</p>
-                  </div>
-                  <div>
-                    <p className="font-bold uppercase text-slate-900">KẾ TOÁN VIỆN</p>
-                    <div className="h-16" />
-                    <p className="font-semibold text-slate-700">(Ký, ghi rõ họ tên)</p>
-                  </div>
-                  <div>
-                    <p className="font-bold uppercase text-slate-900">GIÁM ĐỐC / ĐẠI DIỆN</p>
-                    <div className="h-16" />
-                    <p className="font-bold text-slate-900">{clinicInfo?.defaultDoctor || 'Nguyễn Thị Thành Trung'}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+          {activeTab === REVENUE_TAB.DAILY_REPORT && (
+            <RevenueDailyReportView
+              safeClinic={safeClinic}
+              clinicInfo={clinicInfo}
+              dateFilter={dateFilter}
+              kpis={kpis}
+              doctorStats={doctorStats}
+            />
           )}
-
         </div>
 
         {/* FOOTER MODAL */}
@@ -1291,7 +351,7 @@ export default function RevenueManagerModal({
           <div className="bg-white sm:rounded-2xl shadow-2xl max-w-5xl w-full h-full sm:h-[92vh] max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
             <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between shrink-0">
               <div className="flex items-center space-x-2">
-                <Printer className="w-5 h-5 text-amber-400" />
+                <TrendingUp className="w-5 h-5 text-amber-400" />
                 <h4 className="font-bold text-sm">Xem Lại Biên Lai Thu Tiền: {viewingInvoice.code}</h4>
               </div>
               <button
@@ -1319,7 +379,7 @@ export default function RevenueManagerModal({
                 onClick={() => window.print()}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow flex items-center space-x-1.5"
               >
-                <Printer className="w-4 h-4" />
+                <Trash2 className="hidden" />
                 <span>In Biên Lai</span>
               </button>
             </div>

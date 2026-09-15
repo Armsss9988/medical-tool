@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, Fragment, memo } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import golabLogo from '@assets/golabLogoDataUrl';
 import doctorStamp from '@assets/doctorStampDataUrl';
 import { generateQrCodeDataUrl, buildPortalUrl } from '@infra/qrService';
@@ -12,38 +12,39 @@ import {
   CatalogItemEquipmentLink,
   ReportTemplate,
   TemplateBlock,
-  resolveTestEquipmentName,
-  formatEquipmentForPrint,
   DEFAULT_CLINIC_INFO,
   getSafeClinicInfo,
-  HeaderBlockProps,
-  TitleBlockProps,
-  PatientInfoBlockProps,
-  TestTableBlockProps,
-  AllergenSummaryBlockProps,
-  AllergenHeaderBlockProps,
-  AllergenTitleBlockProps,
-  AllergenPatientSummaryBlockProps,
-  AllergenPositiveTableBlockProps,
-  AllergenScaleTableBlockProps,
-  AllergenSymptomsBoxBlockProps,
-  AllergenTigeNoteBlockProps,
-  AllergenDetailTableBlockProps,
-  AllergenPreventionGuideBlockProps,
-  AllergenCoverSummaryBlockProps,
-  PageBreakBlockProps,
-  ConclusionBlockProps,
-  SignatureBlockProps,
-  CustomTextBlockProps,
-  DividerBlockProps,
-  SpacerBlockProps,
-  ReportPaginationDomainService,
-  ReportPaginationEntry,
-  sortTestsByPackageOrder
+  sortTestsByPackageOrder,
+  ReportPaginationEntry
 } from '@domain';
-import { evaluateResult } from '@domain/testResult';
 import { AllergenReportDomainService, AllergenReportItemDTO } from '@domain/services/AllergenReportDomainService';
-import { isAllergenTest, getAllergenBadgeSvg, getAllergenGradeClasses } from '@domain/allergenDetector';
+import { isAllergenTest } from '@domain/allergenDetector';
+
+import { useDynamicReportPages } from './useDynamicReportPages';
+import { DynamicReportHeaderBlock, DynamicReportTitleBlock } from './DynamicReportHeaderBlock';
+import { DynamicReportPatientInfoBlock } from './DynamicReportPatientInfoBlock';
+import { DynamicReportClinicalTableBlock } from './DynamicReportClinicalTableBlock';
+import {
+  DynamicReportAllergenSummaryBlock,
+  DynamicReportAllergenHeaderBlock,
+  DynamicReportAllergenTitleBlock,
+  DynamicReportAllergenPatientSummaryBlock,
+  DynamicReportAllergenPositiveTableBlock,
+  DynamicReportAllergenScaleTableBlock,
+  DynamicReportAllergenSymptomsBoxBlock,
+  DynamicReportAllergenTigeNoteBlock,
+  DynamicReportAllergenDetailTableBlock,
+  DynamicReportAllergenPreventionGuideBlock,
+  DynamicReportAllergenCoverSummaryBlock
+} from './DynamicReportAllergenBlocks';
+import {
+  DynamicReportConclusionBlock,
+  DynamicReportSignatureBlock,
+  DynamicReportCustomTextBlock,
+  DynamicReportDividerBlock,
+  DynamicReportSpacerBlock,
+  DynamicReportPageBreakBlock
+} from './DynamicReportFooterBlocks';
 
 const MOCK_DESIGN_REGULAR_TESTS: SelectedTest[] = [
   {
@@ -182,7 +183,7 @@ const MOCK_DESIGN_ALLERGEN_TESTS: SelectedTest[] = [
   }
 ];
 
-interface DynamicReportViewProps {
+export interface DynamicReportViewProps {
   template: ReportTemplate;
   patient?: Patient;
   selectedTests?: SelectedTest[];
@@ -361,6 +362,16 @@ export function DynamicReportView({
     [regularTests.length, allergenTests.length, allergenDTO, conclusion, hasDataForBlock]
   );
 
+  // Phân trang thông minh qua hook
+  const renderedPages = useDynamicReportPages({
+    sortedBlocks,
+    isDesignMode,
+    isBlockVisible,
+    regularTests,
+    allergenDTO,
+    conclusion
+  });
+
   const renderBlockContent = (
     block: TemplateBlock,
     tableChunkEntries?: ReadonlyArray<ReportPaginationEntry>,
@@ -368,1146 +379,125 @@ export function DynamicReportView({
     allergenChunkInfo?: { pageIdx: number; totalDetailPages: number; totalCount: number }
   ) => {
     switch (block.type) {
-      case 'header': {
-        const p = block.props as HeaderBlockProps;
+      case 'header':
         return (
-          <div
-            className={`relative flex items-center justify-between overflow-hidden ${p.borderBottom !== false ? 'border-b-2 border-sky-400 pb-2 mb-2' : 'pb-1.5 mb-1.5'}`}
-          >
-            {/* Họa tiết lượn sóng trang trí (hạ thấp sát đáy, độ mờ nhẹ nhàng không che chữ) */}
-            <div className="absolute inset-0 pointer-events-none -z-10 overflow-hidden">
-              <svg viewBox="0 0 800 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full absolute bottom-0 left-0" preserveAspectRatio="none">
-                <path d="M0,106 C160,115 260,100 420,108 C560,115 680,102 800,107 L800,120 L0,120 Z" fill="#f0f9ff" opacity="0.45" />
-                <path d="M0,112 C140,117 240,107 390,114 C540,118 670,109 800,113 L800,120 L0,120 Z" fill="#e0f2fe" opacity="0.3" />
-              </svg>
-            </div>
-
-            {p.showLogo !== false && (
-              <div className="flex flex-col items-center justify-center w-[125px] shrink-0 z-1 relative">
-                <div className="h-[60px] w-[120px] flex items-center justify-center shrink-0">
-                  <img src={currentLogo} alt="Logo" className="max-h-full max-w-full object-contain" />
-                </div>
-                <span className="text-[10.5px] font-semibold text-sky-600 italic tracking-tight text-center mt-0.5 whitespace-nowrap">
-                  Vì sức khỏe người Việt
-                </span>
-              </div>
-            )}
-
-            <div className="flex-1 flex flex-col items-center justify-center px-2 z-1 relative">
-              <div className="flex items-center justify-center gap-2 w-full mb-0.5">
-                <div className="h-[1px] w-8 bg-slate-400" />
-                <div
-                  style={{
-                    backgroundColor: '#e0f2fe',
-                    padding: '5px 18px 6px 18px',
-                    borderRadius: '9999px',
-                    textAlign: 'center',
-                    display: 'inline-flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxSizing: 'border-box'
-                  }}
-                  className="bg-sky-100/80 px-4.5 py-1.5 rounded-full text-center inline-flex flex-col items-center justify-center shadow-2xs"
-                >
-                  <span
-                    style={{ fontSize: '10.5px', fontWeight: 800, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1.25, display: 'block' }}
-                    className="text-[10.5px] font-extrabold text-sky-800 uppercase tracking-wider leading-tight block"
-                  >
-                    HỆ THỐNG XÉT NGHIỆM GOLAB
-                  </span>
-                  <span
-                    style={{ fontSize: '9.5px', fontWeight: 700, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.02em', lineHeight: 1.25, display: 'block' }}
-                    className="text-[9.5px] font-bold text-sky-800 uppercase tracking-wide leading-tight block"
-                  >
-                    69 CHI NHÁNH TRÊN TOÀN QUỐC
-                  </span>
-                </div>
-                <div className="h-[1px] w-8 bg-slate-400" />
-              </div>
-
-              {p.showClinicName !== false && (
-                <h1 className={`font-serif ${p.clinicNameSize === 'lg' ? 'text-[18px]' : p.clinicNameSize === 'sm' ? 'text-[14px]' : 'text-[16.5px]'} font-black text-sky-950 uppercase tracking-tight text-center mt-0.5 mb-0.5 leading-tight`}>
-                  {safeClinic.name}
-                </h1>
-              )}
-
-              {p.showAddress !== false && (
-                <>
-                  <div className="flex items-center justify-center gap-1.5 text-[10.5px] text-slate-800">
-                    <svg className="w-3 h-3 text-sky-600 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
-                    </svg>
-                    <span>
-                      <strong className="font-bold text-slate-900">Chi nhánh/điểm tiếp nhận:</strong> {safeClinic.address}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-700 mt-0.5">
-                    <svg className="w-3 h-3 text-sky-600 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z" />
-                    </svg>
-                    <span>
-                      <strong className="font-bold text-slate-900">Trụ sở chính hệ thống:</strong> {safeClinic.headquartersAddress || 'Số 36 BT5, Khu đô thị Pháp Vân, phường Hoàng Liệt, thành phố Hà Nội'}
-                    </span>
-                  </div>
-                </>
-              )}
-
-              {p.showContact !== false && (
-                <div className="flex items-center justify-center gap-2 text-[10.5px] text-slate-700 mt-0.5">
-                  <div className="flex items-center gap-1">
-                    <svg className="w-3 h-3 text-sky-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="2" y1="12" x2="22" y2="12" />
-                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                    </svg>
-                    <span>Website: <strong className="font-bold text-sky-900">{safeClinic.website}</strong></span>
-                  </div>
-                  <span className="text-slate-300">|</span>
-                  <div className="flex items-center gap-1">
-                    <svg className="w-3 h-3 text-sky-900 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
-                    </svg>
-                    <span>Hotline: <strong className="font-bold text-sky-900">{safeClinic.phone}</strong></span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {p.showQr !== false && (
-              <div className="flex flex-col items-center justify-center p-1 bg-white border border-slate-300 rounded-md shadow-2xs shrink-0 min-w-[64px] z-1 relative">
-                {finalQrCode ? (
-                  <img src={finalQrCode} alt="QR Code" className="w-12 h-12 object-contain" />
-                ) : (
-                  <div className="w-12 h-12 flex items-center justify-center bg-slate-50 text-[9px] text-slate-400 font-mono">
-                    QR
-                  </div>
-                )}
-                <span className="text-[9px] font-extrabold text-sky-800 mt-0.5 tracking-tight leading-none whitespace-nowrap">QR Tra Cứu</span>
-                <span className="text-[7.5px] text-slate-500 mt-0.5 leading-none whitespace-nowrap">kết quả xét nghiệm</span>
-              </div>
-            )}
-          </div>
-        );
-      }
-
-      case 'title': {
-        const p = block.props as TitleBlockProps;
-        const alignClass = p.align === 'left' ? 'text-left' : p.align === 'right' ? 'text-right' : 'text-center';
-        const sizeClass = p.fontSize === 'xl' ? 'text-[22px]' : p.fontSize === 'lg' ? 'text-[18px]' : p.fontSize === 'sm' ? 'text-[14px]' : 'text-[16px]';
-        return (
-          <div className={`${alignClass} my-3`}>
-            <h2 className={`${sizeClass} font-black text-slate-900 ${p.uppercase !== false ? 'uppercase' : ''} tracking-wide`} style={{ color: p.textColor || undefined }}>
-              {p.text || 'PHIẾU KẾT QUẢ XÉT NGHIỆM'}
-            </h2>
-            {p.subtitle && (
-              <p className="text-[12px] text-slate-600 italic mt-0.5">{p.subtitle}</p>
-            )}
-          </div>
-        );
-      }
-
-      case 'patient_info': {
-        const p = block.props as PatientInfoBlockProps;
-        if (p.layout === 'grid_2_cols') {
-          return (
-            <div className="border border-slate-300 rounded mb-3 bg-white p-2.5 text-[12px] grid grid-cols-2 gap-x-4 gap-y-1.5">
-              <div><span className="text-slate-500 font-medium">Họ tên:</span> <strong className={`uppercase ${p.highlightName ? 'text-red-600' : 'text-slate-900'}`}>{patient.name || '---'}</strong></div>
-              <div><span className="text-slate-500 font-medium">Mã BN / Số BP:</span> <strong className="font-mono">{patient.code} / <span className={p.highlightSampleCode ? 'text-red-600' : ''}>{patient.sampleCode || patient.code}</span></strong></div>
-              <div><span className="text-slate-500 font-medium">Năm sinh / Tuổi:</span> {patient.dob || '---'} ({patient.gender || 'Nam'})</div>
-              <div><span className="text-slate-500 font-medium">Bác sĩ chỉ định:</span> {patient.doctor || doctorName || '---'}</div>
-              <div><span className="text-slate-500 font-medium">Địa chỉ:</span> {patient.address || '---'}</div>
-              <div><span className="text-slate-500 font-medium">Thời gian:</span> {patient.receivedAt || new Date().toLocaleDateString('vi-VN')}</div>
-            </div>
-          );
-        }
-
-        // Default 12 fields table layout
-        return (
-          <div className="border border-slate-300 rounded mb-3.5 bg-white text-[12px]">
-            <table className="w-full border-collapse">
-              <tbody>
-                <tr>
-                  <td className="w-32 py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle">Họ và tên:</td>
-                  <td className={`py-1.5 px-3 font-bold uppercase border-r border-b border-slate-300 align-middle ${p.highlightName !== false ? 'text-red-600 text-[13px]' : 'text-slate-900'}`}>{patient.name || '---'}</td>
-                  <td className="w-32 py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle">T/G chỉ định</td>
-                  <td className="py-1.5 px-3 font-medium text-slate-800 border-b border-slate-300 align-middle">{patient.orderedAt || new Date().toLocaleDateString('vi-VN')}</td>
-                </tr>
-                <tr>
-                  <td className="w-32 py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle">Năm sinh:</td>
-                  <td className="py-1.5 px-3 font-medium text-slate-800 border-r border-b border-slate-300 align-middle">{patient.dob || '---'}</td>
-                  <td className="w-32 py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle">T/G đóng phí</td>
-                  <td className="py-1.5 px-3 font-medium text-slate-800 border-b border-slate-300 align-middle">{patient.paidAt || 'Chưa thu phí'}</td>
-                </tr>
-                <tr>
-                  <td className="w-32 py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle">Địa chỉ</td>
-                  <td className="py-1.5 px-3 text-slate-800 border-r border-b border-slate-300 align-middle">{patient.address || 'Đồng Hới, Quảng Bình'}</td>
-                  <td className="w-32 py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle">Số bệnh phẩm</td>
-                  <td className={`py-1.5 px-3 font-mono font-bold border-b border-slate-300 align-middle ${p.highlightSampleCode !== false ? 'text-red-600 text-[13px]' : 'text-slate-900'}`}>{patient.sampleCode || patient.code}</td>
-                </tr>
-                <tr>
-                  <td className="w-32 py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle">Giới tính:</td>
-                  <td className="py-1.5 px-3 font-medium text-slate-800 border-r border-b border-slate-300 align-middle">{patient.gender || 'Nam'}</td>
-                  <td className="w-32 py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle">Tình trạng mẫu</td>
-                  <td className="py-1.5 px-3 font-medium text-emerald-700 font-bold border-b border-slate-300 align-middle">{patient.sampleStatus || 'Đạt'}</td>
-                </tr>
-                <tr>
-                  <td className="w-32 py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle">Số điện thoại</td>
-                  <td className="py-1.5 px-3 font-mono text-slate-800 border-r border-b border-slate-300 align-middle">{patient.phone || '---'}</td>
-                  <td className="w-32 py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle">T/G nhận mẫu</td>
-                  <td className="py-1.5 px-3 font-medium text-slate-800 border-b border-slate-300 align-middle">{patient.receivedAt || new Date().toLocaleDateString('vi-VN')}</td>
-                </tr>
-                <tr>
-                  <td className="w-32 py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-slate-300 align-middle">Bác sĩ chỉ định</td>
-                  <td className="py-1.5 px-3 font-bold text-slate-800 border-r border-slate-300 align-middle">{patient.doctor || doctorName || 'BS. Trần Hoài Long'}</td>
-                  <td className="w-32 py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-slate-300 align-middle">T/G trả kết quả</td>
-                  <td className="py-1.5 px-3 font-medium text-slate-800 align-middle">{patient.returnedAt || new Date().toLocaleDateString('vi-VN')}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        );
-      }
-
-      case 'test_table': {
-        const p = block.props as TestTableBlockProps;
-        const cols = p.columns || { stt: true, name: true, result: true, refRange: true, unit: true, equipment: true };
-        const densityClass = p.density === 'compact' ? 'py-0.5 px-1.5' : p.density === 'relaxed' ? 'py-2 px-3' : 'py-1 px-2';
-        const fontSizeClass = p.fontSize === 'xs' ? 'text-[11px]' : p.fontSize === 'md' ? 'text-[13px]' : 'text-[12px]';
-
-        let rowCounter = 0;
-
-        return (
-          <div className="border border-slate-300 rounded mb-3 bg-white overflow-hidden">
-            <table className={`w-full ${fontSizeClass} border-collapse`}>
-              <thead className="bg-slate-100 text-slate-900 font-bold border-b-2 border-slate-300">
-                <tr>
-                  {cols.stt && <th className="py-2 px-2 w-8 text-center border-r border-slate-300 align-middle leading-snug">STT</th>}
-                  {cols.name && <th className="py-2 px-2.5 text-left border-r border-slate-300 align-middle leading-snug">TÊN CHỈ SỐ XÉT NGHIỆM</th>}
-                  {cols.result && <th className="py-2 px-2 w-24 text-center border-r border-slate-300 align-middle leading-snug">KẾT QUẢ</th>}
-                  {cols.unit && <th className="py-2 px-1.5 w-16 text-center border-r border-slate-300 align-middle leading-snug">ĐƠN VỊ</th>}
-                  {cols.refRange && <th className="py-2 px-2 w-32 text-center border-r border-slate-300 align-middle leading-snug">TRỊ SỐ THAM CHIẾU</th>}
-                  {cols.equipment && <th className="py-2 px-2 w-36 text-center border-r border-slate-300 align-middle leading-snug">THIẾT BỊ XỬ LÝ</th>}
-                  {cols.price && <th className="py-2 px-2 w-24 text-right border-r border-slate-300 align-middle leading-snug">GIÁ TIỀN</th>}
-                  {cols.note && <th className="py-2 px-2 text-left align-middle leading-snug">GHI CHÚ</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {tableChunkEntries ? (
-                  tableChunkEntries.map((entry, entryIdx) => {
-                    if (entry.type === 'category') {
-                      return (
-                        <tr key={`cat-${entry.category}-${entryIdx}`} className="bg-sky-50 font-bold text-sky-950">
-                          <td colSpan={10} className="py-1 px-2.5 uppercase tracking-wide text-[11.5px] border-y border-slate-300">
-                            • {entry.category}
-                          </td>
-                        </tr>
-                      );
-                    }
-                    const t = entry.test;
-                    const isAbnormalByNote = t.note ? (t.note.includes('Phát Hiện') && !t.note.includes('Không')) : false;
-                    const evaluation = evaluateResult(t.result, t.refMin, t.refMax);
-                    const isAbnormal = evaluation.status === 'high' || evaluation.status === 'low' || isAbnormalByNote;
-                    const resolvedEquipment = formatEquipmentForPrint(resolveTestEquipmentName(t, equipments, catalogItemEquipments));
-
-                    return (
-                      <tr key={`${t.code}-${entry.idx}`} className={`hover:bg-slate-50 ${isAbnormal && p.highlightAbnormal !== false ? 'bg-red-50/40' : ''}`}>
-                        {cols.stt && <td className={`${densityClass} text-center font-mono text-slate-500 border-r border-slate-200`}>{entry.idx}</td>}
-                        {cols.name && (
-                          <td className={`${densityClass} font-bold text-slate-900 border-r border-slate-200`}>
-                            {t.name}
-                            {t.scientific && <span className="text-[10px] text-slate-500 italic block font-normal">{t.scientific}</span>}
-                          </td>
-                        )}
-                        {cols.result && (
-                          <td className={`${densityClass} text-center font-mono text-[13px] border-r border-slate-200 ${isAbnormal && p.highlightAbnormal !== false ? 'text-red-600 font-black' : 'text-slate-900 font-bold'}`}>
-                            {t.result || '---'}
-                          </td>
-                        )}
-                        {cols.unit && <td className={`${densityClass} text-center font-mono text-slate-700 text-[11.5px] border-r border-slate-200`}>{t.unit || '---'}</td>}
-                        {cols.refRange && (
-                          <td className={`${densityClass} text-center font-mono text-slate-700 text-[11.5px] border-r border-slate-200`}>
-                            {t.refText || (t.refMin !== undefined && t.refMax !== undefined ? `${t.refMin} - ${t.refMax}` : '---')}
-                          </td>
-                        )}
-                        {cols.equipment && <td className={`${densityClass} text-center text-slate-600 text-[11px] truncate max-w-[150px] border-r border-slate-200`}>{resolvedEquipment || '---'}</td>}
-                        {cols.price && <td className={`${densityClass} text-right font-mono text-slate-800 text-[11.5px] border-r border-slate-200`}>{t.price ? `${t.price.toLocaleString('vi-VN')} đ` : '---'}</td>}
-                        {cols.note && (
-                          <td className={`${densityClass} text-slate-700 font-semibold text-[11px]`}>
-                            {t.note || (isAbnormal ? evaluation.label : (t.result && String(t.result).trim() !== '' ? 'Bình thường' : ''))}
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })
-                ) : p.groupByCategory !== false ? (
-                  groupedRegularTests.map(([category, items]) => (
-                    <Fragment key={category}>
-                      <tr className="bg-sky-50 font-bold text-sky-950">
-                        <td colSpan={10} className="py-1 px-2.5 uppercase tracking-wide text-[11.5px] border-y border-slate-300">
-                          • {category}
-                        </td>
-                      </tr>
-                      {items.map((t, idx) => {
-                        rowCounter++;
-                        const isAbnormalByNote = t.note ? (t.note.includes('Phát Hiện') && !t.note.includes('Không')) : false;
-                        const evaluation = evaluateResult(t.result, t.refMin, t.refMax);
-                        const isAbnormal = evaluation.status === 'high' || evaluation.status === 'low' || isAbnormalByNote;
-                        const resolvedEquipment = formatEquipmentForPrint(resolveTestEquipmentName(t, equipments, catalogItemEquipments));
-
-                        return (
-                          <tr key={`${t.code}-${idx}`} className={`hover:bg-slate-50 ${isAbnormal && p.highlightAbnormal !== false ? 'bg-red-50/40' : ''}`}>
-                            {cols.stt && <td className={`${densityClass} text-center font-mono text-slate-500 border-r border-slate-200`}>{rowCounter}</td>}
-                            {cols.name && (
-                              <td className={`${densityClass} font-bold text-slate-900 border-r border-slate-200`}>
-                                {t.name}
-                                {t.scientific && <span className="text-[10px] text-slate-500 italic block font-normal">{t.scientific}</span>}
-                              </td>
-                            )}
-                            {cols.result && (
-                              <td className={`${densityClass} text-center font-mono text-[13px] border-r border-slate-200 ${isAbnormal && p.highlightAbnormal !== false ? 'text-red-600 font-black' : 'text-slate-900 font-bold'}`}>
-                                {t.result || '---'}
-                              </td>
-                            )}
-                            {cols.unit && <td className={`${densityClass} text-center font-mono text-slate-700 text-[11.5px] border-r border-slate-200`}>{t.unit || '---'}</td>}
-                            {cols.refRange && (
-                              <td className={`${densityClass} text-center font-mono text-slate-700 text-[11.5px] border-r border-slate-200`}>
-                                {t.refText || (t.refMin !== undefined && t.refMax !== undefined ? `${t.refMin} - ${t.refMax}` : '---')}
-                              </td>
-                            )}
-                            {cols.equipment && <td className={`${densityClass} text-center text-slate-600 text-[11px] truncate max-w-[150px] border-r border-slate-200`}>{resolvedEquipment || '---'}</td>}
-                            {cols.price && <td className={`${densityClass} text-right font-mono text-slate-800 text-[11.5px] border-r border-slate-200`}>{t.price ? `${t.price.toLocaleString('vi-VN')} đ` : '---'}</td>}
-                            {cols.note && (
-                              <td className={`${densityClass} text-slate-700 font-semibold text-[11px]`}>
-                                {t.note || (isAbnormal ? evaluation.label : (t.result && String(t.result).trim() !== '' ? 'Bình thường' : ''))}
-                              </td>
-                            )}
-                          </tr>
-                        );
-                      })}
-                    </Fragment>
-                  ))
-                ) : (
-                  regularTests.map((t, idx) => {
-                    const isAbnormalByNote = t.note ? (t.note.includes('Phát Hiện') && !t.note.includes('Không')) : false;
-                    const evaluation = evaluateResult(t.result, t.refMin, t.refMax);
-                    const isAbnormal = evaluation.status === 'high' || evaluation.status === 'low' || isAbnormalByNote;
-                    const resolvedEquipment = formatEquipmentForPrint(resolveTestEquipmentName(t, equipments, catalogItemEquipments));
-
-                    return (
-                      <tr key={`${t.code}-${idx}`} className={`hover:bg-slate-50 ${isAbnormal && p.highlightAbnormal !== false ? 'bg-red-50/40' : ''}`}>
-                        {cols.stt && <td className={`${densityClass} text-center font-mono text-slate-500 border-r border-slate-200`}>{idx + 1}</td>}
-                        {cols.name && (
-                          <td className={`${densityClass} font-semibold text-slate-900 border-r border-slate-200`}>
-                            {t.name}
-                          </td>
-                        )}
-                        {cols.result && (
-                          <td className={`${densityClass} text-center font-mono text-[13px] border-r border-slate-200 ${isAbnormal && p.highlightAbnormal !== false ? 'text-red-600 font-black' : 'text-slate-900 font-bold'}`}>
-                            {t.result || '---'}
-                          </td>
-                        )}
-                        {cols.refRange && (
-                          <td className={`${densityClass} text-center font-mono text-slate-600 text-[11.5px] border-r border-slate-200`}>
-                            {t.refText || (t.refMin !== undefined && t.refMax !== undefined ? `${t.refMin} - ${t.refMax}` : '---')}
-                          </td>
-                        )}
-                        {cols.unit && <td className={`${densityClass} text-center font-mono text-slate-600 text-[11.5px] border-r border-slate-200`}>{t.unit || '---'}</td>}
-                        {cols.equipment && <td className={`${densityClass} text-slate-600 text-[11px] truncate max-w-[160px] border-r border-slate-200`}>{resolvedEquipment}</td>}
-                        {cols.price && <td className={`${densityClass} text-right font-mono text-slate-800 text-[11.5px] border-r border-slate-200`}>{t.price ? `${t.price.toLocaleString('vi-VN')} đ` : '---'}</td>}
-                        {cols.note && <td className={`${densityClass} text-slate-600 text-[11px]`}>{t.note || '---'}</td>}
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        );
-      }
-
-      case 'allergen_summary': {
-        const p = block.props as AllergenSummaryBlockProps;
-        if (!allergenDTO || allergenDTO.positiveList.length === 0) {
-          if (p.showNegativeNotice !== false) {
-            return (
-              <div className="border border-emerald-300 rounded p-2.5 mb-3 bg-emerald-50/60 text-[12px] text-emerald-950 font-medium">
-                🌿 <strong>TỔNG HỢP DỊ NGUYÊN:</strong> Âm tính (Độ 0 - Không phản ứng) với toàn bộ các dị nguyên trong gói tầm soát.
-              </div>
-            );
-          }
-          return null;
-        }
-
-        return (
-          <div className="border-2 border-red-300 rounded mb-3 bg-red-50/30 p-2.5">
-            <h3 className="text-[13px] font-bold text-red-900 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
-              <span>⚠️</span>
-              <span>{p.title || 'TỔNG HỢP CÁC DỊ NGUYÊN DƯƠNG TÍNH'}</span>
-            </h3>
-            <div className="grid grid-cols-2 gap-2 text-[11.5px]">
-              {allergenDTO.positiveList.map((item, idx) => (
-                <div key={idx} className="flex items-center justify-between p-1.5 bg-white rounded border border-red-200">
-                  <div className="flex items-center space-x-2">
-                    <img src={getAllergenBadgeSvg(item.grade, 18)} alt={`Độ ${item.grade}`} className="w-4.5 h-4.5 shrink-0" />
-                    <div>
-                      <span className="font-bold text-slate-900">{item.name}</span>
-                      {p.showRoute && item.route && <span className="text-[10px] text-slate-500 block">{item.route}</span>}
-                    </div>
-                  </div>
-                  {p.showConcentration && <span className="font-mono font-bold text-red-600">{item.result} IU/ml</span>}
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      }
-
-      // ─── CHUYÊN BIỆT DỊ NGUYÊN TRANG 2, 3, 4 ───
-
-      case 'allergen_header': {
-        const p = block.props as AllergenHeaderBlockProps;
-        return (
-          <div className="flex items-start justify-between border-b-2 border-slate-900 pb-3 mb-3">
-            <div className="flex items-center space-x-3">
-              {p.showLogo !== false && (
-                <img
-                  src={currentLogo}
-                  alt="Logo"
-                  className="h-14 w-auto object-contain max-w-[120px]"
-                />
-              )}
-              <div>
-                {p.showClinicName !== false && (
-                  <h1 className="text-[17px] font-black uppercase text-sky-950 tracking-tight leading-none mb-1">
-                    {clinicInfo?.name || 'PHÒNG XÉT NGHIỆM Y KHOA GOLAB'}
-                  </h1>
-                )}
-                {p.showAddress !== false && (
-                  <p className="text-[11.5px] text-slate-600 leading-tight">
-                    {clinicInfo?.address || 'Địa chỉ: 123 Đường Y Học, Phường 1, TP. Đồng Hới'}
-                  </p>
-                )}
-                {p.showContact !== false && (
-                  <p className="text-[11.5px] text-slate-600 leading-tight">
-                    Hotline: <strong className="text-slate-800">{clinicInfo?.phone || '032.855.3773'}</strong> {clinicInfo?.website ? `| Website: ${clinicInfo.website}` : ''}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="text-right">
-              <div
-                className="inline-flex items-center justify-center text-white font-black text-[12.5px] px-3.5 py-1 rounded tracking-wide uppercase leading-normal shadow-xs"
-                style={{ backgroundColor: p.badgeColor || '#dc2626' }}
-              >
-                {p.badgeText || 'Báo Cáo Dị Nguyên'}
-              </div>
-            </div>
-          </div>
-        );
-      }
-
-      case 'allergen_title': {
-        const p = block.props as AllergenTitleBlockProps;
-        const alignClass = p.align === 'left' ? 'text-left' : p.align === 'right' ? 'text-right' : 'text-center';
-        return (
-          <div className={`${alignClass} mb-3`}>
-            <h2 className="text-[19px] font-black text-slate-900 uppercase tracking-wide" style={{ color: p.textColor || undefined }}>
-              {p.text || 'KẾT QUẢ ĐỊNH LƯỢNG KHÁNG THỂ IGE ĐẶC HIỆU'}
-            </h2>
-            {p.subtitle && (
-              <p className="text-[13px] font-bold italic mt-0.5" style={{ color: p.subtitleColor || '#b91c1c' }}>
-                {p.subtitle}
-              </p>
-            )}
-          </div>
-        );
-      }
-
-      case 'allergen_patient_summary': {
-        const p = block.props as AllergenPatientSummaryBlockProps;
-        return (
-          <div className="flex items-center justify-between bg-slate-50 border border-slate-300 rounded px-4 py-1.5 mb-2 text-[13px] leading-snug">
-            {p.showName !== false && (
-              <div>
-                <span className="font-semibold text-slate-600">Họ tên: </span>
-                <strong className={`uppercase font-bold text-[14px] ${p.highlightName !== false ? 'text-red-600' : 'text-slate-900'}`}>{patient.name || '---'}</strong>
-              </div>
-            )}
-            {p.showDob !== false && (
-              <div>
-                <span className="font-semibold text-slate-600">Năm sinh: </span>
-                <strong className="text-slate-800">{patient.dob || '---'}</strong>
-              </div>
-            )}
-            {p.showGender !== false && (
-              <div>
-                <span className="font-semibold text-slate-600">Giới tính: </span>
-                <strong className="text-slate-800">{patient.gender || 'Nam'}</strong>
-              </div>
-            )}
-            <div>
-              <span className="font-semibold text-slate-600">Loại mẫu: </span>
-              <strong className="text-slate-800">{p.sampleType || 'Huyết thanh'}</strong>
-            </div>
-          </div>
-        );
-      }
-
-      case 'allergen_positive_table': {
-        const p = block.props as AllergenPositiveTableBlockProps;
-        const posList = allergenDTO?.positiveList || [];
-        return (
-          <div className="mb-2">
-            <div className="border border-slate-300 rounded bg-white overflow-hidden">
-              <table className="w-full text-[13px] border-collapse">
-                <thead className="bg-slate-50 text-slate-900 font-bold border-b-2 border-slate-300">
-                  <tr>
-                    <th className="py-2 px-3 w-12 text-center border-r border-slate-300 align-middle leading-snug">STT</th>
-                    <th className="py-2 px-4 text-left border-r border-slate-300 align-middle leading-snug">LOẠI DỊ NGUYÊN</th>
-                    {p.showScientific !== false && <th className="py-2 px-4 text-left border-r border-slate-300 align-middle leading-snug">TÊN KHOA HỌC</th>}
-                    {p.showCode !== false && <th className="py-2 px-3 w-20 text-center border-r border-slate-300 align-middle leading-snug">MÃ</th>}
-                    <th className="py-2 px-4 w-32 text-center align-middle leading-snug">ĐỘ DƯƠNG TÍNH</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-300">
-                  {posList.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="py-3 text-center text-slate-500 italic text-[13px]">
-                        {p.emptyNotice || 'Chưa phát hiện dị nguyên dương tính'}
-                      </td>
-                    </tr>
-                  ) : (
-                    posList.map((pos, idx) => {
-                      const gradeStyle = getAllergenGradeClasses(pos.grade, pos.isTIgE, pos.isPositive);
-                      return (
-                        <tr key={pos.code || idx} className={`${gradeStyle.rowBg} font-bold ${gradeStyle.textColor} text-[13.5px]`}>
-                          <td className="py-2 px-3 text-center border-r border-slate-300 align-middle leading-snug">{idx + 1}</td>
-                          <td className={`py-2 px-4 border-r border-slate-300 align-middle leading-snug ${gradeStyle.nameColor}`}>{pos.name}</td>
-                          {p.showScientific !== false && <td className="py-2 px-4 border-r border-slate-300 italic font-medium opacity-90 align-middle leading-snug">{pos.allergenName}</td>}
-                          {p.showCode !== false && <td className="py-2 px-3 text-center font-mono border-r border-slate-300 align-middle leading-snug">{pos.code}</td>}
-                          <td className="py-2 px-4 text-center align-middle leading-snug">
-                            {pos.isTIgE ? (
-                              <span className={`text-[12.5px] font-bold ${pos.isPositive ? 'text-red-700' : 'text-sky-900'}`}>
-                                {pos.result || '---'} <span className="text-slate-500 text-[10px] font-normal">(IU/ml)</span>
-                              </span>
-                            ) : (
-                              <div className="flex items-center justify-center">
-                                <img
-                                  src={getAllergenBadgeSvg(pos.grade, 20)}
-                                  width={20}
-                                  height={20}
-                                  alt={`Độ ${pos.grade}`}
-                                  className="inline-block align-middle"
-                                />
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-            {p.footnote && (
-              <p className="text-[12px] text-slate-500 italic text-right mt-1 mb-2">
-                {p.footnote}
-              </p>
-            )}
-          </div>
-        );
-      }
-
-      case 'allergen_scale_table': {
-        const p = block.props as AllergenScaleTableBlockProps;
-        const scales = allergenDTO?.appliedScales || allergenScales || [];
-        return (
-          <div className="space-y-2 mb-2">
-            {scales.map((scale, sIdx) => (
-              <div key={scale.id || sIdx} className="border border-slate-300 rounded bg-white overflow-hidden">
-                <div className="bg-slate-100 py-1.5 px-2 text-center font-bold text-red-700 text-[12px] uppercase border-b-2 border-slate-300">
-                  {scale.name || p.title || 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH'}
-                </div>
-                <table className="w-full text-[11.5px] border-collapse">
-                  <thead className="bg-slate-50 font-bold border-b border-slate-300">
-                    <tr>
-                      <th className="h-7 py-0 px-1.5 text-center border-r border-slate-300 align-middle w-12">ĐỘ (+)</th>
-                      <th className="h-7 py-0 px-1.5 text-center border-r border-slate-300 align-middle">NỒNG ĐỘ ({scale.unit || 'IU/ml'})</th>
-                      <th className="h-7 py-0 px-1.5 text-center align-middle">DIỄN GIẢI</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-300">
-                    {scale.levels.map((level) => {
-                      const gradeStyle = getAllergenGradeClasses(level.grade);
-                      return (
-                        <tr key={level.grade} className={gradeStyle.rowBg}>
-                          <td className="h-7 py-0 text-center border-r border-slate-300 font-bold align-middle">
-                            <div className="flex items-center justify-center">
-                              <img
-                                src={getAllergenBadgeSvg(level.grade, 18)}
-                                width={18}
-                                height={18}
-                                alt={`Độ ${level.grade}`}
-                                className="inline-block align-middle"
-                              />
-                            </div>
-                          </td>
-                          <td className={`h-7 py-0 text-center font-mono border-r border-slate-300 align-middle ${level.isPositive ? gradeStyle.textColor + ' font-bold' : 'text-slate-600'}`}>
-                            {level.rangeText}
-                          </td>
-                          <td className={`h-7 py-0 text-center align-middle ${level.isPositive ? gradeStyle.textColor + ' font-bold' : 'text-slate-700 font-semibold'}`}>
-                            {level.label}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ))}
-          </div>
-        );
-      }
-
-      case 'allergen_symptoms_box': {
-        const p = block.props as AllergenSymptomsBoxBlockProps;
-        return (
-          <div className="border border-slate-300 rounded text-[12px] leading-relaxed bg-slate-50/50 flex flex-col mb-2 overflow-hidden">
-            <div className="text-center font-bold text-red-700 text-[12.5px] uppercase py-1.5 px-2 border-b border-slate-300">
-              {p.title || 'MỘT SỐ TRIỆU CHỨNG THƯỜNG GẶP KHI DỊ ỨNG'}
-            </div>
-            <div className="flex-1 flex flex-col justify-center px-3 py-2 space-y-1.5">
-              {p.showSkin !== false && (
-                <p className="flex items-start gap-1">
-                  <strong className="text-slate-900 shrink-0">Da, niêm mạc:</strong>
-                  <span>nổi mề đay, phát ban, viêm da; ngứa, sưng môi, lưỡi, miệng, mắt đỏ, viêm kết mạc.</span>
-                </p>
-              )}
-              {p.showRespiratory !== false && (
-                <p className="flex items-start gap-1">
-                  <strong className="text-slate-900 shrink-0">Hô hấp:</strong>
-                  <span>ho, khó thở, hắt hơi, sổ mũi, khò khè, hen suyễn, viêm phổi.</span>
-                </p>
-              )}
-              {p.showDigestive !== false && (
-                <p className="flex items-start gap-1">
-                  <strong className="text-slate-900 shrink-0">Tiêu hóa:</strong>
-                  <span>nuốt khó, nôn, đau bụng, đầy hơi, tiêu chảy.</span>
-                </p>
-              )}
-              {p.showSevere !== false && (
-                <p className="flex items-start gap-1">
-                  <strong className="text-slate-900 shrink-0">Thần kinh &amp; Nặng:</strong>
-                  <span>đau đầu, chóng mặt; Sốt, sốc phản vệ.</span>
-                </p>
-              )}
-            </div>
-            {p.warningText && (
-              <p className="text-red-700 font-bold italic px-3 py-1.5 border-t border-slate-300 text-[11.5px]">
-                {p.warningText}
-              </p>
-            )}
-          </div>
-        );
-      }
-
-      case 'allergen_tige_note': {
-        const p = block.props as AllergenTigeNoteBlockProps;
-        return (
-          <div className="mt-2 border border-sky-300 rounded bg-sky-50/40 mb-3 overflow-hidden">
-            <table className="w-full text-[12px] border-collapse">
-              <thead className="bg-sky-100/70 font-bold border-b border-sky-300">
-                <tr>
-                  <th colSpan={2} className="py-1.5 px-2 text-center text-sky-900 text-[12.5px] uppercase tracking-wide align-middle leading-snug">
-                    {p.title || 'Ghi chú: Tổng nồng độ IgE (TIgE)'}
-                  </th>
-                </tr>
-                <tr className="border-t border-sky-200">
-                  <th className="py-1 px-2 text-center border-r border-sky-300 w-1/2 align-middle leading-snug">GIÁ TRỊ BÌNH THƯỜNG (IU/ml)</th>
-                  <th className="py-1 px-2 text-center w-1/2 align-middle leading-snug">DIỄN GIẢI</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td className="py-1.5 px-2 text-center font-mono font-bold text-red-600 border-r border-sky-300 text-[13px] align-middle leading-snug">
-                    {p.normalRange || '<15,0'}
-                  </td>
-                  <td className="py-1.5 px-2 text-center font-semibold text-slate-700 text-[12.5px] align-middle leading-snug">
-                    {p.interpretation || 'Mức bình thường — Không tính Độ (+), chỉ có Kết Quả (IU/ml)'}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        );
-      }
-
-      case 'allergen_detail_table':
-      case 'allergen_detail': {
-        const p = block.props as AllergenDetailTableBlockProps;
-        const allItems = allergenTableChunkEntries || allergenDTO?.detailPages.flat() || [];
-        const cols = p.columns || {
-          tt: true,
-          code: true,
-          name: true,
-          allergenName: true,
-          route: true,
-          normalRef: true,
-          result: true,
-          grade: true,
-          note: true
-        };
-
-        const titleText = allergenChunkInfo && allergenChunkInfo.totalDetailPages > 1
-          ? `CHI TIẾT KẾT QUẢ XÉT NGHIỆM ${allergenChunkInfo.totalCount} DỊ NGUYÊN (PHẦN ${allergenChunkInfo.pageIdx + 1})`
-          : (p.title || `CHI TIẾT KẾT QUẢ XÉT NGHIỆM ${allergenDTO?.totalCount || allItems.length} DỊ NGUYÊN`);
-
-        return (
-          <div className="mb-3">
-            <div className="text-center mb-2.5">
-              <h2 className="text-[17px] font-black text-slate-900 uppercase tracking-wide">
-                {titleText}
-              </h2>
-            </div>
-            <div className="border border-slate-300 rounded bg-white overflow-hidden">
-              <table className="w-full text-[11.5px] border-collapse">
-                <thead className="bg-slate-100 text-slate-900 font-bold border-b-2 border-slate-300">
-                  <tr>
-                    {cols.tt && <th className="py-2 px-1 w-7 text-center border-r border-slate-300 align-middle leading-snug">TT</th>}
-                    {cols.code && <th className="py-2 px-1 w-12 text-center border-r border-slate-300 align-middle leading-snug">CODE</th>}
-                    {cols.name && <th className="py-2 px-2 text-left border-r border-slate-300 align-middle leading-snug">TÊN CHỈ SỐ</th>}
-                    {cols.allergenName && <th className="py-2 px-2 text-left border-r border-slate-300 align-middle leading-snug">TÊN DỊ NGUYÊN</th>}
-                    {cols.route && <th className="py-2 px-2 w-28 text-left border-r border-slate-300 align-middle leading-snug">Đường dị ứng</th>}
-                    {cols.normalRef && <th className="py-2 px-1.5 w-20 text-center border-r border-slate-300 leading-tight align-middle">BÌNH THƯỜNG<br/>(IU/ml)</th>}
-                    {cols.result && <th className="py-2 px-1.5 w-20 text-center border-r border-slate-300 leading-tight align-middle">KẾT QUẢ<br/>(IU/ml)</th>}
-                    {cols.grade && <th className="py-2 px-1 w-10 text-center border-r border-slate-300 leading-tight align-middle">ĐỘ<br/>(+)</th>}
-                    {cols.note && <th className="py-2 px-2 text-left align-middle leading-snug">GHI CHÚ</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-300">
-                  {allItems.map((item, idx) => {
-                    const gradeStyle = getAllergenGradeClasses(item.grade, item.isTIgE, item.isPositive);
-                    const resultTextColor = item.isPositive ? `${gradeStyle.textColor} font-bold` : 'text-slate-800';
-
-                    return (
-                      <tr key={item.code || idx} className={`hover:bg-slate-50 ${gradeStyle.rowBg}`}>
-                        {cols.tt && <td className="py-1.5 px-1 text-center font-mono text-slate-500 border-r border-slate-300 align-middle leading-snug">{item.tt}</td>}
-                        {cols.code && <td className="py-1.5 px-1 text-center font-mono font-bold text-sky-800 border-r border-slate-300 text-[12px] align-middle leading-snug">{item.code}</td>}
-                        {cols.name && <td className={`py-1.5 px-2 font-semibold ${item.isPositive ? gradeStyle.nameColor : 'text-slate-900'} border-r border-slate-300 text-[12px] align-middle leading-snug`}>{item.name}</td>}
-                        {cols.allergenName && <td className="py-1.5 px-2 italic text-slate-600 border-r border-slate-300 text-[12px] align-middle leading-snug">{item.allergenName}</td>}
-                        {cols.route && <td className="py-1.5 px-2 text-slate-600 border-r border-slate-300 text-[11px] align-middle leading-snug">{item.route}</td>}
-                        {cols.normalRef && <td className="py-1.5 px-1.5 text-center font-mono text-slate-600 border-r border-slate-300 text-[11.5px] align-middle leading-snug">{item.normalRef}</td>}
-                        {cols.result && (
-                          <td className={`py-1.5 px-1.5 text-center font-mono border-r border-slate-300 text-[12.5px] align-middle leading-snug ${resultTextColor}`}>
-                            {item.result}
-                          </td>
-                        )}
-                        {cols.grade && (
-                          <td className="py-1.5 px-1 text-center align-middle leading-snug">
-                            {item.isTIgE ? '' : (item.isPositive ? (
-                              <div className="flex items-center justify-center">
-                                <img
-                                  src={getAllergenBadgeSvg(item.grade, 18)}
-                                  width={18}
-                                  height={18}
-                                  alt={`Độ ${item.grade}`}
-                                  className="inline-block align-middle"
-                                />
-                              </div>
-                            ) : '')}
-                          </td>
-                        )}
-                        {cols.note && (
-                          <td className="py-1.5 px-2 text-slate-600 text-[11px] leading-snug align-middle">
-                            {item.isTIgE ? (
-                              item.isPositive ? (
-                                <span className="font-bold text-red-600">Tăng (&gt; 15,0 IU/ml)</span>
-                              ) : (
-                                <span className="italic text-slate-600">{item.note || 'Bình thường'}</span>
-                              )
-                            ) : (
-                              item.note
-                            )}
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        );
-      }
-
-      case 'allergen_prevention_guide':
-      case 'allergen_scale': {
-        const p = block.props as AllergenPreventionGuideBlockProps;
-        return (
-          <div className="mb-4 bg-white p-2">
-            <div className="text-center mb-4 pt-1">
-              <h2 className="text-[20px] font-black text-red-700 uppercase tracking-wide">
-                {p.title || 'MỘT SỐ LƯU Ý VỀ PHÒNG NGỪA DỊ ỨNG'}
-              </h2>
-            </div>
-            <div className="text-[13.5px] text-slate-800 leading-relaxed space-y-3 text-justify">
-              <p>
-                <strong>1.</strong> Tìm nguyên nhân gây dị ứng hoặc dị ứng chéo bằng các xét nghiệm tìm dị nguyên. Nhiều trường hợp xét nghiệm dị nguyên vẫn không tìm ra nguyên nhân là do có nhiều dị nguyên hiện chưa được đưa vào xét nghiệm.
-              </p>
-              <p>
-                <strong>2.</strong> Khi xét nghiệm không tìm thấy nguyên nhân dị ứng thì cần tiến hành cô lập từng yếu tố theo đường ăn uống (thực phẩm, đồ uống...), đường thở và tiếp xúc với môi trường (phấn hoa thường liên quan đến mùa, bụi, mạt, nấm, vi khuẩn... ở nhà, nơi công tác hay nơi di chuyển) để tìm nguyên nhân.
-              </p>
-              <div>
-                <p>
-                  <strong>3.</strong> Mức độ dị ứng tỷ thuận với số lần tiếp xúc với nguồn gây dị ứng, nhiều dị nguyên ngoài việc kích thích cơ thể gây dị ứng còn gây ra tình trạng phản ứng chéo với các loại khác làm tình trạng dị ứng thêm trầm trọng. Vì vậy, cần hạn chế tiếp xúc với nguồn có chứa hoặc nghi có chứa chất gây dị ứng bằng các biện pháp sau:
-                </p>
-                <div className="pl-4 pt-1.5 space-y-1 text-[13px] text-slate-700">
-                  <p><strong>a.</strong> Mặc áo kín, đeo khẩu trang, kính để tránh da tiếp xúc với các bụi và phấn hoa... khi làm vệ sinh trong nhà hay đi ngoài đường;</p>
-                  <p><strong>b.</strong> Không ăn các thức ăn, đồ uống đã từng hoặc nghi gây dị ứng đặc biệt là các thực phẩm có khả năng gây dị ứng cao như: động vật biển (tôm, cua...);</p>
-                  <p><strong>c.</strong> Thường xuyên vệ sinh cá nhân, giặt quần áo để hạn chế nguồn gây dị ứng tiếp xúc với các bộ phận của cơ thể;</p>
-                  <p><strong>d.</strong> Hạn chế vật nuôi trong nhà đối với những người có cơ địa dị ứng vì đó là nguồn dị ứng trực tiếp hoặc gây ra dị ứng chéo với các dị nguyên khác;</p>
-                  <p><strong>e.</strong> Thường xuyên vệ sinh cá nhân, nhà, nền nhà, các đồ vật trong nhà để chống bụi và loại bỏ các vi sinh vật tồn tại, phát triển. Nên sử dụng máy hút bụi thay cho việc quét hoặc lau nhà để hạn chế tiếp xúc với nguồn bụi;</p>
-                  <p><strong>f.</strong> Đóng cửa và hạn chế đi ra ngoài nếu ở vùng sinh sống có loài hoa, cỏ hoặc thực vật là nguồn gây dị ứng đặc biệt là mùa hoa nở các phấn hoa phát tán mạnh trong không khí;</p>
-                  <p><strong>g.</strong> Lựa chọn quần áo rộng và các chất liệu phù hợp vì vải và các thuốc nhuộm vải cũng là nguồn gây dị ứng;</p>
-                  <p><strong>h.</strong> Không phơi quần áo ngoài trời vì có khả năng phấn hoa có thể bám vào quần áo;</p>
-                  <p><strong>i.</strong> Cần thông báo và tư vấn bác sỹ trước khi dùng thuốc đối với những người có biểu hiện dị ứng.</p>
-                  <p><strong>j.</strong> Nếu tất cả các biện pháp trên không hiệu quả cần đi khám bác sỹ để được tư vấn.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      }
-
-      case 'allergen_cover_summary': {
-        const p = block.props as AllergenCoverSummaryBlockProps;
-        const matchedPackage = testPackages?.find((pkg) => pkg.items?.some((i) => allergenTests.some((at) => at.code === i.code)));
-        return (
-          <div className="border-2 border-purple-300 rounded mb-3 bg-purple-50/40 p-3">
-            <h3 className="text-[13px] font-bold text-purple-900 uppercase tracking-wide mb-1 flex items-center gap-1.5">
-              <span>🔬</span>
-              <span>{p.boxTitle || 'TỔNG QUAN GÓI TẦM SOÁT DỊ NGUYÊN'}</span>
-            </h3>
-            <div className="flex items-center justify-between text-[12px] text-slate-800">
-              {p.showPackageName !== false && (
-                <div>
-                  <span className="text-slate-500 font-medium">Tên gói: </span>
-                  <strong className="text-purple-900 font-bold">{matchedPackage?.name || 'Gói Dị Nguyên Chuyên Sâu'}</strong>
-                </div>
-              )}
-              {p.showItemCount !== false && (
-                <div>
-                  <span className="text-slate-500 font-medium">Số lượng dị nguyên: </span>
-                  <strong className="text-purple-900 font-mono font-bold">{allergenDTO?.totalCount || allergenTests.length} dị nguyên</strong>
-                </div>
-              )}
-              {p.showPackagePrice !== false && matchedPackage?.price && (
-                <div>
-                  <span className="text-slate-500 font-medium">Giá gói: </span>
-                  <strong className="text-emerald-700 font-mono font-bold">{matchedPackage.price.toLocaleString('vi-VN')} đ</strong>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      }
-
-      case 'page_break': {
-        const p = block.props as PageBreakBlockProps;
-        return (
-          <div className="my-4 py-2 border-y-2 border-dashed border-sky-400 bg-sky-50/60 rounded text-center text-xs font-bold text-sky-800 flex items-center justify-center gap-2 print:hidden select-none">
-            <span>📄</span>
-            <span>{p.label || 'Ngắt Trang In A4 (Page Break)'}</span>
-          </div>
-        );
-      }
-
-      case 'conclusion': {
-        const p = block.props as ConclusionBlockProps;
-        if (!conclusion || conclusion.trim() === '') return null;
-        const bgClass = p.bgColor === 'slate' ? 'bg-slate-50' : p.bgColor === 'amber' ? 'bg-amber-50' : p.bgColor === 'white' ? 'bg-white' : '';
-        return (
-          <div className={`border border-slate-300 rounded p-2 mb-3 ${bgClass} text-[12px]`}>
-            <span className="font-bold text-slate-800">{p.title || 'KẾT LUẬN & LỜI DẶN:'} </span>
-            <span className="text-slate-800 leading-snug">{conclusion}</span>
-          </div>
-        );
-      }
-
-      case 'signature': {
-        const p = block.props as SignatureBlockProps;
-        return (
-          <div className={`flex ${p.align === 'between' ? 'justify-between' : 'justify-end'} pt-1`}>
-            {p.align === 'between' && (
-              <div className="text-center min-w-[180px]">
-                {p.showDate && <p className="text-[12px] text-slate-700 italic">Ngày {new Date().toLocaleDateString('vi-VN')}</p>}
-                <p className="text-[13px] font-bold uppercase text-slate-900 my-0.5">NGƯỜI LÀM XÉT NGHIỆM</p>
-                <div className="h-20" />
-                <p className="text-[13px] font-semibold text-slate-800">KTV. Xét Nghiệm</p>
-              </div>
-            )}
-            <div className="text-center min-w-[220px]">
-              {p.showDate && <p className="text-[12px] text-slate-700 italic">Ngày {new Date().toLocaleDateString('vi-VN')}</p>}
-              <p className="text-[13px] font-bold uppercase text-slate-900 tracking-wide my-0.5">
-                {p.title || 'PHỤ TRÁCH CHUYÊN MÔN'}
-              </p>
-              {p.showStamp !== false ? (
-                <div className="h-[68px] flex items-center justify-center my-0.5">
-                  <img src={currentStamp} alt="Con Dấu & Chữ Ký" className="h-[68px] w-auto object-contain max-w-[120px]" />
-                </div>
-              ) : (
-                <div className="h-16" />
-              )}
-              {p.showDoctorName !== false && (
-                <p className="text-[13.5px] font-bold text-slate-900 uppercase">
-                  {p.title?.toUpperCase().includes('CHỈ ĐỊNH')
-                    ? (patient.doctor || doctorName || 'BS. Trần Hoài Long')
-                    : (clinicInfo?.defaultDoctor || 'Nguyễn Thị Thành Trung')}
-                </p>
-              )}
-            </div>
-          </div>
-        );
-      }
-
-      case 'custom_text': {
-        const p = block.props as CustomTextBlockProps;
-        const alignClass = p.align === 'center' ? 'text-center' : p.align === 'right' ? 'text-right' : 'text-left';
-        return (
-          <div className={`${alignClass} my-2 text-[12px] ${p.fontStyle === 'italic' ? 'italic' : p.fontStyle === 'bold' ? 'font-bold' : ''}`} style={{ color: p.textColor || '#475569' }}>
-            {p.content}
-          </div>
-        );
-      }
-
-      case 'divider': {
-        const p = block.props as DividerBlockProps;
-        return (
-          <hr
-            style={{
-              borderTopWidth: `${p.thickness || 1}px`,
-              borderTopStyle: p.style || 'solid',
-              borderTopColor: p.color || '#cbd5e1',
-              marginTop: `${p.marginVertical || 8}px`,
-              marginBottom: `${p.marginVertical || 8}px`
-            }}
+          <DynamicReportHeaderBlock
+            block={block}
+            clinicInfo={clinicInfo}
+            currentLogo={currentLogo}
+            finalQrCode={finalQrCode}
           />
         );
-      }
 
-      case 'spacer': {
-        const p = block.props as SpacerBlockProps;
-        return <div style={{ height: `${p.height || 16}px` }} />;
-      }
+      case 'title':
+        return <DynamicReportTitleBlock block={block} />;
+
+      case 'patient_info':
+        return (
+          <DynamicReportPatientInfoBlock
+            block={block}
+            patient={patient}
+            doctorName={doctorName}
+          />
+        );
+
+      case 'test_table':
+        return (
+          <DynamicReportClinicalTableBlock
+            block={block}
+            tableChunkEntries={tableChunkEntries}
+            groupedRegularTests={groupedRegularTests}
+            regularTests={regularTests}
+            equipments={equipments}
+            catalogItemEquipments={catalogItemEquipments}
+          />
+        );
+
+      case 'allergen_summary':
+        return <DynamicReportAllergenSummaryBlock block={block} allergenDTO={allergenDTO} />;
+
+      case 'allergen_header':
+        return <DynamicReportAllergenHeaderBlock block={block} clinicInfo={clinicInfo} currentLogo={currentLogo} />;
+
+      case 'allergen_title':
+        return <DynamicReportAllergenTitleBlock block={block} />;
+
+      case 'allergen_patient_summary':
+        return <DynamicReportAllergenPatientSummaryBlock block={block} patient={patient} />;
+
+      case 'allergen_positive_table':
+        return <DynamicReportAllergenPositiveTableBlock block={block} allergenDTO={allergenDTO} />;
+
+      case 'allergen_scale_table':
+        return (
+          <DynamicReportAllergenScaleTableBlock
+            block={block}
+            allergenDTO={allergenDTO}
+            allergenScales={allergenScales}
+          />
+        );
+
+      case 'allergen_symptoms_box':
+        return <DynamicReportAllergenSymptomsBoxBlock block={block} />;
+
+      case 'allergen_tige_note':
+        return <DynamicReportAllergenTigeNoteBlock block={block} />;
+
+      case 'allergen_detail_table':
+      case 'allergen_detail':
+        return (
+          <DynamicReportAllergenDetailTableBlock
+            block={block}
+            allergenDTO={allergenDTO}
+            allergenTableChunkEntries={allergenTableChunkEntries}
+            allergenChunkInfo={allergenChunkInfo}
+          />
+        );
+
+      case 'allergen_prevention_guide':
+      case 'allergen_scale':
+        return <DynamicReportAllergenPreventionGuideBlock block={block} />;
+
+      case 'allergen_cover_summary':
+        return (
+          <DynamicReportAllergenCoverSummaryBlock
+            block={block}
+            testPackages={testPackages}
+            allergenTests={allergenTests}
+            allergenDTO={allergenDTO}
+          />
+        );
+
+      case 'page_break':
+        return <DynamicReportPageBreakBlock block={block} />;
+
+      case 'conclusion':
+        return <DynamicReportConclusionBlock block={block} conclusion={conclusion} />;
+
+      case 'signature':
+        return (
+          <DynamicReportSignatureBlock
+            block={block}
+            patient={patient}
+            clinicInfo={clinicInfo}
+            doctorName={doctorName}
+            currentStamp={currentStamp}
+          />
+        );
+
+      case 'custom_text':
+        return <DynamicReportCustomTextBlock block={block} />;
+
+      case 'divider':
+        return <DynamicReportDividerBlock block={block} />;
+
+      case 'spacer':
+        return <DynamicReportSpacerBlock block={block} />;
 
       default:
         return null;
     }
   };
-
-  // Chia các block thành các trang cơ sở dựa trên `page_break` thủ công
-  const baseTemplatePages = useMemo(() => {
-    const pageList: TemplateBlock[][] = [[]];
-    for (const b of sortedBlocks) {
-      if (b.type === 'page_break') {
-        if (isDesignMode) {
-          // Trong design mode: giữ block page_break để có thể chọn, kéo thả, di chuyển
-          pageList[pageList.length - 1].push(b);
-        }
-        pageList.push([]);
-      } else {
-        if (isDesignMode || isBlockVisible(b)) {
-          pageList[pageList.length - 1].push(b);
-        }
-      }
-    }
-    return pageList.filter((p) => {
-      if (isDesignMode) return p.length > 0;
-      return p.some((b) => b.type !== 'page_break' && isBlockVisible(b));
-    });
-  }, [sortedBlocks, isDesignMode, isBlockVisible]);
-
-  // Phân trang thông minh: Tự động ngắt trang chuẩn A4 khi danh sách xét nghiệm dài
-  const renderedPages = useMemo(() => {
-    if (isDesignMode) {
-      return baseTemplatePages.map((blocks, idx) => ({
-        pageNumber: idx + 1,
-        blocks,
-        isContinuation: false,
-        tableChunkEntries: undefined,
-        showConclusionOverride: undefined,
-        showSignatureOverride: undefined,
-        allergenTableChunkEntries: undefined,
-        allergenChunkInfo: undefined
-      }));
-    }
-
-    const result: Array<{
-      pageNumber: number;
-      blocks: TemplateBlock[];
-      isContinuation?: boolean;
-      tableChunkEntries?: ReadonlyArray<ReportPaginationEntry>;
-      showConclusionOverride?: boolean;
-      showSignatureOverride?: boolean;
-      allergenTableChunkEntries?: AllergenReportItemDTO[];
-      allergenChunkInfo?: { pageIdx: number; totalDetailPages: number; totalCount: number };
-    }> = [];
-
-    let currentPageNum = 1;
-
-    for (const templatePageBlocks of baseTemplatePages) {
-      const hasTestTable = templatePageBlocks.some((b) => b.type === 'test_table');
-      const hasAllergenDetail = templatePageBlocks.some(
-        (b) => b.type === 'allergen_detail_table' || b.type === 'allergen_detail'
-      );
-
-      if (hasTestTable && regularTests.length > 0) {
-        // Có khối test_table: dùng ReportPaginationDomainService để phân trang thông minh
-        const hasHeader = templatePageBlocks.some((b) => b.type === 'header' || b.type === 'patient_info');
-        const paginatedChunks = ReportPaginationDomainService.paginate(
-          regularTests,
-          conclusion,
-          {
-            page1StaticHeight: hasHeader ? 328 : 90
-          }
-        );
-
-        if (paginatedChunks.length <= 1) {
-          // Vừa vặn trên 1 trang duy nhất
-          result.push({
-            pageNumber: currentPageNum++,
-            blocks: templatePageBlocks,
-            tableChunkEntries: paginatedChunks[0]?.entries
-          });
-        } else {
-          // Cần ngắt thành nhiều trang
-          const tableIdx = templatePageBlocks.findIndex((b) => b.type === 'test_table');
-          const blocksBeforeTable = templatePageBlocks.slice(0, tableIdx);
-          const testTableBlock = templatePageBlocks[tableIdx];
-          const blocksAfterTable = templatePageBlocks.slice(tableIdx + 1);
-
-          for (let chunkIdx = 0; chunkIdx < paginatedChunks.length; chunkIdx++) {
-            const chunk = paginatedChunks[chunkIdx];
-            const isFirstChunk = chunkIdx === 0;
-            const isLastChunk = chunk.isLastPage;
-
-            if (isFirstChunk) {
-              // Trang đầu tiên: Các block trước bảng + Bảng (chunk 1)
-              const firstPageBlocks = [...blocksBeforeTable, testTableBlock];
-              if (isLastChunk) {
-                firstPageBlocks.push(...blocksAfterTable);
-              }
-              result.push({
-                pageNumber: currentPageNum++,
-                blocks: firstPageBlocks,
-                isContinuation: false,
-                tableChunkEntries: chunk.entries,
-                showConclusionOverride: chunk.showConclusion,
-                showSignatureOverride: chunk.showSignature
-              });
-            } else {
-              // Các trang tiếp theo: Mini Header + Bảng (chunk tiếp theo)
-              const continuationBlocks = [testTableBlock];
-              if (isLastChunk) {
-                continuationBlocks.push(...blocksAfterTable);
-              }
-              result.push({
-                pageNumber: currentPageNum++,
-                blocks: continuationBlocks,
-                isContinuation: true,
-                tableChunkEntries: chunk.entries,
-                showConclusionOverride: chunk.showConclusion,
-                showSignatureOverride: chunk.showSignature
-              });
-            }
-          }
-        }
-        continue;
-      }
-
-      if (hasAllergenDetail && allergenDTO && allergenDTO.detailedList.length > 0) {
-        const detailBlock = templatePageBlocks.find(
-          (b) => b.type === 'allergen_detail_table' || b.type === 'allergen_detail'
-        )!;
-        const p = detailBlock.props as AllergenDetailTableBlockProps;
-        const itemsPerPage = p?.itemsPerPage || 14;
-        const detailedList = allergenDTO.detailedList;
-
-        const chunks: AllergenReportItemDTO[][] = [];
-        for (let i = 0; i < detailedList.length; i += itemsPerPage) {
-          chunks.push(detailedList.slice(i, i + itemsPerPage));
-        }
-        if (chunks.length === 0) chunks.push([]);
-
-        if (chunks.length <= 1) {
-          result.push({
-            pageNumber: currentPageNum++,
-            blocks: templatePageBlocks,
-            allergenTableChunkEntries: chunks[0],
-            allergenChunkInfo: {
-              pageIdx: 0,
-              totalDetailPages: 1,
-              totalCount: detailedList.length
-            }
-          });
-        } else {
-          const tableIdx = templatePageBlocks.findIndex(
-            (b) => b.type === 'allergen_detail_table' || b.type === 'allergen_detail'
-          );
-          const blocksBeforeTable = templatePageBlocks.slice(0, tableIdx);
-          const blocksAfterTable = templatePageBlocks.slice(tableIdx + 1);
-
-          for (let chunkIdx = 0; chunkIdx < chunks.length; chunkIdx++) {
-            const isFirstChunk = chunkIdx === 0;
-            const chunk = chunks[chunkIdx];
-
-            if (isFirstChunk) {
-              result.push({
-                pageNumber: currentPageNum++,
-                blocks: [...blocksBeforeTable, detailBlock],
-                isContinuation: false,
-                allergenTableChunkEntries: chunk,
-                allergenChunkInfo: {
-                  pageIdx: chunkIdx,
-                  totalDetailPages: chunks.length,
-                  totalCount: detailedList.length
-                }
-              });
-            } else {
-              result.push({
-                pageNumber: currentPageNum++,
-                blocks: [detailBlock],
-                isContinuation: true,
-                allergenTableChunkEntries: chunk,
-                allergenChunkInfo: {
-                  pageIdx: chunkIdx,
-                  totalDetailPages: chunks.length,
-                  totalCount: detailedList.length
-                }
-              });
-            }
-          }
-
-          if (blocksAfterTable.length > 0) {
-            result.push({
-              pageNumber: currentPageNum++,
-              blocks: blocksAfterTable,
-              isContinuation: true
-            });
-          }
-        }
-        continue;
-      }
-
-      result.push({
-        pageNumber: currentPageNum++,
-        blocks: templatePageBlocks
-      });
-    }
-
-    return result;
-  }, [baseTemplatePages, isDesignMode, regularTests, allergenDTO, conclusion]);
 
   const isA5 = template.paperSize === 'A5';
   const isLandscape = template.orientation === 'landscape';
@@ -1573,175 +563,175 @@ export function DynamicReportView({
                   </div>
                 </div>
               )}
-            {pageBlocks.map((block, blockIdx) => {
-              const globalIdx = sortedBlocks.findIndex((b) => b.id === block.id);
-              const isSelected = isDesignMode && selectedBlockId === block.id;
+              {pageBlocks.map((block, blockIdx) => {
+                const globalIdx = sortedBlocks.findIndex((b) => b.id === block.id);
+                const isSelected = isDesignMode && selectedBlockId === block.id;
 
-              // Điều kiện hiển thị thực tế
-              const isVisibleOutside = isBlockVisible(block);
-              if (!isDesignMode && !isVisibleOutside) {
-                return null;
-              }
+                // Điều kiện hiển thị thực tế
+                const isVisibleOutside = isBlockVisible(block);
+                if (!isDesignMode && !isVisibleOutside) {
+                  return null;
+                }
 
-              // Ẩn conclusion hoặc signature nếu trang hiện tại chưa cho phép hiển thị khi phân trang
-              if (block.type === 'conclusion' && renderedPage.showConclusionOverride === false) {
-                return null;
-              }
-              if (block.type === 'signature' && renderedPage.showSignatureOverride === false) {
-                return null;
-              }
+                // Ẩn conclusion hoặc signature nếu trang hiện tại chưa cho phép hiển thị khi phân trang
+                if (block.type === 'conclusion' && renderedPage.showConclusionOverride === false) {
+                  return null;
+                }
+                if (block.type === 'signature' && renderedPage.showSignatureOverride === false) {
+                  return null;
+                }
 
-              // Trạng thái mờ trong design mode: ẩn thủ công HOẶC không thỏa mãn điều kiện dữ liệu
-              const dimmedInDesign = isDesignMode && (!block.visible || !isVisibleOutside);
+                // Trạng thái mờ trong design mode: ẩn thủ công HOẶC không thỏa mãn điều kiện dữ liệu
+                const dimmedInDesign = isDesignMode && (!block.visible || !isVisibleOutside);
 
-              return (
-                <div key={block.id}>
-                  {/* Drop zone trước mỗi block (chỉ trong design mode) */}
-                  {isDesignMode && onDropBlock && (
-                    <div
-                      className="drop-zone h-1 rounded transition-all duration-150 mx-1 mb-0.5 data-[over=true]:h-5 data-[over=true]:bg-sky-400/30 data-[over=true]:border-2 data-[over=true]:border-dashed data-[over=true]:border-sky-500"
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        (e.currentTarget as HTMLElement).dataset.over = 'true';
-                      }}
-                      onDragLeave={(e) => {
-                        (e.currentTarget as HTMLElement).dataset.over = 'false';
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        (e.currentTarget as HTMLElement).dataset.over = 'false';
-                        const blockType = e.dataTransfer.getData('block_type');
-                        // insertBeforeBlockId = block.id (kéo thả trước block này)
-                        if (blockType) {
-                          const prevBlock = blockIdx > 0 ? pageBlocks[blockIdx - 1] : undefined;
-                          onDropBlock(blockType, prevBlock?.id);
-                        }
-                      }}
-                    />
-                  )}
-
-                  <div
-                    onClick={() => isDesignMode && onSelectBlock?.(block.id)}
-                    className={`relative transition-all group ${
-                      isDesignMode
-                        ? `cursor-pointer rounded border ${
-                            isSelected
-                              ? 'border-sky-500 bg-sky-50/20 ring-2 ring-sky-400/50 p-1 mb-1'
-                              : 'border-transparent hover:border-slate-300 hover:bg-slate-50/50 p-1 mb-1'
-                          } ${dimmedInDesign ? 'opacity-40 grayscale' : ''}`
-                        : ''
-                    }`}
-                  >
-                    {isDesignMode && (
+                return (
+                  <div key={block.id}>
+                    {/* Drop zone trước mỗi block (chỉ trong design mode) */}
+                    {isDesignMode && onDropBlock && (
                       <div
-                        className={`absolute top-0 right-2 transform -translate-y-1/2 flex items-center space-x-1 bg-slate-900 text-white text-[10px] font-mono px-2 py-0.5 rounded-full shadow-lg z-20 transition-opacity ${
-                          isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                        }`}
-                      >
-                        <span className="text-sky-400 font-bold">#{globalIdx + 1}</span>
-                        <span className="font-semibold text-slate-200 max-w-[140px] truncate">{block.title || block.type}</span>
-                        {!block.visible && <span className="text-amber-400 font-bold">(Ẩn)</span>}
-                        {block.visible && block.visibilityCondition === 'never' && <span className="text-amber-400 font-bold">(Luôn ẩn)</span>}
-                        {block.visible && !isVisibleOutside && (
-                          <span className="text-orange-400 font-bold">(Thiếu dữ liệu)</span>
-                        )}
+                        className="drop-zone h-1 rounded transition-all duration-150 mx-1 mb-0.5 data-[over=true]:h-5 data-[over=true]:bg-sky-400/30 data-[over=true]:border-2 data-[over=true]:border-dashed data-[over=true]:border-sky-500"
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          (e.currentTarget as HTMLElement).dataset.over = 'true';
+                        }}
+                        onDragLeave={(e) => {
+                          (e.currentTarget as HTMLElement).dataset.over = 'false';
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          (e.currentTarget as HTMLElement).dataset.over = 'false';
+                          const blockType = e.dataTransfer.getData('block_type');
+                          // insertBeforeBlockId = block.id (kéo thả trước block này)
+                          if (blockType) {
+                            const prevBlock = blockIdx > 0 ? pageBlocks[blockIdx - 1] : undefined;
+                            onDropBlock(blockType, prevBlock?.id);
+                          }
+                        }}
+                      />
+                    )}
 
-                        {onReorderBlock && (
-                          <div className="flex items-center space-x-0.5 ml-1 border-l border-slate-700 pl-1">
+                    <div
+                      onClick={() => isDesignMode && onSelectBlock?.(block.id)}
+                      className={`relative transition-all group ${
+                        isDesignMode
+                          ? `cursor-pointer rounded border ${
+                              isSelected
+                                ? 'border-sky-500 bg-sky-50/20 ring-2 ring-sky-400/50 p-1 mb-1'
+                                : 'border-transparent hover:border-slate-300 hover:bg-slate-50/50 p-1 mb-1'
+                            } ${dimmedInDesign ? 'opacity-40 grayscale' : ''}`
+                          : ''
+                      }`}
+                    >
+                      {isDesignMode && (
+                        <div
+                          className={`absolute top-0 right-2 transform -translate-y-1/2 flex items-center space-x-1 bg-slate-900 text-white text-[10px] font-mono px-2 py-0.5 rounded-full shadow-lg z-20 transition-opacity ${
+                            isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                          }`}
+                        >
+                          <span className="text-sky-400 font-bold">#{globalIdx + 1}</span>
+                          <span className="font-semibold text-slate-200 max-w-[140px] truncate">{block.title || block.type}</span>
+                          {!block.visible && <span className="text-amber-400 font-bold">(Ẩn)</span>}
+                          {block.visible && block.visibilityCondition === 'never' && <span className="text-amber-400 font-bold">(Luôn ẩn)</span>}
+                          {block.visible && !isVisibleOutside && (
+                            <span className="text-orange-400 font-bold">(Thiếu dữ liệu)</span>
+                          )}
+
+                          {onReorderBlock && (
+                            <div className="flex items-center space-x-0.5 ml-1 border-l border-slate-700 pl-1">
+                              <button
+                                type="button"
+                                title="Di chuyển lên"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onReorderBlock(block.id, 'up');
+                                }}
+                                disabled={globalIdx === 0}
+                                className="p-0.5 hover:text-sky-400 disabled:opacity-30 disabled:hover:text-white cursor-pointer"
+                              >
+                                ↑
+                              </button>
+                              <button
+                                type="button"
+                                title="Di chuyển xuống"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onReorderBlock(block.id, 'down');
+                                }}
+                                disabled={globalIdx === sortedBlocks.length - 1}
+                                className="p-0.5 hover:text-sky-400 disabled:opacity-30 disabled:hover:text-white cursor-pointer"
+                              >
+                                ↓
+                              </button>
+                            </div>
+                          )}
+
+                          {onRemoveBlock && (
                             <button
                               type="button"
-                              title="Di chuyển lên"
+                              title="Xóa khối này"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                onReorderBlock(block.id, 'up');
+                                onRemoveBlock(block.id);
                               }}
-                              disabled={globalIdx === 0}
-                              className="p-0.5 hover:text-sky-400 disabled:opacity-30 disabled:hover:text-white cursor-pointer"
+                              className="ml-1 pl-1 border-l border-slate-700 text-red-400 hover:text-red-300 font-bold cursor-pointer"
                             >
-                              ↑
+                              ✕
                             </button>
-                            <button
-                              type="button"
-                              title="Di chuyển xuống"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onReorderBlock(block.id, 'down');
-                              }}
-                              disabled={globalIdx === sortedBlocks.length - 1}
-                              className="p-0.5 hover:text-sky-400 disabled:opacity-30 disabled:hover:text-white cursor-pointer"
-                            >
-                              ↓
-                            </button>
-                          </div>
-                        )}
-
-                        {onRemoveBlock && (
-                          <button
-                            type="button"
-                            title="Xóa khối này"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onRemoveBlock(block.id);
-                            }}
-                            className="ml-1 pl-1 border-l border-slate-700 text-red-400 hover:text-red-300 font-bold cursor-pointer"
-                          >
-                            ✕
-                          </button>
-                        )}
-                      </div>
-                    )}
-                    {renderBlockContent(
-                      block,
-                      renderedPage.tableChunkEntries,
-                      renderedPage.allergenTableChunkEntries,
-                      renderedPage.allergenChunkInfo
-                    )}
+                          )}
+                        </div>
+                      )}
+                      {renderBlockContent(
+                        block,
+                        renderedPage.tableChunkEntries,
+                        renderedPage.allergenTableChunkEntries,
+                        renderedPage.allergenChunkInfo
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
 
-            {/* Drop zone cuối trang */}
-            {isDesignMode && onDropBlock && (
-              <div
-                className="drop-zone h-1 rounded transition-all duration-150 mx-1 mt-0.5 data-[over=true]:h-5 data-[over=true]:bg-sky-400/30 data-[over=true]:border-2 data-[over=true]:border-dashed data-[over=true]:border-sky-500"
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  (e.currentTarget as HTMLElement).dataset.over = 'true';
-                }}
-                onDragLeave={(e) => {
-                  (e.currentTarget as HTMLElement).dataset.over = 'false';
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  (e.currentTarget as HTMLElement).dataset.over = 'false';
-                  const blockType = e.dataTransfer.getData('block_type');
-                  // Append sau block cuối cùng của trang này
-                  const lastBlock = pageBlocks[pageBlocks.length - 1];
-                  if (blockType) onDropBlock(blockType, lastBlock?.id);
-                }}
-              />
-            )}
-          </div>
+              {/* Drop zone cuối trang */}
+              {isDesignMode && onDropBlock && (
+                <div
+                  className="drop-zone h-1 rounded transition-all duration-150 mx-1 mt-0.5 data-[over=true]:h-5 data-[over=true]:bg-sky-400/30 data-[over=true]:border-2 data-[over=true]:border-dashed data-[over=true]:border-sky-500"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    (e.currentTarget as HTMLElement).dataset.over = 'true';
+                  }}
+                  onDragLeave={(e) => {
+                    (e.currentTarget as HTMLElement).dataset.over = 'false';
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    (e.currentTarget as HTMLElement).dataset.over = 'false';
+                    const blockType = e.dataTransfer.getData('block_type');
+                    // Append sau block cuối cùng của trang này
+                    const lastBlock = pageBlocks[pageBlocks.length - 1];
+                    if (blockType) onDropBlock(blockType, lastBlock?.id);
+                  }}
+                />
+              )}
+            </div>
 
-          {/* Footer Mặc Định */}
-          <div className="mt-auto pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500 uppercase font-mono">
-            <span>
-              HỆ THỐNG XÉT NGHIỆM GOLAB • {safeClinic.name} • HOTLINE: {safeClinic.phone}
-            </span>
-            <span className="font-bold text-sky-800">
-              Trang {pageIdx + 1}/{renderedPages.length}
-            </span>
+            {/* Footer Mặc Định */}
+            <div className="mt-auto pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500 uppercase font-mono">
+              <span>
+                HỆ THỐNG XÉT NGHIỆM GOLAB • {safeClinic.name} • HOTLINE: {safeClinic.phone}
+              </span>
+              <span className="font-bold text-sky-800">
+                Trang {pageIdx + 1}/{renderedPages.length}
+              </span>
+            </div>
           </div>
-        </div>
-      );
-    })}
-  </div>
-);
+        );
+      })}
+    </div>
+  );
 }
 
 export default memo(DynamicReportView);

@@ -257,10 +257,27 @@ export default function PdfPreviewModal({
       message: 'Đang chuẩn hóa màu sắc & khởi tạo bản in...',
       percent: 10
     });
-    // Ưu tiên phần tử từ PrintLayer (100% unscaled A4) để đồng bộ tuyệt đối chất lượng với xuất bên ngoài
-    const targetElementId = (typeof document !== 'undefined' && document.getElementById(printLayerElementId))
-      ? printLayerElementId
-      : activeElementId;
+    // Quyết định target element an toàn:
+    // 1. Ưu tiên PrintLayer (chuẩn A4 100% unscaled) nếu đã render đủ nội dung
+    // 2. Nếu PrintLayer không tồn tại HOẶC rỗng → dùng activeElementId (preview modal)
+    let targetElementId: string = activeElementId;
+    if (typeof document !== 'undefined') {
+      const printLayerEl = document.getElementById(printLayerElementId);
+      const activeEl = document.getElementById(activeElementId);
+      if (printLayerEl) {
+        const printRows = printLayerEl.querySelectorAll('tbody tr, .report-page, [data-page-break]').length;
+        if (printRows > 0) {
+          // PrintLayer đã render đầy đủ nội dung → ưu tiên
+          targetElementId = printLayerElementId;
+        } else if (activeEl && activeEl.querySelectorAll('tbody tr, .report-page, [data-page-break]').length > 0) {
+          // PrintLayer rỗng nhưng preview modal có dữ liệu → dùng preview
+          targetElementId = activeElementId;
+        }
+        // else: cả 2 đều rỗng → giữ activeElementId (default)
+      }
+      // printLayerEl === null: PrintLayer chưa render loại báo cáo này
+      // → giữ targetElementId = activeElementId (preview đã render sẵn)
+    }
     try {
       await onDownloadPdf(targetElementId, fname, (prog) => {
         setLocalProgress(prog);
@@ -875,7 +892,27 @@ export default function PdfPreviewModal({
               type="button"
               onClick={() => {
                 setShowConfirmExport(false);
-                onExportPdfAndUpload(printLayerElementId);
+                // FIX: Khi printLayerEl === null (PrintLayer chưa render loại báo cáo này),
+                // fallback ngay về activeElementId thay vì ném lỗi DOM element not found.
+                let targetId: string = activeElementId;
+                if (typeof document !== 'undefined') {
+                  const printLayerEl = document.getElementById(printLayerElementId);
+                  if (printLayerEl) {
+                    const printRows = printLayerEl.querySelectorAll('tbody tr, .report-page, [data-page-break]').length;
+                    const activeEl = document.getElementById(activeElementId);
+                    const activeRows = activeEl ? activeEl.querySelectorAll('tbody tr, .report-page, [data-page-break]').length : 0;
+                    if (printRows > 0) {
+                      // PrintLayer đã render đủ nội dung → dùng PrintLayer (chất lượng cao nhất)
+                      targetId = printLayerElementId;
+                    } else if (activeRows > 0) {
+                      // PrintLayer rỗng nhưng modal preview đã có nội dung
+                      targetId = activeElementId;
+                    }
+                    // else: cả 2 rỗng → giữ activeElementId (default)
+                  }
+                  // else printLayerEl === null → giữ targetId = activeElementId
+                }
+                onExportPdfAndUpload(targetId);
               }}
               className="px-4 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer active:scale-95"
             >
