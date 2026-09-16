@@ -137,6 +137,7 @@ function FullAllergenReportView({
         totalCount={reportDTO.totalCount}
         positiveList={reportDTO.positiveList}
         appliedScales={reportDTO.appliedScales}
+        packageName={reportDTO.packageName}
       />
 
       {/* CÁC TRANG 3 .. N: BẢNG CHI TIẾT KẾT QUẢ XÉT NGHIỆM {N} DỊ NGUYÊN */}

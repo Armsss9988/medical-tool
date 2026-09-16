@@ -753,6 +753,7 @@ function HybridReportView({
         positiveList={reportDTO.positiveList}
         appliedScales={reportDTO.appliedScales}
         pageNumber={regularPages.length + 1}
+        packageName={reportDTO.packageName}
       />
 
       {/* ─────────────────────────────────────────────────────────────────────────

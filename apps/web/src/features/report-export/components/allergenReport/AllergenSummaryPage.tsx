@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { Patient, ClinicInfo, AllergenGradingScale } from '@domain/types';
 import { getAllergenGradeClasses, getAllergenBadgeSvg } from '@domain/allergenDetector';
 import { AllergenReportItemDTO } from '@domain/services/AllergenReportDomainService';
@@ -11,6 +11,7 @@ export interface AllergenSummaryPageProps {
   positiveList: AllergenReportItemDTO[];
   appliedScales?: AllergenGradingScale[];
   pageNumber?: number;
+  packageName?: string;
 }
 
 function AllergenSummaryPage({
@@ -20,9 +21,21 @@ function AllergenSummaryPage({
   totalCount: _totalCount,
   positiveList,
   appliedScales = [],
-  pageNumber
+  pageNumber,
+  packageName
 }: AllergenSummaryPageProps) {
   const scales = (appliedScales || []).slice(0, 2);
+
+  const scaleTitle = useMemo(() => {
+    if (packageName && packageName.trim() !== '') {
+      const cleanPkg = packageName.replace(/^[\p{Emoji}\s]+/u, '').trim();
+      if (cleanPkg.startsWith('(') && cleanPkg.endsWith(')')) {
+        return `DIỄN GIẢI ĐỘ DƯƠNG TÍNH ${cleanPkg}`;
+      }
+      return `DIỄN GIẢI ĐỘ DƯƠNG TÍNH (${cleanPkg})`;
+    }
+    return 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH';
+  }, [packageName]);
 
   return (
     <div 
@@ -175,7 +188,7 @@ function AllergenSummaryPage({
                 return (
                   <div key={scale.id || sIdx} className="border border-slate-300 rounded bg-white">
                     <div className={`bg-slate-100 py-0.5 px-2 text-center font-bold text-red-700 uppercase border-b border-slate-300 ${isCompact ? 'text-[10px]' : 'text-[11.5px]'}`}>
-                      DIỄN GIẢI ĐỘ DƯƠNG TÍNH
+                      {scaleTitle}
                     </div>
                     <table className={`w-full ${fontSizeClass} border-collapse`}>
                       <thead className="bg-slate-50 font-bold border-b border-slate-300">

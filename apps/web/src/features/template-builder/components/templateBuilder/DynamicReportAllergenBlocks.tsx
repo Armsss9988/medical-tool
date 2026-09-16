@@ -253,12 +253,16 @@ export const DynamicReportAllergenScaleTableBlock = memo(function DynamicReportA
 }) {
   const p = block.props as AllergenScaleTableBlockProps;
   const scales = allergenDTO?.appliedScales || allergenScales || [];
+  const packageName = allergenDTO?.packageName;
+  const scaleTitle = packageName && packageName.trim() !== ''
+    ? `DIỄN GIẢI ĐỘ DƯƠNG TÍNH (${packageName.replace(/^[\p{Emoji}\s]+/u, '').trim()})`
+    : (p.title && !p.title.includes('(') ? p.title : 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH');
   return (
     <div className="space-y-2 mb-2">
       {scales.map((scale, sIdx) => (
         <div key={scale.id || sIdx} className="border border-slate-300 rounded bg-white overflow-hidden">
           <div className="bg-slate-100 py-1.5 px-2 text-center font-bold text-red-700 text-[12px] uppercase border-b-2 border-slate-300">
-            {scale.name || p.title || 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH'}
+            {scaleTitle}
           </div>
           <table className="w-full text-[11.5px] border-collapse">
             <thead className="bg-slate-50 font-bold border-b border-slate-300">
