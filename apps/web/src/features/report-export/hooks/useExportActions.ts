@@ -47,19 +47,22 @@ export function useExportActions(
     // Tìm thông tin phiếu hiện tại trong reports để đồng bộ chính xác phiên bản
     const existingRep = reports.find((r) => r.id === reportId || r.code === patient.code);
 
-    const reportType = ReportClassificationDomainService.classify(selectedTests);
-    // Chỉ dùng DYNAMIC_REPORT khi template là mẫu tùy biến người dùng chủ động chọn và tương thích dữ liệu
-    const isCustomTemplateActiveAndCompatible = Boolean(
-      activeTemplate &&
-      !activeTemplate.isDefault &&
-      TemplateCompatibilityDomainService.isTemplateCompatibleWithData(activeTemplate, selectedTests).isCompatible
-    );
-    const defaultElementId = isCustomTemplateActiveAndCompatible
-      ? PRINT_ELEMENT_ID.DYNAMIC_REPORT
-      : ReportClassificationDomainService.resolvePrintElementId(reportType);
-    const elementId = (customElementId && typeof customElementId === 'string')
-      ? customElementId
-      : defaultElementId;
+    // Resolve element ID: Ưu tiên customElementId từ caller (đã resolve PrintLayer content)
+    // Fallback về default resolution khi caller không truyền
+    let elementId: string;
+    if (customElementId && typeof customElementId === 'string') {
+      elementId = customElementId;
+    } else {
+      const reportType = ReportClassificationDomainService.classify(selectedTests);
+      const isCustomTemplateActiveAndCompatible = Boolean(
+        activeTemplate &&
+        !activeTemplate.isDefault &&
+        TemplateCompatibilityDomainService.isTemplateCompatibleWithData(activeTemplate, selectedTests).isCompatible
+      );
+      elementId = isCustomTemplateActiveAndCompatible
+        ? PRINT_ELEMENT_ID.DYNAMIC_REPORT
+        : ReportClassificationDomainService.resolvePrintElementId(reportType);
+    }
     const filename = formatReportPdfFilename(patient.name, patient.code);
 
     const result = await handleExportPdfAndUploadCloud(
@@ -104,18 +107,21 @@ export function useExportActions(
 
   // 2. ACTION: TẢI FILE PDF TRỰC TIẾP VỀ MÁY (Đồng bộ tuyệt đối PrintLayer với xem trước)
   const handleDownloadPdfDirect = useCallback((customElementId?: string, customFilename?: string) => {
-    const reportType = ReportClassificationDomainService.classify(selectedTests);
-    const isCustomTemplateActiveAndCompatible = Boolean(
-      activeTemplate &&
-      !activeTemplate.isDefault &&
-      TemplateCompatibilityDomainService.isTemplateCompatibleWithData(activeTemplate, selectedTests).isCompatible
-    );
-    const defaultElementId = isCustomTemplateActiveAndCompatible
-      ? PRINT_ELEMENT_ID.DYNAMIC_REPORT
-      : ReportClassificationDomainService.resolvePrintElementId(reportType);
-    const elementId = (customElementId && typeof customElementId === 'string')
-      ? customElementId
-      : defaultElementId;
+    // Resolve element ID: Ưu tiên customElementId từ caller (đã resolve PrintLayer content)
+    let elementId: string;
+    if (customElementId && typeof customElementId === 'string') {
+      elementId = customElementId;
+    } else {
+      const reportType = ReportClassificationDomainService.classify(selectedTests);
+      const isCustomTemplateActiveAndCompatible = Boolean(
+        activeTemplate &&
+        !activeTemplate.isDefault &&
+        TemplateCompatibilityDomainService.isTemplateCompatibleWithData(activeTemplate, selectedTests).isCompatible
+      );
+      elementId = isCustomTemplateActiveAndCompatible
+        ? PRINT_ELEMENT_ID.DYNAMIC_REPORT
+        : ReportClassificationDomainService.resolvePrintElementId(reportType);
+    }
     const filename = (customFilename && typeof customFilename === 'string')
       ? customFilename
       : formatReportPdfFilename(patient.name, patient.code);

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { User, Hash, Calendar, Phone, Stethoscope, ChevronDown, ChevronUp, MapPin, Sparkles, RefreshCw, Zap } from 'lucide-react';
-import { Patient, Doctor, GENDER, GENDER_LIST, Invoice } from '@domain';
+import { Patient, Doctor, GENDER, GENDER_LIST, Invoice, formatDisplayDate } from '@domain';
 
 interface PatientFormProps {
   patient: Patient;
@@ -97,6 +97,13 @@ export default function PatientForm({
       hasInitializedDoctorRef.current = true;
     }
   }, [doctorsList, patient.doctor, doctorName, setDoctorName, handleChange]);
+
+  // Đồng bộ thời gian đóng phí từ hóa đơn đã thanh toán vào hồ sơ bệnh nhân (SSOT)
+  useEffect(() => {
+    if (isPaid && invoice?.paidAt && !patient.paidAt) {
+      handleChange('paidAt', invoice.paidAt);
+    }
+  }, [isPaid, invoice?.paidAt, patient.paidAt, handleChange]);
 
   // Enter key handler: move to next field in the fast-entry chain
   const handleKeyDownChain = (
@@ -460,7 +467,7 @@ export default function PatientForm({
                 <input
                   type="text"
                   placeholder="dd/mm/yyyy hh:mm"
-                  value={patient.paidAt || (isPaid && invoice?.paidAt ? new Date(invoice.paidAt).toLocaleDateString('vi-VN') : '')}
+                  value={formatDisplayDate(patient.paidAt, isPaid && invoice?.paidAt ? formatDisplayDate(invoice.paidAt, '') : '')}
                   onChange={(e) => handleChange('paidAt', e.target.value)}
                   tabIndex={102}
                   className="w-full bg-white border border-slate-300 focus:border-sky-500 rounded-lg px-2 py-1 text-xs font-mono font-medium"

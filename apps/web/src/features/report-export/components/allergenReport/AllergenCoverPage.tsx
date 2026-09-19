@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import golabLogo from '@assets/golabLogoDataUrl';
 import doctorStamp from '@assets/doctorStampDataUrl';
-import { Patient, ClinicInfo, getSafeClinicInfo } from '@domain/types';
+import { Patient, ClinicInfo, getSafeClinicInfo, formatDisplayDate } from '@domain';
 
 interface AllergenCoverPageProps {
   patient: Patient;
@@ -298,7 +298,7 @@ function AllergenCoverPage({
                 <td className="w-32 py-2 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle leading-snug">Năm sinh:</td>
                 <td className="py-2 px-3 font-medium text-slate-800 border-r border-b border-slate-300 align-middle leading-snug">{patient.dob || '---'}</td>
                 <td className="w-32 py-2 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle leading-snug">T/G đóng phí</td>
-                <td className="py-2 px-3 font-medium text-slate-800 border-b border-slate-300 align-middle leading-snug">{patient.paidAt || 'Chưa thu phí'}</td>
+                <td className="py-2 px-3 font-medium text-slate-800 border-b border-slate-300 align-middle leading-snug">{formatDisplayDate(patient.paidAt, 'Chưa thu phí')}</td>
               </tr>
               <tr>
                 <td className="w-32 py-2 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle leading-snug">Địa chỉ</td>

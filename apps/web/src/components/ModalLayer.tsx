@@ -11,7 +11,7 @@ import { useWorkspace } from '../contexts/WorkspaceContext';
 import { useModal } from '../contexts/ModalContext';
 import { useToast } from '../contexts/ToastContext';
 
-import { useCallback, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useMemo, type Dispatch, type SetStateAction } from 'react';
 import type {
   ClinicInfo,
   CatalogItem,
@@ -227,6 +227,30 @@ export function ModalLayer({
     <DynamicReportView {...props} />
   ), []);
 
+  // Bảo đảm SSOT: Giải quyết tình trạng thanh toán từ hóa đơn cho modal xem trước PDF
+  const previewTargetPatient = previewTargetReport ? previewTargetReport.patient : patient;
+  const targetReportId = previewTargetReport?.id || currentReportId;
+  const matchingInvoice = useMemo(() => {
+    return invoices.find(
+      (inv) =>
+        (targetReportId && inv.reportId === targetReportId) ||
+        (previewTargetReport?.invoiceId && inv.id === previewTargetReport.invoiceId) ||
+        (previewTargetPatient?.code && inv.patientCode === previewTargetPatient.code) ||
+        (previewTargetPatient?.sampleCode && inv.patientCode === previewTargetPatient.sampleCode)
+    );
+  }, [invoices, targetReportId, previewTargetReport, previewTargetPatient?.code, previewTargetPatient?.sampleCode]);
+
+  const isInvoicePaid = Boolean(matchingInvoice && matchingInvoice.status === 'Đã thanh toán');
+  const resolvedPaidAt = previewTargetPatient?.paidAt || (isInvoicePaid ? (matchingInvoice?.paidAt || matchingInvoice?.createdAt || new Date().toISOString()) : undefined);
+
+  const effectivePatientForPreview = useMemo(() => {
+    if (!previewTargetPatient) return previewTargetPatient;
+    return {
+      ...previewTargetPatient,
+      paidAt: resolvedPaidAt
+    };
+  }, [previewTargetPatient, resolvedPaidAt]);
+
   return (
     <>
       {/* 1. SETTINGS MODAL */}
@@ -247,7 +271,7 @@ export function ModalLayer({
         isOpen={isPreviewOpen}
         onClose={closePreview}
         clinicInfo={clinicInfo}
-        patient={previewTargetReport?.patient || patient}
+        patient={effectivePatientForPreview}
         selectedTests={previewTargetReport?.selectedTests || selectedTests}
         conclusion={previewTargetReport ? previewTargetReport.conclusion || '' : conclusion}
         doctorName={previewTargetReport ? previewTargetReport.doctorName || '' : doctorName}
@@ -264,7 +288,7 @@ export function ModalLayer({
         onRetryExport={onExportPdfAndUpload}
         onPrintDirect={onPrintDirect}
         onDownloadQrCode={() => {
-          const target = previewTargetReport?.patient || patient;
+          const target = effectivePatientForPreview || patient;
           onDownloadQrCode(target?.name || '', target?.code || '');
         }}
         onOpenTemplateBuilder={openTemplateBuilder}

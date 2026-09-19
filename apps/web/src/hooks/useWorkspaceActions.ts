@@ -147,19 +147,42 @@ export function useWorkspaceActions(
       showToast('Vui lòng nhập họ và tên bệnh nhân trước khi lưu!', 'error');
       return null;
     }
+
+    // Bảo đảm SSOT: Nếu hóa đơn tương ứng đã thanh toán, đồng bộ paidAt cho bệnh nhân
+    const resolvedPaidAt = patient.paidAt || (isCurrentReportPaid ? (currentInvoiceForReport?.paidAt || new Date().toISOString()) : undefined);
+    const resolvedPatient = resolvedPaidAt !== patient.paidAt ? { ...patient, paidAt: resolvedPaidAt } : patient;
+    if (resolvedPaidAt !== patient.paidAt) {
+      setPatient(resolvedPatient);
+    }
+
     const saved = saveOrUpdateReport({
       id: currentReportId || undefined,
-      patient,
+      patient: resolvedPatient,
       selectedTests,
       conclusion,
       doctorName: resolveDoctorName(doctorName, patient.doctor),
       cloudPdfUrl: cloudLink || undefined,
-      qrCodeDataUrl: qrCodeDataUrl || undefined
+      qrCodeDataUrl: qrCodeDataUrl || undefined,
+      invoiceId: currentInvoiceForReport?.id
     });
     setCurrentReportId(saved.id);
     showToast(`Đã lưu phiếu của bệnh nhân ${saved.patient.name} (${saved.code}) vào Sổ Lưu!`, 'success');
     return saved.id;
-  }, [patient, selectedTests, conclusion, doctorName, cloudLink, qrCodeDataUrl, currentReportId, saveOrUpdateReport, setCurrentReportId, showToast]);
+  }, [
+    patient,
+    selectedTests,
+    conclusion,
+    doctorName,
+    cloudLink,
+    qrCodeDataUrl,
+    currentReportId,
+    saveOrUpdateReport,
+    setCurrentReportId,
+    showToast,
+    isCurrentReportPaid,
+    currentInvoiceForReport,
+    setPatient
+  ]);
 
   // 5. ACTION: RESET TOÀN BỘ CHO BỆNH NHÂN TIẾP THEO
   const performClearAll = useCallback(() => {
@@ -190,6 +213,18 @@ export function useWorkspaceActions(
     // Trích xuất an toàn dữ liệu bệnh nhân từ report (hỗ trợ mọi phiên bản dữ liệu lưu trữ)
     const rawPatient = (rep.patient || {}) as Partial<Patient>;
     const rawRep = rep as unknown as Record<string, unknown>;
+
+    // Tra cứu hóa đơn liên kết để bảo toàn SSOT tình trạng thanh toán
+    const matchingInv = invoices.find(
+      (inv) =>
+        inv.reportId === rep.id ||
+        (rep.invoiceId && inv.id === rep.invoiceId) ||
+        (rep.code && inv.patientCode === rep.code) ||
+        (rawPatient.code && inv.patientCode === rawPatient.code)
+    );
+    const isMatchingInvPaid = Boolean(matchingInv && matchingInv.status === 'Đã thanh toán');
+    const resolvedPaidAt = rawPatient.paidAt || (rawRep.paidAt as string) || (isMatchingInvPaid ? (matchingInv?.paidAt || matchingInv?.createdAt || new Date().toISOString()) : undefined);
+
     const safePatient: Patient = {
       code: rawPatient.code || rep.code || rep.sampleCode || (rawRep.code as string) || 'BN-GOLAB',
       secretToken: rawPatient.secretToken || (rawRep.secretToken as string) || 'GOLAB',
@@ -202,7 +237,7 @@ export function useWorkspaceActions(
       sampleCode: rawPatient.sampleCode || rep.sampleCode || rep.code || (rawRep.sampleCode as string) || 'BN-GOLAB',
       sampleStatus: rawPatient.sampleStatus || (rawRep.sampleStatus as string) || 'Đạt',
       orderedAt: rawPatient.orderedAt || rep.createdAt || '',
-      paidAt: rawPatient.paidAt || (rawRep.paidAt as string) || undefined,
+      paidAt: resolvedPaidAt,
       receivedAt: rawPatient.receivedAt || rep.createdAt || '',
       returnedAt: rawPatient.returnedAt || rep.createdAt || '',
       doctor: rawPatient.doctor || rep.doctorName || (rawRep.doctor as string) || ''
@@ -215,7 +250,7 @@ export function useWorkspaceActions(
     resetExport();
     closeReportManager();
     showToast(`Đã nạp thành công phiếu [${safePatient.code}] của bệnh nhân ${safePatient.name || 'chưa đặt tên'} để chỉnh sửa!`, 'success');
-  }, [setCurrentReportId, setPatient, setSelectedTests, setConclusion, setDoctorName, resetExport, closeReportManager, showToast]);
+  }, [invoices, setCurrentReportId, setPatient, setSelectedTests, setConclusion, setDoctorName, resetExport, closeReportManager, showToast]);
 
   const handleLoadReport = useCallback((rep: MedicalReport) => {
     const rawPatient = (rep.patient || {}) as Partial<Patient>;

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import PrintReportView from './PrintReportView';
 import FullAllergenReportView from './FullAllergenReportView';
 import HybridReportView from './HybridReportView';
@@ -47,10 +47,59 @@ export function PrintLayer({
     patient,
     selectedTests,
     conclusion,
-    doctorName
+    doctorName,
+    invoices,
+    currentReportId
   } = useWorkspace();
 
-  const effectivePatient = previewTargetReport ? previewTargetReport.patient : patient;
+  const targetRep = previewTargetReport;
+  const rawPatient = targetRep ? targetRep.patient : patient;
+  const targetReportId = targetRep?.id || currentReportId;
+
+  // Resolve matching invoice for SSOT payment determination
+  const matchingInvoice = useMemo(() => {
+    return invoices.find(
+      (inv) =>
+        (targetRep && (inv.reportId === targetRep.id || (targetRep.invoiceId && inv.id === targetRep.invoiceId))) ||
+        (targetReportId && inv.reportId === targetReportId) ||
+        (rawPatient?.code && inv.patientCode === rawPatient.code) ||
+        (rawPatient?.sampleCode && inv.patientCode === rawPatient.sampleCode)
+    );
+  }, [invoices, targetRep, targetReportId, rawPatient?.code, rawPatient?.sampleCode]);
+
+  const isInvoicePaid = Boolean(matchingInvoice && matchingInvoice.status === 'Đã thanh toán');
+  const effectivePaidAt = rawPatient?.paidAt || (isInvoicePaid ? (matchingInvoice?.paidAt || matchingInvoice?.createdAt || new Date().toISOString()) : undefined);
+
+  const effectivePatient = useMemo(() => {
+    if (!rawPatient) return rawPatient;
+    return {
+      ...rawPatient,
+      paidAt: effectivePaidAt
+    };
+  }, [rawPatient, effectivePaidAt]);
+
+  // Also resolve matching invoice for batchRenderReport if present
+  const batchMatchingInvoice = useMemo(() => {
+    if (!batchRenderReport) return null;
+    return invoices.find(
+      (inv) =>
+        inv.reportId === batchRenderReport.id ||
+        (batchRenderReport.invoiceId && inv.id === batchRenderReport.invoiceId) ||
+        (batchRenderReport.code && inv.patientCode === batchRenderReport.code) ||
+        (batchRenderReport.patient?.code && inv.patientCode === batchRenderReport.patient.code)
+    );
+  }, [invoices, batchRenderReport]);
+
+  const effectiveBatchPatient = useMemo(() => {
+    if (!batchRenderReport) return null;
+    const isBatchPaid = Boolean(batchMatchingInvoice && batchMatchingInvoice.status === 'Đã thanh toán');
+    const resolvedBatchPaidAt = batchRenderReport.patient?.paidAt || (isBatchPaid ? (batchMatchingInvoice?.paidAt || batchMatchingInvoice?.createdAt || new Date().toISOString()) : undefined);
+    return {
+      ...batchRenderReport.patient,
+      paidAt: resolvedBatchPaidAt
+    };
+  }, [batchRenderReport, batchMatchingInvoice]);
+
   const effectiveSelectedTests = previewTargetReport ? previewTargetReport.selectedTests : selectedTests;
   const effectiveConclusion = previewTargetReport ? (previewTargetReport.conclusion || '') : conclusion;
   const effectiveDoctorName = previewTargetReport ? (previewTargetReport.doctorName || '') : doctorName;
@@ -158,7 +207,7 @@ export function PrintLayer({
             <HybridReportView
               elementId={PRINT_ELEMENT_ID.BATCH_HYBRID}
               clinicInfo={clinicInfo}
-              patient={batchRenderReport.patient}
+              patient={effectiveBatchPatient || batchRenderReport.patient}
               selectedTests={batchRenderReport.selectedTests}
               doctorName={batchRenderReport.doctorName}
               conclusion={batchRenderReport.conclusion}
@@ -172,7 +221,7 @@ export function PrintLayer({
             <FullAllergenReportView
               elementId={PRINT_ELEMENT_ID.BATCH_ALLERGEN}
               clinicInfo={clinicInfo}
-              patient={batchRenderReport.patient}
+              patient={effectiveBatchPatient || batchRenderReport.patient}
               selectedTests={batchRenderReport.selectedTests}
               doctorName={batchRenderReport.doctorName}
               conclusion={batchRenderReport.conclusion}
@@ -186,7 +235,7 @@ export function PrintLayer({
             <PrintReportView
               elementId={PRINT_ELEMENT_ID.BATCH_MEDICAL}
               clinicInfo={clinicInfo}
-              patient={batchRenderReport.patient}
+              patient={effectiveBatchPatient || batchRenderReport.patient}
               selectedTests={batchRenderReport.selectedTests}
               conclusion={batchRenderReport.conclusion}
               doctorName={batchRenderReport.doctorName}
@@ -202,7 +251,7 @@ export function PrintLayer({
               elementId: PRINT_ELEMENT_ID.BATCH_DYNAMIC,
               template: activeTemplate,
               clinicInfo,
-              patient: batchRenderReport.patient,
+              patient: effectiveBatchPatient || batchRenderReport.patient,
               selectedTests: batchRenderReport.selectedTests,
               doctorName: batchRenderReport.doctorName,
               conclusion: batchRenderReport.conclusion,

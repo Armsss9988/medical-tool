@@ -327,23 +327,37 @@ export async function generateHighQualityPdf(
   }
 
   if (!element) {
-    // Safety net: Tìm phần tử báo cáo đã render thay thế thay vì throw ngay
-    // Thứ tự ưu tiên: allergen → hybrid → medical → dynamic (theo loại hiếm nhất trước)
-    const FALLBACK_ELEMENT_IDS = [
-      'preview-allergen-element',
-      'printable-allergen-report',
-      'preview-hybrid-element',
-      'printable-hybrid-report',
-      'preview-print-element',
+    // Safety net: Chỉ tìm phần tử thay thế TRONG CÙNG NHÓM (batch / print / preview)
+    // Các nhóm render cùng một nguồn dữ liệu (workspace hoặc batchRenderReport) nên nội dung đồng nhất.
+    // Tuyệt đối KHÔNG cross-group: batch-* rơi vào preview-* sẽ chụp nhầm bệnh nhân đang mở trên màn hình.
+    const batchCandidates = [
+      'batch-medical-report',
+      'batch-allergen-report',
+      'batch-hybrid-report',
+      'batch-dynamic-report'
+    ];
+    const printCandidates = [
       'printable-medical-report',
-      'preview-dynamic-element',
+      'printable-allergen-report',
+      'printable-hybrid-report',
       'printable-dynamic-report'
     ];
-    for (const fallbackId of FALLBACK_ELEMENT_IDS) {
+    const previewCandidates = [
+      'preview-print-element',
+      'preview-allergen-element',
+      'preview-hybrid-element',
+      'preview-dynamic-element'
+    ];
+    const candidates = elementId.startsWith('batch-')
+      ? batchCandidates
+      : elementId.startsWith('printable-')
+      ? printCandidates
+      : previewCandidates;
+    for (const fallbackId of candidates) {
       if (fallbackId === elementId) continue; // Đã thử rồi
       const candidate = document.getElementById(fallbackId);
       if (candidate && candidate.querySelectorAll('tbody tr, .report-page, [data-page-break]').length > 0) {
-        console.warn(`[pdfService] Element "${elementId}" không tồn tại, fallback sang "${fallbackId}"`);
+        console.warn(`[pdfService] Element "${elementId}" không tồn tại, fallback sang "${fallbackId}" (cùng nhóm)`);
         element = candidate;
         break;
       }
@@ -501,6 +515,7 @@ export async function generateHighQualityPdf(
 
       // 2. Đồng bộ toàn bộ CSS rules từ Document gốc sang Document clone dưới dạng thẻ <style> inline
       // Khắc phục triệt để việc Next.js nạp layout.css qua <link rel="stylesheet"> bất đồng bộ khiến iframe của html2canvas mất toàn bộ CSS Tailwind (border, flex, colgroup)
+      // Lưu ý: sanitizeAllModernColors sẽ được gọi đồng loạt bởi sanitizeDocumentOklch() ở bước 5
       for (const sheet of Array.from(document.styleSheets)) {
         try {
           if (sheet.cssRules && sheet.cssRules.length > 0) {
@@ -509,7 +524,7 @@ export async function generateHighQualityPdf(
             for (const rule of Array.from(sheet.cssRules)) {
               cssText += rule.cssText + '\n';
             }
-            styleTag.textContent = sanitizeAllModernColors(cssText);
+            styleTag.textContent = cssText;
             clonedDoc.head.appendChild(styleTag);
           }
         } catch {

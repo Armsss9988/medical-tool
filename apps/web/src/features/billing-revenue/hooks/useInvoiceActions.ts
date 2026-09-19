@@ -58,9 +58,10 @@ export function useInvoiceActions(
 
       const isPaid = inv.status === 'Đã thanh toán';
       const nowIso = new Date().toISOString();
+      const resolvedPaidAt = isPaid ? inv.paidAt || patient.paidAt || nowIso : undefined;
       const updatedPatient = {
         ...patient,
-        paidAt: isPaid ? patient.paidAt || nowIso : undefined
+        paidAt: resolvedPaidAt
       };
       setPatient(updatedPatient);
 
@@ -68,7 +69,7 @@ export function useInvoiceActions(
       const invoiceToSave = {
         ...inv,
         reportId: reportIdToLink,
-        paidAt: isPaid ? inv.paidAt || nowIso : undefined
+        paidAt: resolvedPaidAt
       };
       const saved = saveOrUpdateInvoice(invoiceToSave, isPaid);
 
@@ -89,7 +90,7 @@ export function useInvoiceActions(
         payInvoice(saved.id, {
           paymentMethod: inv.paymentMethod,
           cashier: inv.cashierName,
-          paidAt: inv.paidAt || new Date().toISOString(),
+          paidAt: resolvedPaidAt || new Date().toISOString(),
           invoice: saved
         }).catch((err) => {
           console.warn('[useInvoiceActions] Lỗi gọi payInvoice transaction:', err);

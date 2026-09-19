@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Patient, TemplateBlock, PatientInfoBlockProps } from '@domain';
+import { Patient, TemplateBlock, PatientInfoBlockProps, formatDisplayDate } from '@domain';
 
 interface DynamicReportPatientInfoBlockProps {
   block: TemplateBlock;
@@ -56,7 +56,7 @@ export const DynamicReportPatientInfoBlock = memo(function DynamicReportPatientI
             <td className="w-32 py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle">Năm sinh:</td>
             <td className="py-1.5 px-3 font-medium text-slate-800 border-r border-b border-slate-300 align-middle">{patient.dob || '---'}</td>
             <td className="w-32 py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle">T/G đóng phí</td>
-            <td className="py-1.5 px-3 font-medium text-slate-800 border-b border-slate-300 align-middle">{patient.paidAt || 'Chưa thu phí'}</td>
+            <td className="py-1.5 px-3 font-medium text-slate-800 border-b border-slate-300 align-middle">{formatDisplayDate(patient.paidAt, 'Chưa thu phí')}</td>
           </tr>
           <tr>
             <td className="w-32 py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle">Địa chỉ</td>

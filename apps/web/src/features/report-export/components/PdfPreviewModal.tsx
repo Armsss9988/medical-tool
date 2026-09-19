@@ -32,6 +32,7 @@ import {
   EXPORT_STEP_ORDER,
   PdfFileRecord
 } from '@domain/exportTransaction';
+import { getLedgerByReport } from '@infra/pdfLedger';
 
 interface PdfPreviewModalProps {
   isOpen: boolean;
@@ -103,7 +104,7 @@ export default function PdfPreviewModal({
   const [zoomScale, setZoomScale] = useState<number>(0.85);
   // State xem lịch sử phiên bản PDF trên cloud
   const [showHistory, setShowHistory] = useState<boolean>(false);
-  const [historyList] = useState<PdfFileRecord[]>([]);
+  const [historyList, setHistoryList] = useState<PdfFileRecord[]>([]);
   // State modal xác nhận trước khi lưu & xuất cloud
   const [showConfirmExport, setShowConfirmExport] = useState<boolean>(false);
 
@@ -214,6 +215,17 @@ export default function PdfPreviewModal({
       }
     }
   }, [isOpen, computeFitZoom]);
+
+  // Tải lịch sử phiên bản PDF từ Ledger khi modal mở hoặc sau khi xuất thành công (cloudLink đổi)
+  useEffect(() => {
+    if (isOpen && safePatient.code) {
+      getLedgerByReport(safePatient.code).then((records) => {
+        setHistoryList(records);
+      }).catch(() => {
+        setHistoryList([]);
+      });
+    }
+  }, [isOpen, safePatient.code, cloudLink]);
 
   // Đồng bộ chosenTemplate ra PrintLayer bên ngoài an toàn (tránh re-render loop)
   const prevChosenIdRef = useRef<string | null | undefined>(undefined);

@@ -330,6 +330,9 @@ export class LabReportAggregate {
     const oldProfile = this._patientProfile;
     const oldSnap = oldProfile.toSnapshot();
     this._patientProfile = this._patientProfile.withUpdates(updates);
+    if ('paidAt' in updates) {
+      this._isPaid = Boolean(this._patientProfile.paidAt);
+    }
     this._updatedAt = new Date().toISOString();
 
     if (this._cloudPdfUrl && !this._patientProfile.equals(oldProfile)) {
@@ -633,6 +636,9 @@ export class LabReportAggregate {
     }
     if (updates.zaloSentAt && updates.zaloSentAt !== this._zaloSentAt) {
       this.recordZaloSent(updates.zaloMsgId);
+    }
+    if (updates.invoiceId !== undefined) {
+      this._invoiceId = updates.invoiceId;
     }
     if (updates.status && updates.status !== 'Đã xuất Cloud') {
       this.updateLegacyStatus(updates.status);

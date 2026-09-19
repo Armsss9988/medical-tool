@@ -11,9 +11,10 @@ import {
   CatalogItemEquipmentLink,
   resolveTestEquipmentName,
   formatEquipmentForPrint,
+  formatDisplayDate,
   DEFAULT_CLINIC_INFO,
   getSafeClinicInfo
-} from '@domain/types';
+} from '@domain';
 import { isAllergenTest } from '@domain/allergenDetector';
 import { evaluateTestIndicator } from '@domain/testResult';
 import { computeHybridReportTotalPrice } from '@domain/pricing';
@@ -492,7 +493,7 @@ function HybridReportView({
                         <td className="py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle leading-snug" style={{ borderRight: '1px solid #cbd5e1', borderBottom: '1px solid #cbd5e1' }}>Năm sinh:</td>
                         <td className="py-1.5 px-3 font-medium text-slate-800 border-r border-b border-slate-300 align-middle leading-snug" style={{ borderRight: '1px solid #cbd5e1', borderBottom: '1px solid #cbd5e1' }}>{patient.dob || '---'}</td>
                         <td className="py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle leading-snug" style={{ borderRight: '1px solid #cbd5e1', borderBottom: '1px solid #cbd5e1' }}>T/G đóng phí:</td>
-                        <td className="py-1.5 px-3 font-medium text-slate-800 border-b border-slate-300 align-middle leading-snug" style={{ borderBottom: '1px solid #cbd5e1' }}>{patient.paidAt || 'Chưa thu phí'}</td>
+                        <td className="py-1.5 px-3 font-medium text-slate-800 border-b border-slate-300 align-middle leading-snug" style={{ borderBottom: '1px solid #cbd5e1' }}>{formatDisplayDate(patient.paidAt, 'Chưa thu phí')}</td>
                       </tr>
                       <tr>
                         <td className="py-1.5 px-3 bg-slate-50 font-semibold text-slate-700 border-r border-b border-slate-300 align-middle leading-snug" style={{ borderRight: '1px solid #cbd5e1', borderBottom: '1px solid #cbd5e1' }}>Giới tính:</td>
