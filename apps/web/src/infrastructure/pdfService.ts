@@ -304,11 +304,14 @@ export interface PdfProgressInfo {
 export interface PdfExportOptions {
   orientation?: 'portrait' | 'landscape';
   format?: 'a4' | 'a5';
+  scale?: number;
+  imageFormat?: 'png' | 'jpeg';
+  imageQuality?: number;
   onProgress?: (progress: PdfProgressInfo) => void;
 }
 
 /**
- * Chụp và xuất PDF chất lượng cao (Scale 2.0, đa trang thông minh, hỗ trợ Booklet Dị nguyên)
+ * Chụp và xuất PDF nhanh và tối ưu (Scale mặc định 1.25x giúp giảm >60% pixel, tăng tốc gen gấp 2.5 - 3 lần)
  */
 export async function generateHighQualityPdf(
   elementId: string,
@@ -383,7 +386,7 @@ export async function generateHighQualityPdf(
   });
 
   // Nhường 1 macrotask tick để trình duyệt vẽ ngay lập tức modal tiến trình (0ms lag)
-  await new Promise((resolve) => setTimeout(resolve, 40));
+  await new Promise((resolve) => setTimeout(resolve, 15));
 
   // Chờ font chữ hệ thống sẵn sàng trong document chính
   if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
@@ -404,7 +407,7 @@ export async function generateHighQualityPdf(
       if (img.decode) return img.decode().catch(() => {});
       if (!img.src || img.src === window.location.href) return Promise.resolve();
       return new Promise<void>((resolve) => {
-        const timer = setTimeout(() => resolve(), 2500);
+        const timer = setTimeout(() => resolve(), 1000);
         img.onload = () => { clearTimeout(timer); resolve(); };
         img.onerror = () => { clearTimeout(timer); resolve(); };
       });
@@ -446,13 +449,20 @@ export async function generateHighQualityPdf(
     compress: true
   });
 
+  // Tối ưu hiệu năng: Giảm scale từ 2.0 xuống 1.25 giúp giảm >60% lượng pixel canvas, tăng tốc độ sinh PDF gấp 2.5 - 3 lần
+  const renderScale = options?.scale ?? 1.25;
+  const imageFormat = options?.imageFormat ?? 'png';
+  const imageQuality = options?.imageQuality ?? (imageFormat === 'jpeg' ? 0.88 : 1.0);
+  const mimeType = imageFormat === 'jpeg' ? 'image/jpeg' : 'image/png';
+  const pdfImageFormat = imageFormat === 'jpeg' ? 'JPEG' : 'PNG';
+
   const html2canvasCommonOptions = {
-    scale: 2.0,
+    scale: renderScale,
     useCORS: true,
     allowTaint: true,
     backgroundColor: '#ffffff',
     logging: false,
-    imageTimeout: 15000,
+    imageTimeout: 10000,
     scrollX: 0,
     scrollY: 0,
     onclone: async (clonedDoc: Document) => {
@@ -587,18 +597,18 @@ export async function generateHighQualityPdf(
         step: 'rendering_pages',
         currentPage: i + 1,
         totalPages,
-        message: `Đang kết xuất đồ họa trang ${i + 1}/${totalPages} (Lossless Canvas 2.0x)...`,
+        message: `Đang kết xuất đồ họa trang ${i + 1}/${totalPages} (Canvas ${renderScale}x)...`,
         percent: pagePercent
       });
-      // Nhường event loop để UI cập nhật tiến trình trang mới mượt mà
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      // Nhường event loop cực ngắn (10ms) để UI cập nhật tiến trình trang mới mượt mà
+      await new Promise((resolve) => setTimeout(resolve, 10));
       let canvas = await html2canvas(pageEl, html2canvasCommonOptions);
 
       // Phòng thủ toàn diện: Đảm bảo canvas có kích thước hợp lệ > 0
       if (!canvas || canvas.width <= 0 || canvas.height <= 0) {
         try {
           canvas = await html2canvas(pageEl, {
-            scale: 2.0,
+            scale: renderScale,
             useCORS: true,
             allowTaint: true,
             backgroundColor: '#ffffff',
@@ -614,7 +624,7 @@ export async function generateHighQualityPdf(
         continue;
       }
 
-      const imgData = canvas.toDataURL('image/png', 1.0);
+      const imgData = canvas.toDataURL(mimeType, imageQuality);
       if (!imgData || !imgData.startsWith('data:image/')) {
         console.warn(`[pdfService] Bỏ qua trang ${i + 1} do imgData không hợp lệ.`);
         continue;
@@ -643,7 +653,7 @@ export async function generateHighQualityPdf(
       }
 
       try {
-        pdf.addImage(imgData, 'PNG', renderX, renderY, renderWidth, renderHeight, undefined, 'FAST');
+        pdf.addImage(imgData, pdfImageFormat, renderX, renderY, renderWidth, renderHeight, undefined, 'FAST');
       } catch (err) {
         console.error(`[pdfService] Lỗi khi thêm ảnh vào PDF trang ${i + 1}:`, err);
       }
@@ -656,17 +666,17 @@ export async function generateHighQualityPdf(
       step: 'rendering_pages',
       currentPage: 1,
       totalPages: 1,
-      message: 'Đang kết xuất đồ họa bản in (Lossless Canvas 2.0x)...',
+      message: `Đang kết xuất đồ họa bản in (Canvas ${renderScale}x)...`,
       percent: 40
     });
-    // Nhường event loop để UI kịp vẽ trạng thái render bản in
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    // Nhường event loop cực ngắn (10ms) để UI kịp vẽ trạng thái render bản in
+    await new Promise((resolve) => setTimeout(resolve, 10));
     let canvas = await html2canvas(element, html2canvasCommonOptions);
 
     if (!canvas || canvas.width <= 0 || canvas.height <= 0) {
       try {
         canvas = await html2canvas(element, {
-          scale: 2.0,
+          scale: renderScale,
           useCORS: true,
           allowTaint: true,
           backgroundColor: '#ffffff',
@@ -686,10 +696,10 @@ export async function generateHighQualityPdf(
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
     if (imgHeight <= pageHeightInMm + 0.5) {
-      const imgData = canvas.toDataURL('image/png', 1.0);
+      const imgData = canvas.toDataURL(mimeType, imageQuality);
       if (imgData && imgData.startsWith('data:image/')) {
         try {
-          pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, Math.min(imgHeight, pageHeightInMm), undefined, 'FAST');
+          pdf.addImage(imgData, pdfImageFormat, 0, 0, imgWidth, Math.min(imgHeight, pageHeightInMm), undefined, 'FAST');
         } catch (err) {
           console.error('[pdfService] Lỗi khi thêm ảnh vào PDF:', err);
         }
@@ -748,7 +758,7 @@ export async function generateHighQualityPdf(
           );
         }
 
-        const pageImgData = pageCanvas.toDataURL('image/png', 1.0);
+        const pageImgData = pageCanvas.toDataURL(mimeType, imageQuality);
         const currentSliceMmHeight = (currentSliceCanvasHeight * imgWidth) / canvas.width;
 
         if (pageIdx > 0) {
@@ -756,7 +766,7 @@ export async function generateHighQualityPdf(
         }
 
         try {
-          pdf.addImage(pageImgData, 'PNG', 0, 0, imgWidth, currentSliceMmHeight, undefined, 'FAST');
+          pdf.addImage(pageImgData, pdfImageFormat, 0, 0, imgWidth, currentSliceMmHeight, undefined, 'FAST');
         } catch (err) {
           console.error(`[pdfService] Lỗi khi thêm ảnh vào PDF trang ${pageIdx + 1}:`, err);
         }
@@ -789,8 +799,8 @@ export async function downloadPdfDirectly(
   filename: string = 'PhieuKetQua.pdf',
   options?: PdfExportOptions
 ): Promise<Blob> {
-  // Khoảng đệm ổn định DOM trước khi sinh PDF
-  await new Promise((resolve) => setTimeout(resolve, 60));
+  // Khoảng đệm ngắn ổn định DOM trước khi sinh PDF
+  await new Promise((resolve) => setTimeout(resolve, 20));
 
   const res = await generateHighQualityPdf(elementId, filename, options);
   options?.onProgress?.({
