@@ -103,6 +103,12 @@ describe('AllergenReportDomainService', () => {
 
     // Package price
     expect(dto.packagePrice).toBe(1500000);
+
+    // Format of normalRef must be '< ...' rather than '0 - ...'
+    expect(dto.detailedList[0].normalRef).toMatch(/^<\s*15/);
+    expect(dto.detailedList[0].normalRef).not.toContain('0 -');
+    expect(dto.detailedList[1].normalRef).toMatch(/^<\s*0[,.]3/);
+    expect(dto.detailedList[1].normalRef).not.toContain('0 -');
   });
 
   it('should evaluate grade dynamically per indicator scale and collect appliedScales', () => {
@@ -315,6 +321,63 @@ describe('AllergenReportDomainService', () => {
     expect(dtoEmpty.totalCount).toBe(0);
     expect(dtoEmpty.packagePrice).toBe(0);
     expect(dtoEmpty.detailedList).toHaveLength(0);
+  });
+
+  it('định dạng normalRef dị nguyên theo thang đo (<...) thay vì nối dải 0 - refMax ngay cả khi dbItem không có normalRef', () => {
+    const customScaleAlex2: AllergenGradingScale = {
+      id: 'scale_alex2',
+      name: 'THANG ĐO ALEX2 NANO',
+      unit: 'kUA/L',
+      levels: [
+        { grade: 0, minVal: 0, maxVal: 0.29, rangeText: '<0.30', label: 'Âm tính', isPositive: false },
+        { grade: 1, minVal: 0.30, maxVal: 0.99, rangeText: '0.30 - 0.99', label: 'Thấp', isPositive: true }
+      ]
+    };
+
+    const tests: SelectedTest[] = [
+      {
+        category: 'Dị Nguyên Hô Hấp',
+        code: 'g2',
+        name: 'Cỏ đuôi mèo',
+        refMin: 0,
+        refMax: 0.29,
+        unit: 'kUA/L',
+        refText: '< 0.30 (Độ 0)',
+        result: '<0.10',
+        note: 'Âm tính (Độ 0)',
+        scaleId: 'scale_alex2'
+      },
+      {
+        category: 'Dị Nguyên & Miễn Dịch',
+        code: 'TIgE',
+        name: 'Tổng nồng độ IgE',
+        refMin: 0,
+        refMax: 15.0,
+        unit: 'IU/mL',
+        refText: '',
+        result: '5.0',
+        note: 'Bình thường'
+      }
+    ];
+
+    const dto = AllergenReportDomainService.buildReportDTO({
+      tests,
+      databaseItems: [
+        // normalRef rỗng trong DB item (không cấu hình chuỗi cứng)
+        { tt: 1, code: 'g2', name: 'Cỏ đuôi mèo', allergenName: 'Timothy grass', route: 'Hô hấp', normalRef: '', note: '', scaleId: 'scale_alex2' }
+      ],
+      customScales: [customScaleAlex2]
+    });
+
+    const g2Item = dto.detailedList.find((i) => i.code === 'g2');
+    expect(g2Item).toBeDefined();
+    expect(g2Item?.normalRef).toBe('<0.30');
+    expect(g2Item?.normalRef).not.toContain('0 - 0.29');
+
+    const tigeItem = dto.detailedList.find((i) => i.code === 'TIgE');
+    expect(tigeItem).toBeDefined();
+    expect(tigeItem?.normalRef).toBe('<15,0');
+    expect(tigeItem?.normalRef).not.toContain('0 - 15');
   });
 });
 

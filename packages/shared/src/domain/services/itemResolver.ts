@@ -168,10 +168,14 @@ export function resolveIndicatorReference(
       // Tìm level có grade === 0 (Mức không phản ứng)
       const level0 = scale?.levels?.find((l) => l.grade === 0);
 
-      const refMin = level0?.minVal !== undefined && level0?.minVal !== null ? level0.minVal : 0;
-      const refMax = level0?.maxVal !== undefined && level0?.maxVal !== null ? level0.maxVal : 0.34;
+      const refMin = level0?.minVal !== undefined && level0?.minVal !== null
+        ? level0.minVal
+        : (item.refMin !== undefined && item.refMin !== null ? item.refMin : 0);
+      const refMax = level0?.maxVal !== undefined && level0?.maxVal !== null
+        ? level0.maxVal
+        : (item.refMax !== undefined && item.refMax !== null ? item.refMax : 0.34);
       const unit = matchedLink?.unit || scale?.unit || item.unit || 'IU/ml';
-      const refText = matchedLink?.refText || (level0?.rangeText ? `${level0.rangeText} (Độ 0)` : '<0.34 (Độ 0)');
+      const refText = matchedLink?.refText || (level0?.rangeText ? `${level0.rangeText} (Độ 0)` : (item.refMax !== undefined && item.refMax !== null ? `<${item.refMax} (Độ 0)` : '<0.34 (Độ 0)'));
       const label = level0?.label || 'Không phản ứng';
 
       return {
@@ -307,8 +311,10 @@ export function computeAutoFillValue(
 
   const isTIgE = isTIgETest(test);
   if (isTIgE) {
+    const maxVal = resolved.refMax !== null && resolved.refMax !== undefined ? resolved.refMax : 15.0;
+    const formatted = Number.isInteger(maxVal) ? `${maxVal},0` : String(maxVal).replace('.', ',');
     return {
-      result: '<15,0',
+      result: `<${formatted}`,
       note: 'Bình thường'
     };
   }
@@ -321,9 +327,11 @@ export function computeAutoFillValue(
   }
 
   if (resolved.isAllergen) {
-    const isScale44 = resolved.scaleId === 'scale_allergen_44';
+    const level0 = resolved.scale?.levels?.find((l) => l.grade === 0) || resolved.scale?.levels?.[0];
+    const defaultResult = level0?.rangeText
+      || (resolved.refMax !== null && resolved.refMax !== undefined ? `<${resolved.refMax}` : '<0.34');
     return {
-      result: isScale44 ? '<0.35' : '<0.34',
+      result: defaultResult,
       note: 'Âm tính (Độ 0)'
     };
   }

@@ -260,6 +260,36 @@ describe('Unified Reference Resolver (resolveIndicatorReference)', () => {
       expect(fill.result).toBe('<15,0');
       expect(fill.note).toBe('Bình thường');
     });
+
+    it('điền kết quả tự động dựa trên thang đo tùy biến bất kỳ (ALEX2 với rangeText <0.29)', () => {
+      const mockCustomScale: AllergenGradingScale = {
+        id: 'scale_alex2_custom',
+        name: 'ALEX2 Scale',
+        unit: 'kUA/L',
+        levels: [
+          { grade: 0, minVal: 0, maxVal: 0.29, rangeText: '<0.29', label: 'Âm tính', isPositive: false },
+          { grade: 1, minVal: 0.30, maxVal: 0.99, rangeText: '0.30 - 0.99', label: 'Dương tính', isPositive: true }
+        ]
+      };
+
+      const test = buildSelectedTest({
+        code: 'd1',
+        name: 'Mạt bụi',
+        category: 'Dị Nguyên',
+        unit: 'kUA/L',
+        refText: '',
+        scaleId: 'scale_alex2_custom'
+      }, {
+        allergenScales: [mockCustomScale]
+      });
+
+      const fill = computeAutoFillValue(test, {
+        allergenScales: [mockCustomScale]
+      });
+
+      expect(fill.result).toBe('<0.29');
+      expect(fill.note).toBe('Âm tính (Độ 0)');
+    });
   });
 
   describe('evaluateIndicatorChange', () => {

@@ -123,9 +123,14 @@ export class AllergenReportDomainService {
       }
 
       const ext = t as SelectedTest & { allergenName?: string; route?: string };
+      const cleanRefText = t.refText ? t.refText.replace(/\s*\(Độ\s*0\)/i, '').trim() : '';
+      const formattedMaxTIgE = Number.isInteger(maxTIgERef) ? `<${maxTIgERef},0` : `<${maxTIgERef}`.replace('.', ',');
       const normalRef = isTIgE
-        ? (t.refText || (t.refMin !== null && t.refMin !== undefined && t.refMax !== null && t.refMax !== undefined ? `${t.refMin} - ${t.refMax}` : `<${maxTIgERef}`.replace('.', ',')))
-        : (dbItem?.normalRef || (t.refMin !== null && t.refMin !== undefined && t.refMax !== null && t.refMax !== undefined ? `${t.refMin} - ${t.refMax}` : (scale?.levels[0]?.rangeText || '<0,34')));
+        ? (t.refText || formattedMaxTIgE)
+        : (scale?.levels[0]?.rangeText
+            || cleanRefText
+            || dbItem?.normalRef
+            || (scale?.levels[0]?.maxVal !== undefined && scale?.levels[0]?.maxVal !== null ? `<${scale.levels[0].maxVal}`.replace('.', ',') : '<0,34>'));
 
       const rawResultStr = (t.result !== undefined && t.result !== null && String(t.result).trim() !== '')
         ? String(t.result).trim()
@@ -154,7 +159,8 @@ export class AllergenReportDomainService {
       const foundTIgE = allTests.find(isTIgETest);
       if (foundTIgE) {
         const maxTIgERef = foundTIgE.refMax !== null && foundTIgE.refMax !== undefined ? Number(foundTIgE.refMax) : AllergenReportDomainService.TIGE_NORMAL_MAX;
-        const normalRef = foundTIgE.refText || (foundTIgE.refMin !== null && foundTIgE.refMin !== undefined && foundTIgE.refMax !== null && foundTIgE.refMax !== undefined ? `${foundTIgE.refMin} - ${foundTIgE.refMax}` : `<${maxTIgERef}`.replace('.', ','));
+        const formattedMax = Number.isInteger(maxTIgERef) ? `<${maxTIgERef},0` : `<${maxTIgERef}`.replace('.', ',');
+        const normalRef = foundTIgE.refText || formattedMax;
         const numVal = parseFloat(String(foundTIgE.result || '').replace(',', '.'));
         const isHigh = (!isNaN(numVal) && numVal > maxTIgERef) || (foundTIgE.note?.includes('Tăng') || foundTIgE.note?.includes('Cao') || foundTIgE.note?.includes('Dương tính') || false);
 
