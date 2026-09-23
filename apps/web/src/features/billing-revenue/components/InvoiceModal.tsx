@@ -192,6 +192,7 @@ export default function InvoiceModal({
         patientDob: patient.dob || existingInvoice.patientDob,
         patientPhone: patient.phone || existingInvoice.patientPhone,
         patientGender: patient.gender || existingInvoice.patientGender,
+        patientAddress: patient.address || existingInvoice.patientAddress || '',
         patientCode: patient.code || existingInvoice.patientCode,
         doctorName: selectedDoc || existingInvoice.doctorName,
         cashierName: cashier || existingInvoice.cashierName,
@@ -214,6 +215,7 @@ export default function InvoiceModal({
       patientDob: patient.dob,
       patientPhone: patient.phone,
       patientGender: patient.gender,
+      patientAddress: patient.address || '',
       patientCode: patient.code,
       doctorName: selectedDoc,
       cashierName: cashier,
@@ -289,6 +291,8 @@ export default function InvoiceModal({
     try {
       showToast('Đang tạo và tải file PDF Phiếu Thu về máy...', 'info');
       await downloadPdfDirectly('invoice-receipt-print-element', pdfFilename);
+      // Tự động ghi nhận hóa đơn vào hệ thống khi tải PDF
+      persistInvoice(existingInvoice?.status || 'Chưa thu phí', undefined, false);
       showToast('Đã tải thành công file PDF Phiếu Thu về máy tính!', 'success');
     } catch (err) {
       console.error('Lỗi khi tải file PDF Phiếu Thu:', err);
@@ -310,6 +314,8 @@ export default function InvoiceModal({
 
       if (uploadRes?.url) {
         setCloudPdfUrl(uploadRes.url);
+        // Tự động lưu hóa đơn kèm URL Cloud để không bao giờ bị mất sau khi xuất
+        persistInvoice(existingInvoice?.status || 'Chưa thu phí', uploadRes.url, false);
         showToast('Đã xuất PDF và lưu Cloud thành công! Đường link đã được kích hoạt.', 'success');
       } else {
         showToast('Không thể lưu PDF lên Cloud, vui lòng kiểm tra kết nối mạng!', 'warning');
@@ -324,11 +330,12 @@ export default function InvoiceModal({
 
   // 3. ACTION: IN TRỰC TIẾP
   const handlePrintDirect = () => {
+    persistInvoice(existingInvoice?.status || 'Chưa thu phí', undefined, false);
     window.print();
   };
 
   // 4. ACTION: LƯU HÓA ĐƠN VÀO HỆ THỐNG
-  const handleSaveWithStatus = (targetStatus: BillingStatus) => {
+  const persistInvoice = (targetStatus: BillingStatus, extraCloudUrl?: string, shouldClose = false) => {
     let reportIdToLink = currentReportId;
 
     // Nếu phiếu chưa được lưu, tự động kích hoạt lưu phiếu xét nghiệm trước
@@ -339,7 +346,9 @@ export default function InvoiceModal({
     }
 
     if (!reportIdToLink) {
-      showToast("Hóa đơn không thể được lưu khi chưa lưu Phiếu Kết Quả Xét Nghiệm vào hệ thống!", "error");
+      if (shouldClose) {
+        showToast("Hóa đơn không thể được lưu khi chưa lưu Phiếu Kết Quả Xét Nghiệm vào hệ thống!", "error");
+      }
       return;
     }
 
@@ -353,11 +362,18 @@ export default function InvoiceModal({
     onSaveInvoice({
       ...saved,
       status: targetStatus,
-      cloudPdfUrl: cloudPdfUrl || undefined,
+      cloudPdfUrl: extraCloudUrl || cloudPdfUrl || undefined,
       paidAt: isPaid ? (saved.paidAt || new Date().toISOString()) : undefined,
       reportId: reportIdToLink
     });
-    onClose();
+
+    if (shouldClose) {
+      onClose();
+    }
+  };
+
+  const handleSaveWithStatus = (targetStatus: BillingStatus) => {
+    persistInvoice(targetStatus, undefined, true);
   };
 
   if (!isOpen) return null;

@@ -290,6 +290,7 @@ function AppContent() {
         onLoadExcelFile={handleLoadExcelFile}
         reportCount={reports.length}
         invoiceCount={invoices.length}
+        onResetAll={handleClearAll}
       />
 
       {/* MAIN WORKSPACE: PATIENT & TEST PANELS */}

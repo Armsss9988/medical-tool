@@ -17,6 +17,7 @@ describe('PrintReceiptView - Invoice & Billing PDF Generation Tests', () => {
     patientDob: '1990',
     patientPhone: '0988776655',
     patientGender: 'Nam',
+    patientAddress: '123 Hùng Vương, Đồng Hới, Quảng Bình',
     doctorName: 'BS. Trần Hoài Long',
     totalAmount: 150000,
     discountPercent: 0,
@@ -60,8 +61,9 @@ describe('PrintReceiptView - Invoice & Billing PDF Generation Tests', () => {
     expect(screen.getByText('TRUNG TÂM XÉT NGHIỆM GOLAB QUẢNG BÌNH')).toBeDefined();
     expect(screen.getByText('PHIẾU THU')).toBeDefined();
 
-    // Patient and Items
+    // Patient, Address and Items
     expect(screen.getAllByText('NGUYỄN VĂN AN').length).toBeGreaterThan(0);
+    expect(screen.getByText('123 Hùng Vương, Đồng Hới, Quảng Bình')).toBeDefined();
     expect(screen.getAllByText('HD-20260913-001').length).toBeGreaterThan(0);
     expect(screen.getByText('Glucose máu')).toBeDefined();
     expect(screen.getByText('Ure máu')).toBeDefined();

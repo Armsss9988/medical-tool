@@ -60,6 +60,7 @@ describe('Repo Transaction Functions', () => {
       code: 'HD-001',
       status: 'Chưa thu phí',
       finalAmount: 100000,
+      patientAddress: '123 Lý Thái Tổ, Đồng Hới, Quảng Bình',
       items: []
     } as unknown as FallbackInvoice;
 
@@ -95,6 +96,7 @@ describe('Repo Transaction Functions', () => {
     expect(result.invoice.id).toBe('inv-new');
     expect(result.invoice.status).toBe('Đã thanh toán');
     expect(result.invoice.cashierName).toBe('Thu ngân B');
+    expect(result.invoice.patientAddress).toBe('123 Lý Thái Tổ, Đồng Hới, Quảng Bình');
   });
 
   it('payInvoiceTransaction updates linked report using saveMedicalReportInternal without throwing', async () => {

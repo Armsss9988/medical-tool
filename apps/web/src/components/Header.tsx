@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Activity, ListChecks, TrendingUp, Clock, Phone, ShieldCheck, ClipboardList, Package, Menu, X, Sparkles, Palette, Lock, RefreshCw } from 'lucide-react';
+import { Settings, Activity, ListChecks, TrendingUp, Clock, Phone, ShieldCheck, ClipboardList, Package, Menu, X, Sparkles, Palette, Lock, RefreshCw, UserPlus } from 'lucide-react';
 import { useIsFetching, useIsMutating } from '@tanstack/react-query';
 import { ClinicInfo, CatalogItem, getSafeClinicInfo } from '@domain/types';
 import { setPassword } from '@infra/apiClient';
@@ -19,6 +19,7 @@ interface HeaderProps {
   onOpenTemplateBuilder?: () => void;
   invoiceCount?: number;
   reportCount?: number;
+  onResetAll?: () => void;
 }
 
 export default function Header({ 
@@ -31,7 +32,8 @@ export default function Header({
   onOpenAiSmartFill,
   onOpenTemplateBuilder,
   invoiceCount = 0,
-  reportCount = 0
+  reportCount = 0,
+  onResetAll
 }: HeaderProps) {
   const safeClinic = getSafeClinicInfo(clinicInfo);
   const [currentTime, setCurrentTime] = useState<string>('');
@@ -227,6 +229,18 @@ export default function Header({
 
         {/* Mobile Hamburger & Quick Badges Bar (lg:hidden) */}
         <div className="flex lg:hidden items-center space-x-1.5">
+          {onResetAll && (
+            <button
+              type="button"
+              onClick={onResetAll}
+              className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow active:scale-95 transition cursor-pointer"
+              title="Tạo ca khám mới (Reset thông tin phiếu)"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>+ Ca Mới</span>
+            </button>
+          )}
+
           {/* Sổ Lưu Quick Icon Button */}
           <button
             type="button"
@@ -273,6 +287,16 @@ export default function Header({
       {/* Mobile Drawer Dropdown Menu */}
       {isMobileMenuOpen && (
         <div className="lg:hidden border-t border-slate-800 bg-slate-900/98 px-3 py-3 mt-2 rounded-xl shadow-2xl space-y-2 animate-in slide-in-from-top-2 duration-200">
+          {onResetAll && (
+            <button
+              type="button"
+              onClick={() => handleMobileNav(onResetAll)}
+              className="w-full py-2.5 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-bold text-xs flex items-center justify-center space-x-2 shadow-md transition active:scale-95 border border-emerald-400/40 cursor-pointer"
+            >
+              <UserPlus className="w-4 h-4 text-white" />
+              <span>✨ Tạo Ca Khám Mới (Reset)</span>
+            </button>
+          )}
           <div className="grid grid-cols-2 gap-2 text-xs font-bold">
             <button
               type="button"

@@ -1,7 +1,8 @@
 import { createContext, useContext, useRef, useCallback, useMemo, useEffect, useState, type ReactNode, type Dispatch, type SetStateAction } from 'react';
 import type { Patient, SelectedTest, MedicalReport } from '@domain/types';
 import { PatientCode } from '@domain/valueObjects/PatientCode';
-import { domainEventBus, INVOICE_EVENT_TYPES } from '@domain';
+import { domainEventBus, INVOICE_EVENT_TYPES, STORAGE_KEYS } from '@domain';
+import { loadState, saveState } from '@infra/storage';
 import { usePatientManager } from '@features/patient-session';
 import { useReportManager } from '@features/report-history';
 import { useInvoiceManager } from '@features/billing-revenue';
@@ -77,17 +78,95 @@ export function useWorkspace(): WorkspaceContextValue {
   return ctx;
 }
 
+interface ActiveWorkspaceDraft {
+  patient: Patient;
+  selectedTests: SelectedTest[];
+  conclusion: string;
+  doctorName: string;
+  currentReportId: string | null;
+  savedAt: string;
+}
+
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
+  // Đọc nháp phiên làm việc gần nhất từ LocalStorage để bảo vệ dữ liệu khi reload/chuyển app mobile
+  const [initialDraft] = useState<ActiveWorkspaceDraft | null>(() => {
+    try {
+      const draft = loadState<ActiveWorkspaceDraft | null>(STORAGE_KEYS.ACTIVE_DRAFT, null);
+      if (
+        draft &&
+        (draft.patient?.name?.trim() || (draft.selectedTests && draft.selectedTests.length > 0) || draft.currentReportId)
+      ) {
+        return draft;
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  });
+
   // Patient
-  const { patient, setPatient, resetPatient } = usePatientManager();
+  const { patient, setPatient, resetPatient: rawResetPatient } = usePatientManager(initialDraft?.patient);
+
+  const resetPatient = useCallback((customCode?: string, existingCodes?: string[]) => {
+    saveState(STORAGE_KEYS.ACTIVE_DRAFT, null);
+    rawResetPatient(customCode, existingCodes);
+  }, [rawResetPatient]);
 
   // Tests & Conclusion (workspace form state owned by this provider)
-  const [selectedTests, setSelectedTests] = useState<SelectedTest[]>([]);
-  const [conclusion, setConclusion] = useState<string>('');
-  const [doctorName, setDoctorName] = useState<string>('');
+  const [selectedTests, setSelectedTests] = useState<SelectedTest[]>(() => initialDraft?.selectedTests || []);
+  const [conclusion, setConclusion] = useState<string>(() => initialDraft?.conclusion || '');
+  const [doctorName, setDoctorName] = useState<string>(() => initialDraft?.doctorName || '');
 
   // Current Report ID (phân biệt Update vs Create)
-  const [currentReportId, setCurrentReportId] = useState<string | null>(null);
+  const [currentReportId, setCurrentReportId] = useState<string | null>(() => initialDraft?.currentReportId || null);
+
+  // Tự động lưu nháp Workspace vào localStorage (chống mất ca khi chuyển app/reload tab trên điện thoại)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (patient.name?.trim() || selectedTests.length > 0 || currentReportId) {
+        saveState(STORAGE_KEYS.ACTIVE_DRAFT, {
+          patient,
+          selectedTests,
+          conclusion,
+          doctorName,
+          currentReportId,
+          savedAt: new Date().toISOString()
+        });
+      } else {
+        saveState(STORAGE_KEYS.ACTIVE_DRAFT, null);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [patient, selectedTests, conclusion, doctorName, currentReportId]);
+
+  // Flush ngay lập tức khi người dùng chuyển tab hoặc ẩn trình duyệt mobile
+  useEffect(() => {
+    const handleVisibilityOrUnload = () => {
+      if (patient.name?.trim() || selectedTests.length > 0 || currentReportId) {
+        saveState(STORAGE_KEYS.ACTIVE_DRAFT, {
+          patient,
+          selectedTests,
+          conclusion,
+          doctorName,
+          currentReportId,
+          savedAt: new Date().toISOString()
+        });
+      } else {
+        saveState(STORAGE_KEYS.ACTIVE_DRAFT, null);
+      }
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        handleVisibilityOrUnload();
+      }
+    };
+    window.addEventListener('beforeunload', handleVisibilityOrUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('beforeunload', handleVisibilityOrUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [patient, selectedTests, conclusion, doctorName, currentReportId]);
 
   // Keyboard-first refs
   const nameInputRef = useRef<HTMLInputElement>(null);

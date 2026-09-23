@@ -32,6 +32,7 @@ export function useReportManager() {
     reportsRef.current = next;
     setLocalReports(next);
     qc.setQueryData<MedicalReport[]>(REPORTS_QUERY_KEY, next);
+    saveState(STORAGE_KEYS.REPORTS, next);
   }, [qc]);
 
   // Lắng nghe Domain Event: INVOICE_PAID để cập nhật trạng thái thanh toán phiếu

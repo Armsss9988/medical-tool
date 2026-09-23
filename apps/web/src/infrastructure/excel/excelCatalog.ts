@@ -6,9 +6,9 @@ import type {
   TestEquipment,
   CatalogItemEquipmentLink,
   AllergenGradingScale,
-  EvaluationType
+  EvaluationType,
 } from '@domain/types';
-import { saveExcelJsWorkbook, cleanKey, getRowValue } from './excelHelpers';
+import { saveExcelJsWorkbook, cleanKey, getRowValue, readFileAsArrayBuffer } from './excelHelpers';
 
 export interface CatalogExportOptions {
   isSampleOnly?: boolean;
@@ -229,123 +229,101 @@ export const exportSampleExcelCatalog = exportCatalogItemsTemplate;
 /**
  * Đọc file Excel danh mục chỉ số xét nghiệm
  */
-export function parseExcelCatalog(fileOrBuffer: Blob | ArrayBuffer): Promise<CatalogItem[]> {
-  return new Promise((resolve, reject) => {
-    try {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          if (!e.target?.result) return resolve([]);
-          const data = new Uint8Array(e.target.result as ArrayBuffer);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const firstSheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[firstSheetName];
-          const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
+export async function parseExcelCatalog(fileOrBuffer: Blob | ArrayBuffer): Promise<CatalogItem[]> {
+  const buffer = await readFileAsArrayBuffer(fileOrBuffer);
+  const data = new Uint8Array(buffer);
+  const workbook = XLSX.read(data, { type: 'array' });
+  if (workbook.SheetNames.length === 0) return [];
+  const firstSheetName = workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[firstSheetName];
+  if (!worksheet) return [];
+  const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
 
-          if (!rawRows || rawRows.length === 0) {
-            return resolve([]);
-          }
+  if (!rawRows || rawRows.length === 0) {
+    return [];
+  }
 
-          // Kiểm tra phát hiện nếu người dùng nạp nhầm file Excel khác loại
-          const firstRow = rawRows[0] || {};
-          const keys = Object.keys(firstRow).map((k) => cleanKey(k));
-          const sheetLower = firstSheetName.toLowerCase();
-          const isDoctorFile =
-            keys.some((k) => k.includes('bac_si') || k.includes('chuyen_khoa')) ||
-            sheetLower.includes('bác sĩ') ||
-            sheetLower.includes('bac si');
-          const isEquipmentFile =
-            keys.some((k) => k.includes('thiet_bi') || k.includes('may_do')) ||
-            sheetLower.includes('thiết bị') ||
-            sheetLower.includes('thiet bi');
+  // Kiểm tra phát hiện nếu người dùng nạp nhầm file Excel khác loại
+  const firstRow = rawRows[0] || {};
+  const keys = Object.keys(firstRow).map((k) => cleanKey(k));
+  const sheetLower = firstSheetName.toLowerCase();
+  const isDoctorFile =
+    keys.some((k) => k.includes('bac_si') || k.includes('chuyen_khoa')) ||
+    sheetLower.includes('bác sĩ') ||
+    sheetLower.includes('bac si');
+  const isEquipmentFile =
+    keys.some((k) => k.includes('thiet_bi') || k.includes('may_do')) ||
+    sheetLower.includes('thiết bị') ||
+    sheetLower.includes('thiet bi');
 
-          if (isDoctorFile) {
-            return reject(
-              new Error(
-                'File Excel bạn vừa chọn là "Danh Sách Bác Sĩ & Chuyên Gia", không phải Danh Mục Chỉ Số Xét Nghiệm! Vui lòng chuyển sang Tab 4 (Bác Sĩ & Chuyên Gia) để nhập file này.'
-              )
-            );
-          }
-          if (isEquipmentFile) {
-            return reject(
-              new Error(
-                'File Excel bạn vừa chọn là "Danh Sách Thiết Bị / Máy Đo", không phải Danh Mục Chỉ Số Xét Nghiệm! Vui lòng chọn đúng file.'
-              )
-            );
-          }
+  if (isDoctorFile) {
+    throw new Error(
+      'File Excel bạn vừa chọn là "Danh Sách Bác Sĩ & Chuyên Gia", không phải Danh Mục Chỉ Số Xét Nghiệm! Vui lòng chuyển sang Tab 4 (Bác Sĩ & Chuyên Gia) để nhập file này.'
+    );
+  }
+  if (isEquipmentFile) {
+    throw new Error(
+      'File Excel bạn vừa chọn là "Danh Sách Thiết Bị / Máy Đo", không phải Danh Mục Chỉ Số Xét Nghiệm! Vui lòng chọn đúng file.'
+    );
+  }
 
-          const catalog: CatalogItem[] = rawRows.map((row) => {
-            const category = getRowValue(row, ['nhom_xet_nghiem', 'nhom', 'category', 'group']) || 'Xét nghiệm khác';
-            const code = getRowValue(row, ['ma_chi_so', 'ma_xet_nghiem', 'ma', 'code', 'symbol', 'ma_code']);
-            const name = getRowValue(row, ['ten_chi_so', 'ten_xet_nghiem', 'ten', 'name', 'test_name']) || code;
-            const scientific = getRowValue(row, ['ten_khoa_hoc', 'scientific', 'allergen', 'ten_tieng_anh']);
-            const unit = getRowValue(row, ['don_vi', 'unit', 'dvt', 'donvi']);
+  const catalog: CatalogItem[] = rawRows.map((row) => {
+    const category = getRowValue(row, ['nhom_xet_nghiem', 'nhom', 'category', 'group']) || 'Xét nghiệm khác';
+    const code = getRowValue(row, ['ma_chi_so', 'ma_xet_nghiem', 'ma', 'code', 'symbol', 'ma_code']);
+    const name = getRowValue(row, ['ten_chi_so', 'ten_xet_nghiem', 'ten', 'name', 'test_name']) || code;
+    const scientific = getRowValue(row, ['ten_khoa_hoc', 'scientific', 'allergen', 'ten_tieng_anh']);
+    const unit = getRowValue(row, ['don_vi', 'unit', 'dvt', 'donvi']);
 
-            const evalRaw = getRowValue(row, ['kieu_danh_gia', 'danh_gia', 'evaluation_type', 'loai']).toLowerCase();
-            const scaleRaw = getRowValue(row, ['thang_do_phan_do', 'thang_phan_do', 'thang_do', 'scale', 'scale_id']).toLowerCase();
+    const evalRaw = getRowValue(row, ['kieu_danh_gia', 'danh_gia', 'evaluation_type', 'loai']).toLowerCase();
+    const scaleRaw = getRowValue(row, ['thang_do_phan_do', 'thang_phan_do', 'thang_do', 'scale', 'scale_id']).toLowerCase();
 
-            let scaleId: string | undefined;
-            if (scaleRaw.includes('44')) scaleId = 'scale_allergen_44';
-            else if (scaleRaw.includes('protia') || scaleRaw.includes('91')) scaleId = 'scale_protia_91';
-            else if (evalRaw.includes('scale') || evalRaw.includes('thang')) scaleId = 'scale_protia_91';
+    let scaleId: string | undefined;
+    if (scaleRaw.includes('44')) scaleId = 'scale_allergen_44';
+    else if (scaleRaw.includes('protia') || scaleRaw.includes('91')) scaleId = 'scale_protia_91';
+    else if (evalRaw.includes('scale') || evalRaw.includes('thang')) scaleId = 'scale_protia_91';
 
-            const isScale = !!scaleId;
-            const evaluationType: EvaluationType = isScale ? 'scale' : 'range';
+    const isScale = !!scaleId;
+    const evaluationType: EvaluationType = isScale ? 'scale' : 'range';
 
-            const rawMin = getRowValue(row, ['min', 'ref_min', 'nguong_min', 'tu']);
-            const refMin = !isScale && rawMin !== '' && !isNaN(parseFloat(rawMin)) ? parseFloat(rawMin) : null;
+    const rawMin = getRowValue(row, ['min', 'ref_min', 'nguong_min', 'tu']);
+    const refMin = !isScale && rawMin !== '' && !isNaN(parseFloat(rawMin)) ? parseFloat(rawMin) : null;
 
-            const rawMax = getRowValue(row, ['max', 'ref_max', 'nguong_max', 'den']);
-            const refMax = !isScale && rawMax !== '' && !isNaN(parseFloat(rawMax)) ? parseFloat(rawMax) : null;
+    const rawMax = getRowValue(row, ['max', 'ref_max', 'nguong_max', 'den']);
+    const refMax = !isScale && rawMax !== '' && !isNaN(parseFloat(rawMax)) ? parseFloat(rawMax) : null;
 
-            const rawRefText = getRowValue(row, ['tri_so_tham_chieu', 'tham_chieu', 'khoang_tham_chieu', 'ref_text', 'binh_thuong']);
-            let refText = rawRefText;
-            if (!refText) {
-              if (isScale) {
-                refText = scaleId === 'scale_allergen_44' ? '< 0.35 (Độ 0)' : '< 0.34 (Độ 0)';
-              } else if (refMin !== null && refMax !== null) {
-                refText = `${refMin} - ${refMax}`;
-              } else if (refMin !== null) {
-                refText = `>= ${refMin}`;
-              } else if (refMax !== null) {
-                refText = `<= ${refMax}`;
-              }
-            }
-
-            const rawPrice = getRowValue(row, ['don_gia_vnd', 'don_gia', 'gia_tien', 'gia_thu', 'price', 'gia']);
-            const price = parseFloat(rawPrice.replace(/[^\d.]/g, '')) || 0;
-
-            return {
-              category: category.trim(),
-              code: code.trim().toUpperCase() || name.trim().toUpperCase(),
-              name: name.trim(),
-              scientific: scientific.trim() || undefined,
-              unit: unit.trim(),
-              refMin,
-              refMax,
-              refText: refText.trim(),
-              price,
-              scaleId,
-              evaluationType
-            };
-          }).filter((item) => item.code.length > 0 && item.name.length > 0);
-
-          resolve(catalog);
-        } catch (err) {
-          reject(err);
-        }
-      };
-      reader.onerror = (error) => reject(error);
-      if (fileOrBuffer instanceof Blob) {
-        reader.readAsArrayBuffer(fileOrBuffer);
-      } else {
-        const blob = new Blob([fileOrBuffer]);
-        reader.readAsArrayBuffer(blob);
+    const rawRefText = getRowValue(row, ['tri_so_tham_chieu', 'tham_chieu', 'khoang_tham_chieu', 'ref_text', 'binh_thuong']);
+    let refText = rawRefText;
+    if (!refText) {
+      if (isScale) {
+        refText = scaleId === 'scale_allergen_44' ? '< 0.35 (Độ 0)' : '< 0.34 (Độ 0)';
+      } else if (refMin !== null && refMax !== null) {
+        refText = `${refMin} - ${refMax}`;
+      } else if (refMin !== null) {
+        refText = `>= ${refMin}`;
+      } else if (refMax !== null) {
+        refText = `<= ${refMax}`;
       }
-    } catch (err) {
-      reject(err);
     }
-  });
+
+    const rawPrice = getRowValue(row, ['don_gia_vnd', 'don_gia', 'gia_tien', 'gia_thu', 'price', 'gia']);
+    const price = parseFloat(rawPrice.replace(/[^\d.]/g, '')) || 0;
+
+    return {
+      category: category.trim(),
+      code: code.trim().toUpperCase() || name.trim().toUpperCase(),
+      name: name.trim(),
+      scientific: scientific.trim() || undefined,
+      unit: unit.trim(),
+      refMin,
+      refMax,
+      refText: refText.trim(),
+      price,
+      scaleId,
+      evaluationType
+    };
+  }).filter((item) => item.code.length > 0 && item.name.length > 0);
+
+  return catalog;
 }
 
 /**
@@ -587,91 +565,78 @@ export async function exportCatalogItemEquipmentsTemplate(
 /**
  * Đọc file Excel Cấu hình máy đo & ngưỡng đo
  */
-export function parseExcelCatalogItemEquipments(
+export async function parseExcelCatalogItemEquipments(
   fileOrBuffer: Blob | ArrayBuffer,
   _items: CatalogItem[],
   equipments: TestEquipment[]
 ): Promise<CatalogItemEquipmentLink[]> {
-  return new Promise((resolve, reject) => {
-    try {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          if (!e.target?.result) return resolve([]);
-          const data = new Uint8Array(e.target.result as ArrayBuffer);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const ws = workbook.Sheets[workbook.SheetNames[0]];
-          const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' });
+  const buffer = await readFileAsArrayBuffer(fileOrBuffer);
+  const data = new Uint8Array(buffer);
+  const workbook = XLSX.read(data, { type: 'array' });
+  if (workbook.SheetNames.length === 0) return [];
+  const ws = workbook.Sheets[workbook.SheetNames[0]];
+  if (!ws) return [];
+  const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' });
 
-          const links: CatalogItemEquipmentLink[] = [];
+  const links: CatalogItemEquipmentLink[] = [];
 
-          for (const row of rawRows) {
-            let rawCode = getRowValue(row, ['ma_chi_so', 'ma_xet_nghiem', 'ma', 'code', 'catalog_code']);
-            if (rawCode.includes('-')) rawCode = rawCode.split('-')[0].trim();
-            const cleanCode = rawCode.toUpperCase().trim();
-            if (!cleanCode) continue;
+  for (const row of rawRows) {
+    let rawCode = getRowValue(row, ['ma_chi_so', 'ma_xet_nghiem', 'ma', 'code', 'catalog_code']);
+    if (rawCode.includes('-')) rawCode = rawCode.split('-')[0].trim();
+    const cleanCode = rawCode.toUpperCase().trim();
+    if (!cleanCode) continue;
 
-            const eqRawName = getRowValue(row, ['ten_may_do', 'ten_thiet_bi', 'may_do', 'equipment', 'equipment_name']);
-            if (!eqRawName) continue;
+    const eqRawName = getRowValue(row, ['ten_may_do', 'ten_thiet_bi', 'may_do', 'equipment', 'equipment_name']);
+    if (!eqRawName) continue;
 
-            let matchedEq = equipments.find(e => e.name.toLowerCase() === eqRawName.toLowerCase() || (e.code && e.code.toLowerCase() === eqRawName.toLowerCase()));
-            const eqId = matchedEq ? matchedEq.id : 'eq_' + eqRawName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    let matchedEq = equipments.find(e => e.name.toLowerCase() === eqRawName.toLowerCase() || (e.code && e.code.toLowerCase() === eqRawName.toLowerCase()));
+    const eqId = matchedEq ? matchedEq.id : 'eq_' + eqRawName.toLowerCase().replace(/[^a-z0-9]/g, '_');
 
-            const evalRaw = getRowValue(row, ['kieu_danh_gia', 'danh_gia', 'evaluation_type', 'loai']).toLowerCase();
-            const rawScale = getRowValue(row, ['thang_do_phan_do', 'thang_phan_do', 'thang_do', 'scale', 'scale_id']).toLowerCase();
-            let scaleId: string | undefined;
-            if (rawScale.includes('44')) scaleId = 'scale_allergen_44';
-            else if (rawScale.includes('protia') || rawScale.includes('91')) scaleId = 'scale_protia_91';
-            else if (evalRaw.includes('scale') || evalRaw.includes('thang')) scaleId = 'scale_protia_91';
+    const evalRaw = getRowValue(row, ['kieu_danh_gia', 'danh_gia', 'evaluation_type', 'loai']).toLowerCase();
+    const rawScale = getRowValue(row, ['thang_do_phan_do', 'thang_phan_do', 'thang_do', 'scale', 'scale_id']).toLowerCase();
+    let scaleId: string | undefined;
+    if (rawScale.includes('44')) scaleId = 'scale_allergen_44';
+    else if (rawScale.includes('protia') || rawScale.includes('91')) scaleId = 'scale_protia_91';
+    else if (evalRaw.includes('scale') || evalRaw.includes('thang')) scaleId = 'scale_protia_91';
 
-            const isScale = !!scaleId;
+    const isScale = !!scaleId;
 
-            const rawMin = getRowValue(row, ['nguong_min', 'min', 'ref_min']);
-            const refMin = !isScale && rawMin !== '' && !isNaN(parseFloat(rawMin)) ? parseFloat(rawMin) : null;
+    const rawMin = getRowValue(row, ['nguong_min', 'min', 'ref_min']);
+    const refMin = !isScale && rawMin !== '' && !isNaN(parseFloat(rawMin)) ? parseFloat(rawMin) : null;
 
-            const rawMax = getRowValue(row, ['nguong_max', 'max', 'ref_max']);
-            const refMax = !isScale && rawMax !== '' && !isNaN(parseFloat(rawMax)) ? parseFloat(rawMax) : null;
+    const rawMax = getRowValue(row, ['nguong_max', 'max', 'ref_max']);
+    const refMax = !isScale && rawMax !== '' && !isNaN(parseFloat(rawMax)) ? parseFloat(rawMax) : null;
 
-            const unit = getRowValue(row, ['don_vi', 'unit', 'dvt']);
-            const rawRefText = getRowValue(row, ['text_tham_chieu', 'tri_so_tham_chieu', 'tham_chieu', 'ref_text']);
-            let refText = rawRefText;
-            if (!refText) {
-              if (isScale) {
-                refText = scaleId === 'scale_allergen_44' ? '< 0.35 (Độ 0)' : '< 0.34 (Độ 0)';
-              } else if (refMin !== null && refMax !== null) {
-                refText = `${refMin} - ${refMax}`;
-              } else if (refMin !== null) {
-                refText = `>= ${refMin}`;
-              } else if (refMax !== null) {
-                refText = `<= ${refMax}`;
-              }
-            }
-
-            const rawDefault = getRowValue(row, ['dat_lam_mac_dinh', 'mac_dinh', 'is_default']).toLowerCase();
-            const isDefault = ['co', 'có', 'yes', 'true', '1', 'x'].includes(rawDefault);
-
-            links.push({
-              id: `cie_${cleanCode.toLowerCase()}_${eqId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-              catalogCode: cleanCode,
-              equipmentId: eqId,
-              refMin,
-              refMax,
-              unit: unit || undefined,
-              refText: refText || undefined,
-              scaleId: scaleId || undefined,
-              isDefault
-            });
-          }
-
-          resolve(links);
-        } catch (err) {
-          reject(err);
-        }
-      };
-      reader.onerror = (error) => reject(error);
-      reader.readAsArrayBuffer(fileOrBuffer as Blob);
-    } catch (err) {
-      reject(err);
+    const unit = getRowValue(row, ['don_vi', 'unit', 'dvt']);
+    const rawRefText = getRowValue(row, ['text_tham_chieu', 'tri_so_tham_chieu', 'tham_chieu', 'ref_text']);
+    let refText = rawRefText;
+    if (!refText) {
+      if (isScale) {
+        refText = scaleId === 'scale_allergen_44' ? '< 0.35 (Độ 0)' : '< 0.34 (Độ 0)';
+      } else if (refMin !== null && refMax !== null) {
+        refText = `${refMin} - ${refMax}`;
+      } else if (refMin !== null) {
+        refText = `>= ${refMin}`;
+      } else if (refMax !== null) {
+        refText = `<= ${refMax}`;
+      }
     }
-  });
+
+    const rawDefault = getRowValue(row, ['dat_lam_mac_dinh', 'mac_dinh', 'is_default']).toLowerCase();
+    const isDefault = ['co', 'có', 'yes', 'true', '1', 'x'].includes(rawDefault);
+
+    links.push({
+      id: `cie_${cleanCode.toLowerCase()}_${eqId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      catalogCode: cleanCode,
+      equipmentId: eqId,
+      refMin,
+      refMax,
+      unit: unit || undefined,
+      refText: refText || undefined,
+      scaleId: scaleId || undefined,
+      isDefault
+    });
+  }
+
+  return links;
 }

@@ -7,16 +7,17 @@ import type { TableName } from '@golab/shared/schemas/tables';
 export const dynamic = 'force-dynamic';
 
 const ALL_TABLE_NAMES: TableName[] = [
-  'catalog',
-  'test-packages',
-  'test-groups',
   'equipments',
+  'allergen-scales',
+  'catalog',
+  'test-groups',
   'doctors',
   'clinic-info',
   'zalo-config',
   'reference-ranges',
   'catalog-item-equipments',
-  'allergen-scales',
+  'test-packages',
+  'report-templates',
   'medical-reports',
   'invoices'
 ];

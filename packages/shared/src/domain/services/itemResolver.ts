@@ -82,7 +82,7 @@ export interface ResolveIndicatorOptions {
  *    - Lấy refText từ link hoặc item.
  */
 export function resolveIndicatorReference(
-  item: Pick<CatalogItem, 'code' | 'category' | 'unit' | 'refText' | 'evaluationType' | 'scaleId' | 'referenceRangeId' | 'refMin' | 'refMax' | 'equipment'>,
+  item: Pick<CatalogItem, 'code' | 'category' | 'unit' | 'refText' | 'evaluationType' | 'scaleId' | 'referenceRangeId' | 'refMin' | 'refMax' | 'equipment'> & { name?: string },
   options: ResolveIndicatorOptions = {}
 ): ResolvedReferenceInfo {
   const {
@@ -94,7 +94,7 @@ export function resolveIndicatorReference(
   } = options;
 
   const itemCodeUpper = (item.code || '').trim().toUpperCase();
-  const isTIgE = itemCodeUpper === 'TIGE';
+  const isTIgE = isTIgETest(item);
   const isAllergenCategory = !isTIgE && (
     (item.category && item.category.includes('Dị Nguyên')) === true ||
     item.unit === 'IU/mL' ||
@@ -123,9 +123,16 @@ export function resolveIndicatorReference(
   let activeEquipmentName: string | undefined;
   if (activeEquipmentId) {
     const allEqs = equipments.length > 0 ? equipments : DEFAULT_TEST_EQUIPMENTS;
+    const aliasMap: Record<string, string> = {
+      eq_mediwiss: 'eq_mediwiss_c1',
+      eq_protia: 'eq_protia_q'
+    };
+    const normId = aliasMap[activeEquipmentId.toLowerCase()] || activeEquipmentId.toLowerCase();
     const eqObj = allEqs.find((e) =>
+      e.id.toLowerCase() === normId ||
       e.id.toLowerCase() === activeEquipmentId.toLowerCase() ||
-      (e.code && e.code.toLowerCase() === activeEquipmentId.toLowerCase()) ||
+      (e.code && (e.code.toLowerCase() === normId || e.code.toLowerCase() === activeEquipmentId.toLowerCase())) ||
+      e.name.toLowerCase() === normId ||
       e.name.toLowerCase() === activeEquipmentId.toLowerCase()
     );
     activeEquipmentName = eqObj?.name || (item.equipment && !item.equipment.startsWith('eq_') && !/^[0-9a-f]{8}-[0-9a-f]{4}/i.test(item.equipment) ? item.equipment : undefined);

@@ -341,7 +341,11 @@ export function ModalLayer({
         doctorsList={doctorsList}
         doctorName={doctorName}
         clinicInfo={clinicInfo}
-        existingInvoice={invoices.find((inv) => Boolean(currentReportId && inv.reportId === currentReportId))}
+        currentReportId={currentReportId}
+        existingInvoice={invoices.find((inv) => Boolean(
+          (currentReportId && inv.reportId === currentReportId) ||
+          (patient?.code && inv.patientCode === patient.code)
+        ))}
         isReportSaved={Boolean(currentReportId && reports.some((r) => r.id === currentReportId))}
         onSaveReportFirst={onSaveCurrentReport}
         onSaveInvoice={onSaveInvoice}

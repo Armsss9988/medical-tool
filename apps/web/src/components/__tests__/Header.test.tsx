@@ -70,4 +70,27 @@ describe('Header Component Real-time Sync Indicator', () => {
 
     resolver!('done');
   });
+
+  it('renders + Ca Mới button when onResetAll is provided', () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } }
+    });
+    const onResetAll = vi.fn();
+
+    render(
+      <QueryClientProvider client={client}>
+        <Header
+          clinicInfo={mockClinicInfo}
+          onOpenSettings={vi.fn()}
+          onOpenCatalogModal={vi.fn()}
+          onOpenRevenueModal={vi.fn()}
+          onOpenReportManagerModal={vi.fn()}
+          onResetAll={onResetAll}
+        />
+      </QueryClientProvider>
+    );
+
+    const resetButtons = screen.getAllByRole('button', { name: /\+ Ca Mới/i });
+    expect(resetButtons.length).toBeGreaterThan(0);
+  });
 });

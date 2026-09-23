@@ -155,8 +155,16 @@ export function useWorkspaceActions(
       setPatient(resolvedPatient);
     }
 
+    // Chống ghi đè ca cũ: nếu mã phiếu hiện tại khác mã của phiếu đã tải trước đó, tạo phiếu mới
+    const isCodeMismatch = Boolean(
+      currentLoadedReport?.code &&
+      resolvedPatient.code &&
+      currentLoadedReport.code.trim().toLowerCase() !== resolvedPatient.code.trim().toLowerCase()
+    );
+    const effectiveReportId = isCodeMismatch ? undefined : (currentReportId || undefined);
+
     const saved = saveOrUpdateReport({
-      id: currentReportId || undefined,
+      id: effectiveReportId,
       patient: resolvedPatient,
       selectedTests,
       conclusion,
@@ -181,6 +189,7 @@ export function useWorkspaceActions(
     showToast,
     isCurrentReportPaid,
     currentInvoiceForReport,
+    currentLoadedReport,
     setPatient
   ]);
 

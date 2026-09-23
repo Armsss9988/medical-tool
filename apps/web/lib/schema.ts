@@ -207,6 +207,7 @@ export const invoices = pgTable('invoices', {
   patientPhone: text('patient_phone'),
   patientDob: text('patient_dob'),
   patientGender: text('patient_gender').default('Nam'),
+  patientAddress: text('patient_address'),
   packageName: text('package_name'),
   cloudPdfUrl: text('cloud_pdf_url'),
   qrCodeDataUrl: text('qr_code_data_url'),

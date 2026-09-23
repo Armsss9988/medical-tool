@@ -271,6 +271,7 @@ export const DEFAULT_TEST_EQUIPMENTS: ReadonlyArray<TestEquipment> = [
   { id: 'eq_microscope', name: 'Kính Hiển Vi Quang Học', code: 'MICROSCOPE' },
   { id: 'eq_abl90_flex', name: 'Radiometer ABL90 FLEX (Khí Máu)', code: 'ABL90-FLEX' },
   { id: 'eq_protia_smart', name: 'Máy Đọc Dị Nguyên PROTIA Smart Analyzer', code: 'PROTIA-SMART' },
+  { id: '81e15751-ec5a-4cce-9fb6-9860d859950e', name: 'Thermo Scientific Phadia 250 (Dị Ứng Kháng Sinh)', code: 'PHADIA-250' },
   { id: 'eq_manual', name: 'Thủ Công / Khác', code: 'MANUAL' }
 ];
 
@@ -288,19 +289,29 @@ export function resolveTestEquipmentName(
 
   const findEq = (query?: string | null): TestEquipment | undefined => {
     if (!query || typeof query !== 'string' || !query.trim() || query === 'Tự động') return undefined;
-    const q = query.trim().toLowerCase();
+    const qRaw = query.trim().toLowerCase();
+    const aliasMap: Record<string, string> = {
+      eq_mediwiss: 'eq_mediwiss_c1',
+      eq_protia: 'eq_protia_q'
+    };
+    const q = aliasMap[qRaw] || qRaw;
+
     // 1. Tìm trong danh sách truyền vào
     const inCurrent = allEquipments.find((e) =>
       e.id.toLowerCase() === q ||
-      (e.code && e.code.toLowerCase() === q) ||
-      e.name.toLowerCase() === q
+      e.id.toLowerCase() === qRaw ||
+      (e.code && (e.code.toLowerCase() === q || e.code.toLowerCase() === qRaw)) ||
+      e.name.toLowerCase() === q ||
+      e.name.toLowerCase() === qRaw
     );
     if (inCurrent) return inCurrent;
     // 2. Tìm fallback trong DEFAULT_TEST_EQUIPMENTS
     return DEFAULT_TEST_EQUIPMENTS.find((e) =>
       e.id.toLowerCase() === q ||
-      (e.code && e.code.toLowerCase() === q) ||
-      e.name.toLowerCase() === q
+      e.id.toLowerCase() === qRaw ||
+      (e.code && (e.code.toLowerCase() === q || e.code.toLowerCase() === qRaw)) ||
+      e.name.toLowerCase() === q ||
+      e.name.toLowerCase() === qRaw
     );
   };
 
@@ -434,6 +445,7 @@ export interface Invoice {
   patientDob: string;
   patientPhone: string;
   patientGender: Gender;
+  patientAddress?: string;
   doctorName: string;
   items: InvoiceItem[];
   totalAmount: number;

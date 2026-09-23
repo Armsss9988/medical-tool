@@ -623,20 +623,29 @@ export function IndicatorTable({
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      parseExcelCatalog(file).then((parsed) => {
-        if (parsed.length > 0) {
-          setItems((prev) => {
-            const map = new Map(prev.map((item) => [item.code.toUpperCase(), item]));
-            parsed.forEach((newItem) => {
-              const codeKey = newItem.code.toUpperCase();
-              const existing = map.get(codeKey);
-              map.set(codeKey, existing ? { ...existing, ...newItem } : newItem);
+      parseExcelCatalog(file)
+        .then((parsed) => {
+          if (parsed.length > 0) {
+            setItems((prev) => {
+              const map = new Map(prev.map((item) => [item.code.toUpperCase(), item]));
+              parsed.forEach((newItem) => {
+                const codeKey = newItem.code.toUpperCase();
+                const existing = map.get(codeKey);
+                map.set(codeKey, existing ? { ...existing, ...newItem } : newItem);
+              });
+              return Array.from(map.values());
             });
-            return Array.from(map.values());
-          });
-          showToast?.(`Đã nạp thành công ${parsed.length} chỉ số từ file Excel!`, 'success');
-        }
-      });
+            showToast?.(`Đã nạp thành công ${parsed.length} chỉ số từ file Excel!`, 'success');
+          } else {
+            showToast?.('Không tìm thấy dữ liệu hợp lệ trong file Excel.', 'warning');
+          }
+        })
+        .catch((err) => {
+          showToast?.(`Lỗi đọc file Excel: ${err instanceof Error ? err.message : String(err)}`, 'error');
+        })
+        .finally(() => {
+          e.target.value = '';
+        });
     }
   };
 

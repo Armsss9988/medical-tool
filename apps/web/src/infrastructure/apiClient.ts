@@ -191,7 +191,7 @@ export async function deleteTestPackageApi(id: string): Promise<{ success: boole
 
 export async function payInvoice(
   id: string,
-  paymentData: { paymentMethod?: string; cashier?: string; paidAt?: string; discount?: number; invoice?: Invoice }
+  paymentData: { paymentMethod?: string; cashier?: string; paidAt?: string; discount?: number; invoice?: Invoice; report?: MedicalReport }
 ): Promise<{ success: boolean; invoice?: Invoice; report?: MedicalReport }> {
   const res = await fetch(resolveUrl(`/invoices/${encodeURIComponent(id)}/pay`), {
     method: 'POST',

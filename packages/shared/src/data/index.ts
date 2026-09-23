@@ -1,4 +1,5 @@
 import type { ReferenceRangeItem } from '../domain/types';
+import { isTIgETest } from '../domain/allergenDetector';
 
 export const CODE_TO_REFERENCE_RANGE_MAP: Record<string, string> = {
   GLU: 'ref_glucose',
@@ -38,9 +39,10 @@ export function autoResolveItemLinks<
     evaluationType?: string;
     category?: string;
     unit?: string;
+    name?: string;
   }
 >(item: T): T {
-  const isTIgE = item.code.toUpperCase() === 'TIGE';
+  const isTIgE = isTIgETest(item);
   const isAllergen =
     !isTIgE &&
     ((item.category && item.category.includes('Dị Nguyên')) ||

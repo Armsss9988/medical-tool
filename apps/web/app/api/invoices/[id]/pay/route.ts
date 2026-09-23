@@ -24,7 +24,7 @@ export async function POST(
 
   try {
     const body = await req.json().catch(() => ({}));
-    const result = await payInvoiceTransaction(db, id, body, body?.invoice);
+    const result = await payInvoiceTransaction(db, id, body, body?.invoice, body?.report);
     return NextResponse.json({ success: true, ...result });
   } catch (err) {
     console.error(`[API POST /api/invoices/${id}/pay] Error:`, err);

@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import type { TestGroup } from '@domain/types';
-import { saveExcelJsWorkbook, cleanKey, getRowValue } from './excelHelpers';
+import { saveExcelJsWorkbook, cleanKey, getRowValue, readFileAsArrayBuffer } from './excelHelpers';
 
 /**
  * Xuất file Excel template hoặc dữ liệu thực tế cho Nhóm xét nghiệm (kèm Tự Động Mã Nhóm)
@@ -61,36 +61,20 @@ export async function exportTestGroupsTemplate(groups: TestGroup[] = [], isSampl
 /**
  * Đọc file Excel Nhóm xét nghiệm
  */
-export function parseExcelTestGroups(fileOrBuffer: Blob | ArrayBuffer): Promise<TestGroup[]> {
-  return new Promise((resolve, reject) => {
-    try {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          if (!e.target?.result) return resolve([]);
-          const data = new Uint8Array(e.target.result as ArrayBuffer);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const ws = workbook.Sheets[workbook.SheetNames[0]];
-          const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' });
+export async function parseExcelTestGroups(fileOrBuffer: Blob | ArrayBuffer): Promise<TestGroup[]> {
+  const buffer = await readFileAsArrayBuffer(fileOrBuffer);
+  const data = new Uint8Array(buffer);
+  const workbook = XLSX.read(data, { type: 'array' });
+  const ws = workbook.Sheets[workbook.SheetNames[0]];
+  if (!ws) return [];
+  const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' });
 
-          const groups: TestGroup[] = rawRows.map((row) => {
-            const name = getRowValue(row, ['ten_nhom_xet_nghiem', 'ten_nhom', 'ten', 'name', 'group_name']);
-            let id = getRowValue(row, ['ma_nhom_tu_dong_tao_k_can_nhap', 'ma_nhom_id', 'ma_nhom', 'id', 'code']);
-            if (!id && name) {
-              id = 'grp_' + cleanKey(name).replace(/[^a-z0-9]/g, '_').slice(0, 15);
-            }
-            return { id: id || `grp_${Math.random().toString(36).slice(2, 9)}`, name: name.trim() };
-          }).filter((g) => g.name.length > 0);
-
-          resolve(groups);
-        } catch (err) {
-          reject(err);
-        }
-      };
-      reader.onerror = (error) => reject(error);
-      reader.readAsArrayBuffer(fileOrBuffer as Blob);
-    } catch (err) {
-      reject(err);
+  return rawRows.map((row) => {
+    const name = getRowValue(row, ['ten_nhom_xet_nghiem', 'ten_nhom', 'ten', 'name', 'group_name']);
+    let id = getRowValue(row, ['ma_nhom_tu_dong_tao_k_can_nhap', 'ma_nhom_id', 'ma_nhom', 'id', 'code']);
+    if (!id && name) {
+      id = 'grp_' + cleanKey(name).replace(/[^a-z0-9]/g, '_').slice(0, 15);
     }
-  });
+    return { id: id || `grp_${Math.random().toString(36).slice(2, 9)}`, name: name.trim() };
+  }).filter((g) => g.name.length > 0);
 }

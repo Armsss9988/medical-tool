@@ -198,18 +198,32 @@ export default function PrintReceiptView({
             I. THÔNG TIN BỆNH NHÂN
           </h3>
 
-          <div className="space-y-1 pl-1">
-            <div className="flex items-baseline">
-              <span className="font-semibold text-slate-800 shrink-0">Họ và tên (Bệnh nhân):</span>
-              <span className="ml-2 font-bold uppercase text-slate-950 text-[14px] flex-1 border-b border-dotted border-slate-400 pb-0.5">
-                {invoice.patientName || '........................................................................................................................................................'}
-              </span>
+          <div className="space-y-1.5 pl-1">
+            <div className="grid grid-cols-12 gap-3 items-baseline">
+              <div className="col-span-7 flex items-baseline">
+                <span className="font-semibold text-slate-800 shrink-0">Họ và tên (Bệnh nhân):</span>
+                <span className="ml-2 font-bold uppercase text-slate-950 text-[14px] flex-1 border-b border-dotted border-slate-400 pb-0.5">
+                  {invoice.patientName || '..................................................................'}
+                </span>
+              </div>
+              <div className="col-span-3 flex items-baseline">
+                <span className="font-semibold text-slate-800 shrink-0">Năm sinh:</span>
+                <span className="ml-2 text-slate-900 flex-1 border-b border-dotted border-slate-400 pb-0.5 font-mono">
+                  {invoice.patientDob || '..............'}
+                </span>
+              </div>
+              <div className="col-span-2 flex items-baseline">
+                <span className="font-semibold text-slate-800 shrink-0">Giới tính:</span>
+                <span className="ml-2 text-slate-900 flex-1 border-b border-dotted border-slate-400 pb-0.5">
+                  {invoice.patientGender || '....'}
+                </span>
+              </div>
             </div>
 
             <div className="flex items-baseline">
               <span className="font-semibold text-slate-800 shrink-0">Địa chỉ:</span>
               <span className="ml-2 text-slate-800 flex-1 border-b border-dotted border-slate-400 pb-0.5">
-                {invoice.patientDob ? `Năm sinh: ${invoice.patientDob} • Giới tính: ${invoice.patientGender}` : '...................................................................................................................................................................'}
+                {invoice.patientAddress || '...................................................................................................................................................................'}
               </span>
             </div>
 

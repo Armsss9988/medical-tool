@@ -49,6 +49,7 @@ export const DEFAULT_EQUIPMENTS: TestEquipment[] = [
   { id: 'eq_abl90_flex', name: 'Radiometer ABL90 FLEX (Khí Máu)', code: 'ABL90-FLEX' },
   // Thiết bị bổ sung
   { id: 'eq_protia_smart', name: 'Máy Đọc Dị Nguyên PROTIA Smart Analyzer', code: 'PROTIA-SMART' },
+  { id: '81e15751-ec5a-4cce-9fb6-9860d859950e', name: 'Thermo Scientific Phadia 250 (Dị Ứng Kháng Sinh)', code: 'PHADIA-250' },
   { id: 'eq_manual', name: 'Thủ Công / Khác', code: 'MANUAL' }
 ];
 
@@ -99,7 +100,16 @@ export const STANDARD_CLINICAL_ITEMS: CatalogItem[] = [
   { category: 'Miễn Dịch', code: 'HP', name: 'HP Test (Vi khuẩn dạ dày)', refMin: null, refMax: null, unit: 'Cut-off', refText: 'Âm tính (Negative)', price: 100000, evaluationType: 'text' },
   { category: 'Miễn Dịch', code: 'C3', name: 'Bổ thể C3', refMin: 0.9, refMax: 1.8, unit: 'g/L', refText: '0.9 - 1.8', price: 150000, evaluationType: 'range' },
   { category: 'Miễn Dịch', code: 'C4', name: 'Bổ thể C4', refMin: 0.1, refMax: 0.4, unit: 'g/L', refText: '0.1 - 0.4', price: 150000, evaluationType: 'range' },
-  { category: 'Miễn Dịch', code: 'ANASCR', name: 'ANA Screening', refMin: 0, refMax: 19.99, unit: 'IU/ml', refText: '<20', price: 600000, scaleId: 'scale_ana_dynex_ds2', evaluationType: 'scale', equipment: 'Dynex DS2' }
+  { category: 'Miễn Dịch', code: 'ANASCR', name: 'ANA Screening', refMin: 0, refMax: 19.99, unit: 'IU/ml', refText: '<20', price: 600000, scaleId: 'scale_ana_dynex_ds2', evaluationType: 'scale', equipment: 'Dynex DS2' },
+
+  // 4. VI CHẤT & HÓC MÔN BỔ SUNG
+  { category: 'Vi Chất', code: 'CAROTENETP', name: 'Định lượng Carotene toàn phần', refMin: 50, refMax: 200, unit: 'µg/dL', refText: '50 - 200', price: 150000, evaluationType: 'range' },
+  { category: 'Hóc Môn', code: 'IGF1', name: 'IGF-1 (Insulin-like Growth Factor 1)', refMin: 115, refMax: 307, unit: 'ng/mL', refText: '115 - 307', price: 250000, evaluationType: 'range', equipment: 'Roche cobas e 801' },
+
+  // 5. SOI PHÂN & KÝ SINH TRÙNG
+  { category: 'Ký Sinh Trùng', code: 'SOIPHAN', name: 'Soi tươi phân tìm ký sinh trùng', unit: 'Tiêu bản', refText: 'Âm tính (Không tìm thấy KST)', price: 60000, evaluationType: 'detection', equipment: 'Kính hiển vi quang học' },
+  { category: 'Ký Sinh Trùng', code: 'STOOL_RBC', name: 'Hồng cầu trong phân', unit: 'BC/QT40', refText: 'Âm tính (Không có hồng cầu)', price: 40000, evaluationType: 'detection', equipment: 'Kính hiển vi quang học' },
+  { category: 'Ký Sinh Trùng', code: 'STOOL_WBC', name: 'Bạch cầu trong phân', unit: 'BC/QT40', refText: 'Âm tính (Không có bạch cầu)', price: 40000, evaluationType: 'detection', equipment: 'Kính hiển vi quang học' }
 ];
 
 export const DEFAULT_CATALOG: CatalogItem[] = (() => {
@@ -142,21 +152,21 @@ export const TEST_PACKAGES: TestPackage[] = [
   {
     id: 'di_nguyen_90',
     name: '🩸 Gói Trọn Bộ Dị Nguyên IgE (91 Panel PROTIA)',
-    items: ALLERGEN_91_DATABASE.map(item => ({ code: item.code, equipmentId: 'eq_protia' })),
+    items: ALLERGEN_91_DATABASE.map(item => ({ code: item.code, equipmentId: 'eq_protia_q' })),
     codes: ALLERGEN_91_DATABASE.map(item => item.code),
     price: 1900000
   },
   {
     id: 'di_nguyen_61',
     name: '🧬 Gói 61 Dị Nguyên IgE (PROTIA Smart Q-Processor)',
-    items: ALLERGEN_91_DATABASE.slice(0, 61).map(item => ({ code: item.code, equipmentId: 'eq_protia' })),
+    items: ALLERGEN_91_DATABASE.slice(0, 61).map(item => ({ code: item.code, equipmentId: 'eq_protia_q' })),
     codes: ALLERGEN_91_DATABASE.slice(0, 61).map(item => item.code),
     price: 1600000
   },
   {
     id: 'di_nguyen_44',
     name: '🔬 Gói 44 Dị Nguyên IgE (MEDIWISS / Hô Hấp & Thực Phẩm)',
-    items: ALLERGEN_91_DATABASE.slice(0, 44).map(item => ({ code: item.code, equipmentId: 'eq_mediwiss' })),
+    items: ALLERGEN_91_DATABASE.slice(0, 44).map(item => ({ code: item.code, equipmentId: 'eq_mediwiss_c1' })),
     codes: ALLERGEN_91_DATABASE.slice(0, 44).map(item => item.code),
     price: 1400000
   },

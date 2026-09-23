@@ -38,8 +38,12 @@ export function createDefaultPatient(customCode?: string, existingCodes?: string
   };
 }
 
-export function usePatientManager() {
-  const [patient, setPatient] = useState<Patient>(() => createDefaultPatient());
+export function usePatientManager(initialPatient?: Patient | (() => Patient)) {
+  const [patient, setPatient] = useState<Patient>(() => {
+    if (typeof initialPatient === 'function') return initialPatient();
+    if (initialPatient) return initialPatient;
+    return createDefaultPatient();
+  });
 
   const updatePatientField = <K extends keyof Patient>(field: K, value: Patient[K]) => {
     setPatient((prev) => {

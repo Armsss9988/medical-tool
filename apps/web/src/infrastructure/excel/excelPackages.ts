@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import type { CatalogItem, TestEquipment, TestPackage, PackageItem } from '@domain/types';
-import { saveExcelJsWorkbook, getRowValue } from './excelHelpers';
+import { saveExcelJsWorkbook, getRowValue, readFileAsArrayBuffer } from './excelHelpers';
 
 export interface PackageExportOptions {
   isSampleOnly?: boolean;
@@ -212,85 +212,76 @@ export const exportPackagesTemplate = exportTestPackagesTemplate;
 /**
  * Đọc file Excel Gói xét nghiệm
  */
-export function parseExcelTestPackages(
+export async function parseExcelTestPackages(
   fileOrBuffer: Blob | ArrayBuffer,
   _items: CatalogItem[],
   equipments: TestEquipment[]
 ): Promise<TestPackage[]> {
-  return new Promise((resolve, reject) => {
-    try {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          if (!e.target?.result) return resolve([]);
-          const data = new Uint8Array(e.target.result as ArrayBuffer);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const ws = workbook.Sheets[workbook.SheetNames[0]];
-          const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' });
+  const buffer = await readFileAsArrayBuffer(fileOrBuffer);
+  const data = new Uint8Array(buffer);
+  const workbook = XLSX.read(data, { type: 'array' });
+  if (workbook.SheetNames.length === 0) return [];
+  const ws = workbook.Sheets[workbook.SheetNames[0]];
+  if (!ws) return [];
+  const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' });
 
-          const packageMap = new Map<string, { id: string; name: string; defaultEquipmentId?: string | null; items: PackageItem[]; price: number }>();
+  const packageMap = new Map<string, { id: string; name: string; defaultEquipmentId?: string | null; items: PackageItem[]; price: number }>();
 
-          for (const row of rawRows) {
-            const pkgName = getRowValue(row, ['ten_goi_xet_nghiem', 'ten_goi', 'ten', 'package_name', 'name']).trim();
-            if (!pkgName) continue;
+  for (const row of rawRows) {
+    const pkgName = getRowValue(row, ['ten_goi_xet_nghiem', 'ten_goi', 'ten', 'package_name', 'name']).trim();
+    if (!pkgName) continue;
 
-            let rawCode = getRowValue(row, ['ma_chi_so_thanh_phan', 'ma_chi_so', 'ma_xet_nghiem', 'code', 'item_code']);
-            if (rawCode.includes('-')) rawCode = rawCode.split('-')[0].trim();
-            const cleanCode = rawCode.toUpperCase().trim();
-            if (!cleanCode) continue;
+    let rawCode = getRowValue(row, ['ma_chi_so_thanh_phan', 'ma_chi_so', 'ma_xet_nghiem', 'code', 'item_code']);
+    if (rawCode.includes('-')) rawCode = rawCode.split('-')[0].trim();
+    const cleanCode = rawCode.toUpperCase().trim();
+    if (!cleanCode) continue;
 
-            const defEqRawName = getRowValue(row, ['may_do_chinh_cua_goi', 'may_do_chinh', 'default_equipment', 'primary_equipment']).trim();
-            let defEqId: string | null = null;
-            if (defEqRawName) {
-              const matchedDefEq = equipments.find(e => e.name.toLowerCase() === defEqRawName.toLowerCase() || (e.code && e.code.toLowerCase() === defEqRawName.toLowerCase()));
-              defEqId = matchedDefEq ? matchedDefEq.id : 'eq_' + defEqRawName.toLowerCase().replace(/[^a-z0-9]/g, '_');
-            }
-
-            const eqRawName = getRowValue(row, ['ten_may_do_ap_dung', 'ten_may_do', 'may_do', 'equipment', 'equipment_name']).trim();
-            let eqId: string | null = null;
-            if (eqRawName) {
-              const matchedEq = equipments.find(e => e.name.toLowerCase() === eqRawName.toLowerCase() || (e.code && e.code.toLowerCase() === eqRawName.toLowerCase()));
-              eqId = matchedEq ? matchedEq.id : 'eq_' + eqRawName.toLowerCase().replace(/[^a-z0-9]/g, '_');
-            }
-
-            const rawPrice = getRowValue(row, ['don_gia_goi_vnd', 'don_gia_goi', 'gia_goi', 'don_gia', 'price']);
-            const price = parseFloat(rawPrice.replace(/[^\d.]/g, '')) || 0;
-
-            const pkgKey = pkgName.toLowerCase();
-            if (!packageMap.has(pkgKey)) {
-              const pkgId = 'pkg_' + pkgName.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 20) + '_' + Math.random().toString(36).slice(2, 6);
-              packageMap.set(pkgKey, {
-                id: pkgId,
-                name: pkgName,
-                defaultEquipmentId: defEqId,
-                items: [],
-                price
-              });
-            }
-
-            const existing = packageMap.get(pkgKey)!;
-            if (defEqId && !existing.defaultEquipmentId) {
-              existing.defaultEquipmentId = defEqId;
-            }
-            if (!existing.items.some(i => i.code === cleanCode)) {
-              existing.items.push({ code: cleanCode, equipmentId: eqId || existing.defaultEquipmentId || null });
-            }
-            if (price > 0 && existing.price === 0) {
-              existing.price = price;
-            }
-          }
-
-          resolve(Array.from(packageMap.values()));
-        } catch (err) {
-          reject(err);
-        }
-      };
-      reader.onerror = (error) => reject(error);
-      reader.readAsArrayBuffer(fileOrBuffer as Blob);
-    } catch (err) {
-      reject(err);
+    const defEqRawName = getRowValue(row, ['may_do_chinh_cua_goi', 'may_do_chinh', 'default_equipment', 'primary_equipment']).trim();
+    let defEqId: string | null = null;
+    if (defEqRawName) {
+      const matchedDefEq = equipments.find(e => e.name.toLowerCase() === defEqRawName.toLowerCase() || (e.code && e.code.toLowerCase() === defEqRawName.toLowerCase()));
+      defEqId = matchedDefEq ? matchedDefEq.id : 'eq_' + defEqRawName.toLowerCase().replace(/[^a-z0-9]/g, '_');
     }
-  });
+
+    const eqRawName = getRowValue(row, ['ten_may_do_ap_dung', 'ten_may_do', 'may_do', 'equipment', 'equipment_name']).trim();
+    let eqId: string | null = null;
+    if (eqRawName) {
+      const matchedEq = equipments.find(e => e.name.toLowerCase() === eqRawName.toLowerCase() || (e.code && e.code.toLowerCase() === eqRawName.toLowerCase()));
+      eqId = matchedEq ? matchedEq.id : 'eq_' + eqRawName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    }
+
+    const rawPrice = getRowValue(row, ['don_gia_goi_vnd', 'don_gia_goi', 'gia_goi', 'don_gia', 'price']);
+    const price = parseFloat(rawPrice.replace(/[^\d.]/g, '')) || 0;
+
+    const pkgKey = pkgName.toLowerCase();
+    if (!packageMap.has(pkgKey)) {
+      const explicitPkgId = getRowValue(row, ['ma_goi', 'package_id', 'id', 'ma']).trim();
+      const pkgId = explicitPkgId
+        ? explicitPkgId.toLowerCase().replace(/[^a-z0-9_-]/g, '_')
+        : ('pkg_' + pkgName.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 20) + '_' + Math.random().toString(36).slice(2, 6));
+
+      packageMap.set(pkgKey, {
+        id: pkgId,
+        name: pkgName,
+        defaultEquipmentId: defEqId,
+        items: [],
+        price
+      });
+    }
+
+    const existing = packageMap.get(pkgKey)!;
+    if (defEqId && !existing.defaultEquipmentId) {
+      existing.defaultEquipmentId = defEqId;
+    }
+    if (!existing.items.some(i => i.code === cleanCode)) {
+      existing.items.push({ code: cleanCode, equipmentId: eqId || existing.defaultEquipmentId || null });
+    }
+    if (price > 0 && existing.price === 0) {
+      existing.price = price;
+    }
+  }
+
+  return Array.from(packageMap.values());
 }
 
 export const parseExcelPackages = parseExcelTestPackages;

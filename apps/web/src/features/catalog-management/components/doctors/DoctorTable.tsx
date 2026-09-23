@@ -84,30 +84,29 @@ export function DoctorTable({
     try {
       const parsed = await parseExcelDoctors(file);
       if (parsed.length > 0) {
-        setDocsList((prev) => {
-          const map = new Map(prev.map((d) => [d.name.toLowerCase().trim(), d]));
-          let updatedCount = 0;
-          let addedCount = 0;
-          parsed.forEach((d) => {
-            const key = d.name.toLowerCase().trim();
-            if (map.has(key)) {
-              map.set(key, { ...map.get(key)!, ...d });
-              updatedCount++;
-            } else {
-              map.set(key, {
-                ...d,
-                id: d.id || `doc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
-              });
-              addedCount++;
-            }
-          });
-          const updatedList = Array.from(map.values());
-          showToast?.(
-            `Đã cập nhật ${updatedCount} bác sĩ cũ và thêm ${addedCount} bác sĩ mới từ Excel!`,
-            'success'
-          );
-          return updatedList;
+        const map = new Map(docsList.map((d) => [d.name.toLowerCase().trim(), d]));
+        let updatedCount = 0;
+        let addedCount = 0;
+        parsed.forEach((d) => {
+          const key = d.name.toLowerCase().trim();
+          if (map.has(key)) {
+            map.set(key, { ...map.get(key)!, ...d });
+            updatedCount++;
+          } else {
+            map.set(key, {
+              ...d,
+              id: d.id || `doc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
+            });
+            addedCount++;
+          }
         });
+        const updatedList = Array.from(map.values());
+        setDocsList(updatedList);
+        if (onSaveDoctors) onSaveDoctors(updatedList);
+        showToast?.(
+          `Đã cập nhật ${updatedCount} bác sĩ cũ và thêm ${addedCount} bác sĩ mới từ Excel!`,
+          'success'
+        );
       } else {
         showToast?.('Không tìm thấy dữ liệu hợp lệ trong file Excel.', 'warning');
       }

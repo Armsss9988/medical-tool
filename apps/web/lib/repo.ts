@@ -3,7 +3,7 @@ import { asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { TableName } from '@golab/shared/schemas/tables';
 import * as tables from './schema';
 import type { Db } from './db';
-import { InvoiceAggregate, LabReportAggregate, type MedicalReport, type Invoice, type AllergenGradingScale, type TestPackage, type Gender, type ReportTemplate, type CatalogItem } from '@domain/index';
+import { InvoiceAggregate, LabReportAggregate, type MedicalReport, type Invoice, type AllergenGradingScale, type TestPackage, type Gender, type ReportTemplate, type CatalogItem, type EvaluationType, type ClinicInfo, type ZaloZnsConfig, getSafeClinicInfo } from '@domain/index';
 
 export const TABLES: Record<TableName, AnyPgTable> = {
   catalog: tables.catalogItems,
@@ -20,6 +20,13 @@ export const TABLES: Record<TableName, AnyPgTable> = {
   invoices: tables.invoices,
   'report-templates': tables.reportTemplates
 };
+
+function toSafeDate(val: unknown): Date | null {
+  if (!val) return null;
+  if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+  const d = new Date(val as string | number);
+  return isNaN(d.getTime()) ? null : d;
+}
 
 let _packageItemsColumnsChecked = false;
 async function ensurePackageItemsColumns(db: Db) {
@@ -96,6 +103,7 @@ async function ensureInvoicesColumns(db: Db) {
       ALTER TABLE invoices 
       ADD COLUMN IF NOT EXISTS patient_dob TEXT,
       ADD COLUMN IF NOT EXISTS patient_gender TEXT DEFAULT 'Nam',
+      ADD COLUMN IF NOT EXISTS patient_address TEXT,
       ADD COLUMN IF NOT EXISTS package_name TEXT,
       ADD COLUMN IF NOT EXISTS cloud_pdf_url TEXT,
       ADD COLUMN IF NOT EXISTS qr_code_data_url TEXT;
@@ -192,7 +200,7 @@ export async function getTableRows(db: Db, name: TableName): Promise<unknown[]> 
             equipmentId: t.equipmentId || undefined,
             equipment: t.equipmentName || undefined,
             scaleId: t.scaleId || undefined,
-            evaluationType: (t.evaluationType as 'range' | 'scale') || undefined,
+            evaluationType: (t.evaluationType as EvaluationType) || undefined,
             scientific: t.scientific || undefined
           })),
           createdAt: rep.createdAt ? rep.createdAt.toISOString() : new Date().toISOString(),
@@ -225,6 +233,7 @@ export async function getTableRows(db: Db, name: TableName): Promise<unknown[]> 
           patientPhone: inv.patientPhone || '',
           patientDob: inv.patientDob || '',
           patientGender: (inv.patientGender as Gender) || 'Nam',
+          patientAddress: inv.patientAddress || '',
           packageName: inv.packageName || undefined,
           cloudPdfUrl: inv.cloudPdfUrl || undefined,
           qrCodeDataUrl: inv.qrCodeDataUrl || undefined,
@@ -368,13 +377,20 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
     await ensureCatalogItemEquipmentsColumns(db);
   } else if (name === 'invoices') {
     await ensureInvoicesColumns(db);
+  } else if (name === 'medical-reports') {
+    await ensureMedicalReportsColumns(db);
   }
 
   return db.transaction(async (tx) => {
     switch (name) {
       case 'medical-reports': {
         const reportList = rows as MedicalReport[];
-        if (reportList.length === 0) return 0;
+        if (reportList.length === 0) {
+          await tx.update(tables.invoices).set({ reportId: null });
+          await tx.delete(tables.medicalReportTests);
+          await tx.delete(tables.medicalReports);
+          return 0;
+        }
 
         const reportValues = reportList.map((rep) => ({
           id: rep.id,
@@ -389,8 +405,9 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
           qrCodeDataUrl: rep.qrCodeDataUrl || null,
           pdfVersion: rep.pdfVersion || 1,
           isPdfOutdated: rep.isPdfOutdated || false,
-          pdfGeneratedAt: rep.pdfGeneratedAt ? new Date(rep.pdfGeneratedAt) : null,
-          zaloSentAt: rep.zaloSentAt ? new Date(rep.zaloSentAt) : null,
+          dirtyReasons: rep.dirtyReasons || null,
+          pdfGeneratedAt: toSafeDate(rep.pdfGeneratedAt),
+          zaloSentAt: toSafeDate(rep.zaloSentAt),
           zaloMsgId: rep.zaloMsgId || null,
           patientName: rep.patient?.name || '',
           patientDob: rep.patient?.dob || null,
@@ -404,8 +421,8 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
           patientReturnedAt: rep.patient?.returnedAt || null,
           patientSecretToken: rep.patient?.secretToken || null,
           patientSampleStatus: rep.patient?.sampleStatus || null,
-          createdAt: rep.createdAt ? new Date(rep.createdAt) : new Date(),
-          updatedAt: rep.updatedAt ? new Date(rep.updatedAt) : new Date()
+          createdAt: toSafeDate(rep.createdAt) || new Date(),
+          updatedAt: toSafeDate(rep.updatedAt) || new Date()
         }));
 
         // Xóa các tests cũ của đúng các phiếu cần thay thế/cập nhật
@@ -419,12 +436,13 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
         for (let i = 0; i < reportValues.length; i += BATCH_SIZE) {
           const batch = reportValues.slice(i, i + BATCH_SIZE);
           for (const repVal of batch) {
+            const { id: _repId, ...repUpdateVal } = repVal;
             await tx
               .insert(tables.medicalReports)
               .values(repVal)
               .onConflictDoUpdate({
                 target: tables.medicalReports.id,
-                set: repVal
+                set: repUpdateVal
               });
           }
         }
@@ -467,7 +485,12 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
 
       case 'invoices': {
         const invoiceList = rows as Invoice[];
-        if (invoiceList.length === 0) return 0;
+        if (invoiceList.length === 0) {
+          await tx.update(tables.medicalReports).set({ invoiceId: null });
+          await tx.delete(tables.invoiceItems);
+          await tx.delete(tables.invoices);
+          return 0;
+        }
 
         const invValues = invoiceList.map((inv) => {
           const subtotal = inv.totalAmount || 0;
@@ -480,6 +503,7 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
             patientPhone: inv.patientPhone || null,
             patientDob: inv.patientDob || null,
             patientGender: inv.patientGender || 'Nam',
+            patientAddress: inv.patientAddress || null,
             packageName: inv.packageName || null,
             cloudPdfUrl: inv.cloudPdfUrl || null,
             qrCodeDataUrl: inv.qrCodeDataUrl || null,
@@ -493,12 +517,12 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
             discountType: inv.discountType || 'amount',
             surchargeAmount: inv.surchargeAmount || 0,
             finalAmount: inv.finalAmount || 0,
-            paidAt: inv.paidAt ? new Date(inv.paidAt) : null,
+            paidAt: toSafeDate(inv.paidAt),
             cancelledAt: inv.status === 'Đã hủy / Hoàn tiền'
-              ? (inv.cancelledAt ? new Date(inv.cancelledAt) : new Date())
+              ? (toSafeDate(inv.cancelledAt) || new Date())
               : null,
             notes: inv.notes || null,
-            createdAt: inv.createdAt ? new Date(inv.createdAt) : new Date(),
+            createdAt: toSafeDate(inv.createdAt) || new Date(),
             updatedAt: new Date()
           };
         });
@@ -514,12 +538,13 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
         for (let i = 0; i < invValues.length; i += BATCH_SIZE) {
           const batch = invValues.slice(i, i + BATCH_SIZE);
           for (const invVal of batch) {
+            const { id: _invId, ...invUpdateVal } = invVal;
             await tx
               .insert(tables.invoices)
               .values(invVal)
               .onConflictDoUpdate({
                 target: tables.invoices.id,
-                set: invVal
+                set: invUpdateVal
               });
           }
         }
@@ -554,10 +579,6 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
 
       case 'allergen-scales': {
         const scaleList = rows as AllergenGradingScale[];
-        await tx.delete(tables.allergenScaleLevels);
-        await tx.delete(tables.allergenScales);
-
-        if (scaleList.length === 0) return 0;
 
         const scaleValues = scaleList.map((s) => ({
           id: s.id,
@@ -566,7 +587,28 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
           unit: s.unit || 'IU/ml',
           updatedAt: new Date()
         }));
-        await tx.insert(tables.allergenScales).values(scaleValues);
+
+        for (let i = 0; i < scaleValues.length; i += BATCH_SIZE) {
+          await tx
+            .insert(tables.allergenScales)
+            .values(scaleValues.slice(i, i + BATCH_SIZE))
+            .onConflictDoUpdate({
+              target: tables.allergenScales.id,
+              set: {
+                name: sql`excluded.name`,
+                equipment: sql`excluded.equipment`,
+                unit: sql`excluded.unit`,
+                updatedAt: sql`excluded.updated_at`
+              }
+            });
+        }
+
+        // Xóa bậc phân độ cũ của đúng các thang đo được cập nhật
+        const incomingScaleIds = scaleList.map((s) => s.id);
+        for (let i = 0; i < incomingScaleIds.length; i += BATCH_SIZE) {
+          const idChunk = incomingScaleIds.slice(i, i + BATCH_SIZE);
+          await tx.delete(tables.allergenScaleLevels).where(inArray(tables.allergenScaleLevels.scaleId, idChunk));
+        }
 
         const allLevels: (typeof tables.allergenScaleLevels.$inferInsert)[] = [];
         for (const s of scaleList) {
@@ -592,6 +634,29 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
           await tx.insert(tables.allergenScaleLevels).values(allLevels.slice(i, i + BATCH_SIZE));
         }
 
+        // Dọn dẹp an toàn các thang đo không còn trong incoming VÀ không bị catalog_item_equipments hoặc medical_report_tests sử dụng
+        const usedInItemEquipments = await tx
+          .selectDistinct({ scaleId: tables.catalogItemEquipments.scaleId })
+          .from(tables.catalogItemEquipments);
+        const usedInReportTests = await tx
+          .selectDistinct({ scaleId: tables.medicalReportTests.scaleId })
+          .from(tables.medicalReportTests);
+        const usedScaleIds = new Set([
+          ...usedInItemEquipments.map((u) => u.scaleId).filter(Boolean),
+          ...usedInReportTests.map((u) => u.scaleId).filter(Boolean)
+        ]);
+
+        const existingScales = await tx.select({ id: tables.allergenScales.id }).from(tables.allergenScales);
+        const newScaleIdSet = new Set(incomingScaleIds);
+        const scalesToDelete = existingScales
+          .filter((es) => !newScaleIdSet.has(es.id) && !usedScaleIds.has(es.id))
+          .map((es) => es.id);
+
+        if (scalesToDelete.length > 0) {
+          await tx.delete(tables.allergenScaleLevels).where(inArray(tables.allergenScaleLevels.scaleId, scalesToDelete));
+          await tx.delete(tables.allergenScales).where(inArray(tables.allergenScales.id, scalesToDelete));
+        }
+
         return scaleList.length;
       }
 
@@ -611,8 +676,15 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
           updatedAt: new Date()
         }));
 
-        for (let i = 0; i < pkgValues.length; i += BATCH_SIZE) {
-          await tx.insert(tables.testPackages).values(pkgValues.slice(i, i + BATCH_SIZE));
+        // Deduplicate by ID to prevent primary key collision
+        const uniquePkgMap = new Map<string, typeof pkgValues[0]>();
+        for (const pv of pkgValues) {
+          uniquePkgMap.set(pv.id, pv);
+        }
+        const uniquePkgValues = Array.from(uniquePkgMap.values());
+
+        for (let i = 0; i < uniquePkgValues.length; i += BATCH_SIZE) {
+          await tx.insert(tables.testPackages).values(uniquePkgValues.slice(i, i + BATCH_SIZE));
         }
 
         const allPackageItems: (typeof tables.packageItems.$inferInsert)[] = [];
@@ -647,7 +719,6 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
 
       case 'test-groups': {
         const groupList = rows as { id: string; name: string }[];
-        if (groupList.length === 0) return 0;
 
         // 1. Batch upsert all incoming groups in ONE query
         const groupValues = groupList.map((g) => ({
@@ -716,18 +787,25 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
           primaryColor: t.primaryColor || '#0284c7',
           paddingMm: t.paddingMm || 15,
           blocks: t.blocks || [],
-          createdAt: t.createdAt ? new Date(t.createdAt) : new Date(),
+          createdAt: toSafeDate(t.createdAt) || new Date(),
           updatedAt: new Date()
         }));
-        for (let i = 0; i < values.length; i += BATCH_SIZE) {
-          await tx.insert(tables.reportTemplates).values(values.slice(i, i + BATCH_SIZE));
+
+        // Deduplicate by ID to prevent primary key collision
+        const uniqueTplMap = new Map<string, typeof values[0]>();
+        for (const v of values) {
+          uniqueTplMap.set(v.id, v);
         }
-        return tplList.length;
+        const uniqueValues = Array.from(uniqueTplMap.values());
+
+        for (let i = 0; i < uniqueValues.length; i += BATCH_SIZE) {
+          await tx.insert(tables.reportTemplates).values(uniqueValues.slice(i, i + BATCH_SIZE));
+        }
+        return uniqueValues.length;
       }
 
       case 'catalog': {
         const catList = rows as (typeof tables.catalogItems.$inferInsert)[];
-        if (catList.length === 0) return 0;
 
         const catValues = catList.map((c) => ({
           code: c.code,
@@ -779,6 +857,7 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
           const safeCodesToDelete = codesToDelete.filter((code) => !usedSet.has(code));
 
           if (safeCodesToDelete.length > 0) {
+            await tx.delete(tables.catalogItemEquipments).where(inArray(tables.catalogItemEquipments.catalogCode, safeCodesToDelete));
             await tx.delete(tables.catalogItems).where(inArray(tables.catalogItems.code, safeCodesToDelete));
           }
         }
@@ -792,24 +871,189 @@ export async function replaceTable(db: Db, name: TableName, rows: unknown[]): Pr
         await tx.delete(tables.catalogItemEquipments);
         if (linkList.length === 0) return 0;
 
-        const linkValues = linkList.map((l) => ({
-          id: l.id,
-          catalogCode: l.catalogCode,
-          equipmentId: l.equipmentId,
-          evaluationType: (l as unknown as { evaluationType?: string }).evaluationType || null,
-          refMin: l.refMin ?? null,
-          refMax: l.refMax ?? null,
-          unit: l.unit || null,
-          refText: l.refText || null,
-          scaleId: l.scaleId || null,
-          isDefault: l.isDefault ?? false,
-          updatedAt: new Date()
-        }));
+        const linkValuesMap = new Map<string, typeof tables.catalogItemEquipments.$inferInsert>();
+        for (let idx = 0; idx < linkList.length; idx++) {
+          const l = linkList[idx];
+          const id = l.id || `${l.catalogCode}_${l.equipmentId || idx}_${idx}`;
+          linkValuesMap.set(id, {
+            id,
+            catalogCode: l.catalogCode,
+            equipmentId: l.equipmentId,
+            evaluationType: (l as unknown as { evaluationType?: string }).evaluationType || null,
+            refMin: l.refMin ?? null,
+            refMax: l.refMax ?? null,
+            unit: l.unit || null,
+            refText: l.refText || null,
+            scaleId: l.scaleId || null,
+            isDefault: l.isDefault ?? false,
+            updatedAt: new Date()
+          });
+        }
 
+        const linkValues = Array.from(linkValuesMap.values());
         for (let i = 0; i < linkValues.length; i += BATCH_SIZE) {
           await tx.insert(tables.catalogItemEquipments).values(linkValues.slice(i, i + BATCH_SIZE));
         }
-        return linkList.length;
+        return linkValues.length;
+      }
+
+      case 'equipments': {
+        const eqList = rows as (typeof tables.equipments.$inferInsert)[];
+
+        const eqValues = eqList.map((e) => ({
+          id: e.id,
+          name: e.name,
+          code: e.code || null,
+          updatedAt: new Date()
+        }));
+
+        for (let i = 0; i < eqValues.length; i += BATCH_SIZE) {
+          await tx
+            .insert(tables.equipments)
+            .values(eqValues.slice(i, i + BATCH_SIZE))
+            .onConflictDoUpdate({
+              target: tables.equipments.id,
+              set: {
+                name: sql`excluded.name`,
+                code: sql`excluded.code`,
+                updatedAt: sql`excluded.updated_at`
+              }
+            });
+        }
+
+        // Xóa an toàn: chỉ xóa máy đo không còn trong incoming VÀ không bị catalog_item_equipments, package_items, hoặc test_packages tham chiếu
+        const newEqIds = new Set(eqList.map((e) => e.id));
+        const usedInItemEquipments = await tx
+          .selectDistinct({ id: tables.catalogItemEquipments.equipmentId })
+          .from(tables.catalogItemEquipments);
+        const usedInPackages = await tx
+          .selectDistinct({ id: tables.packageItems.equipmentId })
+          .from(tables.packageItems);
+        const usedInTestPackages = await tx
+          .selectDistinct({ id: tables.testPackages.defaultEquipmentId })
+          .from(tables.testPackages);
+        const usedEqIdSet = new Set([
+          ...usedInItemEquipments.map((u) => u.id),
+          ...usedInPackages.map((u) => u.id).filter(Boolean),
+          ...usedInTestPackages.map((u) => u.id).filter(Boolean)
+        ]);
+
+        const existingEqs = await tx.select().from(tables.equipments);
+        const idsToDelete = existingEqs
+          .filter((e) => !newEqIds.has(e.id) && !usedEqIdSet.has(e.id))
+          .map((e) => e.id);
+
+        if (idsToDelete.length > 0) {
+          await tx.delete(tables.equipments).where(inArray(tables.equipments.id, idsToDelete));
+        }
+
+        return eqList.length;
+      }
+
+      case 'reference-ranges': {
+        const rangeList = rows as (typeof tables.referenceRanges.$inferInsert)[];
+
+        const rangeValues = rangeList.map((r) => ({
+          id: r.id,
+          name: r.name,
+          refMin: r.refMin ?? null,
+          refMax: r.refMax ?? null,
+          unit: r.unit ?? '',
+          refText: r.refText ?? '',
+          gender: r.gender || null,
+          ageGroup: r.ageGroup || null,
+          note: r.note || null,
+          updatedAt: new Date()
+        }));
+
+        for (let i = 0; i < rangeValues.length; i += BATCH_SIZE) {
+          await tx
+            .insert(tables.referenceRanges)
+            .values(rangeValues.slice(i, i + BATCH_SIZE))
+            .onConflictDoUpdate({
+              target: tables.referenceRanges.id,
+              set: {
+                name: sql`excluded.name`,
+                refMin: sql`excluded.ref_min`,
+                refMax: sql`excluded.ref_max`,
+                unit: sql`excluded.unit`,
+                refText: sql`excluded.ref_text`,
+                gender: sql`excluded.gender`,
+                ageGroup: sql`excluded.age_group`,
+                note: sql`excluded.note`,
+                updatedAt: sql`excluded.updated_at`
+              }
+            });
+        }
+
+        const newRangeIds = new Set(rangeList.map((r) => r.id));
+        const existingRanges = await tx.select({ id: tables.referenceRanges.id }).from(tables.referenceRanges);
+        const idsToDelete = existingRanges
+          .filter((er) => !newRangeIds.has(er.id))
+          .map((er) => er.id);
+
+        if (idsToDelete.length > 0) {
+          await tx.delete(tables.referenceRanges).where(inArray(tables.referenceRanges.id, idsToDelete));
+        }
+
+        return rangeList.length;
+      }
+
+      case 'clinic-info': {
+        const list = rows as Partial<ClinicInfo>[];
+        if (list.length === 0) return 0;
+        const raw = list[0];
+        const safe = getSafeClinicInfo(raw as ClinicInfo);
+        const val = {
+          id: (raw as unknown as { id?: string })?.id || 'default',
+          name: safe.name || 'Phòng Khám Đa Khoa GoLab',
+          address: safe.address || '',
+          phone: safe.phone || '',
+          website: safe.website || null,
+          defaultDoctor: safe.defaultDoctor || '',
+          logoUrl: safe.logoUrl || null,
+          stampUrl: safe.stampUrl || null,
+          bankId: safe.bankId || null,
+          bankName: safe.bankName || null,
+          bankAccountNo: safe.bankAccountNo || null,
+          bankAccountName: safe.bankAccountName || null,
+          bankBranch: safe.bankBranch || null,
+          bankQrImageUrl: safe.bankQrImageUrl || null,
+          cashierName: safe.cashierName || null,
+          accountantName: safe.accountantName || null,
+          updatedAt: new Date()
+        };
+        const { id: _ciId, ...ciUpdateVal } = val;
+        await tx.insert(tables.clinicInfo).values(val).onConflictDoUpdate({
+          target: tables.clinicInfo.id,
+          set: ciUpdateVal
+        });
+        return 1;
+      }
+
+      case 'zalo-config': {
+        const list = rows as Partial<ZaloZnsConfig>[];
+        if (list.length === 0) return 0;
+        const zc = list[0];
+        const val = {
+          id: 'default',
+          enabled: Boolean(zc.enabled),
+          appId: zc.appId || '',
+          secretKey: zc.secretKey || '',
+          oaId: zc.oaId || '',
+          accessToken: zc.accessToken || '',
+          refreshToken: zc.refreshToken || null,
+          templateId: zc.templateId || '',
+          autoSendOnExport: Boolean(zc.autoSendOnExport),
+          proxyUrl: zc.proxyUrl || null,
+          updatedAt: new Date()
+        };
+        const { id: _zcId, ...zcUpdateVal } = val;
+        await tx.insert(tables.zaloConfig).values(val).onConflictDoUpdate({
+          target: tables.zaloConfig.id,
+          set: zcUpdateVal
+        });
+        return 1;
       }
 
       default: {
@@ -886,8 +1130,8 @@ async function saveMedicalReportInternal(tx: any, rep: MedicalReport): Promise<v
     pdfVersion: rep.pdfVersion || 1,
     isPdfOutdated: rep.isPdfOutdated || false,
     dirtyReasons: rep.dirtyReasons || null,
-    pdfGeneratedAt: rep.pdfGeneratedAt ? new Date(rep.pdfGeneratedAt) : null,
-    zaloSentAt: rep.zaloSentAt ? new Date(rep.zaloSentAt) : null,
+    pdfGeneratedAt: toSafeDate(rep.pdfGeneratedAt),
+    zaloSentAt: toSafeDate(rep.zaloSentAt),
     zaloMsgId: rep.zaloMsgId || null,
     patientName: rep.patient?.name || '',
     patientDob: rep.patient?.dob || null,
@@ -904,16 +1148,18 @@ async function saveMedicalReportInternal(tx: any, rep: MedicalReport): Promise<v
     updatedAt: new Date()
   };
 
+  const { id: _repId, ...reportUpdateValue } = reportValue;
+
   // Upsert Master
   await tx
     .insert(tables.medicalReports)
     .values({
       ...reportValue,
-      createdAt: rep.createdAt ? new Date(rep.createdAt) : new Date()
+      createdAt: toSafeDate(rep.createdAt) || new Date()
     })
     .onConflictDoUpdate({
       target: tables.medicalReports.id,
-      set: reportValue
+      set: reportUpdateValue
     });
 
   // Replace Details for this report only
@@ -953,6 +1199,7 @@ async function saveMedicalReportInternal(tx: any, rep: MedicalReport): Promise<v
  * Lưu hoặc cập nhật một Phiếu Kết Quả Xét Nghiệm duy nhất (kèm các dòng chỉ số)
  */
 export async function saveMedicalReport(db: Db, rep: MedicalReport): Promise<void> {
+  await ensureMedicalReportsColumns(db);
   if (typeof (db as any).transaction === 'function') {
     await db.transaction(async (tx) => {
       await saveMedicalReportInternal(tx, rep);
@@ -989,6 +1236,7 @@ async function saveInvoiceInternal(tx: any, inv: Invoice): Promise<void> {
     patientPhone: inv.patientPhone || null,
     patientDob: inv.patientDob || null,
     patientGender: inv.patientGender || 'Nam',
+    patientAddress: inv.patientAddress || null,
     packageName: inv.packageName || null,
     cloudPdfUrl: inv.cloudPdfUrl || null,
     qrCodeDataUrl: inv.qrCodeDataUrl || null,
@@ -1003,23 +1251,25 @@ async function saveInvoiceInternal(tx: any, inv: Invoice): Promise<void> {
     surchargeAmount: inv.surchargeAmount || 0,
     finalAmount: inv.finalAmount || 0,
     notes: inv.notes || null,
-    paidAt: inv.paidAt ? new Date(inv.paidAt) : null,
+    paidAt: toSafeDate(inv.paidAt),
     cancelledAt: inv.status === 'Đã hủy / Hoàn tiền'
-      ? (inv.cancelledAt ? new Date(inv.cancelledAt) : new Date())
+      ? (toSafeDate(inv.cancelledAt) || new Date())
       : null,
     updatedAt: new Date()
   };
+
+  const { id: _invId, ...invUpdateValue } = invValue;
 
   // Upsert Master
   await tx
     .insert(tables.invoices)
     .values({
       ...invValue,
-      createdAt: inv.createdAt ? new Date(inv.createdAt) : new Date()
+      createdAt: toSafeDate(inv.createdAt) || new Date()
     })
     .onConflictDoUpdate({
       target: tables.invoices.id,
-      set: invValue
+      set: invUpdateValue
     });
 
   // Replace Details for this invoice only
@@ -1053,6 +1303,7 @@ async function saveInvoiceInternal(tx: any, inv: Invoice): Promise<void> {
  * Lưu hoặc cập nhật một Hóa Đơn duy nhất (kèm danh sách dịch vụ)
  */
 export async function saveInvoice(db: Db, inv: Invoice): Promise<void> {
+  await ensureInvoicesColumns(db);
   if (typeof (db as any).transaction === 'function') {
     await db.transaction(async (tx) => {
       await saveInvoiceInternal(tx, inv);
@@ -1063,11 +1314,12 @@ export async function saveInvoice(db: Db, inv: Invoice): Promise<void> {
 }
 
 /**
- * Xóa một Hóa Đơn duy nhất (kèm cascade các mục)
+ * Xóa một Hóa Đơn duy nhất (kèm cascade các mục và giải phóng liên kết trên phiếu khám)
  */
 export async function deleteInvoice(db: Db, invoiceId: string): Promise<boolean> {
   return await db.transaction(async (tx) => {
     await tx.delete(tables.invoiceItems).where(eq(tables.invoiceItems.invoiceId, invoiceId));
+    await tx.update(tables.medicalReports).set({ invoiceId: null }).where(eq(tables.medicalReports.invoiceId, invoiceId));
     await tx.delete(tables.invoices).where(eq(tables.invoices.id, invoiceId));
     return true;
   });
@@ -1095,6 +1347,7 @@ export async function getInvoiceById(db: Db, id: string): Promise<Invoice | null
     patientPhone: inv.patientPhone || '',
     patientDob: inv.patientDob || '',
     patientGender: (inv.patientGender as Gender) || 'Nam',
+    patientAddress: inv.patientAddress || '',
     packageName: inv.packageName || undefined,
     cloudPdfUrl: inv.cloudPdfUrl || undefined,
     qrCodeDataUrl: inv.qrCodeDataUrl || undefined,
@@ -1150,6 +1403,7 @@ export async function getMedicalReportById(db: Db, id: string): Promise<MedicalR
     qrCodeDataUrl: rep.qrCodeDataUrl || undefined,
     pdfVersion: rep.pdfVersion,
     isPdfOutdated: rep.isPdfOutdated,
+    dirtyReasons: Array.isArray(rep.dirtyReasons) ? (rep.dirtyReasons as string[]) : undefined,
     pdfGeneratedAt: rep.pdfGeneratedAt ? rep.pdfGeneratedAt.toISOString() : undefined,
     zaloSentAt: rep.zaloSentAt ? rep.zaloSentAt.toISOString() : undefined,
     zaloMsgId: rep.zaloMsgId || undefined,
@@ -1183,7 +1437,7 @@ export async function getMedicalReportById(db: Db, id: string): Promise<MedicalR
       equipmentId: t.equipmentId || undefined,
       equipment: t.equipmentName || undefined,
       scaleId: t.scaleId || undefined,
-      evaluationType: (t.evaluationType as 'range' | 'scale') || undefined,
+      evaluationType: (t.evaluationType as EvaluationType) || undefined,
       scientific: t.scientific || undefined
     })),
     createdAt: rep.createdAt ? rep.createdAt.toISOString() : new Date().toISOString(),
@@ -1198,13 +1452,29 @@ export async function payInvoiceTransaction(
   db: Db,
   invoiceId: string,
   paymentData: { paymentMethod?: string; cashier?: string; paidAt?: string; discount?: number },
-  fallbackInvoice?: Invoice
+  fallbackInvoice?: Invoice,
+  fallbackReport?: MedicalReport
 ): Promise<{ invoice: Invoice; report?: MedicalReport }> {
   return await db.transaction(async (tx) => {
     let rawInvoice = await getInvoiceById(tx as unknown as Db, invoiceId);
     if (!rawInvoice && fallbackInvoice) {
       await saveInvoiceInternal(tx, fallbackInvoice);
       rawInvoice = fallbackInvoice;
+    } else if (rawInvoice && fallbackInvoice) {
+      // Bảo toàn thông tin bệnh nhân và danh mục mới nhất từ client tránh bị đè bởi dữ liệu cũ trong DB
+      rawInvoice = {
+        ...rawInvoice,
+        patientName: fallbackInvoice.patientName || rawInvoice.patientName,
+        patientPhone: fallbackInvoice.patientPhone || rawInvoice.patientPhone,
+        patientDob: fallbackInvoice.patientDob || rawInvoice.patientDob,
+        patientGender: fallbackInvoice.patientGender || rawInvoice.patientGender,
+        patientAddress: fallbackInvoice.patientAddress || rawInvoice.patientAddress,
+        patientCode: fallbackInvoice.patientCode || rawInvoice.patientCode,
+        reportId: fallbackInvoice.reportId || rawInvoice.reportId,
+        items: (fallbackInvoice.items && fallbackInvoice.items.length > 0) ? fallbackInvoice.items : rawInvoice.items,
+        totalAmount: fallbackInvoice.totalAmount || rawInvoice.totalAmount,
+        finalAmount: fallbackInvoice.finalAmount || rawInvoice.finalAmount
+      };
     }
 
     if (!rawInvoice) {
@@ -1222,15 +1492,76 @@ export async function payInvoiceTransaction(
     await saveInvoiceInternal(tx, updatedInvoice);
 
     let updatedReport: MedicalReport | undefined;
-    const targetReportId = updatedInvoice.reportId || rawInvoice.reportId;
+    let targetReportId = updatedInvoice.reportId || rawInvoice.reportId;
+    if (!targetReportId && fallbackReport?.id) {
+      targetReportId = fallbackReport.id;
+      updatedInvoice.reportId = targetReportId;
+      await tx
+        .update(tables.invoices)
+        .set({ reportId: targetReportId })
+        .where(eq(tables.invoices.id, updatedInvoice.id));
+    }
+    if (!targetReportId && (updatedInvoice.patientCode || rawInvoice.patientCode)) {
+      const pCode = (updatedInvoice.patientCode || rawInvoice.patientCode)?.trim();
+      if (pCode) {
+        const repQuery = tx
+          .select({ id: tables.medicalReports.id })
+          .from(tables.medicalReports)
+          .where(eq(tables.medicalReports.code, pCode));
+        const foundList = typeof (repQuery as any).orderBy === 'function'
+          ? await (repQuery as any).orderBy(desc(tables.medicalReports.createdAt)).limit(1)
+          : await repQuery;
+        const foundRep = Array.isArray(foundList) ? foundList[0] : undefined;
+        if (foundRep) {
+          targetReportId = foundRep.id;
+          updatedInvoice.reportId = targetReportId;
+          await tx
+            .update(tables.invoices)
+            .set({ reportId: targetReportId })
+            .where(eq(tables.invoices.id, updatedInvoice.id));
+        }
+      }
+    }
     if (targetReportId) {
-      const rawReport = await getMedicalReportById(tx as unknown as Db, targetReportId);
+      let rawReport = await getMedicalReportById(tx as unknown as Db, targetReportId);
+      if (!rawReport && fallbackReport && fallbackReport.id === targetReportId) {
+        await saveMedicalReportInternal(tx, fallbackReport);
+        rawReport = fallbackReport;
+      } else if (rawReport && fallbackReport && fallbackReport.id === targetReportId) {
+        // Bảo vệ dữ liệu chỉ số và lâm sàng: nếu client đã nhập chỉ số mới thì bảo toàn 100%
+        if (fallbackReport.selectedTests && fallbackReport.selectedTests.length > 0) {
+          rawReport = {
+            ...rawReport,
+            selectedTests: fallbackReport.selectedTests,
+            conclusion: fallbackReport.conclusion || rawReport.conclusion,
+            doctorName: fallbackReport.doctorName || rawReport.doctorName,
+            patient: {
+              ...rawReport.patient,
+              ...fallbackReport.patient,
+              address: fallbackReport.patient?.address || rawReport.patient?.address || '',
+              phone: fallbackReport.patient?.phone || rawReport.patient?.phone || '',
+              name: fallbackReport.patient?.name || rawReport.patient?.name || '',
+              dob: fallbackReport.patient?.dob || rawReport.patient?.dob || ''
+            }
+          };
+        }
+      }
       if (rawReport) {
         const repAgg = LabReportAggregate.fromSnapshot(rawReport);
         repAgg.markPaymentCollected(updatedInvoice.id, updatedInvoice.paidAt);
         updatedReport = repAgg.toSnapshot();
         await saveMedicalReportInternal(tx, updatedReport);
       }
+    } else if (fallbackReport) {
+      const repAgg = LabReportAggregate.fromSnapshot(fallbackReport);
+      repAgg.markPaymentCollected(updatedInvoice.id, updatedInvoice.paidAt);
+      updatedReport = repAgg.toSnapshot();
+      await saveMedicalReportInternal(tx, updatedReport);
+      updatedInvoice.reportId = updatedReport.id;
+      await tx
+        .update(tables.invoices)
+        .set({ reportId: updatedReport.id })
+        .where(eq(tables.invoices.id, updatedInvoice.id));
     }
 
     return { invoice: updatedInvoice, report: updatedReport };
@@ -1261,7 +1592,28 @@ export async function cancelInvoiceTransaction(
     await saveInvoiceInternal(tx, updatedInvoice);
 
     let updatedReport: MedicalReport | undefined;
-    const targetReportId = updatedInvoice.reportId || rawInvoice.reportId;
+    let targetReportId = updatedInvoice.reportId || rawInvoice.reportId;
+    if (!targetReportId && (updatedInvoice.patientCode || rawInvoice.patientCode)) {
+      const pCode = (updatedInvoice.patientCode || rawInvoice.patientCode)?.trim();
+      if (pCode) {
+        const repQuery = tx
+          .select({ id: tables.medicalReports.id })
+          .from(tables.medicalReports)
+          .where(eq(tables.medicalReports.code, pCode));
+        const foundList = typeof (repQuery as any).orderBy === 'function'
+          ? await (repQuery as any).orderBy(desc(tables.medicalReports.createdAt)).limit(1)
+          : await repQuery;
+        const foundRep = Array.isArray(foundList) ? foundList[0] : undefined;
+        if (foundRep) {
+          targetReportId = foundRep.id;
+          updatedInvoice.reportId = targetReportId;
+          await tx
+            .update(tables.invoices)
+            .set({ reportId: targetReportId })
+            .where(eq(tables.invoices.id, updatedInvoice.id));
+        }
+      }
+    }
     if (targetReportId) {
       const rawReport = await getMedicalReportById(tx as unknown as Db, targetReportId);
       if (rawReport) {

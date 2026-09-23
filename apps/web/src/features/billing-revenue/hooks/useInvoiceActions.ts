@@ -74,7 +74,7 @@ export function useInvoiceActions(
       const saved = saveOrUpdateInvoice(invoiceToSave, isPaid);
 
       // B. Liên kết ngược lại vào Sổ Lưu Phiếu Xét Nghiệm (bỏ qua remote write nếu isPaid vì payInvoice sẽ ghi nguyên tử)
-      saveOrUpdateReport({
+      const savedReport = saveOrUpdateReport({
         id: reportIdToLink,
         patient: updatedPatient,
         selectedTests,
@@ -91,9 +91,15 @@ export function useInvoiceActions(
           paymentMethod: inv.paymentMethod,
           cashier: inv.cashierName,
           paidAt: resolvedPaidAt || new Date().toISOString(),
-          invoice: saved
+          invoice: saved,
+          report: savedReport
         }).catch((err) => {
-          console.warn('[useInvoiceActions] Lỗi gọi payInvoice transaction:', err);
+          console.warn('[useInvoiceActions] Lỗi gọi payInvoice transaction, fallback lưu riêng:', err);
+          saveOrUpdateInvoice(saved, false);
+          saveOrUpdateReport({
+            ...savedReport,
+            skipRemote: false
+          });
         });
 
         showToast(
@@ -134,12 +140,16 @@ export function useInvoiceActions(
       showToast('Vui lòng chọn ít nhất 1 chỉ số hoặc gói xét nghiệm để thu phí!', 'warning');
       return;
     }
+    // Tự động lưu phiếu xét nghiệm nếu chưa có ID để liên kết hóa đơn với phiếu khám
     if (!currentReportId) {
-      showToast("Vui lòng bấm 'Lưu Sổ Lưu' (Ctrl+S) phiếu xét nghiệm trước khi tạo hóa đơn!", 'warning');
-      return;
+      const savedReportId = onSaveCurrentReport();
+      if (!savedReportId) {
+        showToast('Không thể tự động lưu phiếu trước khi tạo hóa đơn!', 'error');
+        return;
+      }
     }
     openInvoiceModal();
-  }, [patient, selectedTests, currentReportId, openInvoiceModal, showToast]);
+  }, [patient, selectedTests, currentReportId, onSaveCurrentReport, openInvoiceModal, showToast]);
 
   // 3. ACTION: MỞ HÓA ĐƠN CHO 1 PHIẾU CỤ THỂ TỪ SỔ LƯU / SỔ DOANH THU
   const handleOpenInvoiceForReport = useCallback(

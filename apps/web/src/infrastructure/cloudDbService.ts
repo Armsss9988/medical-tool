@@ -465,21 +465,32 @@ export async function restoreAllDataToSupabase(
       return { success: false, message: 'File backup không hợp lệ hoặc sai định dạng!' };
     }
 
-    const results = await Promise.all([
-      backup.catalog_data?.length             ? syncTableToCloud('catalog_data',             backup.catalog_data,             config) : Promise.resolve(true),
-      backup.test_packages?.length             ? syncTableToCloud('test_packages',             backup.test_packages,             config) : Promise.resolve(true),
-      backup.test_groups?.length               ? syncTableToCloud('test_groups',               backup.test_groups,               config) : Promise.resolve(true),
-      backup.equipments_catalog?.length        ? syncTableToCloud('equipments_catalog',       backup.equipments_catalog,       config) : Promise.resolve(true),
-      backup.doctors_list?.length              ? syncTableToCloud('doctors_list',              backup.doctors_list,              config) : Promise.resolve(true),
-      backup.clinic_info                       ? syncTableToCloud('clinic_info',               backup.clinic_info,               config) : Promise.resolve(true),
-      backup.reference_ranges?.length          ? syncTableToCloud('reference_ranges',          backup.reference_ranges,          config) : Promise.resolve(true),
-      backup.catalog_item_equipments?.length   ? syncTableToCloud('catalog_item_equipments',   backup.catalog_item_equipments,   config) : Promise.resolve(true),
-      backup.allergen_scales?.length           ? syncTableToCloud('allergen_scales',           backup.allergen_scales,           config) : Promise.resolve(true),
-      backup.medical_reports?.length           ? syncTableToCloud('medical_reports',           backup.medical_reports,           config) : Promise.resolve(true),
-      backup.invoices_data?.length             ? syncTableToCloud('invoices_data',             backup.invoices_data,             config) : Promise.resolve(true),
-      backup.zalo_config                       ? syncTableToCloud('zalo_config',               backup.zalo_config,               config) : Promise.resolve(true),
-      backup.report_templates?.length          ? syncTableToCloud('report_templates',          backup.report_templates,          config) : Promise.resolve(true),
-    ]);
+    const restoreTasks: [string, unknown][] = [
+      ['equipments_catalog', backup.equipments_catalog],
+      ['allergen_scales', backup.allergen_scales],
+      ['catalog_data', backup.catalog_data],
+      ['test_groups', backup.test_groups],
+      ['doctors_list', backup.doctors_list],
+      ['clinic_info', backup.clinic_info],
+      ['zalo_config', backup.zalo_config],
+      ['reference_ranges', backup.reference_ranges],
+      ['catalog_item_equipments', backup.catalog_item_equipments],
+      ['test_packages', backup.test_packages],
+      ['report_templates', backup.report_templates],
+      ['medical_reports', backup.medical_reports],
+      ['invoices_data', backup.invoices_data]
+    ];
+
+    const results: boolean[] = [];
+    for (const [tableKey, tableData] of restoreTasks) {
+      if (tableData) {
+        const isArr = Array.isArray(tableData);
+        if (!isArr || tableData.length > 0) {
+          const ok = await syncTableToCloud(tableKey, tableData, config);
+          results.push(ok);
+        }
+      }
+    }
 
     const allOk = results.every(Boolean);
     const backedAt = backup._meta?.backup_at ? new Date(backup._meta.backup_at).toLocaleString('vi-VN') : 'không rõ';

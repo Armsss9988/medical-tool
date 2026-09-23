@@ -1,6 +1,95 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { User, Hash, Calendar, Phone, Stethoscope, ChevronDown, ChevronUp, MapPin, Sparkles, RefreshCw, Zap } from 'lucide-react';
+import { User, Hash, Calendar, Phone, Stethoscope, ChevronDown, ChevronUp, MapPin, Sparkles, RefreshCw, Zap, UserPlus } from 'lucide-react';
 import { Patient, Doctor, GENDER, GENDER_LIST, Invoice, formatDisplayDate } from '@domain';
+
+function isValidDobParts(day: number, month: number, year: number): boolean {
+  const currentYear = new Date().getFullYear();
+  if (year < 1900 || year > currentYear) return false;
+  if (month < 1 || month > 12) return false;
+  if (day < 1 || day > 31) return false;
+  return true;
+}
+
+/**
+ * Tự động chuẩn hóa chuỗi ngày sinh:
+ * - 8 số liên tiếp: 08121994 -> 08/12/1994 (kiểm tra hợp lệ ngày 1-31, tháng 1-12, năm 1900-hiện tại)
+ * - 7 số liên tiếp:
+ *   + Dạng 8121994 (ngày 8, tháng 12) -> 08/12/1994
+ *   + Dạng 1551994 (ngày 15, tháng 5) -> 15/05/1994
+ * - 6 số liên tiếp: 081294 -> 08/12/1994
+ * - Dấu ngăn cách ., -, khoảng trắng -> /
+ */
+function formatDobInput(val: string): string {
+  const trimmed = val.trim();
+  if (!trimmed) return '';
+
+  // 8 chữ số liên tiếp: DDMMYYYY
+  if (/^\d{8}$/.test(trimmed)) {
+    const day = parseInt(trimmed.slice(0, 2), 10);
+    const month = parseInt(trimmed.slice(2, 4), 10);
+    const year = parseInt(trimmed.slice(4), 10);
+    if (isValidDobParts(day, month, year)) {
+      return `${trimmed.slice(0, 2)}/${trimmed.slice(2, 4)}/${trimmed.slice(4)}`;
+    }
+    return trimmed;
+  }
+
+  // 7 chữ số liên tiếp: DMMYYYY hoặc DDMYYYY
+  if (/^\d{7}$/.test(trimmed)) {
+    const d1 = parseInt(trimmed.slice(0, 1), 10);
+    const m2 = parseInt(trimmed.slice(1, 3), 10);
+    const d2 = parseInt(trimmed.slice(0, 2), 10);
+    const m1 = parseInt(trimmed.slice(2, 3), 10);
+    const year = parseInt(trimmed.slice(3), 10);
+
+    const isCase2Valid = isValidDobParts(d1, m2, year) && m2 >= 10; // DMMYYYY (VD: 8121994 -> 08/12/1994)
+    const isCase1Valid = isValidDobParts(d2, m1, year) && d2 >= 10; // DDMYYYY (VD: 1551994 -> 15/05/1994)
+
+    if (isCase2Valid && !isCase1Valid) {
+      return `0${d1}/${m2}/${year}`;
+    }
+    if (isCase1Valid && !isCase2Valid) {
+      return `${d2}/0${m1}/${year}`;
+    }
+    if (isCase2Valid && isCase1Valid) {
+      // Mặc định chuẩn DDMYYYY
+      return `${d2}/0${m1}/${year}`;
+    }
+    return trimmed;
+  }
+
+  // 6 chữ số liên tiếp: DDMMYY
+  if (/^\d{6}$/.test(trimmed)) {
+    const day = parseInt(trimmed.slice(0, 2), 10);
+    const month = parseInt(trimmed.slice(2, 4), 10);
+    const yy = parseInt(trimmed.slice(4), 10);
+    const currentYear = new Date().getFullYear();
+    const currentYY = currentYear % 100;
+    const year = yy <= currentYY ? 2000 + yy : 1900 + yy;
+    if (isValidDobParts(day, month, year)) {
+      return `${trimmed.slice(0, 2)}/${trimmed.slice(2, 4)}/${year}`;
+    }
+    return trimmed;
+  }
+
+  // Dạng có 1 dấu gạch chéo: DD/MYYYY hoặc D/MMYYYY (ví dụ: 15/51994 -> 15/05/1994)
+  const oneSlashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})(\d{4})$/);
+  if (oneSlashMatch) {
+    const d = parseInt(oneSlashMatch[1], 10);
+    const m = parseInt(oneSlashMatch[2], 10);
+    const y = parseInt(oneSlashMatch[3], 10);
+    if (isValidDobParts(d, m, y)) {
+      return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+    }
+  }
+
+  // Thay thế dấu chấm, gạch ngang, khoảng trắng thành gạch chéo
+  if (/^\d{1,2}[.\- ]\d{1,2}[.\- ]\d{4}$/.test(trimmed)) {
+    return trimmed.replace(/[.\- ]/g, '/');
+  }
+
+  return trimmed;
+}
 
 interface PatientFormProps {
   patient: Patient;
@@ -25,6 +114,10 @@ interface PatientFormProps {
   invoice?: Invoice | null;
   /** Callback mở modal Hóa đơn */
   onOpenInvoiceModal?: () => void;
+  /** Callback tạo ca mới (reset thông tin phiếu) */
+  onResetAll?: () => void;
+  /** Callback lưu nhanh phiếu khám */
+  onSaveReport?: () => string | null;
 }
 
 export default function PatientForm({
@@ -42,7 +135,9 @@ export default function PatientForm({
   onNavigateNext,
   isPaid = false,
   invoice = null,
-  onOpenInvoiceModal
+  onOpenInvoiceModal,
+  onResetAll,
+  onSaveReport
 }: PatientFormProps) {
   const [showMoreTimeFields, setShowMoreTimeFields] = useState(false);
 
@@ -119,7 +214,7 @@ export default function PatientForm({
     }
   };
 
-  // Smart Age Calculator from DOB string (supports "1995", "15/08/1995", "1995-08-15", or direct age "32")
+  // Smart Age Calculator from DOB string (supports "1995", "15/08/1995", "1995-08-15", "08121994", or direct age "32")
   const computedAge = useMemo(() => {
     if (!patient.dob) return null;
     const str = patient.dob.trim();
@@ -132,6 +227,15 @@ export default function PatientForm({
     }
 
     const currentYear = new Date().getFullYear();
+
+    // If user typed 8 digits: "08121994"
+    if (/^\d{8}$/.test(str)) {
+      const year = parseInt(str.slice(4), 10);
+      if (year > 1900 && year <= currentYear) {
+        return `${currentYear - year} tuổi`;
+      }
+    }
+
     // If user typed 4 digits year: "1990"
     if (/^\d{4}$/.test(str)) {
       const year = parseInt(str, 10);
@@ -151,6 +255,47 @@ export default function PatientForm({
 
     return null;
   }, [patient.dob]);
+
+  const handleInsertSlash = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const curVal = patient?.dob || '';
+    if (!curVal.endsWith('/')) {
+      handleChange('dob', curVal + '/');
+    }
+    dobRef.current?.focus();
+  };
+
+  // Xử lý thông minh khi gõ ngày sinh trên điện thoại và máy tính (hỗ trợ tự chèn / và phím / nhanh)
+  const handleDobChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value;
+
+    // Tự động chuyển ký tự ngăn cách ., -, khoảng trắng thành / ngay khi gõ
+    if (/[.\- ]/.test(val)) {
+      val = val.replace(/[.\- ]/g, '/');
+    }
+
+    // Tự động chuyển đổi tức thì khi gõ đủ 8 chữ số liên tiếp nếu các phần hợp lệ
+    if (/^\d{8}$/.test(val)) {
+      const day = parseInt(val.slice(0, 2), 10);
+      const month = parseInt(val.slice(2, 4), 10);
+      const year = parseInt(val.slice(4), 10);
+      if (isValidDobParts(day, month, year)) {
+        handleChange('dob', `${val.slice(0, 2)}/${val.slice(2, 4)}/${val.slice(4)}`);
+        return;
+      }
+    }
+
+    handleChange('dob', val);
+  };
+
+  const handleDobBlur = () => {
+    if (patient?.dob) {
+      const formatted = formatDobInput(patient.dob);
+      if (formatted !== patient.dob) {
+        handleChange('dob', formatted);
+      }
+    }
+  };
 
   // Fill current timestamp for all 4 stages
   const handleFillCurrentTimeForStages = () => {
@@ -179,8 +324,8 @@ export default function PatientForm({
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200/90 p-4 lg:p-5 transition-all">
       {/* Header */}
-      <div className="flex items-center justify-between pb-3.5 mb-3.5 border-b border-slate-100">
-        <div className="flex items-center space-x-2">
+      <div className="flex items-center justify-between pb-3.5 mb-3.5 border-b border-slate-100 flex-wrap gap-2">
+        <div className="flex items-center space-x-2 flex-wrap gap-y-1">
           <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-sky-100 text-sky-700 text-xs font-black">
             1
           </span>
@@ -189,9 +334,21 @@ export default function PatientForm({
             <span>Thông Tin Bệnh Nhân & Phiếu XN</span>
           </h2>
           {editingReportCode ? (
-            <span className="text-[10.5px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md flex items-center gap-1 animate-in fade-in duration-150">
-              <span>📝 Đang sửa phiếu [{editingReportCode}]</span>
-            </span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10.5px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md flex items-center gap-1 animate-in fade-in duration-150">
+                <span>📝 Đang sửa [{editingReportCode}]</span>
+              </span>
+              {onResetAll && (
+                <button
+                  type="button"
+                  onClick={onResetAll}
+                  className="text-[10px] font-bold text-amber-900 bg-amber-200/90 hover:bg-amber-300 px-1.5 py-0.5 rounded border border-amber-400 transition active:scale-95 cursor-pointer"
+                  title="Không muốn sửa ca cũ? Bấm để tạo ca mới"
+                >
+                  + Tạo ca mới
+                </button>
+              )}
+            </div>
           ) : (
             <span className="hidden sm:inline-flex text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-md items-center gap-1">
               <span>✨ Phiếu mới</span>
@@ -199,20 +356,35 @@ export default function PatientForm({
           )}
         </div>
 
-        {/* Toggle time fields */}
-        <button
-          type="button"
-          onClick={() => setShowMoreTimeFields(!showMoreTimeFields)}
-          className={`text-[11px] font-bold flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all border ${
-            showMoreTimeFields
-              ? 'bg-sky-100 text-sky-800 border-sky-300 shadow-2xs'
-              : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
-          }`}
-        >
-          <Calendar className="w-3.5 h-3.5 text-sky-600" />
-          <span>T/G & Quy Trình Mẫu</span>
-          {showMoreTimeFields ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-        </button>
+        <div className="flex items-center gap-1.5 ml-auto">
+          {onResetAll && (
+            <button
+              type="button"
+              onClick={onResetAll}
+              className="text-xs font-extrabold flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-xs transition active:scale-95 cursor-pointer"
+              title="Làm mới form, tạo ca khám mới"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>+ Ca Mới</span>
+            </button>
+          )}
+
+          {/* Toggle time fields */}
+          <button
+            type="button"
+            onClick={() => setShowMoreTimeFields(!showMoreTimeFields)}
+            className={`text-[11px] font-bold flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all border ${
+              showMoreTimeFields
+                ? 'bg-sky-100 text-sky-800 border-sky-300 shadow-2xs'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5 text-sky-600" />
+            <span className="hidden sm:inline">T/G & Quy Trình Mẫu</span>
+            <span className="sm:hidden">T/G Mẫu</span>
+            {showMoreTimeFields ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          </button>
+        </div>
       </div>
 
       {/* ═══ GRID TOÀN BỘ CÁC TRƯỜNG THÔNG TIN ═══ */}
@@ -275,21 +447,33 @@ export default function PatientForm({
           <div className="flex items-center justify-between mb-1">
             <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5 text-sky-600" />
-              <span>Năm sinh / Tuổi</span>
+              <span>Năm sinh / Ngày sinh</span>
             </label>
-            {computedAge && (
-              <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-1.5 py-0.2 rounded border border-sky-200">
-                {computedAge}
-              </span>
-            )}
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleInsertSlash}
+                className="text-[11px] font-mono font-bold text-sky-700 bg-sky-100 hover:bg-sky-200 active:scale-95 px-2 py-0.5 rounded-md border border-sky-300 transition cursor-pointer flex items-center gap-0.5 shadow-2xs"
+                title="Bấm để chèn nhanh dấu gạch chéo (/)"
+              >
+                <span className="font-extrabold">/</span>
+                <span className="text-[9px] font-sans font-medium text-sky-600">Thêm /</span>
+              </button>
+              {computedAge && (
+                <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200">
+                  {computedAge}
+                </span>
+              )}
+            </div>
           </div>
           <input
             ref={dobRef}
             type="text"
-            inputMode="numeric"
-            placeholder="1992 hoặc 22/06/1992"
+            inputMode="text"
+            placeholder="1992 hoặc 22/06/1992 (hoặc 08121994)"
             value={patient?.dob || ''}
-            onChange={(e) => handleChange('dob', e.target.value)}
+            onChange={handleDobChange}
+            onBlur={handleDobBlur}
             onKeyDown={(e) => handleKeyDownChain(e, phoneRef)}
             tabIndex={2}
             className="w-full bg-white border border-slate-300 focus:border-sky-600 focus:ring-2 focus:ring-sky-100 rounded-xl px-3 py-2 text-xs text-slate-900 font-semibold focus:outline-none transition-all shadow-2xs"
@@ -499,19 +683,29 @@ export default function PatientForm({
           </div>
         )}
 
-        {/* Nút Chuyển Tiếp Sang Bảng Chỉ Số Trên Mobile */}
-        {onNavigateNext && (
-          <div className="pt-2 lg:hidden">
+        {/* Nút Chuyển Tiếp Sang Bảng Chỉ Số Trên Mobile & Lưu Nhanh */}
+        <div className="pt-2 lg:hidden flex gap-2">
+          {onSaveReport && (
+            <button
+              type="button"
+              onClick={() => onSaveReport()}
+              className="py-3 px-3.5 bg-slate-100 hover:bg-slate-200 active:scale-[0.98] text-slate-700 font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 border border-slate-300 transition-all cursor-pointer shrink-0"
+              title="Lưu phiếu hiện tại vào danh sách"
+            >
+              <span>💾 Lưu Phiếu</span>
+            </button>
+          )}
+          {onNavigateNext && (
             <button
               type="button"
               onClick={onNavigateNext}
-              className="w-full py-3 px-4 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 active:scale-[0.98] text-white font-bold rounded-xl text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-md shadow-sky-900/20 transition-all cursor-pointer"
+              className="flex-1 py-3 px-4 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 active:scale-[0.98] text-white font-bold rounded-xl text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-md shadow-sky-900/20 transition-all cursor-pointer"
             >
               <span>Tiếp Tục: Chọn Chỉ Số Xét Nghiệm</span>
               <span>→</span>
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
       </div>
     </div>

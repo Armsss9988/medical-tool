@@ -15,9 +15,11 @@ import {
   saveExcelJsWorkbook,
   cleanKey,
   getRowValue,
+  getRowRawValue,
   sanitizePhone,
   sanitizeGender,
-  sanitizeDob
+  sanitizeDob,
+  readFileAsArrayBuffer
 } from './excelHelpers';
 
 /**
@@ -210,267 +212,249 @@ export const exportBatchPatientsTemplate = exportBatchTemplateExcel;
 /**
  * Đọc file Excel batch (hỗ trợ cả 1 Sheet ma trận tổng hợp và 2 Sheet tách rời)
  */
-export function parseExcelBatchPatients(
+export async function parseExcelBatchPatients(
   fileOrBuffer: Blob | ArrayBuffer,
   catalog: CatalogItem[]
 ): Promise<BatchImportRow[]> {
-  return new Promise((resolve, reject) => {
-    try {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          if (!e.target?.result) return resolve([]);
-          const data = new Uint8Array(e.target.result as ArrayBuffer);
-          const workbook = XLSX.read(data, { type: 'array' });
+  const buffer = await readFileAsArrayBuffer(fileOrBuffer);
+  const data = new Uint8Array(buffer);
+  const workbook = XLSX.read(data, { type: 'array' });
 
-          if (workbook.SheetNames.length === 0) {
-            return reject(new Error('File Excel không có dữ liệu!'));
-          }
+  if (workbook.SheetNames.length === 0) {
+    throw new Error('File Excel không có dữ liệu!');
+  }
 
-          const catalogByCode = new Map<string, CatalogItem>();
-          const catalogByName = new Map<string, CatalogItem>();
-          for (const item of catalog) {
-            catalogByCode.set(item.code.trim().toLowerCase(), item);
-            catalogByName.set(item.name.trim().toLowerCase(), item);
-            catalogByName.set(cleanKey(item.name), item);
-          }
+  const catalogByCode = new Map<string, CatalogItem>();
+  const catalogByName = new Map<string, CatalogItem>();
+  for (const item of catalog) {
+    catalogByCode.set(item.code.trim().toLowerCase(), item);
+    catalogByName.set(item.name.trim().toLowerCase(), item);
+    catalogByName.set(cleanKey(item.name), item);
+  }
 
-          const matchCatalogItem = (colHeader: string): CatalogItem | undefined => {
-            const codeMatch = colHeader.match(/\[([^\]]+)\]/);
-            if (codeMatch) {
-              const extractedCode = codeMatch[1].trim().toLowerCase();
-              if (catalogByCode.has(extractedCode)) return catalogByCode.get(extractedCode);
-            }
-            const cleanHeaderName = colHeader.replace(/\s*\[[^\]]*\]\s*$/, '').trim().toLowerCase();
-            if (catalogByCode.has(cleanHeaderName)) return catalogByCode.get(cleanHeaderName);
-            if (catalogByName.has(cleanHeaderName)) return catalogByName.get(cleanHeaderName);
-            if (catalogByName.has(cleanKey(cleanHeaderName))) return catalogByName.get(cleanKey(cleanHeaderName));
-            return undefined;
-          };
-
-          const dataSheetNames = workbook.SheetNames.filter((name) => {
-            const clean = cleanKey(name);
-            return (
-              !name.startsWith('_') &&
-              !clean.includes('datalookup') &&
-              !clean.includes('lookup') &&
-              !clean.includes('huongdan') &&
-              !clean.includes('instruction')
-            );
-          });
-          const effectiveSheetNames = dataSheetNames.length > 0 ? dataSheetNames : workbook.SheetNames;
-
-          const firstWs = workbook.Sheets[effectiveSheetNames[0]];
-          const firstRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstWs, { defval: '' });
-
-          if (firstRows.length === 0) {
-            return resolve([]);
-          }
-
-          const patientColKeys = [
-            'mabn', 'code', 'hovaten', 'hoten', 'name', 'fullname', 'tenbenhnhan',
-            'namsinh', 'ngaysinh', 'dob', 'gioitinh', 'gender', 'phai',
-            'sdt', 'sodienthoai', 'phone', 'dienthoai', 'diachi', 'address',
-            'diachicongty', 'congty', 'donvi', 'bschidinh', 'bacsi', 'doctor', 'bs',
-            'chandoan', 'diagnosis', 'lydokham', 'benhsu', 'ketluan', 'conclusion',
-            'loidan', 'nhanxet', 'stt'
-          ];
-
-          const sampleRow = firstRows[0];
-          const nonPatientColsInSheet1 = Object.keys(sampleRow).filter((col) => {
-            const cleaned = cleanKey(col);
-            return !patientColKeys.includes(cleaned);
-          });
-
-          let hasValidResultSheet2 = false;
-          if (effectiveSheetNames.length > 1) {
-            const secondWs = workbook.Sheets[effectiveSheetNames[1]];
-            const secondRowsSample = XLSX.utils.sheet_to_json<unknown[]>(secondWs, { defval: '', header: 1 });
-            if (secondRowsSample.length > 0) {
-              const headers = (secondRowsSample[0] || []).map((h) => cleanKey(String(h ?? '')));
-              hasValidResultSheet2 = headers.some((h) => ['mabn', 'code', 'ma', 'mabenhnhan'].includes(h));
-            }
-          }
-
-          const isSingleSheetMatrix = nonPatientColsInSheet1.length > 0 || !hasValidResultSheet2 || effectiveSheetNames.length === 1;
-
-          const results: BatchImportRow[] = [];
-
-          if (isSingleSheetMatrix) {
-            for (const pRow of firstRows) {
-              const name = getRowValue(pRow, ['ho_va_ten', 'ho_ten', 'ten_benh_nhan', 'name', 'full_name']);
-              if (!name) continue;
-
-              const rawCode = getRowValue(pRow, ['ma_bn', 'ma_benh_nhan', 'code', 'ma']);
-              const hasExplicitCode = Boolean(rawCode && rawCode.trim().length > 0);
-              const code = rawCode || generatePatientCode();
-
-              const patient: Patient = {
-                code,
-                secretToken: generateSecretToken(),
-                name: name.toUpperCase(),
-                dob: sanitizeDob(getRowValue(pRow, ['nam_sinh', 'ngay_sinh', 'dob', 'namsinh'])),
-                gender: sanitizeGender(getRowValue(pRow, ['gioi_tinh', 'gender', 'phai'])),
-                phone: sanitizePhone(getRowValue(pRow, ['so_dien_thoai', 'sdt', 'phone', 'dien_thoai'])),
-                address: getRowValue(pRow, ['dia_chi', 'dia_chi_cong_ty', 'cong_ty', 'address', 'don_vi']),
-                diagnosis: getRowValue(pRow, ['chan_doan', 'diagnosis', 'ly_do_kham', 'benh_su']) || 'Khám sức khỏe định kỳ'
-              };
-
-              const doctorName = getRowValue(pRow, ['bs_chi_dinh', 'bac_si', 'doctor', 'bs']) || 'BS. Trần Hoài Long';
-              const conclusion = getRowValue(pRow, ['ket_luan', 'conclusion', 'loi_dan', 'nhan_xet']);
-
-              const testMap = new Map<string, SelectedTest>();
-
-              for (const [colHeader, rawValue] of Object.entries(pRow)) {
-                const cleaned = cleanKey(colHeader);
-                if (patientColKeys.includes(cleaned)) continue;
-
-                const resultStr = String(rawValue ?? '').trim();
-                if (!resultStr) continue;
-
-                let catalogItem = matchCatalogItem(colHeader);
-                if (!catalogItem) {
-                  const cleanName = colHeader.replace(/\s*\[[^\]]*\]\s*$/, '').trim();
-                  catalogItem = {
-                    category: 'Nhập từ Excel',
-                    code: cleanName.toUpperCase().replace(/\s+/g, '_').slice(0, 15),
-                    name: cleanName,
-                    refMin: null,
-                    refMax: null,
-                    unit: '',
-                    refText: ''
-                  };
-                }
-
-                const evalRes = evaluateTestIndicator(
-                  catalogItem.code,
-                  catalogItem.category,
-                  catalogItem.unit,
-                  resultStr,
-                  catalogItem.refMin,
-                  catalogItem.refMax,
-                  undefined,
-                  undefined,
-                  catalogItem.evaluationType
-                );
-
-                const testKey = catalogItem.code.toUpperCase();
-                testMap.set(testKey, {
-                  ...catalogItem,
-                  result: resultStr,
-                  note: evalRes.label || (catalogItem.evaluationType === 'detection' && (!resultStr || resultStr.trim() === '') ? '' : 'Bình thường')
-                });
-              }
-
-              results.push({
-                patient,
-                selectedTests: Array.from(testMap.values()),
-                conclusion,
-                doctorName,
-                hasExplicitCode
-              });
-            }
-          } else {
-            const wsResult = workbook.Sheets[effectiveSheetNames[1]];
-            const resultRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wsResult, { defval: '' });
-
-            const resultByCode = new Map<string, Record<string, unknown>>();
-            for (const row of resultRows) {
-              const code = getRowValue(row, ['ma_bn', 'ma_benh_nhan', 'code', 'ma']);
-              if (code) resultByCode.set(code.toLowerCase(), row);
-            }
-
-            for (const pRow of firstRows) {
-              const name = getRowValue(pRow, ['ho_va_ten', 'ho_ten', 'ten_benh_nhan', 'name']);
-              if (!name) continue;
-
-              const rawCode = getRowValue(pRow, ['ma_bn', 'ma_benh_nhan', 'code', 'ma']);
-              const hasExplicitCode = Boolean(rawCode && rawCode.trim().length > 0);
-              const code = rawCode || generatePatientCode();
-
-              const patient: Patient = {
-                code,
-                secretToken: generateSecretToken(),
-                name: name.toUpperCase(),
-                dob: sanitizeDob(getRowValue(pRow, ['nam_sinh', 'ngay_sinh', 'dob'])),
-                gender: sanitizeGender(getRowValue(pRow, ['gioi_tinh', 'gender'])),
-                phone: sanitizePhone(getRowValue(pRow, ['so_dien_thoai', 'sdt', 'phone'])),
-                address: getRowValue(pRow, ['dia_chi', 'address']),
-                diagnosis: getRowValue(pRow, ['chan_doan', 'diagnosis']) || 'Khám sức khỏe'
-              };
-
-              const doctorName = getRowValue(pRow, ['bs_chi_dinh', 'bac_si', 'doctor']) || 'BS. Trần Hoài Long';
-              const conclusion = getRowValue(pRow, ['ket_luan', 'conclusion']);
-
-              const testMap = new Map<string, SelectedTest>();
-              const resultRow = resultByCode.get(patient.code.toLowerCase());
-
-              if (resultRow) {
-                for (const [colHeader, rawValue] of Object.entries(resultRow)) {
-                  const cleaned = cleanKey(colHeader);
-                  if (['mabn', 'code', 'ma'].includes(cleaned)) continue;
-
-                  const resultStr = String(rawValue ?? '').trim();
-                  if (!resultStr) continue;
-
-                  let catalogItem = matchCatalogItem(colHeader);
-                  if (!catalogItem) {
-                    const cleanName = colHeader.replace(/\s*\[[^\]]*\]\s*$/, '').trim();
-                    catalogItem = {
-                      category: 'Nhập từ Excel',
-                      code: cleanName.toUpperCase().replace(/\s+/g, '_').slice(0, 15),
-                      name: cleanName,
-                      refMin: null,
-                      refMax: null,
-                      unit: '',
-                      refText: ''
-                    };
-                  }
-
-                  const evalRes = evaluateTestIndicator(
-                    catalogItem.code,
-                    catalogItem.category,
-                    catalogItem.unit,
-                    resultStr,
-                    catalogItem.refMin,
-                    catalogItem.refMax,
-                    undefined,
-                    undefined,
-                    catalogItem.evaluationType
-                  );
-
-                  const testKey = catalogItem.code.toUpperCase();
-                  testMap.set(testKey, {
-                    ...catalogItem,
-                    result: resultStr,
-                    note: evalRes.label || (catalogItem.evaluationType === 'detection' && (!resultStr || resultStr.trim() === '') ? '' : 'Bình thường')
-                  });
-                }
-              }
-
-              results.push({
-                patient,
-                selectedTests: Array.from(testMap.values()),
-                conclusion,
-                doctorName,
-                hasExplicitCode
-              });
-            }
-          }
-
-          resolve(results);
-        } catch (err) {
-          reject(err);
-        }
-      };
-      reader.onerror = (error) => reject(error);
-      if (fileOrBuffer instanceof Blob) {
-        reader.readAsArrayBuffer(fileOrBuffer);
-      } else {
-        reader.readAsArrayBuffer(new Blob([fileOrBuffer as ArrayBuffer]));
-      }
-    } catch (err) {
-      reject(err);
+  const matchCatalogItem = (colHeader: string): CatalogItem | undefined => {
+    const codeMatch = colHeader.match(/\[([^\]]+)\]/);
+    if (codeMatch) {
+      const extractedCode = codeMatch[1].trim().toLowerCase();
+      if (catalogByCode.has(extractedCode)) return catalogByCode.get(extractedCode);
     }
+    const cleanHeaderName = colHeader.replace(/\s*\[[^\]]*\]\s*$/, '').trim().toLowerCase();
+    if (catalogByCode.has(cleanHeaderName)) return catalogByCode.get(cleanHeaderName);
+    if (catalogByName.has(cleanHeaderName)) return catalogByName.get(cleanHeaderName);
+    if (catalogByName.has(cleanKey(cleanHeaderName))) return catalogByName.get(cleanKey(cleanHeaderName));
+    return undefined;
+  };
+
+  const dataSheetNames = workbook.SheetNames.filter((name) => {
+    const clean = cleanKey(name);
+    return (
+      !name.startsWith('_') &&
+      !clean.includes('datalookup') &&
+      !clean.includes('lookup') &&
+      !clean.includes('huongdan') &&
+      !clean.includes('instruction')
+    );
   });
+  const effectiveSheetNames = dataSheetNames.length > 0 ? dataSheetNames : workbook.SheetNames;
+
+  const firstWs = workbook.Sheets[effectiveSheetNames[0]];
+  const firstRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstWs, { defval: '' });
+
+  if (firstRows.length === 0) {
+    return [];
+  }
+
+  const patientColKeys = [
+    'mabn', 'code', 'hovaten', 'hoten', 'name', 'fullname', 'tenbenhnhan',
+    'namsinh', 'ngaysinh', 'dob', 'gioitinh', 'gender', 'phai',
+    'sdt', 'sodienthoai', 'phone', 'dienthoai', 'diachi', 'address',
+    'diachicongty', 'congty', 'donvi', 'bschidinh', 'bacsi', 'doctor', 'bs',
+    'chandoan', 'diagnosis', 'lydokham', 'benhsu', 'ketluan', 'conclusion',
+    'loidan', 'nhanxet', 'stt'
+  ];
+
+  const sampleRow = firstRows[0];
+  const nonPatientColsInSheet1 = Object.keys(sampleRow).filter((col) => {
+    const cleaned = cleanKey(col);
+    return !patientColKeys.includes(cleaned);
+  });
+
+  let hasValidResultSheet2 = false;
+  if (effectiveSheetNames.length > 1) {
+    const secondWs = workbook.Sheets[effectiveSheetNames[1]];
+    const secondRowsSample = XLSX.utils.sheet_to_json<unknown[]>(secondWs, { defval: '', header: 1 });
+    if (secondRowsSample.length > 0) {
+      const headers = (secondRowsSample[0] || []).map((h) => cleanKey(String(h ?? '')));
+      hasValidResultSheet2 = headers.some((h) => ['mabn', 'code', 'ma', 'mabenhnhan'].includes(h));
+    }
+  }
+
+  const isSingleSheetMatrix = nonPatientColsInSheet1.length > 0 || !hasValidResultSheet2 || effectiveSheetNames.length === 1;
+
+  const results: BatchImportRow[] = [];
+
+  if (isSingleSheetMatrix) {
+    for (const pRow of firstRows) {
+      const name = getRowValue(pRow, ['ho_va_ten', 'ho_ten', 'ten_benh_nhan', 'name', 'full_name']);
+      if (!name) continue;
+
+      const rawCode = getRowValue(pRow, ['ma_bn', 'ma_benh_nhan', 'code', 'ma']);
+      const hasExplicitCode = Boolean(rawCode && rawCode.trim().length > 0);
+      const code = rawCode || generatePatientCode();
+
+      const patient: Patient = {
+        code,
+        secretToken: generateSecretToken(),
+        name: name.toUpperCase(),
+        dob: sanitizeDob(getRowRawValue(pRow, ['nam_sinh', 'ngay_sinh', 'dob', 'namsinh'])),
+        gender: sanitizeGender(getRowValue(pRow, ['gioi_tinh', 'gender', 'phai'])),
+        phone: sanitizePhone(getRowValue(pRow, ['so_dien_thoai', 'sdt', 'phone', 'dien_thoai'])),
+        address: getRowValue(pRow, ['dia_chi', 'dia_chi_cong_ty', 'cong_ty', 'address', 'don_vi']),
+        diagnosis: getRowValue(pRow, ['chan_doan', 'diagnosis', 'ly_do_kham', 'benh_su']) || 'Khám sức khỏe định kỳ'
+      };
+
+      const doctorName = getRowValue(pRow, ['bs_chi_dinh', 'bac_si', 'doctor', 'bs']) || 'BS. Trần Hoài Long';
+      const conclusion = getRowValue(pRow, ['ket_luan', 'conclusion', 'loi_dan', 'nhan_xet']);
+
+      const testMap = new Map<string, SelectedTest>();
+
+      for (const [colHeader, rawValue] of Object.entries(pRow)) {
+        const cleaned = cleanKey(colHeader);
+        if (patientColKeys.includes(cleaned)) continue;
+
+        const resultStr = String(rawValue ?? '').trim();
+        if (!resultStr) continue;
+
+        let catalogItem = matchCatalogItem(colHeader);
+        if (!catalogItem) {
+          const cleanName = colHeader.replace(/\s*\[[^\]]*\]\s*$/, '').trim();
+          catalogItem = {
+            category: 'Nhập từ Excel',
+            code: cleanName.toUpperCase().replace(/\s+/g, '_').slice(0, 15),
+            name: cleanName,
+            refMin: null,
+            refMax: null,
+            unit: '',
+            refText: ''
+          };
+        }
+
+        const evalRes = evaluateTestIndicator(
+          catalogItem.code,
+          catalogItem.category,
+          catalogItem.unit,
+          resultStr,
+          catalogItem.refMin,
+          catalogItem.refMax,
+          undefined,
+          undefined,
+          catalogItem.evaluationType
+        );
+
+        const testKey = catalogItem.code.toUpperCase();
+        testMap.set(testKey, {
+          ...catalogItem,
+          result: resultStr,
+          note: evalRes.label || (catalogItem.evaluationType === 'detection' && (!resultStr || resultStr.trim() === '') ? '' : 'Bình thường')
+        });
+      }
+
+      results.push({
+        patient,
+        selectedTests: Array.from(testMap.values()),
+        conclusion,
+        doctorName,
+        hasExplicitCode
+      });
+    }
+  } else {
+    const wsResult = workbook.Sheets[effectiveSheetNames[1]];
+    const resultRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wsResult, { defval: '' });
+
+    const resultByCode = new Map<string, Record<string, unknown>>();
+    for (const row of resultRows) {
+      const code = getRowValue(row, ['ma_bn', 'ma_benh_nhan', 'code', 'ma']).trim();
+      if (code) resultByCode.set(code.toLowerCase(), row);
+    }
+
+    for (const pRow of firstRows) {
+      const name = getRowValue(pRow, ['ho_va_ten', 'ho_ten', 'ten_benh_nhan', 'name']);
+      if (!name) continue;
+
+      const rawCode = getRowValue(pRow, ['ma_bn', 'ma_benh_nhan', 'code', 'ma']);
+      const hasExplicitCode = Boolean(rawCode && rawCode.trim().length > 0);
+      const code = rawCode || generatePatientCode();
+
+      const patient: Patient = {
+        code,
+        secretToken: generateSecretToken(),
+        name: name.toUpperCase(),
+        dob: sanitizeDob(getRowRawValue(pRow, ['nam_sinh', 'ngay_sinh', 'dob', 'namsinh'])),
+        gender: sanitizeGender(getRowValue(pRow, ['gioi_tinh', 'gender', 'phai'])),
+        phone: sanitizePhone(getRowValue(pRow, ['so_dien_thoai', 'sdt', 'phone'])),
+        address: getRowValue(pRow, ['dia_chi', 'address']),
+        diagnosis: getRowValue(pRow, ['chan_doan', 'diagnosis']) || 'Khám sức khỏe'
+      };
+
+      const doctorName = getRowValue(pRow, ['bs_chi_dinh', 'bac_si', 'doctor', 'bs']) || 'BS. Trần Hoài Long';
+      const conclusion = getRowValue(pRow, ['ket_luan', 'conclusion', 'loi_dan', 'nhan_xet']);
+
+      const testMap = new Map<string, SelectedTest>();
+      const lookupKey = (rawCode ? rawCode.toLowerCase().trim() : '') || patient.code.toLowerCase().trim();
+      const resultRow = resultByCode.get(lookupKey);
+
+      if (resultRow) {
+        for (const [colHeader, rawValue] of Object.entries(resultRow)) {
+          const cleaned = cleanKey(colHeader);
+          if (['mabn', 'code', 'ma', 'mabenhnhan', 'stt'].includes(cleaned)) continue;
+
+          const resultStr = String(rawValue ?? '').trim();
+          if (!resultStr) continue;
+
+          let catalogItem = matchCatalogItem(colHeader);
+          if (!catalogItem) {
+            const cleanName = colHeader.replace(/\s*\[[^\]]*\]\s*$/, '').trim();
+            catalogItem = {
+              category: 'Nhập từ Excel',
+              code: cleanName.toUpperCase().replace(/\s+/g, '_').slice(0, 15),
+              name: cleanName,
+              refMin: null,
+              refMax: null,
+              unit: '',
+              refText: ''
+            };
+          }
+
+          const evalRes = evaluateTestIndicator(
+            catalogItem.code,
+            catalogItem.category,
+            catalogItem.unit,
+            resultStr,
+            catalogItem.refMin,
+            catalogItem.refMax,
+            undefined,
+            undefined,
+            catalogItem.evaluationType
+          );
+
+          const testKey = catalogItem.code.toUpperCase();
+          testMap.set(testKey, {
+            ...catalogItem,
+            result: resultStr,
+            note: evalRes.label || (catalogItem.evaluationType === 'detection' && (!resultStr || resultStr.trim() === '') ? '' : 'Bình thường')
+          });
+        }
+      }
+
+      results.push({
+        patient,
+        selectedTests: Array.from(testMap.values()),
+        conclusion,
+        doctorName,
+        hasExplicitCode
+      });
+    }
+  }
+
+  return results;
 }

@@ -1,3 +1,5 @@
+import type { EvaluationType } from '@domain/types';
+
 export interface PortalTestItem {
   testCode: string;
   testName: string;
@@ -8,7 +10,7 @@ export interface PortalTestItem {
   refMax: number | null;
   refText: string;
   note: string;
-  evaluationType?: 'range' | 'scale' | string;
+  evaluationType?: EvaluationType;
   scaleId?: string | null;
   evaluation: 'NORMAL' | 'ABNORMAL' | 'PENDING';
 }

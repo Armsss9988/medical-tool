@@ -3,7 +3,7 @@ import { PatientForm } from '@features/patient-session';
 import { TestTable, ConclusionForm } from '@features/lab-testing';
 import { useWorkspace } from '../contexts/WorkspaceContext';
 import { useToast } from '../contexts/ToastContext';
-import { User, FlaskConical, FileText, CreditCard, Eye, CloudUpload } from 'lucide-react';
+import { User, FlaskConical, FileText, CreditCard, Eye, CloudUpload, UserPlus } from 'lucide-react';
 import type { CatalogItem, TestPackage, TestGroup, Doctor, ExportStepName, Invoice, TestEquipment, CatalogItemEquipmentLink, ReferenceRangeItem, AllergenGradingScale } from '@domain';
 
 // ─── MAIN WORKSPACE COMPONENT ───────────────────────────────────────────────
@@ -79,6 +79,7 @@ export function MainWorkspace({
     doctorName,
     setDoctorName,
     currentReportId,
+    setCurrentReportId,
     currentLoadedReport,
     reports,
     recentTests,
@@ -98,44 +99,56 @@ export function MainWorkspace({
     <>
       <main className="max-w-[1680px] w-full mx-auto p-3 sm:p-4 md:p-6 flex flex-col flex-grow pb-32 lg:pb-6">
         {/* MOBILE TAB SWITCHER (chỉ hiện trên màn hình < lg) */}
-        <div className="lg:hidden grid grid-cols-3 gap-1.5 p-1 bg-slate-200/90 rounded-2xl mb-3 shrink-0 shadow-inner">
-          <button
-            type="button"
-            onClick={() => setActiveMobileTab('PATIENT')}
-            className={`py-2 px-1 text-center rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 transition ${
-              activeMobileTab === 'PATIENT'
-                ? 'bg-white text-indigo-950 shadow-md scale-[1.02]'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <User className="w-3.5 h-3.5" />
-            <span className="truncate">{patient.name ? patient.name.split(' ').slice(-1)[0] : 'Bệnh Nhân'}</span>
-          </button>
+        <div className="lg:hidden flex items-center gap-1.5 mb-3 shrink-0">
+          <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-200/90 rounded-2xl flex-grow shadow-inner">
+            <button
+              type="button"
+              onClick={() => setActiveMobileTab('PATIENT')}
+              className={`py-2 px-1 text-center rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 transition ${
+                activeMobileTab === 'PATIENT'
+                  ? 'bg-white text-indigo-950 shadow-md scale-[1.02]'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <User className="w-3.5 h-3.5" />
+              <span className="truncate">{patient.name ? patient.name.split(' ').slice(-1)[0] : 'Bệnh Nhân'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveMobileTab('TESTS')}
+              className={`py-2 px-1 text-center rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 transition ${
+                activeMobileTab === 'TESTS'
+                  ? 'bg-white text-sky-950 shadow-md scale-[1.02]'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <FlaskConical className="w-3.5 h-3.5 text-sky-600" />
+              <span>Chỉ Số ({selectedTests.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveMobileTab('CONCLUSION')}
+              className={`py-2 px-1 text-center rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 transition ${
+                activeMobileTab === 'CONCLUSION'
+                  ? 'bg-white text-emerald-950 shadow-md scale-[1.02]'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Kết Luận & In</span>
+            </button>
+          </div>
 
           <button
             type="button"
-            onClick={() => setActiveMobileTab('TESTS')}
-            className={`py-2 px-1 text-center rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 transition ${
-              activeMobileTab === 'TESTS'
-                ? 'bg-white text-sky-950 shadow-md scale-[1.02]'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
+            onClick={onResetAll}
+            className="py-2.5 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl font-bold text-xs flex items-center justify-center space-x-1.5 shadow-md shadow-emerald-900/20 active:scale-95 transition shrink-0 cursor-pointer"
+            title="Tạo ca khám mới (Reset thông tin phiếu)"
           >
-            <FlaskConical className="w-3.5 h-3.5 text-sky-600" />
-            <span>Chỉ Số ({selectedTests.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveMobileTab('CONCLUSION')}
-            className={`py-2 px-1 text-center rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 transition ${
-              activeMobileTab === 'CONCLUSION'
-                ? 'bg-white text-emerald-950 shadow-md scale-[1.02]'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <FileText className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Kết Luận & In</span>
+            <UserPlus className="w-4 h-4" />
+            <span className="whitespace-nowrap font-bold">Ca mới</span>
           </button>
         </div>
 
@@ -152,6 +165,7 @@ export function MainWorkspace({
               setPatient={setPatient}
               onGenerateNewCode={() => {
                 const newCode = generateNewPatientCode();
+                setCurrentReportId(null);
                 setPatient((prev) => ({
                   ...prev,
                   code: newCode,
@@ -174,6 +188,8 @@ export function MainWorkspace({
               isPaid={isCurrentReportPaid}
               invoice={currentInvoiceForReport}
               onOpenInvoiceModal={onOpenInvoiceModal}
+              onResetAll={onResetAll}
+              onSaveReport={onSaveReport}
             />
 
             {/* Trên Desktop: ConclusionForm nằm bên trái dưới PatientForm */}
@@ -269,6 +285,16 @@ export function MainWorkspace({
       <div className="fixed bottom-0 left-0 right-0 z-30 lg:hidden bg-slate-900/95 backdrop-blur-md border-t border-slate-800 px-3 pt-2 pb-safe flex items-center justify-between gap-2 shadow-2xl">
         <button
           type="button"
+          onClick={onResetAll}
+          className="py-2 px-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 active:scale-95 text-white font-extrabold rounded-xl text-xs flex items-center justify-center space-x-1 shadow-md transition cursor-pointer shrink-0"
+          title="Tạo ca khám mới (Reset thông tin phiếu)"
+        >
+          <UserPlus className="w-3.5 h-3.5" />
+          <span>+ Ca Mới</span>
+        </button>
+
+        <button
+          type="button"
           onClick={onOpenInvoiceModal}
           disabled={selectedTests.length === 0}
           className="flex-1 py-2 px-2 bg-gradient-to-r from-teal-600 to-emerald-600 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center justify-center space-x-1 shadow disabled:opacity-50 transition cursor-pointer"
@@ -281,7 +307,7 @@ export function MainWorkspace({
           type="button"
           onClick={onOpenPreview}
           disabled={selectedTests.length === 0}
-          className="py-2 px-3 bg-sky-600 hover:bg-sky-500 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center space-x-1 shadow disabled:opacity-50 transition cursor-pointer"
+          className="py-2 px-2.5 bg-sky-600 hover:bg-sky-500 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center space-x-1 shadow disabled:opacity-50 transition cursor-pointer shrink-0"
         >
           <Eye className="w-3.5 h-3.5" />
           <span>Xem A4</span>
@@ -291,7 +317,7 @@ export function MainWorkspace({
           type="button"
           onClick={onExportPdfAndUpload}
           disabled={selectedTests.length === 0 || isExporting}
-          className="py-2 px-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center space-x-1 shadow disabled:opacity-50 transition cursor-pointer"
+          className="py-2 px-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center space-x-1 shadow disabled:opacity-50 transition cursor-pointer shrink-0"
         >
           <CloudUpload className="w-3.5 h-3.5" />
           <span>Xuất PDF</span>

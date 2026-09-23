@@ -7,6 +7,7 @@ import {
   usePayInvoiceMutation
 } from '../useInvoicesQuery';
 import { REPORTS_QUERY_KEY, INVOICES_QUERY_KEY } from '@infra/queryClient';
+import type { Invoice, MedicalReport } from '@domain/types';
 
 function makeWrapper(client?: QueryClient) {
   const queryClient = client || new QueryClient({
@@ -90,8 +91,52 @@ describe('useInvoicesQuery and Command Mutations', () => {
     });
 
     expect(fetchMock).toHaveBeenCalled();
-    // Phải invalidate cả 2 mảng để đồng bộ tuyệt đối
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: INVOICES_QUERY_KEY });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: REPORTS_QUERY_KEY });
+    // Phải invalidate cả 2 mảng với refetchType: 'none' để đồng bộ ngầm mà không ghi đè dữ liệu
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: INVOICES_QUERY_KEY, refetchType: 'none' });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: REPORTS_QUERY_KEY, refetchType: 'none' });
+  });
+
+  it('payInvoiceMutation sends full invoice and report in body when provided', async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
+    });
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        success: true,
+        invoice: { id: 'inv-test-pay', status: 'Đã thanh toán' },
+        report: { id: 'rep-test-pay', status: 'Đã thanh toán' }
+      })
+    });
+
+    const { result } = renderHook(() => usePayInvoiceMutation(), { wrapper: makeWrapper(client) });
+
+    const mockInvoice = { id: 'inv-test-pay', code: 'HD-999', patientName: 'NGUYEN VAN A', finalAmount: 200000 } as unknown as Invoice;
+    const mockReport = { id: 'rep-test-pay', code: 'BN-999', patient: { name: 'NGUYEN VAN A' } } as unknown as MedicalReport;
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        id: 'inv-test-pay',
+        paymentMethod: 'Chuyển khoản',
+        cashier: 'Lê Phan Anh',
+        invoice: mockInvoice,
+        report: mockReport
+      });
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/invoices/inv-test-pay/pay',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          paymentMethod: 'Chuyển khoản',
+          cashier: 'Lê Phan Anh',
+          invoice: mockInvoice,
+          report: mockReport
+        })
+      })
+    );
   });
 });

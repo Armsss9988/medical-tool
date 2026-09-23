@@ -37,6 +37,7 @@ describe('PatientForm - Logic, State & Behavior with @testing-library/user-event
     onGenerateNewCode?: () => void;
     setDoctorName?: (name: string) => void;
     isPaid?: boolean;
+    onResetAll?: () => void;
   }) {
     const [patient, setPatient] = useState<Patient>({
       ...defaultPatient,
@@ -54,6 +55,7 @@ describe('PatientForm - Logic, State & Behavior with @testing-library/user-event
         doctorsList={mockDoctors}
         setDoctorName={props.setDoctorName}
         isPaid={props.isPaid ?? false}
+        onResetAll={props.onResetAll}
       />
     );
   }
@@ -93,6 +95,30 @@ describe('PatientForm - Logic, State & Behavior with @testing-library/user-event
     await user.clear(dobInput);
     await user.type(dobInput, '42');
     expect(screen.getByText('42 tuổi')).toBeTruthy();
+
+    // 4. Nhập 8 chữ số liên tiếp trên bàn phím số (mobile): "08121994" -> tự động chuyển thành "08/12/1994"
+    await user.clear(dobInput);
+    await user.type(dobInput, '08121994');
+    expect((dobInput as HTMLInputElement).value).toBe('08/12/1994');
+    expect(screen.getByText(`${currentYear - 1994} tuổi`)).toBeTruthy();
+
+    // 5. Nhập 7 chữ số dạng DDMYYYY: "1551994" (ngày 15, tháng 5) -> onBlur chuyển thành "15/05/1994" (không bị thành tháng 55)
+    await user.clear(dobInput);
+    await user.type(dobInput, '1551994');
+    await user.tab();
+    expect((dobInput as HTMLInputElement).value).toBe('15/05/1994');
+    expect(screen.getByText(`${currentYear - 1994} tuổi`)).toBeTruthy();
+
+    // 6. Nhập 7 chữ số dạng DMMYYYY: "8121994" (ngày 8, tháng 12) -> onBlur chuyển thành "08/12/1994"
+    await user.clear(dobInput);
+    await user.type(dobInput, '8121994');
+    await user.tab();
+    expect((dobInput as HTMLInputElement).value).toBe('08/12/1994');
+
+    // 7. Nhập nhầm 8 chữ số không phải ngày tháng (VD đầu số điện thoại "09836336"): không bị tự động ép thành ngày dị dạng
+    await user.clear(dobInput);
+    await user.type(dobInput, '09836336');
+    expect((dobInput as HTMLInputElement).value).toBe('09836336');
   });
 
   it('3. BEHAVIOUR & STATE: Switching gender via segmented buttons updates active styling & state', async () => {
@@ -195,5 +221,18 @@ describe('PatientForm - Logic, State & Behavior with @testing-library/user-event
     expect(onPatientChange).toHaveBeenCalledWith('doctor', 'BS. Nguyễn Văn An');
     expect(setDoctorName).toHaveBeenCalledWith('BS. Nguyễn Văn An');
     expect(doctorSelect.value).toBe('BS. Nguyễn Văn An');
+  });
+
+  it('8. BEHAVIOUR: + Ca Mới button renders and triggers onResetAll', async () => {
+    const user = userEvent.setup();
+    const onResetAll = vi.fn();
+
+    render(<ControlledPatientForm onResetAll={onResetAll} />);
+
+    const resetBtn = screen.getByRole('button', { name: /\+ Ca Mới/i });
+    expect(resetBtn).toBeDefined();
+
+    await user.click(resetBtn);
+    expect(onResetAll).toHaveBeenCalledTimes(1);
   });
 });

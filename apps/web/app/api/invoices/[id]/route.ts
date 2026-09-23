@@ -12,7 +12,8 @@ export async function DELETE(
   const authError = verifyAuth(req);
   if (authError) return authError;
 
-  const { id } = await params;
+  const { id: rawId } = await params;
+  const id = rawId ? decodeURIComponent(rawId) : '';
   if (!id) {
     return NextResponse.json({ error: 'Missing invoice id' }, { status: 400 });
   }

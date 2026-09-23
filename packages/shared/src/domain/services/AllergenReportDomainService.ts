@@ -65,10 +65,53 @@ export class AllergenReportDomainService {
       if (item.name) dbMap.set(item.name.toLowerCase(), item);
     });
 
-    const appliedScalesMap = new Map<string, AllergenGradingScale>();
+    const pricingTests = allTests && allTests.length > 0 ? allTests : tests;
+    const allCodeList = pricingTests.map((t) => (t.code || '').trim().toLowerCase());
+    const codeSet = new Set(allCodeList);
+    const testCount = tests.length;
 
-    // Xây dựng bản đồ orderIndex từ gói dị nguyên (package_items)
-    const allergenPkg = testPackages.find((p) => p.id === 'di_nguyen_90') ||
+    // 1. Nhận diện gói dị nguyên tối ưu nhất trước để áp dụng đúng thứ tự chỉ số
+    let matchedPkg: TestPackage | undefined;
+    if (testPackages && testPackages.length > 0) {
+      const validPackages = testPackages.filter(
+        (p) => getPkgCodes(p).length > 0 && p.price > 0
+      );
+
+      // Tìm các gói khớp toàn bộ chỉ số (cho phép có hoặc thiếu TIgE bất kể biến thể)
+      const fullMatches = validPackages.filter((pkg) => {
+        const pCodes = getPkgCodes(pkg).map((c) => c.trim().toLowerCase());
+        const nonTIgECodes = pCodes.filter((c) => !isTIgETest({ code: c }));
+        return pCodes.every((c) => codeSet.has(c)) || (nonTIgECodes.length > 0 && nonTIgECodes.every((c) => codeSet.has(c)));
+      });
+
+      if (fullMatches.length > 0) {
+        fullMatches.sort((a, b) => {
+          const diffA = Math.abs(getPkgCodes(a).length - testCount);
+          const diffB = Math.abs(getPkgCodes(b).length - testCount);
+          return diffA - diffB;
+        });
+        matchedPkg = fullMatches[0];
+      } else {
+        let maxOverlap = 0;
+        let minDiff = Infinity;
+        for (const pkg of validPackages) {
+          const pCodes = getPkgCodes(pkg).map((c) => c.trim().toLowerCase());
+          const overlap = pCodes.filter((c) => codeSet.has(c)).length;
+          const ratio = overlap / pCodes.length;
+          if (ratio >= 0.75) {
+            const diff = Math.abs(pCodes.length - testCount);
+            if (overlap > maxOverlap || (overlap === maxOverlap && diff < minDiff)) {
+              maxOverlap = overlap;
+              minDiff = diff;
+              matchedPkg = pkg;
+            }
+          }
+        }
+      }
+    }
+
+    // Xây dựng bản đồ orderIndex từ gói dị nguyên phù hợp nhất (hoặc gói 90 mặc định)
+    const allergenPkg = matchedPkg || testPackages.find((p) => p.id === 'di_nguyen_90') ||
       testPackages.find((p) => p.id.includes('di_nguyen'));
     const allergenOrderMap = new Map<string, number>();
     if (allergenPkg) {
@@ -92,6 +135,8 @@ export class AllergenReportDomainService {
       const orderB = allergenOrderMap.has(codeB) ? allergenOrderMap.get(codeB)! : (dbMap.get(codeB)?.tt ?? 999);
       return orderA - orderB;
     });
+
+    const appliedScalesMap = new Map<string, AllergenGradingScale>();
 
     const detailedList: AllergenReportItemDTO[] = sortedTests.map((t, idx) => {
       const dbItem = dbMap.get((t.code || '').toLowerCase()) || dbMap.get((t.name || '').toLowerCase());
@@ -192,56 +237,6 @@ export class AllergenReportDomainService {
     ];
 
     const totalCount = detailedList.length;
-
-    // Tập hợp toàn bộ mã xét nghiệm để tính giá (gộp cả tests, allTests và tigeItem nếu có)
-    const pricingTests = allTests && allTests.length > 0 ? allTests : tests;
-    const allCodeList = pricingTests.map((t) => (t.code || '').trim().toLowerCase());
-    if (tigeItem?.code && !allCodeList.includes(tigeItem.code.trim().toLowerCase())) {
-      allCodeList.push(tigeItem.code.trim().toLowerCase());
-    }
-    const codeSet = new Set(allCodeList);
-
-    // Thuật toán nhận diện gói dị nguyên tối ưu nhất
-    let matchedPkg: TestPackage | undefined;
-    if (testPackages && testPackages.length > 0) {
-      const validPackages = testPackages.filter(
-        (p) => getPkgCodes(p).length > 0 && p.price > 0
-      );
-
-      // 1. Tìm các gói khớp toàn bộ chỉ số (cho phép có hoặc thiếu TIgE)
-      const fullMatches = validPackages.filter((pkg) => {
-        const pCodes = getPkgCodes(pkg).map((c) => c.trim().toLowerCase());
-        const nonTIgECodes = pCodes.filter((c) => c !== 'tige');
-        return pCodes.every((c) => codeSet.has(c)) || (nonTIgECodes.length > 0 && nonTIgECodes.every((c) => codeSet.has(c)));
-      });
-
-      if (fullMatches.length > 0) {
-        // Chọn gói có số lượng chỉ số gần nhất với số lượng dị nguyên đang phân tích (tránh gói 91 nuốt gói 44/61)
-        fullMatches.sort((a, b) => {
-          const diffA = Math.abs(getPkgCodes(a).length - totalCount);
-          const diffB = Math.abs(getPkgCodes(b).length - totalCount);
-          return diffA - diffB;
-        });
-        matchedPkg = fullMatches[0];
-      } else {
-        // 2. Nếu không khớp 100%, tìm gói có tỉ lệ bao phủ cao nhất (>= 75%)
-        let maxOverlap = 0;
-        let minDiff = Infinity;
-        for (const pkg of validPackages) {
-          const pCodes = getPkgCodes(pkg).map((c) => c.trim().toLowerCase());
-          const overlap = pCodes.filter((c) => codeSet.has(c)).length;
-          const ratio = overlap / pCodes.length;
-          if (ratio >= 0.75) {
-            const diff = Math.abs(pCodes.length - totalCount);
-            if (overlap > maxOverlap || (overlap === maxOverlap && diff < minDiff)) {
-              maxOverlap = overlap;
-              minDiff = diff;
-              matchedPkg = pkg;
-            }
-          }
-        }
-      }
-    }
 
     // Tính giá gói
     let finalPackagePrice = 0;

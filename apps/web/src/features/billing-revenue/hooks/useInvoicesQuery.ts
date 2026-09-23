@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Invoice } from '@domain/types';
+import type { Invoice, MedicalReport } from '@domain/types';
 import { STORAGE_KEYS } from '@domain/constants/storageKeys';
 import { safeParseInvoices } from '@schemas/invoiceSchemas';
 import {
@@ -125,15 +125,35 @@ export function usePayInvoiceMutation() {
       paymentMethod?: string;
       cashier?: string;
       paidAt?: string;
+      discount?: number;
+      invoice?: Invoice;
+      report?: MedicalReport;
     }) => {
       const { id, ...payload } = params;
       const res = await apiClientPayInvoice(id, payload);
       return res;
     },
-    onSuccess: () => {
-      // Đồng bộ nguyên tử cả 2 bảng mà không cần event bus lưu chéo trên browser
-      qc.invalidateQueries({ queryKey: INVOICES_QUERY_KEY });
-      qc.invalidateQueries({ queryKey: REPORTS_QUERY_KEY });
+    onSuccess: (res) => {
+      // 1. Cập nhật tức thì cả Hóa Đơn và Phiếu Khám vào cache và LocalStorage
+      if (res?.invoice) {
+        qc.setQueryData<Invoice[]>(INVOICES_QUERY_KEY, (prev = []) => {
+          const idx = prev.findIndex((i) => i.id === res.invoice!.id || (i.code && i.code === res.invoice!.code));
+          const next = idx >= 0 ? prev.map((item, i) => (i === idx ? res.invoice! : item)) : [res.invoice!, ...prev];
+          saveState(STORAGE_KEYS.INVOICES, next);
+          return next;
+        });
+      }
+      if (res?.report) {
+        qc.setQueryData<MedicalReport[]>(REPORTS_QUERY_KEY, (prev = []) => {
+          const idx = prev.findIndex((r) => r.id === res.report!.id || (r.code && r.code === res.report!.code));
+          const next = idx >= 0 ? prev.map((item, i) => (i === idx ? res.report! : item)) : [res.report!, ...prev];
+          saveState(STORAGE_KEYS.REPORTS, next);
+          return next;
+        });
+      }
+      // 2. Đồng bộ ngầm mà không refetch cứng đè mất dữ liệu vừa cập nhật
+      qc.invalidateQueries({ queryKey: INVOICES_QUERY_KEY, refetchType: 'none' });
+      qc.invalidateQueries({ queryKey: REPORTS_QUERY_KEY, refetchType: 'none' });
     }
   });
 }

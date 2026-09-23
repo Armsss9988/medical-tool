@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import type { TestEquipment } from '@domain/types';
-import { saveExcelJsWorkbook, getRowValue } from './excelHelpers';
+import { saveExcelJsWorkbook, getRowValue, readFileAsArrayBuffer } from './excelHelpers';
 
 /**
  * Xuất file Excel template hoặc dữ liệu thực tế cho Thiết bị / Máy đo (kèm Tự Động Mã Máy)
@@ -54,37 +54,21 @@ export async function exportEquipmentsTemplate(equipments: TestEquipment[] = [],
 /**
  * Đọc file Excel Thiết bị / Máy đo
  */
-export function parseExcelEquipments(fileOrBuffer: Blob | ArrayBuffer): Promise<TestEquipment[]> {
-  return new Promise((resolve, reject) => {
-    try {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          if (!e.target?.result) return resolve([]);
-          const data = new Uint8Array(e.target.result as ArrayBuffer);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const ws = workbook.Sheets[workbook.SheetNames[0]];
-          const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' });
+export async function parseExcelEquipments(fileOrBuffer: Blob | ArrayBuffer): Promise<TestEquipment[]> {
+  const buffer = await readFileAsArrayBuffer(fileOrBuffer);
+  const data = new Uint8Array(buffer);
+  const workbook = XLSX.read(data, { type: 'array' });
+  const ws = workbook.Sheets[workbook.SheetNames[0]];
+  if (!ws) return [];
+  const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' });
 
-          const eqs: TestEquipment[] = rawRows.map((row) => {
-            const name = getRowValue(row, ['ten_thiet_bi_may_do', 'ten_thiet_bi', 'ten_may', 'ten', 'name']);
-            let code = getRowValue(row, ['ma_may_do_tu_dong_tao_k_can_nhap', 'ma_may_code', 'ma_may', 'ma', 'code']);
-            if (!code && name) {
-              code = name.toUpperCase().replace(/[^A-Z0-9]/g, '_').slice(0, 15);
-            }
-            const id = 'eq_' + (code ? code.toLowerCase().replace(/[^a-z0-9]/g, '_') : Math.random().toString(36).slice(2, 9));
-            return { id, name: name.trim(), code: code.trim() || undefined };
-          }).filter((eq) => eq.name.length > 0);
-
-          resolve(eqs);
-        } catch (err) {
-          reject(err);
-        }
-      };
-      reader.onerror = (error) => reject(error);
-      reader.readAsArrayBuffer(fileOrBuffer as Blob);
-    } catch (err) {
-      reject(err);
+  return rawRows.map((row) => {
+    const name = getRowValue(row, ['ten_thiet_bi_may_do', 'ten_thiet_bi', 'ten_may', 'ten', 'name']);
+    let code = getRowValue(row, ['ma_may_do_tu_dong_tao_k_can_nhap', 'ma_may_do', 'ma_may_code', 'ma_may', 'ma', 'code']);
+    if (!code && name) {
+      code = name.toUpperCase().replace(/[^A-Z0-9]/g, '_').slice(0, 15);
     }
-  });
+    const id = 'eq_' + (code ? code.toLowerCase().replace(/[^a-z0-9]/g, '_') : Math.random().toString(36).slice(2, 9));
+    return { id, name: name.trim(), code: code.trim() || undefined };
+  }).filter((eq) => eq.name.length > 0);
 }

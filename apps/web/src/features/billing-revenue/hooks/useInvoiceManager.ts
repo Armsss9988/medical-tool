@@ -35,6 +35,7 @@ export function useInvoiceManager(options?: UseInvoiceManagerOptions) {
     qc.setQueryData<Invoice[]>(INVOICES_QUERY_KEY, (prev = []) => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
       invoicesRef.current = next;
+      saveState(STORAGE_KEYS.INVOICES, next);
       return next;
     });
   }, [qc]);
@@ -153,14 +154,17 @@ export function useInvoiceManager(options?: UseInvoiceManagerOptions) {
   // Tự động đồng bộ nguyên tử cả Hóa đơn và Phiếu khám qua TanStack Query Invalidation
   const payInvoice = async (
     id: string,
-    paymentData: { paymentMethod?: string; cashier?: string; paidAt?: string; discount?: number; invoice?: Invoice }
+    paymentData: { paymentMethod?: string; cashier?: string; paidAt?: string; discount?: number; invoice?: Invoice; report?: MedicalReport }
   ) => {
     try {
       const res = await payMutation.mutateAsync({
         id,
         paymentMethod: paymentData.paymentMethod,
         cashier: paymentData.cashier,
-        paidAt: paymentData.paidAt
+        paidAt: paymentData.paidAt,
+        discount: paymentData.discount,
+        invoice: paymentData.invoice,
+        report: paymentData.report
       });
       if (res.success) {
         if (res.invoice) {

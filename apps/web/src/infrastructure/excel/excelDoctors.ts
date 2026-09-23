@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import type { Doctor } from '@domain/types';
-import { saveExcelJsWorkbook, cleanKey, getRowValue, sanitizePhone } from './excelHelpers';
+import { saveExcelJsWorkbook, cleanKey, getRowValue, sanitizePhone, readFileAsArrayBuffer } from './excelHelpers';
 
 /**
  * Xuất file Excel template hoặc dữ liệu thực tế cho Bác sĩ (kèm Tự Động Mã Bác Sĩ)
@@ -54,38 +54,22 @@ export async function exportDoctorsTemplate(doctors: Doctor[] = [], isSampleOnly
 /**
  * Đọc file Excel Bác sĩ
  */
-export function parseExcelDoctors(fileOrBuffer: Blob | ArrayBuffer): Promise<Doctor[]> {
-  return new Promise((resolve, reject) => {
-    try {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          if (!e.target?.result) return resolve([]);
-          const data = new Uint8Array(e.target.result as ArrayBuffer);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const ws = workbook.Sheets[workbook.SheetNames[0]];
-          const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' });
+export async function parseExcelDoctors(fileOrBuffer: Blob | ArrayBuffer): Promise<Doctor[]> {
+  const buffer = await readFileAsArrayBuffer(fileOrBuffer);
+  const data = new Uint8Array(buffer);
+  const workbook = XLSX.read(data, { type: 'array' });
+  const ws = workbook.Sheets[workbook.SheetNames[0]];
+  if (!ws) return [];
+  const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' });
 
-          const docs: Doctor[] = rawRows.map((row) => {
-            const name = getRowValue(row, ['ho_va_ten_bac_si', 'ho_ten_bac_si', 'ten_bac_si', 'ten', 'name', 'bac_si']);
-            let id = getRowValue(row, ['ma_bac_si_tu_dong_tao_k_can_nhap', 'ma_bac_si', 'id', 'code']);
-            if (!id && name) {
-              id = 'doc_' + cleanKey(name).replace(/[^a-z0-9]/g, '_').slice(0, 15);
-            }
-            const specialty = getRowValue(row, ['chuyen_khoa', 'specialty', 'chuc_vu']);
-            const phone = sanitizePhone(getRowValue(row, ['so_dien_thoai', 'sdt', 'phone']));
-            return { id: id || `doc_${Math.random().toString(36).slice(2, 9)}`, name: name.trim(), specialty: specialty.trim() || undefined, phone: phone || undefined };
-          }).filter((d) => d.name.length > 0);
-
-          resolve(docs);
-        } catch (err) {
-          reject(err);
-        }
-      };
-      reader.onerror = (error) => reject(error);
-      reader.readAsArrayBuffer(fileOrBuffer as Blob);
-    } catch (err) {
-      reject(err);
+  return rawRows.map((row) => {
+    const name = getRowValue(row, ['ho_va_ten_bac_si', 'ho_ten_bac_si', 'ten_bac_si', 'ten', 'name', 'bac_si']);
+    let id = getRowValue(row, ['ma_bac_si_tu_dong_tao_k_can_nhap', 'ma_bac_si', 'id', 'code']);
+    if (!id && name) {
+      id = 'doc_' + cleanKey(name).replace(/[^a-z0-9]/g, '_').slice(0, 15);
     }
-  });
+    const specialty = getRowValue(row, ['chuyen_khoa', 'specialty', 'chuc_vu']);
+    const phone = sanitizePhone(getRowValue(row, ['so_dien_thoai', 'sdt', 'phone']));
+    return { id: id || `doc_${Math.random().toString(36).slice(2, 9)}`, name: name.trim(), specialty: specialty.trim() || undefined, phone: phone || undefined };
+  }).filter((d) => d.name.length > 0);
 }

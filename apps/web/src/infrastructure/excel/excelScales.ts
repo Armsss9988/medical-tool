@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import type { AllergenGradingScale } from '@domain/types';
-import { saveExcelJsWorkbook, cleanKey, getRowValue } from './excelHelpers';
+import { saveExcelJsWorkbook, cleanKey, getRowValue, readFileAsArrayBuffer } from './excelHelpers';
 
 /**
  * Xuất file Excel template (hoặc data) cho Thang Đo & Phân Độ
@@ -172,90 +172,77 @@ export async function exportScalesTemplate(
 /**
  * Đọc file Excel Thang đo & Phân độ
  */
-export function parseExcelScales(
+export async function parseExcelScales(
   fileOrBuffer: Blob | ArrayBuffer
 ): Promise<AllergenGradingScale[]> {
-  return new Promise((resolve, reject) => {
-    try {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          if (!e.target?.result) return resolve([]);
-          const data = new Uint8Array(e.target.result as ArrayBuffer);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const ws = workbook.Sheets[workbook.SheetNames[0]];
-          const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' });
+  const buffer = await readFileAsArrayBuffer(fileOrBuffer);
+  const data = new Uint8Array(buffer);
+  const workbook = XLSX.read(data, { type: 'array' });
+  if (workbook.SheetNames.length === 0) return [];
+  const ws = workbook.Sheets[workbook.SheetNames[0]];
+  if (!ws) return [];
+  const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' });
 
-          const scaleMap = new Map<string, AllergenGradingScale>();
+  const scaleMap = new Map<string, AllergenGradingScale>();
 
-          for (const row of rawRows) {
-            const scaleName = getRowValue(row, ['ten_thang_do', 'ten_thang', 'thang_do', 'scale_name', 'name']).trim();
-            if (!scaleName) continue;
+  for (const row of rawRows) {
+    const scaleName = getRowValue(row, ['ten_thang_do', 'ten_thang', 'thang_do', 'scale_name', 'name']).trim();
+    if (!scaleName) continue;
 
-            let scaleId = getRowValue(row, ['ma_thang_do', 'ma_thang', 'id', 'scale_id', 'code']).trim();
-            if (!scaleId) {
-              scaleId = `scale_${cleanKey(scaleName).toLowerCase().replace(/[^a-z0-9_]/g, '')}`;
-            }
-
-            const equipment = getRowValue(row, ['thiet_bi_may_do_ap_dung', 'thiet_bi', 'may_do', 'equipment']).trim();
-            const unit = getRowValue(row, ['don_vi_do', 'don_vi', 'unit']).trim() || 'IU/ml';
-
-            const rawGrade = getRowValue(row, ['bac_grade', 'bac', 'grade', 'level']);
-            const grade = parseInt(rawGrade.replace(/[^\d]/g, ''), 10) || 0;
-
-            const rawMin = getRowValue(row, ['nguong_min', 'min_val', 'min']);
-            const minVal = parseFloat(rawMin.replace(/[^\d.]/g, '')) || 0;
-
-            const rawMax = getRowValue(row, ['nguong_max', 'max_val', 'max']);
-            const maxVal = rawMax.trim() === '' || isNaN(parseFloat(rawMax)) ? null : parseFloat(rawMax.replace(/[^\d.]/g, ''));
-
-            let rangeText = getRowValue(row, ['khoang_text', 'range_text', 'khoang']).trim();
-            if (!rangeText) {
-              if (maxVal === null) rangeText = `>${minVal}`;
-              else if (minVal === 0) rangeText = `<${maxVal}`;
-              else rangeText = `${minVal} - ${maxVal}`;
-            }
-
-            const label = getRowValue(row, ['dien_giai_lam_sang', 'dien_giai', 'label', 'mo_ta']).trim() || `Mức độ ${grade}`;
-            const rawStatus = getRowValue(row, ['trang_thai', 'is_positive', 'status']).toLowerCase();
-            const isPositive = rawStatus.includes('duong') || rawStatus.includes('positive') || grade > 0;
-            const colorKey = getRowValue(row, ['ma_mau_chi_thi', 'mau_sac', 'color_key', 'color']).trim() || 'white';
-
-            if (!scaleMap.has(scaleId)) {
-              scaleMap.set(scaleId, {
-                id: scaleId,
-                name: scaleName,
-                equipment: equipment || undefined,
-                unit,
-                levels: []
-              });
-            }
-
-            const scaleObj = scaleMap.get(scaleId)!;
-            scaleObj.levels.push({
-              grade,
-              minVal,
-              maxVal,
-              rangeText,
-              label,
-              isPositive,
-              colorKey
-            });
-          }
-
-          scaleMap.forEach((scale) => {
-            scale.levels.sort((a, b) => a.grade - b.grade);
-          });
-
-          resolve(Array.from(scaleMap.values()));
-        } catch (err) {
-          reject(err);
-        }
-      };
-      reader.onerror = (error) => reject(error);
-      reader.readAsArrayBuffer(fileOrBuffer as Blob);
-    } catch (err) {
-      reject(err);
+    let scaleId = getRowValue(row, ['ma_thang_do', 'ma_thang', 'id', 'scale_id', 'code']).trim();
+    if (!scaleId) {
+      scaleId = `scale_${cleanKey(scaleName).toLowerCase().replace(/[^a-z0-9_]/g, '')}`;
     }
+
+    const equipment = getRowValue(row, ['thiet_bi_may_do_ap_dung', 'thiet_bi', 'may_do', 'equipment']).trim();
+    const unit = getRowValue(row, ['don_vi_do', 'don_vi', 'unit']).trim() || 'IU/ml';
+
+    const rawGrade = getRowValue(row, ['bac_grade', 'bac', 'grade', 'level']);
+    const grade = parseInt(rawGrade.replace(/[^\d]/g, ''), 10) || 0;
+
+    const rawMin = getRowValue(row, ['nguong_min', 'min_val', 'min']);
+    const minVal = parseFloat(rawMin.replace(/[^\d.]/g, '')) || 0;
+
+    const rawMax = getRowValue(row, ['nguong_max', 'max_val', 'max']);
+    const maxVal = rawMax.trim() === '' || isNaN(parseFloat(rawMax)) ? null : parseFloat(rawMax.replace(/[^\d.]/g, ''));
+
+    let rangeText = getRowValue(row, ['khoang_text', 'range_text', 'khoang']).trim();
+    if (!rangeText) {
+      if (maxVal === null) rangeText = `>${minVal}`;
+      else if (minVal === 0) rangeText = `<${maxVal}`;
+      else rangeText = `${minVal} - ${maxVal}`;
+    }
+
+    const label = getRowValue(row, ['dien_giai_lam_sang', 'dien_giai', 'label', 'mo_ta']).trim() || `Mức độ ${grade}`;
+    const rawStatus = getRowValue(row, ['trang_thai', 'is_positive', 'status']).toLowerCase();
+    const isPositive = rawStatus.includes('duong') || rawStatus.includes('positive') || grade > 0;
+    const colorKey = getRowValue(row, ['ma_mau_chi_thi', 'mau_sac', 'color_key', 'color']).trim() || 'white';
+
+    if (!scaleMap.has(scaleId)) {
+      scaleMap.set(scaleId, {
+        id: scaleId,
+        name: scaleName,
+        equipment: equipment || undefined,
+        unit,
+        levels: []
+      });
+    }
+
+    const scaleObj = scaleMap.get(scaleId)!;
+    scaleObj.levels.push({
+      grade,
+      minVal,
+      maxVal,
+      rangeText,
+      label,
+      isPositive,
+      colorKey
+    });
+  }
+
+  scaleMap.forEach((scale) => {
+    scale.levels.sort((a, b) => a.grade - b.grade);
   });
+
+  return Array.from(scaleMap.values());
 }

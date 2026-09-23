@@ -379,5 +379,77 @@ describe('AllergenReportDomainService', () => {
     expect(tigeItem?.normalRef).toBe('<15,0');
     expect(tigeItem?.normalRef).not.toContain('0 - 15');
   });
+
+  it('should order items according to the matched package orderIndex', () => {
+    const pkg44: TestPackage = {
+      id: 'di_nguyen_44',
+      name: 'Gói 44 Dị Nguyên',
+      items: [
+        { code: 'TIgE', orderIndex: 0 },
+        { code: 'f1', orderIndex: 1 },
+        { code: 'd1', orderIndex: 2 }
+      ],
+      codes: ['TIgE', 'f1', 'd1'],
+      price: 1400000
+    };
+    const pkg90: TestPackage = {
+      id: 'di_nguyen_90',
+      name: 'Gói 90 Dị Nguyên',
+      items: [
+        { code: 'TIgE', orderIndex: 0 },
+        { code: 'd1', orderIndex: 1 },
+        { code: 'f1', orderIndex: 2 },
+        { code: 'd2', orderIndex: 3 }
+      ],
+      codes: ['TIgE', 'd1', 'f1', 'd2'],
+      price: 1900000
+    };
+
+    const tests: SelectedTest[] = [
+      { code: 'd1', name: 'Mạt bụi d1', result: '<0.10', category: 'Dị Nguyên', unit: 'IU/ml', refText: '<0,34', note: 'Âm tính' },
+      { code: 'f1', name: 'Trứng f1', result: '<0.10', category: 'Dị Nguyên', unit: 'IU/ml', refText: '<0,34', note: 'Âm tính' },
+      { code: 'TIgE', name: 'Total IgE', result: '5.0', category: 'Dị Nguyên', unit: 'IU/ml', refText: '<15,0', note: 'Bình thường' }
+    ];
+
+    const dto = AllergenReportDomainService.buildReportDTO({
+      tests,
+      testPackages: [pkg90, pkg44]
+    });
+
+    // In pkg44, f1 has orderIndex 1 and d1 has orderIndex 2.
+    // Tests match pkg44 (length 3 vs 3). TIgE is first, then f1, then d1.
+    expect(dto.detailedList[0].code).toBe('TIgE');
+    expect(dto.detailedList[1].code).toBe('f1');
+    expect(dto.detailedList[2].code).toBe('d1');
+  });
+
+  it('should correctly match packages containing TIgE variants like TIGE_C6', () => {
+    const pkgC6: TestPackage = {
+      id: 'pkg_c6',
+      name: 'Gói C6 Kháng Sinh',
+      items: [
+        { code: 'TIGE_C6', orderIndex: 0 },
+        { code: 'c1', orderIndex: 1 },
+        { code: 'c2', orderIndex: 2 }
+      ],
+      codes: ['TIGE_C6', 'c1', 'c2'],
+      price: 800000
+    };
+
+    const tests: SelectedTest[] = [
+      { code: 'c1', name: 'Penicillin G', result: '0.1', category: 'Dị Nguyên', unit: 'kUA/L', refText: '<0,35', note: 'Âm tính' },
+      { code: 'c2', name: 'Penicillin V', result: '0.1', category: 'Dị Nguyên', unit: 'kUA/L', refText: '<0,35', note: 'Âm tính' }
+    ];
+
+    const dto = AllergenReportDomainService.buildReportDTO({
+      tests,
+      testPackages: [pkgC6]
+    });
+
+    // Even without TIGE_C6 in tests, it should match pkgC6 as full non-TIgE match
+    expect(dto.packageName).toBe('Gói C6 Kháng Sinh');
+    expect(dto.packagePrice).toBe(800000);
+  });
 });
+
 

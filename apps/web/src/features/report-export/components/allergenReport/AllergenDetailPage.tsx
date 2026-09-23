@@ -23,6 +23,8 @@ function AllergenDetailPage({
     ? packageName.replace(/^[^\p{L}\p{N}]+/u, '').trim().toUpperCase()
     : `${totalCount} DỊ NGUYÊN`;
 
+  const commonUnit = pageItems[0]?.unit || 'IU/ml';
+
   return (
     <div 
       data-page="true"
@@ -55,8 +57,8 @@ function AllergenDetailPage({
                 <th className="py-2 px-2 text-left border-r border-slate-300 align-middle leading-snug">TÊN CHỈ SỐ</th>
                 <th className="py-2 px-2 text-left border-r border-slate-300 align-middle leading-snug">TÊN DỊ NGUYÊN</th>
                 <th className="py-2 px-2 w-28 text-left border-r border-slate-300 align-middle leading-snug">Đường dị ứng</th>
-                <th className="py-2 px-1.5 w-20 text-center border-r border-slate-300 leading-tight align-middle">BÌNH THƯỜNG<br/>(IU/ml)</th>
-                <th className="py-2 px-1.5 w-20 text-center border-r border-slate-300 leading-tight align-middle">KẾT QUẢ<br/>(IU/ml)</th>
+                <th className="py-2 px-1.5 w-20 text-center border-r border-slate-300 leading-tight align-middle">BÌNH THƯỜNG<br/>({commonUnit})</th>
+                <th className="py-2 px-1.5 w-20 text-center border-r border-slate-300 leading-tight align-middle">KẾT QUẢ<br/>({commonUnit})</th>
                 <th className="py-2 px-1 w-10 text-center border-r border-slate-300 leading-tight align-middle">ĐỘ<br/>(+)</th>
                 <th className="py-2 px-2 text-left align-middle leading-snug">GHI CHÚ</th>
               </tr>
@@ -96,7 +98,7 @@ function AllergenDetailPage({
                     <td className="py-1.5 px-2 text-slate-600 text-[11px] leading-snug align-middle">
                       {item.isTIgE ? (
                         item.isPositive ? (
-                          <span className="font-bold text-red-600">Tăng (&gt; 15,0 IU/ml)</span>
+                          <span className="font-bold text-red-600">Tăng (&gt; 15,0 {item.unit || commonUnit})</span>
                         ) : (
                           <span className="italic text-slate-600">{item.note || 'Bình thường'}</span>
                         )

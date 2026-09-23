@@ -24,6 +24,9 @@ export const invoiceSchema = z.object({
   patientName: z.preprocess((v) => (typeof v === 'string' ? v.trim() : ''), z.string().default('')),
   patientPhone: z.preprocess((v) => (v === null || v === undefined ? '' : String(v).trim()), z.string().default('')),
   patientCode: z.preprocess((v) => (v === null || v === undefined ? '' : String(v).trim()), z.string().default('')),
+  patientDob: z.preprocess((v) => (v === null || v === undefined ? '' : String(v).trim()), z.string().default('')),
+  patientGender: z.preprocess((v) => (v === null || v === undefined ? 'Nam' : String(v).trim()), z.string().default('Nam')),
+  patientAddress: z.preprocess((v) => (v === null || v === undefined ? '' : String(v).trim()), z.string().default('')),
   items: z.preprocess(
     (val) => (Array.isArray(val) ? val : []),
     z.array(invoiceItemSchema).default([])

@@ -11,6 +11,7 @@ export interface CreateInvoiceAggregateParams {
   patientDob?: string;
   patientPhone?: string;
   patientGender?: Gender;
+  patientAddress?: string;
   patientCode?: string;
   doctorName?: string;
   packageName?: string;
@@ -37,6 +38,7 @@ export class InvoiceAggregate {
   private _patientDob: string;
   private _patientPhone: string;
   private _patientGender: Gender;
+  private _patientAddress: string;
   private _patientCode: string;
   private _doctorName: string;
   private _packageName: string;
@@ -62,6 +64,7 @@ export class InvoiceAggregate {
     patientDob: string;
     patientPhone: string;
     patientGender: Gender;
+    patientAddress?: string;
     patientCode: string;
     doctorName: string;
     packageName: string;
@@ -84,6 +87,7 @@ export class InvoiceAggregate {
     this._patientDob = params.patientDob;
     this._patientPhone = params.patientPhone;
     this._patientGender = params.patientGender;
+    this._patientAddress = params.patientAddress || '';
     this._patientCode = params.patientCode;
     this._doctorName = params.doctorName;
     this._packageName = params.packageName;
@@ -136,6 +140,7 @@ export class InvoiceAggregate {
       patientDob: params.patientDob || '',
       patientPhone: params.patientPhone || '',
       patientGender: params.patientGender || 'Nam',
+      patientAddress: params.patientAddress || '',
       patientCode: params.patientCode || 'BN-GOLAB',
       doctorName: params.doctorName || DEFAULTS.DOCTOR_NAME,
       packageName: params.packageName || DEFAULTS.PACKAGE_NAME,
@@ -177,6 +182,7 @@ export class InvoiceAggregate {
       patientDob: invoice.patientDob || '',
       patientPhone: invoice.patientPhone || '',
       patientGender: invoice.patientGender || 'Nam',
+      patientAddress: invoice.patientAddress || '',
       patientCode: invoice.patientCode || 'BN-GOLAB',
       doctorName: invoice.doctorName || DEFAULTS.DOCTOR_NAME,
       packageName: invoice.packageName || DEFAULTS.PACKAGE_NAME,
@@ -217,6 +223,7 @@ export class InvoiceAggregate {
       patientDob: this._patientDob,
       patientPhone: this._patientPhone,
       patientGender: this._patientGender,
+      patientAddress: this._patientAddress,
       patientCode: this._patientCode,
       doctorName: this._doctorName,
       packageName: this._packageName,
@@ -237,6 +244,10 @@ export class InvoiceAggregate {
       cloudPdfUrl: this._cloudPdfUrl,
       qrCodeDataUrl: this._qrCodeDataUrl
     };
+  }
+
+  public get patientAddress(): string {
+    return this._patientAddress;
   }
 
   // ─── BEHAVIORS & INVARIANTS ──────────────────────────────────────────────

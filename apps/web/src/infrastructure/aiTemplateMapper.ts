@@ -8,7 +8,8 @@ import {
   AllergenGradingScale,
   BatchImportRow,
   AiTemplateTarget,
-  ExtractedRowItem
+  ExtractedRowItem,
+  EvaluationType
 } from '@domain';
 import {
   exportCatalogItemsTemplate,
@@ -67,7 +68,7 @@ export async function exportFilledTemplateExcel(
           id: `cie_${String(d.catalogCode).toLowerCase()}_${Date.now()}`,
           catalogCode: String(d.catalogCode || 'GLU').toUpperCase(),
           equipmentId: String(d.equipmentId || context.equipments[0]?.id || 'eq_1'),
-          evaluationType: (d.evaluationType as 'range' | 'scale') || 'range',
+          evaluationType: (d.evaluationType as EvaluationType) || 'range',
           refMin: typeof d.refMin === 'number' ? d.refMin : null,
           refMax: typeof d.refMax === 'number' ? d.refMax : null,
           unit: String(d.unit || ''),

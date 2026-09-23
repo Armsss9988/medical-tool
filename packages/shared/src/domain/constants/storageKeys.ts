@@ -15,7 +15,8 @@ export const STORAGE_KEYS = {
   REFERENCE_RANGES: 'referenceRanges',
   CATALOG_ITEM_EQUIPMENTS: 'catalogItemEquipments',
   ALLERGEN_SCALES: 'allergenScales',
-  REPORT_TEMPLATES: 'report_templates'
+  REPORT_TEMPLATES: 'report_templates',
+  ACTIVE_DRAFT: 'active_draft'
 } as const;
 
 export type StorageKey = typeof STORAGE_KEYS[keyof typeof STORAGE_KEYS];
