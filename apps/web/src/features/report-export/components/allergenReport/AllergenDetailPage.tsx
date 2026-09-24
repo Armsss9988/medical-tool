@@ -49,17 +49,28 @@ function AllergenDetailPage({
 
         {/* Bảng Chi Tiết */}
         <div className="border border-slate-300 rounded bg-white">
-          <table className="w-full text-[11.5px] border-collapse">
+          <table className="w-full table-fixed text-[11.5px] border-collapse">
+            <colgroup>
+              <col style={{ width: '4%' }} />
+              <col style={{ width: '7%' }} />
+              <col style={{ width: '22%' }} />
+              <col style={{ width: '22%' }} />
+              <col style={{ width: '13%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '4%' }} />
+              <col style={{ width: '8%' }} />
+            </colgroup>
             <thead className="bg-slate-100 text-slate-900 font-bold border-b-2 border-slate-300">
               <tr>
-                <th className="py-2 px-1 w-7 text-center border-r border-slate-300 align-middle leading-snug">TT</th>
-                <th className="py-2 px-1 w-12 text-center border-r border-slate-300 align-middle leading-snug">CODE</th>
+                <th className="py-2 px-1 text-center border-r border-slate-300 align-middle leading-snug">TT</th>
+                <th className="py-2 px-1 text-center border-r border-slate-300 align-middle leading-snug">CODE</th>
                 <th className="py-2 px-2 text-left border-r border-slate-300 align-middle leading-snug">TÊN CHỈ SỐ</th>
                 <th className="py-2 px-2 text-left border-r border-slate-300 align-middle leading-snug">TÊN DỊ NGUYÊN</th>
-                <th className="py-2 px-2 w-28 text-left border-r border-slate-300 align-middle leading-snug">Đường dị ứng</th>
-                <th className="py-2 px-1.5 w-20 text-center border-r border-slate-300 leading-tight align-middle">BÌNH THƯỜNG<br/>({commonUnit})</th>
-                <th className="py-2 px-1.5 w-20 text-center border-r border-slate-300 leading-tight align-middle">KẾT QUẢ<br/>({commonUnit})</th>
-                <th className="py-2 px-1 w-10 text-center border-r border-slate-300 leading-tight align-middle">ĐỘ<br/>(+)</th>
+                <th className="py-2 px-2 text-left border-r border-slate-300 align-middle leading-snug">Đường dị ứng</th>
+                <th className="py-2 px-1 text-center border-r border-slate-300 leading-tight align-middle">BÌNH THƯỜNG<br/>({commonUnit})</th>
+                <th className="py-2 px-1 text-center border-r border-slate-300 leading-tight align-middle">KẾT QUẢ<br/>({commonUnit})</th>
+                <th className="py-2 px-1 text-center border-r border-slate-300 leading-tight align-middle">ĐỘ<br/>(+)</th>
                 <th className="py-2 px-2 text-left align-middle leading-snug">GHI CHÚ</th>
               </tr>
             </thead>
@@ -80,7 +91,7 @@ function AllergenDetailPage({
                     <td className="py-1.5 px-2 text-slate-600 border-r border-slate-300 text-[11px] align-middle leading-snug">{item.route}</td>
                     <td className="py-1.5 px-1.5 text-center font-mono text-slate-600 border-r border-slate-300 text-[11.5px] align-middle leading-snug">{item.normalRef}</td>
                     <td className={`py-1.5 px-1.5 text-center font-mono border-r border-slate-300 text-[12.5px] align-middle leading-snug ${resultTextColor}`}>
-                      {item.result}
+                      {item.result || (item.isTIgE ? '' : item.normalRef)}
                     </td>
                     <td className="py-1.5 px-1 text-center align-middle leading-snug">
                       {item.isTIgE ? '' : (item.isPositive ? (

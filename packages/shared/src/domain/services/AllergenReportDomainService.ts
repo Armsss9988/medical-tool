@@ -1,7 +1,6 @@
 import { SelectedTest, TestPackage, AllergenDatabaseItem, AllergenGradingScale, getPkgCodes, getPkgItems } from '../types';
-import { calculateAllergenGrade } from '../allergen';
+import { calculateAllergenGrade, getAllergenScaleById } from '../allergen';
 import { computePricingWithPackages } from '../pricing';
-import { getAllergenScaleById } from '../constants/allergenScales';
 import { isTIgETest } from '../allergenDetector';
 
 export interface AllergenReportItemDTO {
@@ -151,6 +150,7 @@ export class AllergenReportDomainService {
 
       const maxTIgERef = t.refMax !== null && t.refMax !== undefined ? Number(t.refMax) : AllergenReportDomainService.TIGE_NORMAL_MAX;
 
+      let allergenNote = t.note || dbItem?.note || '';
       if (isTIgE) {
         const numVal = parseFloat(String(t.result || '').replace(',', '.'));
         const isHighByNote = t.note
@@ -162,6 +162,9 @@ export class AllergenReportDomainService {
         const gradeRes = calculateAllergenGrade(t.result || t.note, scale);
         grade = gradeRes.grade;
         isPositive = grade >= 1;
+        if (!allergenNote) {
+          allergenNote = gradeRes.note;
+        }
         if (scale) {
           appliedScalesMap.set(scale.id, scale);
         }
@@ -170,16 +173,49 @@ export class AllergenReportDomainService {
       const ext = t as SelectedTest & { allergenName?: string; route?: string };
       const cleanRefText = t.refText ? t.refText.replace(/\s*\(Độ\s*0\)/i, '').trim() : '';
       const formattedMaxTIgE = Number.isInteger(maxTIgERef) ? `<${maxTIgERef},0` : `<${maxTIgERef}`.replace('.', ',');
-      const normalRef = isTIgE
+      let normalRef = isTIgE
         ? (t.refText || formattedMaxTIgE)
         : (scale?.levels[0]?.rangeText
             || cleanRefText
             || dbItem?.normalRef
-            || (scale?.levels[0]?.maxVal !== undefined && scale?.levels[0]?.maxVal !== null ? `<${scale.levels[0].maxVal}`.replace('.', ',') : '<0,34>'));
+            || (scale?.levels[0]?.maxVal !== undefined && scale?.levels[0]?.maxVal !== null ? `<${scale.levels[0].maxVal}` : '<0.34'));
+
+      // Chuẩn hóa và làm sạch normalRef cho dị nguyên
+      if (!isTIgE) {
+        normalRef = normalRef.replace(/\s*\(Độ\s*0\)/i, '').trim();
+        const isStandardAllergen = scaleId === 'scale_allergen_44' || scaleId === 'scale_protia_91' || scale?.levels[0]?.maxVal === 0.34;
+        if (isStandardAllergen && /0[.,]35/.test(normalRef)) {
+          normalRef = '<0.34';
+        }
+        // Chuẩn hóa dấu phẩy thành dấu chấm cho đồng nhất giữa các cột
+        normalRef = normalRef.replace(',', '.');
+      }
 
       const rawResultStr = (t.result !== undefined && t.result !== null && String(t.result).trim() !== '')
         ? String(t.result).trim()
         : '';
+
+      // Tự động điền giá trị kết quả Độ 0 chuẩn theo thang đo cho dị nguyên:
+      // - Với Total IgE (TIgE): Giữ nguyên chuỗi nhập (không tự ý điền kết quả nếu chưa đo)
+      // - Với dị nguyên thông thường:
+      //   + Nếu trống (''), tự động điền normalRef (ví dụ <0.34)
+      //   + Nếu mang giá trị âm tính Độ 0 (ví dụ <0.35, <0.34, < 0.35, Âm tính...) và không dương tính (grade === 0):
+      //     Đồng bộ 100% với normalRef để cột BÌNH THƯỜNG và KẾT QUẢ khớp hoàn toàn, không bị lệch
+      let effectiveResult = '';
+      if (isTIgE) {
+        effectiveResult = rawResultStr;
+      } else {
+        const isNegativeOrPlaceholder =
+          rawResultStr === '' ||
+          /^<\s*0[.,]3[45]$/i.test(rawResultStr) ||
+          /^<\s*0[.,]34/i.test(rawResultStr) ||
+          /^Âm tính/i.test(rawResultStr) ||
+          /^Không phản ứng/i.test(rawResultStr) ||
+          (grade === 0 && rawResultStr.startsWith('<')) ||
+          rawResultStr.replace(',', '.') === normalRef;
+
+        effectiveResult = isNegativeOrPlaceholder ? normalRef : rawResultStr;
+      }
 
       return {
         tt: idx + 1,
@@ -188,12 +224,12 @@ export class AllergenReportDomainService {
         allergenName: ext.allergenName || dbItem?.allergenName || (isTIgE ? 'Total IgE' : t.name),
         route: ext.route || dbItem?.route || (isTIgE ? 'Kháng thể huyết thanh' : 'Đường tiêu hóa / Hô hấp'),
         normalRef,
-        result: rawResultStr,
+        result: effectiveResult,
         unit: t.unit || 'IU/ml',
         grade,
         isPositive,
         isTIgE,
-        note: t.note || dbItem?.note || '',
+        note: allergenNote,
         scale: isTIgE ? undefined : scale
       };
     });

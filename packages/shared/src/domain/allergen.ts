@@ -23,19 +23,36 @@ export function normalizeAllergenScale(scale?: AllergenGradingScale | null): All
   };
 }
 
+/**
+ * Lấy thông tin thang đo dị nguyên theo ID từ danh sách thang đo (customScales) nạp từ cơ sở dữ liệu.
+ * Hoàn toàn hướng cơ sở dữ liệu (Database-Driven), không sử dụng hằng số tĩnh hardcode.
+ */
+export function getAllergenScaleById(
+  id?: string,
+  customScales?: AllergenGradingScale[]
+): AllergenGradingScale | undefined {
+  if (!customScales || customScales.length === 0) {
+    return undefined;
+  }
+  const found = id ? customScales.find((s) => s.id === id) : customScales[0];
+  return found ? normalizeAllergenScale(found) : undefined;
+}
+
 export function calculateAllergenGrade(
   valStr: string | number | null | undefined,
   scaleInput?: AllergenGradingScale
 ): AllergenGradeResult {
+  const scale = normalizeAllergenScale(scaleInput);
+  const levels = scale?.levels || [];
+
   if (valStr === undefined || valStr === null || String(valStr).trim() === '') {
-    return { grade: 0, iuValue: '<0,15', note: 'Âm tính (Độ 0)', statusStr: 'Âm tính' };
+    const level0 = levels.find((l) => l.grade === 0) || levels[0];
+    const defaultText = level0?.rangeText || (level0?.maxVal != null ? `<${level0.maxVal}` : '<0.34');
+    return { grade: 0, iuValue: defaultText, note: 'Âm tính (Độ 0)', statusStr: 'Âm tính' };
   }
 
   const cleanStr = String(valStr).trim().replace(',', '.');
   const num = parseFloat(cleanStr);
-
-  const scale = normalizeAllergenScale(scaleInput);
-  const levels = scale?.levels || [];
 
   if (!scale || levels.length === 0) {
     if (cleanStr.startsWith('<')) {
@@ -93,10 +110,14 @@ export function calculateAllergenGrade(
   }
 
   const grade = (matchedLevel.grade || 0) as AllergenGrade;
+  const rawLabel = matchedLevel.label || (matchedLevel as { interpretation?: string }).interpretation || '';
+  const cleanLabel = rawLabel.trim();
   const note =
     grade === 0
       ? 'Âm tính (Độ 0)'
-      : `Dương tính ${matchedLevel.label.toLowerCase()} (Độ ${grade})`;
+      : cleanLabel
+        ? `Dương tính ${cleanLabel.toLowerCase()} (Độ ${grade})`
+        : `Dương tính (Độ ${grade})`;
 
   return {
     grade,

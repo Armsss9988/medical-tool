@@ -256,7 +256,7 @@ describe('ReportPaginationAndIndicatorsMatrix - Comprehensive Tests Across Indic
         category: 'Dị nguyên',
         result: '3.5',
         unit: 'kU/L',
-        refText: '< 0.35',
+        refText: '< 0.34',
         price: 200000,
         note: 'Dương tính'
       }
@@ -296,7 +296,7 @@ describe('ReportPaginationAndIndicatorsMatrix - Comprehensive Tests Across Indic
         category: 'Dị nguyên',
         result: '4.2',
         unit: 'kU/L',
-        refText: '< 0.35',
+        refText: '< 0.34',
         price: 250000,
         note: 'Dương tính'
       }

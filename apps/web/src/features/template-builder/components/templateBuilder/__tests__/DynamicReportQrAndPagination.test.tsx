@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import { DynamicReportView } from '../DynamicReportView';
 import { PRESET_TEMPLATES } from '@domain/templateTypes';
-import { Patient, SelectedTest, DEFAULT_CLINIC_INFO } from '@domain/types';
+import { Patient, SelectedTest, DEFAULT_CLINIC_INFO, AllergenGradingScale } from '@domain/types';
 
 vi.mock('@infra/qrService', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@infra/qrService')>();
@@ -76,6 +76,21 @@ describe('DynamicReportView - QR Fallback & Allergen Pagination Tests', () => {
     return list;
   };
 
+  const mockScale44: AllergenGradingScale = {
+    id: 'scale_allergen_44',
+    name: 'Thang đo 44 Dị Nguyên IgE (MEDIWISS)',
+    unit: 'IU/ml',
+    levels: [
+      { grade: 0, minVal: 0, maxVal: 0.34, rangeText: '<0.34', label: 'Không phản ứng', isPositive: false },
+      { grade: 1, minVal: 0.35, maxVal: 0.69, rangeText: '0.35 - 0.69', label: 'Yếu', isPositive: true },
+      { grade: 2, minVal: 0.7, maxVal: 3.49, rangeText: '0.70 - 3.49', label: 'Trung bình', isPositive: true },
+      { grade: 3, minVal: 3.5, maxVal: 17.49, rangeText: '3.50 - 17.49', label: 'Khá', isPositive: true },
+      { grade: 4, minVal: 17.5, maxVal: 49.99, rangeText: '17.50 - 49.99', label: 'Mạnh', isPositive: true },
+      { grade: 5, minVal: 50.0, maxVal: 99.99, rangeText: '50.00 - 99.99', label: 'Rất mạnh', isPositive: true },
+      { grade: 6, minVal: 100.0, maxVal: 999999, rangeText: '≥ 100', label: 'Cực mạnh', isPositive: true }
+    ]
+  };
+
   it('renders capsule pill with inline-flex and border-box styling', () => {
     const template = PRESET_TEMPLATES[0];
     const { container } = render(
@@ -145,6 +160,7 @@ describe('DynamicReportView - QR Fallback & Allergen Pagination Tests', () => {
         selectedTests={tests}
         conclusion="Nghi ngờ phản ứng dị ứng với Mạt bụi nhà D1, đề nghị kết hợp lâm sàng."
         doctorName="BS. Trần Hoài Long"
+        allergenScales={[mockScale44]}
       />
     );
 
@@ -201,6 +217,7 @@ describe('DynamicReportView - QR Fallback & Allergen Pagination Tests', () => {
         template={template}
         patient={mockPatientKhang}
         selectedTests={shortTests}
+        allergenScales={[mockScale44]}
       />
     );
 

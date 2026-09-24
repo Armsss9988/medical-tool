@@ -423,17 +423,28 @@ export const DynamicReportAllergenDetailTableBlock = memo(function DynamicReport
         </h2>
       </div>
       <div className="border border-slate-300 rounded bg-white overflow-hidden">
-        <table className="w-full text-[11.5px] border-collapse">
+        <table className="w-full table-fixed text-[11.5px] border-collapse">
+          <colgroup>
+            {cols.tt && <col style={{ width: '4%' }} />}
+            {cols.code && <col style={{ width: '7%' }} />}
+            {cols.name && <col style={{ width: '22%' }} />}
+            {cols.allergenName && <col style={{ width: '22%' }} />}
+            {cols.route && <col style={{ width: '13%' }} />}
+            {cols.normalRef && <col style={{ width: '10%' }} />}
+            {cols.result && <col style={{ width: '10%' }} />}
+            {cols.grade && <col style={{ width: '4%' }} />}
+            {cols.note && <col style={{ width: '8%' }} />}
+          </colgroup>
           <thead className="bg-slate-100 text-slate-900 font-bold border-b-2 border-slate-300">
             <tr>
-              {cols.tt && <th className="py-2 px-1 w-7 text-center border-r border-slate-300 align-middle leading-snug">TT</th>}
-              {cols.code && <th className="py-2 px-1 w-12 text-center border-r border-slate-300 align-middle leading-snug">CODE</th>}
+              {cols.tt && <th className="py-2 px-1 text-center border-r border-slate-300 align-middle leading-snug">TT</th>}
+              {cols.code && <th className="py-2 px-1 text-center border-r border-slate-300 align-middle leading-snug">CODE</th>}
               {cols.name && <th className="py-2 px-2 text-left border-r border-slate-300 align-middle leading-snug">TÊN CHỈ SỐ</th>}
               {cols.allergenName && <th className="py-2 px-2 text-left border-r border-slate-300 align-middle leading-snug">TÊN DỊ NGUYÊN</th>}
-              {cols.route && <th className="py-2 px-2 w-28 text-left border-r border-slate-300 align-middle leading-snug">Đường dị ứng</th>}
-              {cols.normalRef && <th className="py-2 px-1.5 w-20 text-center border-r border-slate-300 leading-tight align-middle">BÌNH THƯỜNG<br/>(IU/ml)</th>}
-              {cols.result && <th className="py-2 px-1.5 w-20 text-center border-r border-slate-300 leading-tight align-middle">KẾT QUẢ<br/>(IU/ml)</th>}
-              {cols.grade && <th className="py-2 px-1 w-10 text-center border-r border-slate-300 leading-tight align-middle">ĐỘ<br/>(+)</th>}
+              {cols.route && <th className="py-2 px-2 text-left border-r border-slate-300 align-middle leading-snug">Đường dị ứng</th>}
+              {cols.normalRef && <th className="py-2 px-1 text-center border-r border-slate-300 leading-tight align-middle">BÌNH THƯỜNG<br/>(IU/ml)</th>}
+              {cols.result && <th className="py-2 px-1 text-center border-r border-slate-300 leading-tight align-middle">KẾT QUẢ<br/>(IU/ml)</th>}
+              {cols.grade && <th className="py-2 px-1 text-center border-r border-slate-300 leading-tight align-middle">ĐỘ<br/>(+)</th>}
               {cols.note && <th className="py-2 px-2 text-left align-middle leading-snug">GHI CHÚ</th>}
             </tr>
           </thead>
@@ -452,7 +463,7 @@ export const DynamicReportAllergenDetailTableBlock = memo(function DynamicReport
                   {cols.normalRef && <td className="py-1.5 px-1.5 text-center font-mono text-slate-600 border-r border-slate-300 text-[11.5px] align-middle leading-snug">{item.normalRef}</td>}
                   {cols.result && (
                     <td className={`py-1.5 px-1.5 text-center font-mono border-r border-slate-300 text-[12.5px] align-middle leading-snug ${resultTextColor}`}>
-                      {item.result}
+                      {item.result || (item.isTIgE ? '' : item.normalRef)}
                     </td>
                   )}
                   {cols.grade && (

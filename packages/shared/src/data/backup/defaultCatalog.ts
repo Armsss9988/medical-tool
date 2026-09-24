@@ -15,7 +15,7 @@ const ALLERGEN_CATALOG_ITEMS: CatalogItem[] = ALLERGEN_91_DATABASE.map(item => {
   }
 
   const scaleId = item.tt <= 61 ? 'scale_allergen_44' : 'scale_protia_91';
-  const normalRef = item.tt <= 61 ? '< 0,35 (Độ 0)' : '< 0,34 (Độ 0)';
+  const normalRef = '< 0,34 (Độ 0)';
 
   return {
     category,
@@ -23,7 +23,7 @@ const ALLERGEN_CATALOG_ITEMS: CatalogItem[] = ALLERGEN_91_DATABASE.map(item => {
     name: item.name,
     scientific: item.allergenName || (isTIgE ? 'Total IgE' : item.name),
     refMin: 0,
-    refMax: isTIgE ? 15.0 : (item.tt <= 61 ? 0.35 : 0.34),
+    refMax: isTIgE ? 15.0 : 0.34,
     unit: 'IU/mL',
     refText: isTIgE ? '< 15,0' : (item.normalRef || normalRef),
     referenceRangeId: isTIgE ? 'ref_tige' : undefined,

@@ -8,7 +8,7 @@ import {
   SelectedTest,
   DEFAULT_TEST_EQUIPMENTS
 } from '../types';
-import { getAllergenScaleById } from '../constants/allergenScales';
+import { getAllergenScaleById } from '../allergen';
 import { evaluateTestIndicator } from '../testResult';
 import { isTIgETest } from '../allergenDetector';
 
@@ -182,7 +182,11 @@ export function resolveIndicatorReference(
         ? level0.maxVal
         : (item.refMax !== undefined && item.refMax !== null ? item.refMax : 0.34);
       const unit = matchedLink?.unit || scale?.unit || item.unit || 'IU/ml';
-      const refText = matchedLink?.refText || (level0?.rangeText ? `${level0.rangeText} (Độ 0)` : (item.refMax !== undefined && item.refMax !== null ? `<${item.refMax} (Độ 0)` : '<0.34 (Độ 0)'));
+      const baseRange = level0?.rangeText;
+      const scaleRefText = baseRange
+        ? (baseRange.includes('(Độ') ? baseRange : `${baseRange} (Độ 0)`)
+        : undefined;
+      const refText = scaleRefText || matchedLink?.refText || (item.refMax !== undefined && item.refMax !== null ? `<${item.refMax} (Độ 0)` : '<0.34 (Độ 0)');
       const label = level0?.label || 'Không phản ứng';
 
       return {
@@ -301,7 +305,7 @@ export function buildSelectedTest(
 /**
  * Tính toán giá trị điền nhanh chuẩn bình thường (Quick Demo / Auto Fill Normal Values):
  * - TIgE: '<15,0', 'Bình thường'
- * - Dị nguyên (Allergen): '<0.35' (Scale 44) hoặc '<0.34' (Scale 91...), 'Âm tính (Độ 0)'
+ * - Dị nguyên (Allergen): '<0.34' (Scale 44, Scale 91...), 'Âm tính (Độ 0)'
  * - Xét nghiệm thường:
  *   + Có cả min & max: Điểm giữa (min + max) / 2
  *   + Chỉ có max: max * 0.7

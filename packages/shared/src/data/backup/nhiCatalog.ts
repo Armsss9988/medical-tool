@@ -6,7 +6,7 @@ import { CatalogItem } from '../../domain/types';
 
 export const NHI_CATALOG: CatalogItem[] = [
   // Dị Nguyên Panel
-  { category: 'Dị Nguyên', code: 'DN44', name: 'Dị nguyên 44', scaleId: 'scale_allergen_44', evaluationType: 'scale', refMin: 0.0, refMax: 0.35, unit: 'IU/mL', refText: '< 0,35 (Độ 0)', price: 1400000, equipment: 'MEDIWISS AlleisaScreen 44 BLOTrix Reader C1' },
+  { category: 'Dị Nguyên', code: 'DN44', name: 'Dị nguyên 44', scaleId: 'scale_allergen_44', evaluationType: 'scale', refMin: 0.0, refMax: 0.34, unit: 'IU/mL', refText: '< 0,34 (Độ 0)', price: 1400000, equipment: 'MEDIWISS AlleisaScreen 44 BLOTrix Reader C1' },
   { category: 'Dị Nguyên', code: 'DN61', name: 'Dị nguyên 61', scaleId: 'scale_protia_91', evaluationType: 'scale', refMin: 0.0, refMax: 0.34, unit: 'IU/mL', refText: '< 0,34 (Độ 0)', price: 1600000, equipment: 'PROTIA Allergy-Q Smart Q-processor' },
   { category: 'Dị Nguyên', code: 'DN91', name: 'Dị nguyên 91', scaleId: 'scale_protia_91', evaluationType: 'scale', refMin: 0.0, refMax: 0.34, unit: 'IU/mL', refText: '< 0,34 (Độ 0)', price: 1900000, equipment: 'PROTIA Allergy-Q Smart Q-processor' },
   { category: 'Dị Nguyên', code: 'DN107', name: 'Dị nguyên 107', scaleId: 'scale_protia_91', evaluationType: 'scale', refMin: 0.0, refMax: 0.29, unit: 'kUA/L', refText: '0 - 0.29', price: 2220000, equipment: 'MADx ALEX2 MAX 9k' },

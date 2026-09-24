@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { TestTube, Plus, Trash2, Search, Layers, Sparkles, X, ClipboardPaste, Clock, Keyboard, ChevronUp, ChevronDown } from 'lucide-react';
-import { buildSelectedTest, computeAutoFillValue, evaluateIndicatorChange, resolveIndicatorReference, evaluateTestIndicator } from '@domain';
+import { buildSelectedTest, computeAutoFillValue, evaluateIndicatorChange, resolveIndicatorReference, evaluateTestIndicator, isTIgETest } from '@domain';
 import { CatalogItem, SelectedTest, TestPackage, TestGroup, ToastType, getPkgCodes, getPkgItems, TestEquipment, CatalogItemEquipmentLink, ReferenceRangeItem, AllergenGradingScale } from '@domain/types';
 import { computePricingWithPackages } from '@domain/pricing';
 import NoteCombobox from './NoteCombobox';
@@ -229,17 +229,38 @@ export default function TestTable({
         });
 
         // Tự động điền giá trị mặc định của gói nếu được bật
-        if (autoFillPackageDefaults && pkgItem?.hasDefaultValue && pkgItem.defaultValue != null && pkgItem.defaultValue !== '') {
-          const rawVal = String(pkgItem.defaultValue);
-          const evaluated = evaluateIndicatorChange(selected, rawVal, {
-            catalogItemEquipments,
-            referenceRanges,
-            allergenScales,
-            equipments
-          });
-          selected.result = evaluated.result;
-          selected.note = evaluated.note;
-          autoFilledCount++;
+        if (autoFillPackageDefaults) {
+          if (pkgItem?.hasDefaultValue && pkgItem.defaultValue != null && pkgItem.defaultValue !== '') {
+            const rawVal = String(pkgItem.defaultValue);
+            const evaluated = evaluateIndicatorChange(selected, rawVal, {
+              catalogItemEquipments,
+              referenceRanges,
+              allergenScales,
+              equipments
+            });
+            selected.result = evaluated.result;
+            selected.note = evaluated.note;
+            autoFilledCount++;
+          } else {
+            // Đối với chỉ số dị nguyên trong gói không có defaultValue riêng: Tự động điền giá trị âm tính Độ 0 chuẩn theo thang đo
+            const resolvedInd = resolveIndicatorReference(selected, {
+              catalogItemEquipments,
+              referenceRanges,
+              allergenScales,
+              equipments
+            });
+            if (resolvedInd.isAllergen && !isTIgETest(selected)) {
+              const fill = computeAutoFillValue(selected, {
+                catalogItemEquipments,
+                referenceRanges,
+                allergenScales,
+                equipments
+              });
+              selected.result = fill.result;
+              selected.note = fill.note;
+              autoFilledCount++;
+            }
+          }
         }
 
         return selected;
@@ -262,6 +283,23 @@ export default function TestTable({
             equipments
           });
           return { ...t, result: evaluated.result, note: evaluated.note };
+        } else if (!t.result || t.result.trim() === '') {
+          const resolvedInd = resolveIndicatorReference(t, {
+            catalogItemEquipments,
+            referenceRanges,
+            allergenScales,
+            equipments
+          });
+          if (resolvedInd.isAllergen && !isTIgETest(t)) {
+            updatedExistingCount++;
+            const fill = computeAutoFillValue(t, {
+              catalogItemEquipments,
+              referenceRanges,
+              allergenScales,
+              equipments
+            });
+            return { ...t, result: fill.result, note: fill.note };
+          }
         }
         return t;
       });

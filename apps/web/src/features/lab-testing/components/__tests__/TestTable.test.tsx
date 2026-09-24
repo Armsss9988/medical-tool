@@ -313,5 +313,68 @@ describe('TestTable - Package Selection with Default Values', () => {
       expect(selectedTests[0].result).toBe('0');
       expect(selectedTests[0].note).toBe('Không Phát Hiện');
     });
+
+    it('tự động điền giá trị âm tính (<0.34 theo thang đo) cho gói dị nguyên khi bật autoFillPackageDefaults', () => {
+      const allergenCatalog: CatalogItem[] = [
+        {
+          code: 'd1',
+          name: 'Mạt bụi d1',
+          category: 'Dị Nguyên Hô Hấp',
+          unit: 'IU/ml',
+          refText: '',
+          scaleId: 'scale_protia_91',
+          evaluationType: 'scale',
+          price: 150000
+        },
+        {
+          code: 'f1',
+          name: 'Lòng trắng trứng f1',
+          category: 'Dị Nguyên Thực Phẩm',
+          unit: 'IU/ml',
+          refText: '',
+          scaleId: 'scale_allergen_44',
+          evaluationType: 'scale',
+          price: 150000
+        }
+      ];
+
+      const allergenPackage: TestPackage = {
+        id: 'pkg_dn_combo',
+        name: 'Gói Dị Nguyên Test',
+        price: 300000,
+        items: [
+          { code: 'd1', orderIndex: 1 },
+          { code: 'f1', orderIndex: 2 }
+        ]
+      };
+
+      let selectedTests: SelectedTest[] = [];
+      const setSelectedTests = vi.fn((action) => {
+        selectedTests = typeof action === 'function' ? action(selectedTests) : action;
+      });
+
+      render(
+        <TestTable
+          catalog={allergenCatalog}
+          testPackages={[allergenPackage]}
+          selectedTests={selectedTests}
+          setSelectedTests={setSelectedTests}
+        />
+      );
+
+      const pkgBtn = screen.getByText(/\+ Gói Dị Nguyên Test/i);
+      fireEvent.click(pkgBtn);
+
+      expect(selectedTests.length).toBe(2);
+      // d1 thuộc Protia 91 -> tự động điền <0.34
+      expect(selectedTests[0].code).toBe('d1');
+      expect(selectedTests[0].result).toBe('<0.34');
+      expect(selectedTests[0].note).toBe('Âm tính (Độ 0)');
+
+      // f1 thuộc Mediwiss 44 -> tự động điền <0.34
+      expect(selectedTests[1].code).toBe('f1');
+      expect(selectedTests[1].result).toBe('<0.34');
+      expect(selectedTests[1].note).toBe('Âm tính (Độ 0)');
+    });
   });
 });

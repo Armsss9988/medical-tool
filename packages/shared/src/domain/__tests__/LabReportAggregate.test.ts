@@ -105,7 +105,7 @@ describe('LabReportAggregate', () => {
           name: 'Lòng trắng trứng (Egg white)',
           category: 'Dị Nguyên Thực Phẩm',
           unit: 'IU/mL',
-          refText: '< 0.35',
+          refText: '< 0.34',
           result: '15.4',
           note: 'Độ 3'
         }

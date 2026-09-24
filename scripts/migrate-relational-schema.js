@@ -306,7 +306,7 @@ async function run() {
           max_range = EXCLUDED.max_range,
           levels_json = EXCLUDED.levels_json,
           updated_at = NOW();
-      `, [sc.id, sc.name, 0, sc.id === 'scale_allergen_44' ? 0.35 : 0.34, JSON.stringify(sc.levels)]);
+      `, [sc.id, sc.name, 0, 0.34, JSON.stringify(sc.levels)]);
     }
     console.log(`✓ Đã nạp ${scales.length} thang đo dị ứng vào [allergen_scales].`);
 

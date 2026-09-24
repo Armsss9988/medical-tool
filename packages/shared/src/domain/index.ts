@@ -46,7 +46,6 @@ export * from './events/DomainEventBus';
 
 // Constants & Enums
 export * from './constants';
-export * from './constants/allergenScales';
 
 // AI Smart Filler & Ingestion Domain
 export * from './ai/aiTypes';

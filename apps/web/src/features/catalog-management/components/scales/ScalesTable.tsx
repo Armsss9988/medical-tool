@@ -105,8 +105,8 @@ export function ScalesTable({ scales, setScales, equipments }: ScalesTableProps)
       equipment: equipments[0]?.name || 'Thiết Bị Tự Động',
       unit: 'IU/ml',
       levels: [
-        { grade: 0, minVal: 0, maxVal: 0.35, rangeText: '<0.35', label: 'Không phản ứng', isPositive: false, colorKey: 'white' },
-        { grade: 1, minVal: 0.36, maxVal: 3.49, rangeText: '0.36 - 3.49', label: 'Nhẹ / Trung bình', isPositive: true, colorKey: 'amber' },
+        { grade: 0, minVal: 0, maxVal: 0.34, rangeText: '<0.34', label: 'Không phản ứng', isPositive: false, colorKey: 'white' },
+        { grade: 1, minVal: 0.35, maxVal: 3.49, rangeText: '0.35 - 3.49', label: 'Nhẹ / Trung bình', isPositive: true, colorKey: 'amber' },
         { grade: 2, minVal: 3.50, maxVal: null, rangeText: '>3.50', label: 'Dương tính mạnh', isPositive: true, colorKey: 'red-bold' }
       ]
     };

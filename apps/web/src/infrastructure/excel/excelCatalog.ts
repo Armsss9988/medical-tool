@@ -134,7 +134,7 @@ export async function exportCatalogItemsTemplate(
       refMax: isScale ? '' : (item.refMax !== null && item.refMax !== undefined ? item.refMax : ''),
       scaleName: isScale ? scaleName : '',
       refText: {
-        formula: `=IF(G${r}="Thang phân độ",IF(J${r}="Gói 44 (Độ 0-6)","< 0.35 (Độ 0)","< 0.34 (Độ 0)"),IF(AND(H${r}<>"",I${r}<>""),H${r}&" - "&I${r},IF(H${r}<>"","&gt;= "&H${r},IF(I${r}<>"","&lt;= "&I${r},""))))`,
+        formula: `=IF(G${r}="Thang phân độ","< 0.34 (Độ 0)",IF(AND(H${r}<>"",I${r}<>""),H${r}&" - "&I${r},IF(H${r}<>"","&gt;= "&H${r},IF(I${r}<>"","&lt;= "&I${r},""))))`,
         result: item.refText || (isScale ? '< 0.34 (Độ 0)' : (item.refMin !== null && item.refMax !== null ? `${item.refMin} - ${item.refMax}` : ''))
       },
       price: item.price || 0
@@ -181,7 +181,7 @@ export async function exportCatalogItemsTemplate(
     if (r > targetItems.length + 1) {
       const refCell = row.getCell(11);
       refCell.value = {
-        formula: `=IF(G${r}="Thang phân độ",IF(J${r}="Gói 44 (Độ 0-6)","< 0.35 (Độ 0)","< 0.34 (Độ 0)"),IF(AND(H${r}<>"",I${r}<>""),H${r}&" - "&I${r},IF(H${r}<>"","&gt;= "&H${r},IF(I${r}<>"","&lt;= "&I${r},""))))`
+        formula: `=IF(G${r}="Thang phân độ","< 0.34 (Độ 0)",IF(AND(H${r}<>"",I${r}<>""),H${r}&" - "&I${r},IF(H${r}<>"","&gt;= "&H${r},IF(I${r}<>"","&lt;= "&I${r},""))))`
       };
       refCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0FDF4' } };
       refCell.font = { color: { argb: 'FF047857' }, bold: true };
@@ -295,7 +295,7 @@ export async function parseExcelCatalog(fileOrBuffer: Blob | ArrayBuffer): Promi
     let refText = rawRefText;
     if (!refText) {
       if (isScale) {
-        refText = scaleId === 'scale_allergen_44' ? '< 0.35 (Độ 0)' : '< 0.34 (Độ 0)';
+        refText = '< 0.34 (Độ 0)';
       } else if (refMin !== null && refMax !== null) {
         refText = `${refMin} - ${refMax}`;
       } else if (refMin !== null) {
@@ -460,7 +460,7 @@ export async function exportCatalogItemEquipmentsTemplate(
       max: isScale ? '' : (row.refMax !== null ? row.refMax : ''),
       scale: isScale ? scaleName : '',
       refText: {
-        formula: `=IF(E${r}="Thang phân độ",IF(H${r}="Gói 44 (Độ 0-6)","< 0.35 (Độ 0)","< 0.34 (Độ 0)"),IF(AND(F${r}<>"",G${r}<>""),F${r}&" - "&G${r},IF(F${r}<>"","&gt;= "&F${r},IF(G${r}<>"","&lt;= "&G${r},""))))`,
+        formula: `=IF(E${r}="Thang phân độ","< 0.34 (Độ 0)",IF(AND(F${r}<>"",G${r}<>""),F${r}&" - "&G${r},IF(F${r}<>"","&gt;= "&F${r},IF(G${r}<>"","&lt;= "&G${r},""))))`,
         result: row.refText || (isScale ? '< 0.34 (Độ 0)' : (row.refMin !== null && row.refMax !== null ? `${row.refMin} - ${row.refMax}` : ''))
       },
       def: row.isDefault ? 'Có' : 'Không'
@@ -520,7 +520,7 @@ export async function exportCatalogItemEquipmentsTemplate(
     if (r > targetRows.length + 1) {
       const refCell = row.getCell(9);
       refCell.value = {
-        formula: `=IF(E${r}="Thang phân độ",IF(H${r}="Gói 44 (Độ 0-6)","< 0.35 (Độ 0)","< 0.34 (Độ 0)"),IF(AND(F${r}<>"",G${r}<>""),F${r}&" - "&G${r},IF(F${r}<>"","&gt;= "&F${r},IF(G${r}<>"","&lt;= "&G${r},""))))`
+        formula: `=IF(E${r}="Thang phân độ","< 0.34 (Độ 0)",IF(AND(F${r}<>"",G${r}<>""),F${r}&" - "&G${r},IF(F${r}<>"","&gt;= "&F${r},IF(G${r}<>"","&lt;= "&G${r},""))))`
       };
       refCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0FDF4' } };
       refCell.font = { color: { argb: 'FF047857' }, bold: true };
@@ -612,7 +612,7 @@ export async function parseExcelCatalogItemEquipments(
     let refText = rawRefText;
     if (!refText) {
       if (isScale) {
-        refText = scaleId === 'scale_allergen_44' ? '< 0.35 (Độ 0)' : '< 0.34 (Độ 0)';
+        refText = '< 0.34 (Độ 0)';
       } else if (refMin !== null && refMax !== null) {
         refText = `${refMin} - ${refMax}`;
       } else if (refMin !== null) {

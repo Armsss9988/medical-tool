@@ -25,7 +25,7 @@ describe('Unified Reference Resolver (resolveIndicatorReference)', () => {
       name: 'MEDIWISS 44',
       unit: 'IU/ml',
       levels: [
-        { grade: 0, minVal: 0, maxVal: 0.34, rangeText: '<0.35', label: 'Không phản ứng', isPositive: false },
+        { grade: 0, minVal: 0, maxVal: 0.34, rangeText: '<0.34', label: 'Không phản ứng', isPositive: false },
         { grade: 1, minVal: 0.35, maxVal: 0.69, rangeText: '0.35 - 0.69', label: 'Yếu', isPositive: true }
       ]
     }
@@ -144,7 +144,7 @@ describe('Unified Reference Resolver (resolveIndicatorReference)', () => {
     });
 
     expect(resolved.scaleId).toBe('scale_allergen_44');
-    expect(resolved.refText).toBe('<0.35 (Độ 0)');
+    expect(resolved.refText).toBe('<0.34 (Độ 0)');
     expect(resolved.equipmentName).toBe('Máy MEDIWISS AlleisaScreen 44');
   });
 
@@ -250,7 +250,7 @@ describe('Unified Reference Resolver (resolveIndicatorReference)', () => {
         catalogItemEquipments: mockEquipmentLinks,
         allergenScales: mockScales
       });
-      expect(fill.result).toBe('<0.35');
+      expect(fill.result).toBe('<0.34');
       expect(fill.note).toBe('Âm tính (Độ 0)');
     });
 

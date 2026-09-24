@@ -78,7 +78,7 @@ export function IndicatorEquipmentModal({
         else if (minNum != null) finalRefText = `>= ${minNum}`;
         else if (maxNum != null) finalRefText = `<= ${maxNum}`;
       } else if (evalMode === 'scale') {
-        finalRefText = scaleId === 'scale_allergen_44' ? '< 0.35 (Độ 0)' : '< 0.34 (Độ 0)';
+        finalRefText = '< 0.34 (Độ 0)';
       }
     }
 

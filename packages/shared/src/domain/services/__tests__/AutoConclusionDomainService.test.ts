@@ -72,7 +72,7 @@ describe('AutoConclusionDomainService', () => {
     refMax: 0.34,
     result: '<0.15',
     note: 'Âm tính (Độ 0)',
-    refText: '< 0.35 (Độ 0)'
+    refText: '< 0.34 (Độ 0)'
   };
 
   const positiveAllergen: SelectedTest = {
@@ -84,7 +84,7 @@ describe('AutoConclusionDomainService', () => {
     refMax: 0.34,
     result: '3.5',
     note: 'Dương tính (Độ 3)',
-    refText: '< 0.35 (Độ 0)'
+    refText: '< 0.34 (Độ 0)'
   };
 
   const positiveTIgE: SelectedTest = {

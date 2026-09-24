@@ -118,7 +118,7 @@ export function IndicatorFormModal({
 
     if (!finalRefText) {
       if (evalMode === 'scale') {
-        finalRefText = scaleId === 'scale_allergen_44' ? '< 0.35 (Độ 0)' : '< 0.34 (Độ 0)';
+        finalRefText = '< 0.34 (Độ 0)';
       } else if (evalMode === 'range') {
         if (minNum != null && maxNum != null) {
           finalRefText = `${minNum} - ${maxNum}`;

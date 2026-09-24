@@ -124,7 +124,7 @@ const DEFAULT_ALLERGEN_SCALES = [
     equipment: 'MEDIWISS AlleisaScreen 44 BLOTrix Reader C1',
     unit: 'IU/ml',
     levels: [
-      { grade: 0, minVal: 0, maxVal: 0.34, rangeText: '<0.35', label: 'Không phản ứng', isPositive: false, colorKey: 'white' },
+      { grade: 0, minVal: 0, maxVal: 0.34, rangeText: '<0.34', label: 'Không phản ứng', isPositive: false, colorKey: 'white' },
       { grade: 1, minVal: 0.35, maxVal: 0.69, rangeText: '0.35 - 0.69', label: 'Yếu', isPositive: true, colorKey: 'amber-light' },
       { grade: 2, minVal: 0.70, maxVal: 3.49, rangeText: '0.70 - 3.49', label: 'Trung bình', isPositive: true, colorKey: 'amber' },
       { grade: 3, minVal: 3.50, maxVal: 17.49, rangeText: '3.50 - 17.49', label: 'Khá', isPositive: true, colorKey: 'red-light' },

@@ -121,7 +121,7 @@ const MOCK_DESIGN_ALLERGEN_TESTS: SelectedTest[] = [
     scientific: 'Dermatophagoides pteronyssinus',
     result: '18.4',
     unit: 'IU/ml',
-    refText: '< 0.35',
+    refText: '< 0.34',
     category: 'Dị nguyên',
     price: 150000,
     note: 'Độ 3'
@@ -132,7 +132,7 @@ const MOCK_DESIGN_ALLERGEN_TESTS: SelectedTest[] = [
     scientific: 'Dermatophagoides farinae',
     result: '24.6',
     unit: 'IU/ml',
-    refText: '< 0.35',
+    refText: '< 0.34',
     category: 'Dị nguyên',
     price: 150000,
     note: 'Độ 4'
@@ -143,7 +143,7 @@ const MOCK_DESIGN_ALLERGEN_TESTS: SelectedTest[] = [
     scientific: 'Cat dander',
     result: '3.8',
     unit: 'IU/ml',
-    refText: '< 0.35',
+    refText: '< 0.34',
     category: 'Dị nguyên',
     price: 150000,
     note: 'Độ 2'
@@ -154,7 +154,7 @@ const MOCK_DESIGN_ALLERGEN_TESTS: SelectedTest[] = [
     scientific: 'Shrimp',
     result: '55.2',
     unit: 'IU/ml',
-    refText: '< 0.35',
+    refText: '< 0.34',
     category: 'Dị nguyên',
     price: 150000,
     note: 'Độ 5'
@@ -165,7 +165,7 @@ const MOCK_DESIGN_ALLERGEN_TESTS: SelectedTest[] = [
     scientific: 'Egg white',
     result: '0.12',
     unit: 'IU/ml',
-    refText: '< 0.35',
+    refText: '< 0.34',
     category: 'Dị nguyên',
     price: 150000,
     note: 'Độ 0 (Âm tính)'

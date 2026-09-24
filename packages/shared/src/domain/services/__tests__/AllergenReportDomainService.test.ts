@@ -24,7 +24,7 @@ describe('AllergenReportDomainService', () => {
     name: 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH (PROTIA 91)',
     unit: 'IU/ml',
     levels: [
-      { grade: 0, minVal: 0, maxVal: 0.34, rangeText: '<0,34', label: 'Không phản ứng', isPositive: false },
+      { grade: 0, minVal: 0, maxVal: 0.34, rangeText: '<0.34', label: 'Không phản ứng', isPositive: false },
       { grade: 1, minVal: 0.35, maxVal: 0.69, rangeText: '0,35 - 0,69', label: 'Yếu', isPositive: true },
       { grade: 2, minVal: 0.70, maxVal: 3.49, rangeText: '0,70 - 3,49', label: 'Trung bình', isPositive: true },
       { grade: 3, minVal: 3.50, maxVal: 17.49, rangeText: '3,50 - 17,49', label: 'Khá', isPositive: true },
@@ -67,7 +67,7 @@ describe('AllergenReportDomainService', () => {
         refMin: 0,
         refMax: 0.34,
         unit: 'IU/mL',
-        refText: '< 0.35 (Độ 0)',
+        refText: '< 0.34 (Độ 0)',
         result: '1.2', // Độ 2
         note: 'Dương tính (Độ 2)'
       },
@@ -78,7 +78,7 @@ describe('AllergenReportDomainService', () => {
         refMin: 0,
         refMax: 0.34,
         unit: 'IU/mL',
-        refText: '< 0.35 (Độ 0)',
+        refText: '< 0.34 (Độ 0)',
         result: '<0.15', // Độ 0
         note: 'Âm tính (Độ 0)'
       }
@@ -120,7 +120,7 @@ describe('AllergenReportDomainService', () => {
         refMin: 0,
         refMax: 0.34,
         unit: 'IU/mL',
-        refText: '< 0.35',
+        refText: '< 0.34',
         result: '1.2', // Thang Protia 91 -> Độ 2
         note: '',
         scaleId: 'scale_protia_91'
@@ -174,7 +174,7 @@ describe('AllergenReportDomainService', () => {
         refMin: 0,
         refMax: 0.34,
         unit: 'IU/mL',
-        refText: '< 0.35 (Độ 0)',
+        refText: '< 0.34 (Độ 0)',
         result: '0.5', // Độ 1
         note: 'Dương tính (Độ 1)'
       }
@@ -201,7 +201,7 @@ describe('AllergenReportDomainService', () => {
       refMin: 0,
       refMax: 0.34,
       unit: 'IU/mL',
-      refText: '< 0.35',
+      refText: '< 0.34',
       result: '<0.15',
       note: 'Âm tính (Độ 0)'
     }));
@@ -255,11 +255,11 @@ describe('AllergenReportDomainService', () => {
       code: `dn_${i + 1}`,
       name: `Dị nguyên ${i + 1}`,
       refMin: 0,
-      refMax: 0.35,
+      refMax: 0.34,
       unit: 'IU/mL',
       result: '<0.15',
       note: 'Âm tính (Độ 0)',
-      refText: '< 0.35'
+      refText: '< 0.34'
     }));
     const tIgETest: SelectedTest = {
       category: 'Miễn Dịch',
@@ -288,11 +288,11 @@ describe('AllergenReportDomainService', () => {
       code: `dn_${i + 1}`,
       name: `Dị nguyên ${i + 1}`,
       refMin: 0,
-      refMax: 0.35,
+      refMax: 0.34,
       unit: 'IU/mL',
       result: '<0.15',
       note: 'Âm tính (Độ 0)',
-      refText: '< 0.35'
+      refText: '< 0.34'
     }));
 
     const dto61 = AllergenReportDomainService.buildReportDTO({
@@ -450,6 +450,141 @@ describe('AllergenReportDomainService', () => {
     expect(dto.packageName).toBe('Gói C6 Kháng Sinh');
     expect(dto.packagePrice).toBe(800000);
   });
+
+  it('tự động điền kết quả Độ 0 (<0.34 theo thang đo) cho chỉ số dị nguyên khi không nhập kết quả', () => {
+    const tests: SelectedTest[] = [
+      {
+        code: 'd1',
+        name: 'Mạt bụi d1 (Protia 91)',
+        category: 'Dị Nguyên Hô Hấp',
+        unit: 'IU/ml',
+        refText: '',
+        scaleId: 'scale_protia_91',
+        result: '', // Không nhập kết quả
+        note: ''
+      },
+      {
+        code: 'f1',
+        name: 'Lòng trắng trứng (Mediwiss 44)',
+        category: 'Dị Nguyên Thực Phẩm',
+        unit: 'IU/ml',
+        refText: '',
+        scaleId: 'scale_allergen_44',
+        result: '', // Không nhập kết quả
+        note: ''
+      },
+      {
+        code: 'd2',
+        name: 'Mạt bụi d2 (Có nhập dương tính)',
+        category: 'Dị Nguyên Hô Hấp',
+        unit: 'IU/ml',
+        refText: '',
+        scaleId: 'scale_protia_91',
+        result: '12.5',
+        note: 'Dương tính (Độ 3)'
+      },
+      {
+        code: 'TIgE',
+        name: 'Total IgE',
+        category: 'Dị Nguyên & Miễn Dịch',
+        unit: 'IU/ml',
+        refText: '',
+        result: '', // TIgE không nhập
+        note: ''
+      }
+    ];
+
+    const mockScale44: AllergenGradingScale = {
+      id: 'scale_allergen_44',
+      name: 'MEDIWISS 44',
+      unit: 'IU/ml',
+      levels: [
+        { grade: 0, minVal: 0, maxVal: 0.34, rangeText: '<0.34', label: 'Không phản ứng', isPositive: false },
+        { grade: 1, minVal: 0.35, maxVal: 0.69, rangeText: '0.35 - 0.69', label: 'Yếu', isPositive: true },
+        { grade: 2, minVal: 0.70, maxVal: 3.49, rangeText: '0.70 - 3.49', label: 'Trung bình', isPositive: true },
+        { grade: 3, minVal: 3.50, maxVal: 17.49, rangeText: '3.50 - 17.49', label: 'Khá', isPositive: true }
+      ]
+    };
+
+    const dto = AllergenReportDomainService.buildReportDTO({
+      tests,
+      customScales: [mockScaleProtia91, mockScale44]
+    });
+
+    const d1Item = dto.detailedList.find((i) => i.code === 'd1');
+    expect(d1Item).toBeDefined();
+    // d1 thuộc Protia 91: Tự động điền <0.34 khi không nhập
+    expect(d1Item?.result).toBe('<0.34');
+    expect(d1Item?.note).toBe('Âm tính (Độ 0)');
+    expect(d1Item?.isPositive).toBe(false);
+
+    const f1Item = dto.detailedList.find((i) => i.code === 'f1');
+    expect(f1Item).toBeDefined();
+    // f1 thuộc Mediwiss 44: Tự động điền <0.34 khi không nhập
+    expect(f1Item?.result).toBe('<0.34');
+    expect(f1Item?.note).toBe('Âm tính (Độ 0)');
+    expect(f1Item?.isPositive).toBe(false);
+
+    const d2Item = dto.detailedList.find((i) => i.code === 'd2');
+    expect(d2Item).toBeDefined();
+    // d2 có nhập 12.5: Giữ nguyên kết quả người dùng nhập
+    expect(d2Item?.result).toBe('12.5');
+    expect(d2Item?.isPositive).toBe(true);
+
+    const tigeItem = dto.detailedList.find((i) => i.code === 'TIgE');
+    expect(tigeItem).toBeDefined();
+    // TIgE là xét nghiệm số học không theo thang đo dị nguyên: Giữ rỗng nếu chưa đo
+    expect(tigeItem?.result).toBe('');
+  });
+
+  it('đồng bộ tuyệt đối cột BÌNH THƯỜNG và KẾT QUẢ (<0.34) kể cả khi bản nháp cũ mang giá trị <0.35 hoặc <0,34', () => {
+    const mockScale44: AllergenGradingScale = {
+      id: 'scale_allergen_44',
+      name: 'MEDIWISS 44',
+      unit: 'IU/ml',
+      levels: [
+        { grade: 0, minVal: 0, maxVal: 0.34, rangeText: '<0.34', label: 'Không phản ứng', isPositive: false },
+        { grade: 1, minVal: 0.35, maxVal: 0.69, rangeText: '0.35 - 0.69', label: 'Yếu', isPositive: true }
+      ]
+    };
+
+    const tests: SelectedTest[] = [
+      {
+        code: 'd1',
+        name: 'Mạt bụi d1',
+        category: 'Dị Nguyên Hô Hấp',
+        scaleId: 'scale_allergen_44',
+        unit: 'IU/ml',
+        refText: '< 0.35 (Độ 0)',
+        result: '<0.35', // Bản nháp mang <0.35 từ cấu hình cũ
+        note: ''
+      },
+      {
+        code: 'f1',
+        name: 'Lòng trắng trứng f1',
+        category: 'Dị Nguyên Thực Phẩm',
+        scaleId: 'scale_allergen_44',
+        unit: 'IU/ml',
+        refText: '<0,34', // Ký tự phẩy từ catalog
+        result: '<0,35', // Nhập phẩy <0,35
+        note: ''
+      }
+    ];
+
+    const dto = AllergenReportDomainService.buildReportDTO({
+      tests,
+      customScales: [mockScale44]
+    });
+
+    const d1 = dto.detailedList.find((i) => i.code === 'd1');
+    expect(d1?.normalRef).toBe('<0.34');
+    expect(d1?.result).toBe('<0.34'); // Đã tự động đồng bộ về <0.34, không bị lệch một bên 0.34 một bên 0.35
+
+    const f1 = dto.detailedList.find((i) => i.code === 'f1');
+    expect(f1?.normalRef).toBe('<0.34');
+    expect(f1?.result).toBe('<0.34'); // Đã chuẩn hóa phẩy thành chấm và đồng bộ về <0.34
+  });
 });
+
 
 
