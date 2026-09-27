@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import {
   CatalogItem, BatchImportRow, ToastType,
   TestGroup, TestEquipment, TestPackage, Doctor, CatalogItemEquipmentLink,
-  AllergenGradingScale, STORAGE_KEYS
+  AllergenGradingScale, STORAGE_KEYS, MedicalReport, PatientIdentityDomainService,
+  ImportRowAction
 } from '@domain';
 import { saveState } from '@infra/storage';
 import { putTable } from '@infra/apiClient';
@@ -21,6 +22,7 @@ import {
 interface UseBatchExcelOperationsProps {
   catalog: CatalogItem[];
   setCatalog?: (items: CatalogItem[]) => void;
+  reports?: MedicalReport[];
   testGroups?: TestGroup[];
   setTestGroups?: (groups: TestGroup[]) => void;
   equipments?: TestEquipment[];
@@ -40,6 +42,7 @@ interface UseBatchExcelOperationsProps {
 export function useBatchExcelOperations({
   catalog,
   setCatalog,
+  reports = [],
   testGroups = [],
   setTestGroups,
   equipments = [],
@@ -69,10 +72,62 @@ export function useBatchExcelOperations({
 
     try {
       setImportError('');
-      showToast('Đang đọc file Excel batch...', 'info');
-      const rows = await parseExcelBatchPatients(file, catalog);
-      setImportedRows(rows);
-      showToast(`Đã parse thành công ${rows.length} bệnh nhân từ file Excel!`, 'success');
+      showToast('Đang đọc và quét dữ liệu file Excel...', 'info');
+      const rawRows = await parseExcelBatchPatients(file, catalog);
+
+      // ─── SCAN TRÙNG LẶP (IN-BATCH & SO VỚI SỔ LƯU) ────────────────────────
+      const scannedRows: BatchImportRow[] = rawRows.map((row, idx) => {
+        // 1. Quét đối soát với danh sách phiếu đã lưu trong hệ thống
+        const matchResult = reports && reports.length > 0
+          ? PatientIdentityDomainService.scanMatch(reports, row)
+          : { index: -1 };
+
+        // 2. Quét đối soát nội bộ trong chính file Excel (với các dòng trước đó)
+        let inBatchDuplicateReason: string | undefined;
+        for (let prevIdx = 0; prevIdx < idx; prevIdx++) {
+          const prevRow = rawRows[prevIdx];
+          const hasSameCode = Boolean(
+            row.hasExplicitCode && prevRow.hasExplicitCode &&
+            row.patient.code && prevRow.patient.code &&
+            row.patient.code.trim().toLowerCase() === prevRow.patient.code.trim().toLowerCase()
+          );
+          const hasSameIdentity = Boolean(
+            row.patient.name && prevRow.patient.name &&
+            PatientIdentityDomainService.normalizeName(row.patient.name) === PatientIdentityDomainService.normalizeName(prevRow.patient.name) &&
+            PatientIdentityDomainService.normalizeDob(row.patient.dob) === PatientIdentityDomainService.normalizeDob(prevRow.patient.dob)
+          );
+          if (hasSameCode || hasSameIdentity) {
+            inBatchDuplicateReason = `Trùng với dòng #${prevIdx + 1} trong cùng file (${prevRow.patient.name})`;
+            break;
+          }
+        }
+
+        const isDuplicate = matchResult.index >= 0 || Boolean(inBatchDuplicateReason);
+        const matchedRep = matchResult.index >= 0 ? reports?.[matchResult.index] : undefined;
+
+        return {
+          ...row,
+          status: isDuplicate ? 'DUPLICATE' : 'NEW',
+          action: 'CREATE_NEW', // MẶC ĐỊNH MỖI RECORD LÀ THÊM MỚI THEO YÊU CẦU CỦA USER
+          matchedReportId: matchedRep?.id,
+          matchedReportCode: matchedRep?.code,
+          duplicateReason: matchResult.reason || inBatchDuplicateReason
+        };
+      });
+
+      setImportedRows(scannedRows);
+
+      const dupCount = scannedRows.filter((r) => r.status === 'DUPLICATE').length;
+      const newCount = scannedRows.length - dupCount;
+
+      if (dupCount > 0) {
+        showToast(
+          `Đã quét xong ${scannedRows.length} bệnh nhân: ${newCount} mới, phát hiện ${dupCount} dòng trùng dữ liệu!`,
+          'info'
+        );
+      } else {
+        showToast(`Đã quét thành công ${scannedRows.length} bệnh nhân mới từ file Excel!`, 'success');
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Lỗi đọc file Excel';
       setImportError(msg);
@@ -82,10 +137,51 @@ export function useBatchExcelOperations({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const setRowAction = (index: number, action: ImportRowAction) => {
+    setImportedRows((prev) =>
+      prev.map((r, i) => (i === index ? { ...r, action } : r))
+    );
+  };
+
+  const setAllDuplicateAction = (action: ImportRowAction) => {
+    setImportedRows((prev) =>
+      prev.map((r) => (r.status === 'DUPLICATE' ? { ...r, action } : r))
+    );
+  };
+
+  const handleClearImportedRows = () => {
+    setImportedRows([]);
+    setImportError('');
+  };
+
+  const duplicateCount = useMemo(
+    () => importedRows.filter((r) => r.status === 'DUPLICATE').length,
+    [importedRows]
+  );
+  const newCount = useMemo(
+    () => importedRows.length - duplicateCount,
+    [importedRows.length, duplicateCount]
+  );
+  const overwriteCount = useMemo(
+    () => importedRows.filter((r) => r.action === 'OVERWRITE').length,
+    [importedRows]
+  );
+  const createNewCount = useMemo(
+    () => importedRows.length - overwriteCount,
+    [importedRows.length, overwriteCount]
+  );
+
   const handleImportToReports = () => {
     if (importedRows.length === 0) return;
     onBatchImport(importedRows);
-    showToast(`Đã nhập ${importedRows.length} phiếu bệnh nhân vào Sổ Lưu!`, 'success');
+    if (overwriteCount > 0) {
+      showToast(
+        `Đã nhập ${importedRows.length} phiếu (${createNewCount} thêm mới, ${overwriteCount} ghi đè) vào Sổ Lưu!`,
+        'success'
+      );
+    } else {
+      showToast(`Đã nhập thêm mới ${importedRows.length} phiếu bệnh nhân vào Sổ Lưu!`, 'success');
+    }
     setImportedRows([]);
   };
 
@@ -417,6 +513,13 @@ export function useBatchExcelOperations({
     fileInputRef,
     handleFileSelect,
     handleImportToReports,
+    handleClearImportedRows,
+    setRowAction,
+    setAllDuplicateAction,
+    duplicateCount,
+    newCount,
+    overwriteCount,
+    createNewCount,
     handleDownloadPatientTemplate,
     handleImportCatalog,
     handleImportEquipmentLinks,

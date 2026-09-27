@@ -127,4 +127,63 @@ export class PatientIdentityDomainService {
 
     return -1;
   }
+
+  /**
+   * Quét và đối soát một hàng import với danh sách phiếu hiện có
+   * Trả về chi tiết kết quả đối soát kèm lý do ghi nhận trùng lặp
+   */
+  public static scanMatch(
+    list: MedicalReport[],
+    row: { patient: Patient; hasExplicitCode?: boolean }
+  ): { index: number; matchedReport?: MedicalReport; reason?: string } {
+    const hasExplicit = row.hasExplicitCode !== undefined
+      ? row.hasExplicitCode
+      : Boolean(row.patient.code && !row.patient.code.startsWith('BN-AUTO-'));
+
+    // 1. Kiểm tra đối soát theo mã BN (nếu có mã rõ ràng từ file)
+    const code = row.patient?.code;
+    if (hasExplicit && code) {
+      const cleanTargetCode = code.trim().toLowerCase();
+      const idx = list.findIndex(
+        (r) =>
+          (r.code && r.code.trim().toLowerCase() === cleanTargetCode) ||
+          (r.patient?.code && r.patient.code.trim().toLowerCase() === cleanTargetCode)
+      );
+      if (idx >= 0) {
+        const matched = list[idx];
+        return {
+          index: idx,
+          matchedReport: matched,
+          reason: `Trùng Mã BN: [${matched.code || code}]`
+        };
+      }
+    }
+
+    // 2. Kiểm tra đối soát theo Bộ ba Định Danh (Họ tên không dấu + Năm sinh + Giới tính)
+    if (row.patient?.name && row.patient?.dob) {
+      const targetName = this.normalizeName(row.patient.name);
+      const targetDob = this.normalizeDob(row.patient.dob);
+      if (targetName && targetDob) {
+        const idx = list.findIndex((r) => {
+          if (!r.patient?.name || !r.patient?.dob) return false;
+          if (this.normalizeName(r.patient.name) !== targetName) return false;
+          if (this.normalizeDob(r.patient.dob) !== targetDob) return false;
+          if (row.patient.gender && r.patient.gender && row.patient.gender !== r.patient.gender) {
+            return false;
+          }
+          return true;
+        });
+        if (idx >= 0) {
+          const matched = list[idx];
+          return {
+            index: idx,
+            matchedReport: matched,
+            reason: `Trùng Họ tên & Năm sinh với phiếu [${matched.code || 'đã lưu'}]: ${matched.patient?.name} (${matched.patient?.dob})`
+          };
+        }
+      }
+    }
+
+    return { index: -1 };
+  }
 }

@@ -98,6 +98,13 @@ export default function BatchExportModal({
     fileInputRef,
     handleFileSelect,
     handleImportToReports,
+    handleClearImportedRows,
+    setRowAction,
+    setAllDuplicateAction,
+    duplicateCount,
+    newCount,
+    overwriteCount,
+    createNewCount,
     handleDownloadPatientTemplate,
     handleImportCatalog,
     handleImportEquipmentLinks,
@@ -109,6 +116,7 @@ export default function BatchExportModal({
   } = useBatchExcelOperations({
     catalog,
     setCatalog,
+    reports,
     testGroups,
     setTestGroups,
     equipments,
@@ -253,6 +261,13 @@ export default function BatchExportModal({
                 importedRows={importedRows}
                 handleImportToReports={handleImportToReports}
                 importError={importError}
+                duplicateCount={duplicateCount}
+                newCount={newCount}
+                overwriteCount={overwriteCount}
+                createNewCount={createNewCount}
+                setRowAction={setRowAction}
+                setAllDuplicateAction={setAllDuplicateAction}
+                handleClearImportedRows={handleClearImportedRows}
               />
 
               <BatchSystemConfigSection

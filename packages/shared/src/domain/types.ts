@@ -600,12 +600,25 @@ export interface MedicalReport {
 
 // ─── BATCH IMPORT / EXPORT TYPES ─────────────────────────────────────────────
 
+export type ImportRowAction = 'CREATE_NEW' | 'OVERWRITE';
+export type ImportRowStatus = 'NEW' | 'DUPLICATE';
+
 export interface BatchImportRow {
   patient: Patient;
   selectedTests: SelectedTest[];
   conclusion: string;
   doctorName: string;
   hasExplicitCode?: boolean;
+  /** Trạng thái phân loại: Bản ghi mới hay bản ghi trùng dữ liệu */
+  status?: ImportRowStatus;
+  /** Quyết định xử lý: Thêm mới phiếu hay Ghi đè phiếu cũ (mặc định là CREATE_NEW) */
+  action?: ImportRowAction;
+  /** ID của phiếu xét nghiệm đã tồn tại nếu bị trùng */
+  matchedReportId?: string;
+  /** Mã của phiếu xét nghiệm đã tồn tại nếu bị trùng */
+  matchedReportCode?: string;
+  /** Lý do ghi nhận trùng lặp (ví dụ: Trùng mã BN, Trùng Họ tên & Năm sinh) */
+  duplicateReason?: string;
 }
 
 export interface BatchExportProgress {

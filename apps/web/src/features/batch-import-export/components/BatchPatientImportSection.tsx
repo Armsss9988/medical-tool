@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   FileSpreadsheet, Layers, Download, Sparkles, Upload, 
-  CheckCircle, AlertCircle 
+  CheckCircle, AlertCircle, AlertTriangle, 
+  Trash2, Filter, Edit3
 } from 'lucide-react';
-import { BatchImportRow, TestPackage, AiTemplateTarget, getPkgCodes } from '@domain';
+import { BatchImportRow, TestPackage, AiTemplateTarget, getPkgCodes, ImportRowAction } from '@domain';
 
 interface BatchPatientImportSectionProps {
   selectedBatchPackageId: string;
@@ -16,6 +17,13 @@ interface BatchPatientImportSectionProps {
   importedRows: BatchImportRow[];
   handleImportToReports: () => void;
   importError: string;
+  duplicateCount?: number;
+  newCount?: number;
+  overwriteCount?: number;
+  createNewCount?: number;
+  setRowAction?: (index: number, action: ImportRowAction) => void;
+  setAllDuplicateAction?: (action: ImportRowAction) => void;
+  handleClearImportedRows?: () => void;
 }
 
 export const BatchPatientImportSection: React.FC<BatchPatientImportSectionProps> = ({
@@ -28,10 +36,31 @@ export const BatchPatientImportSection: React.FC<BatchPatientImportSectionProps>
   handleFileSelect,
   importedRows,
   handleImportToReports,
-  importError
+  importError,
+  duplicateCount = 0,
+  newCount = 0,
+  overwriteCount = 0,
+  createNewCount = 0,
+  setRowAction,
+  setAllDuplicateAction,
+  handleClearImportedRows
 }) => {
+  const [filterTab, setFilterTab] = useState<'ALL' | 'NEW' | 'DUPLICATE'>('ALL');
+
+  // Lọc danh sách theo tab xem
+  const displayedItems = useMemo(() => {
+    return importedRows
+      .map((row, originalIndex) => ({ row, originalIndex }))
+      .filter(({ row }) => {
+        if (filterTab === 'NEW') return row.status === 'NEW';
+        if (filterTab === 'DUPLICATE') return row.status === 'DUPLICATE';
+        return true;
+      });
+  }, [importedRows, filterTab]);
+
   return (
     <div className="bg-slate-800/40 border border-slate-700/80 rounded-2xl p-4 md:p-5 space-y-4">
+      {/* HEADER SECTION */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700/60 pb-3">
         <div>
           <h4 className="text-sm font-extrabold text-white flex items-center gap-2">
@@ -101,17 +130,6 @@ export const BatchPatientImportSection: React.FC<BatchPatientImportSectionProps>
               onChange={handleFileSelect}
             />
           </label>
-
-          {importedRows.length > 0 && (
-            <button
-              type="button"
-              onClick={handleImportToReports}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-xs transition active:scale-95 cursor-pointer animate-pulse"
-            >
-              <CheckCircle className="w-4 h-4" />
-              <span>Nhập {importedRows.length} phiếu vào Sổ Lưu</span>
-            </button>
-          )}
         </div>
       </div>
 
@@ -122,45 +140,259 @@ export const BatchPatientImportSection: React.FC<BatchPatientImportSectionProps>
         </div>
       )}
 
-      {/* Preview imported rows */}
+      {/* ─── REVIEW & DUPLICATE RESOLUTION SECTION ─────────────────────── */}
       {importedRows.length > 0 && (
-        <div className="border border-slate-700/80 rounded-xl overflow-hidden">
-          <div className="px-4 py-2.5 bg-slate-800/80 border-b border-slate-700 flex items-center justify-between">
-            <span className="text-xs font-bold text-emerald-400">
-              Xem trước: {importedRows.length} bệnh nhân đã parse thành công
-            </span>
+        <div className="border border-slate-700/80 rounded-2xl overflow-hidden bg-slate-900/60 shadow-xl space-y-0">
+          {/* SCAN SUMMARY & TOOLBAR */}
+          <div className="p-3.5 bg-slate-800/90 border-b border-slate-700/80 flex flex-wrap items-center justify-between gap-3">
+            {/* Left: Metrics & Filter tabs */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-slate-300 mr-1 flex items-center gap-1.5">
+                <Filter className="w-3.5 h-3.5 text-sky-400" />
+                <span>Xem danh sách:</span>
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setFilterTab('ALL')}
+                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
+                  filterTab === 'ALL'
+                    ? 'bg-sky-500 text-white shadow-xs'
+                    : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
+                }`}
+              >
+                Tất cả ({importedRows.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFilterTab('NEW')}
+                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                  filterTab === 'NEW'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-slate-800 text-emerald-400 hover:text-emerald-300 border border-slate-700'
+                }`}
+              >
+                <CheckCircle className="w-3 h-3" />
+                <span>Mới ({newCount})</span>
+              </button>
+
+              {duplicateCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setFilterTab('DUPLICATE')}
+                  className={`px-2.5 py-1 text-xs font-bold rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                    filterTab === 'DUPLICATE'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'bg-slate-800 text-amber-400 hover:text-amber-300 border border-amber-500/40'
+                  }`}
+                >
+                  <AlertTriangle className="w-3 h-3" />
+                  <span>Trùng ({duplicateCount})</span>
+                </button>
+              )}
+            </div>
+
+            {/* Right: Bulk Action for Duplicates */}
+            {duplicateCount > 0 && setAllDuplicateAction && (
+              <div className="flex items-center gap-2 bg-slate-950/70 border border-amber-500/30 rounded-xl px-2.5 py-1">
+                <span className="text-[11px] font-semibold text-amber-300 hidden sm:inline">
+                  Bản ghi trùng:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setAllDuplicateAction('CREATE_NEW')}
+                  className="px-2 py-0.5 text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/30 rounded-lg transition cursor-pointer active:scale-95"
+                  title="Đặt tất cả bản ghi trùng thành Thêm mới"
+                >
+                  + Thêm mới tất cả
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAllDuplicateAction('OVERWRITE')}
+                  className="px-2 py-0.5 text-[11px] font-bold bg-amber-600/30 hover:bg-amber-600/50 text-amber-200 border border-amber-500/40 rounded-lg transition cursor-pointer active:scale-95"
+                  title="Đặt tất cả bản ghi trùng thành Ghi đè vào phiếu cũ"
+                >
+                  ✎ Ghi đè tất cả
+                </button>
+              </div>
+            )}
           </div>
-          <div className="max-h-[320px] overflow-y-auto">
+
+          {/* TABLE OF IMPORT ROWS */}
+          <div className="max-h-[380px] overflow-y-auto">
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-slate-800 text-slate-300 font-bold sticky top-0 z-10">
+              <thead className="bg-slate-800/90 text-slate-300 font-bold sticky top-0 z-10 border-b border-slate-700">
                 <tr>
                   <th className="p-2.5 w-10 text-center">STT</th>
+                  <th className="p-2.5 w-36">Trạng Thái Quét</th>
                   <th className="p-2.5">Mã BN</th>
                   <th className="p-2.5">Họ và Tên</th>
-                  <th className="p-2.5">Năm sinh</th>
-                  <th className="p-2.5 text-center">Số chỉ số</th>
+                  <th className="p-2.5">Năm Sinh / Giới Tính</th>
+                  <th className="p-2.5 text-center">Chỉ Số</th>
                   <th className="p-2.5">BS Chỉ Định</th>
-                  <th className="p-2.5">Kết Luận</th>
+                  <th className="p-2.5 w-48 text-center">Hành Động Khi Nhập</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
-                {importedRows.map((row, idx) => (
-                  <tr key={idx} className="hover:bg-slate-800/40 transition">
-                    <td className="p-2.5 text-center text-slate-500 font-mono">{idx + 1}</td>
-                    <td className="p-2.5 font-mono text-sky-400 font-bold">{row.patient.code}</td>
-                    <td className="p-2.5 font-bold text-white uppercase">{row.patient.name}</td>
-                    <td className="p-2.5 text-slate-300">{row.patient.dob}</td>
-                    <td className="p-2.5 text-center font-mono font-bold text-emerald-400">{row.selectedTests.length}</td>
-                    <td className="p-2.5 text-slate-300">{row.doctorName}</td>
-                    <td className="p-2.5 text-slate-400 truncate max-w-[200px]">{row.conclusion || '---'}</td>
+              <tbody className="divide-y divide-slate-800/80">
+                {displayedItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="p-6 text-center text-slate-400 italic">
+                      Không có bản ghi nào phù hợp với bộ lọc hiện tại.
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  displayedItems.map(({ row, originalIndex }, displayIdx) => {
+                    const isDup = row.status === 'DUPLICATE';
+                    const isOverwrite = row.action === 'OVERWRITE';
+
+                    return (
+                      <tr
+                        key={originalIndex}
+                        className={`transition ${
+                          isDup
+                            ? 'bg-amber-950/20 hover:bg-amber-950/30'
+                            : 'hover:bg-slate-800/40'
+                        }`}
+                      >
+                        {/* STT */}
+                        <td className="p-2.5 text-center text-slate-500 font-mono">
+                          {displayIdx + 1}
+                        </td>
+
+                        {/* STATUS BADGE & REASON */}
+                        <td className="p-2.5">
+                          {isDup ? (
+                            <div className="space-y-0.5">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                <AlertTriangle className="w-2.5 h-2.5 text-amber-400" />
+                                <span>Trùng dữ liệu</span>
+                              </span>
+                              {row.duplicateReason && (
+                                <p className="text-[10px] text-amber-400/80 truncate max-w-[150px]" title={row.duplicateReason}>
+                                  {row.duplicateReason}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                              <CheckCircle className="w-2.5 h-2.5 text-emerald-400" />
+                              <span>Mới</span>
+                            </span>
+                          )}
+                        </td>
+
+                        {/* MÃ BN */}
+                        <td className="p-2.5 font-mono font-bold text-sky-400">
+                          {row.patient.code || <span className="text-slate-500 italic">Tự sinh</span>}
+                        </td>
+
+                        {/* HỌ VÀ TÊN */}
+                        <td className="p-2.5 font-bold text-white uppercase">
+                          {row.patient.name}
+                        </td>
+
+                        {/* NĂM SINH / GIỚI TÍNH */}
+                        <td className="p-2.5 text-slate-300">
+                          <span>{row.patient.dob || '---'}</span>
+                          <span className="text-slate-500 ml-1.5">({row.patient.gender || 'Nam'})</span>
+                        </td>
+
+                        {/* CHỈ SỐ */}
+                        <td className="p-2.5 text-center font-mono font-bold text-emerald-400">
+                          {row.selectedTests.length}
+                        </td>
+
+                        {/* BÁC SĨ */}
+                        <td className="p-2.5 text-slate-300 truncate max-w-[140px]" title={row.doctorName}>
+                          {row.doctorName}
+                        </td>
+
+                        {/* HÀNH ĐỘNG (ACTION TOGGLE) */}
+                        <td className="p-2.5 text-center">
+                          {isDup ? (
+                            <div className="inline-flex items-center bg-slate-950 border border-slate-700/80 rounded-lg p-0.5">
+                              <button
+                                type="button"
+                                onClick={() => setRowAction?.(originalIndex, 'CREATE_NEW')}
+                                className={`px-2 py-1 text-[11px] font-bold rounded-md transition cursor-pointer ${
+                                  !isOverwrite
+                                    ? 'bg-sky-600 text-white shadow-xs'
+                                    : 'text-slate-400 hover:text-slate-200'
+                                }`}
+                                title="Thêm mới bản ghi (sinh mã BN mới nếu cần)"
+                              >
+                                + Thêm mới
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setRowAction?.(originalIndex, 'OVERWRITE')}
+                                className={`px-2 py-1 text-[11px] font-bold rounded-md transition cursor-pointer flex items-center gap-1 ${
+                                  isOverwrite
+                                    ? 'bg-amber-600 text-white shadow-xs'
+                                    : 'text-slate-400 hover:text-slate-200'
+                                }`}
+                                title="Ghi đè kết quả vào phiếu đã tồn tại"
+                              >
+                                <Edit3 className="w-2.5 h-2.5" />
+                                <span>Ghi đè</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="inline-block px-2.5 py-1 text-[11px] font-bold text-emerald-300 bg-emerald-950/40 border border-emerald-800/40 rounded-lg">
+                              + Thêm mới
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
+          </div>
+
+          {/* FOOTER ACTIONS */}
+          <div className="p-3 bg-slate-800/90 border-t border-slate-700/80 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-slate-300">
+              <span className="font-semibold text-white">Đã sẵn sàng:</span>
+              <span className="text-emerald-400 font-bold">{createNewCount} thêm mới</span>
+              {overwriteCount > 0 && (
+                <>
+                  <span className="text-slate-600">•</span>
+                  <span className="text-amber-400 font-bold">{overwriteCount} ghi đè phiếu cũ</span>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              {handleClearImportedRows && (
+                <button
+                  type="button"
+                  onClick={handleClearImportedRows}
+                  className="px-3 py-1.5 text-xs font-bold text-slate-400 hover:text-rose-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Hủy danh sách</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleImportToReports}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs rounded-xl shadow-md transition active:scale-95 cursor-pointer"
+              >
+                <CheckCircle className="w-4 h-4" />
+                <span>
+                  Xác nhận nhập {importedRows.length} phiếu vào Sổ Lưu
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       )}
 
+      {/* EMPTY INSTRUCTION */}
       {importedRows.length === 0 && !importError && (
         <div className="py-6 px-4 text-center text-slate-400 space-y-3 bg-slate-900/50 border border-slate-800 rounded-xl">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-left">
@@ -173,8 +405,8 @@ export const BatchPatientImportSection: React.FC<BatchPatientImportSectionProps>
               <p className="text-[11px] text-slate-400">Paste danh sách bệnh nhân và kết quả xét nghiệm. Parser tự động chuẩn hóa SĐT, giới tính, ngày sinh.</p>
             </div>
             <div className="p-3 bg-slate-800/70 border border-slate-700/60 rounded-xl space-y-1">
-              <div className="font-bold text-xs text-purple-400">3. Xem &amp; Lưu</div>
-              <p className="text-[11px] text-slate-400">Bấm "Chọn File Excel Batch" $\rightarrow$ Xem trước bảng đối soát $\rightarrow$ Nhập vào Sổ Lưu.</p>
+              <div className="font-bold text-xs text-purple-400">3. Quét &amp; Đối Soát</div>
+              <p className="text-[11px] text-slate-400">Hệ thống tự động quét trùng lặp dữ liệu và cho phép bạn chọn Thêm mới hoặc Ghi đè phiếu cũ trước khi lưu.</p>
             </div>
           </div>
         </div>
@@ -182,3 +414,4 @@ export const BatchPatientImportSection: React.FC<BatchPatientImportSectionProps>
     </div>
   );
 };
+

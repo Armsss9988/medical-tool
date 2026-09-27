@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { PatientIdentityDomainService } from '../PatientIdentityDomainService';
-import type { MedicalReport } from '../../types';
+import type { MedicalReport, Patient } from '../../types';
 
 describe('PatientIdentityDomainService', () => {
   it('normalizes Vietnamese names without diacritics and special characters', () => {
@@ -65,4 +65,57 @@ describe('PatientIdentityDomainService', () => {
     });
     expect(index).toBe(-1);
   });
+
+  it('scanMatch identifies duplicates by explicit code', () => {
+    const reports = [
+      { id: 'rep-1', code: 'BN01', patient: { name: 'Nguyễn Văn A', code: 'BN01' } }
+    ] as unknown as MedicalReport[];
+
+    const result = PatientIdentityDomainService.scanMatch(reports, {
+      patient: { name: 'Nguyễn Văn A', code: 'bn01' } as unknown as Patient,
+      hasExplicitCode: true
+    });
+
+    expect(result.index).toBe(0);
+    expect(result.matchedReport?.code).toBe('BN01');
+    expect(result.reason).toContain('Trùng Mã BN: [BN01]');
+  });
+
+  it('scanMatch identifies duplicates by Identity Triplet (Name + DOB + Gender) when code is empty/auto', () => {
+    const reports = [
+      {
+        id: 'rep-1',
+        code: 'BN-2026-001',
+        patient: { name: 'Trần Thị Mai', dob: '1990', gender: 'Nữ', code: 'BN-2026-001' }
+      }
+    ] as unknown as MedicalReport[];
+
+    const result = PatientIdentityDomainService.scanMatch(reports, {
+      patient: { name: '  TRẦN THỊ MAI  ', dob: '1990', gender: 'Nữ', code: 'BN-AUTO-888' } as unknown as Patient,
+      hasExplicitCode: false
+    });
+
+    expect(result.index).toBe(0);
+    expect(result.matchedReport?.code).toBe('BN-2026-001');
+    expect(result.reason).toContain('Trùng Họ tên & Năm sinh');
+  });
+
+  it('scanMatch returns -1 for new distinct patients', () => {
+    const reports = [
+      {
+        id: 'rep-1',
+        code: 'BN-2026-001',
+        patient: { name: 'Trần Thị Mai', dob: '1990', gender: 'Nữ', code: 'BN-2026-001' }
+      }
+    ] as unknown as MedicalReport[];
+
+    const result = PatientIdentityDomainService.scanMatch(reports, {
+      patient: { name: 'Lê Văn Nam', dob: '1985', gender: 'Nam', code: 'BN-NEW-999' } as unknown as Patient,
+      hasExplicitCode: false
+    });
+
+    expect(result.index).toBe(-1);
+    expect(result.matchedReport).toBeUndefined();
+  });
 });
+

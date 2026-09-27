@@ -204,5 +204,62 @@ describe('useReportManager - Batch Import & Identity Resolution', () => {
     // Tuân thủ Rule 9.3: Không tự động gọi postReport chéo bảng qua Event Bus trình duyệt
     expect(mockPostReport).not.toHaveBeenCalled();
   });
+
+  it('5. Supports user action decision: CREATE_NEW creates fresh report even when duplicate, OVERWRITE updates in-place', () => {
+    const { result } = renderHook(() => useReportManager(), { wrapper: makeWrapper() });
+
+    // Ban đầu có 1 phiếu
+    act(() => {
+      result.current.saveOrUpdateReport({
+        patient: createPatient({ code: 'BN-DUP-01', name: 'Nguyễn Văn Dup', dob: '1990', gender: 'Nam' }),
+        selectedTests: [{ ...dummyTest, result: '5.0' }],
+        conclusion: 'Phiếu gốc',
+        doctorName: 'BS. Long'
+      });
+    });
+
+    expect(result.current.reports.length).toBe(1);
+
+    // Case 1: Import dòng trùng nhưng user chọn action = 'CREATE_NEW'
+    act(() => {
+      result.current.bulkSaveOrUpdateReports([
+        {
+          patient: createPatient({ code: 'BN-DUP-01', name: 'Nguyễn Văn Dup', dob: '1990', gender: 'Nam' }),
+          selectedTests: [{ ...dummyTest, result: '7.5' }],
+          conclusion: 'Phiếu mới tạo thêm',
+          doctorName: 'BS. Long',
+          hasExplicitCode: true,
+          action: 'CREATE_NEW' // <--- Người dùng chọn Thêm mới
+        }
+      ]);
+    });
+
+    // Kết quả: Có 2 phiếu, phiếu mới được sinh mã mới không đè phiếu cũ
+    expect(result.current.reports.length).toBe(2);
+    expect(result.current.reports.some(r => r.conclusion === 'Phiếu gốc')).toBe(true);
+    expect(result.current.reports.some(r => r.conclusion === 'Phiếu mới tạo thêm')).toBe(true);
+
+    // Case 2: Import dòng trùng và user chọn action = 'OVERWRITE'
+    act(() => {
+      result.current.bulkSaveOrUpdateReports([
+        {
+          patient: createPatient({ code: 'BN-DUP-01', name: 'Nguyễn Văn Dup', dob: '1990', gender: 'Nam' }),
+          selectedTests: [{ ...dummyTest, result: '9.0' }],
+          conclusion: 'Đã được ghi đè',
+          doctorName: 'BS. Long',
+          hasExplicitCode: true,
+          action: 'OVERWRITE' // <--- Người dùng chọn Ghi đè
+        }
+      ]);
+    });
+
+    // Kết quả: Vẫn chỉ có 2 phiếu (không tăng thêm), phiếu gốc BN-DUP-01 đã được ghi đè
+    expect(result.current.reports.length).toBe(2);
+    const overwritten = result.current.reports.find(r => r.code === 'BN-DUP-01');
+    expect(overwritten).toBeDefined();
+    expect(overwritten?.conclusion).toBe('Đã được ghi đè');
+    expect(overwritten?.selectedTests[0].result).toBe('9.0');
+  });
 });
+
 

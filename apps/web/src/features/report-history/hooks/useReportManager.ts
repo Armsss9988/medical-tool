@@ -1,6 +1,6 @@
 import { useRef, useCallback, useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { MedicalReport, Patient, SelectedTest, ReportStatus, REPORT_STATUS, STORAGE_KEYS, CloudDbConfig, PatientIdentityDomainService, INVOICE_EVENT_TYPES } from '@domain';
+import { MedicalReport, Patient, SelectedTest, ReportStatus, REPORT_STATUS, STORAGE_KEYS, CloudDbConfig, PatientIdentityDomainService, INVOICE_EVENT_TYPES, BatchImportRow, PatientCode } from '@domain';
 import { LabReportAggregate } from '@domain/aggregates/LabReportAggregate';
 import { loadState, saveState } from '@infra/storage';
 import { syncReportsToSupabase, DEFAULT_CLOUD_DB_CONFIG } from '@infra/cloudDbService';
@@ -200,13 +200,7 @@ export function useReportManager() {
 
   // 4. Lưu / Cập nhật hàng loạt phiếu an toàn (Dùng cho Batch Import Excel)
   const bulkSaveOrUpdateReports = (
-    rows: Array<{
-      patient: Patient;
-      selectedTests: SelectedTest[];
-      conclusion: string;
-      doctorName: string;
-      hasExplicitCode?: boolean;
-    }>
+    rows: BatchImportRow[]
   ): MedicalReport[] => {
     if (rows.length === 0) return [];
 
@@ -226,12 +220,31 @@ export function useReportManager() {
       });
 
       const existingItem = idx >= 0 ? currentList[idx] : null;
+
+      // Quyết định: Ghi đè hay Thêm mới
+      // - Nếu action === 'OVERWRITE': Ghi đè phiếu cũ nếu tìm thấy
+      // - Nếu action === 'CREATE_NEW': Luôn tạo mới (dù có trùng thông tin)
+      // - Nếu không truyền action (legacy fallback): Ghi đè nếu có existingItem
+      const isExplicitOverwrite = row.action === 'OVERWRITE';
+      const isExplicitCreateNew = row.action === 'CREATE_NEW';
+      const shouldOverwrite = isExplicitOverwrite
+        ? Boolean(existingItem)
+        : (!isExplicitCreateNew && Boolean(existingItem));
+
       let updatedReport: MedicalReport;
 
-      if (!existingItem) {
-        const fallbackCode = `BN-${Date.now()}-${i + 1}`;
-        const codeVal = row.patient.code || fallbackCode;
-        const sampleCodeVal = row.patient.sampleCode || codeVal;
+      if (!shouldOverwrite) {
+        // Tạo mới phiếu
+        const allCodes = currentList.map((r) => r.code || r.patient?.code || '');
+        let codeVal = row.patient.code || '';
+        // Nếu mã rỗng hoặc trùng mã đã có trong danh sách khi người dùng chọn "Thêm mới", sinh mã BN tiếp theo không va chạm
+        if (!codeVal || (existingItem && allCodes.includes(codeVal))) {
+          codeVal = PatientCode.generateNextCode(allCodes);
+        }
+        const sampleCodeVal = row.patient.sampleCode && !allCodes.includes(row.patient.sampleCode)
+          ? row.patient.sampleCode
+          : codeVal;
+
         const agg = LabReportAggregate.create({
           code: codeVal,
           sampleCode: sampleCodeVal,
@@ -247,11 +260,12 @@ export function useReportManager() {
         updatedReport = agg.toSnapshot();
         currentList = [updatedReport, ...currentList];
       } else {
-        const agg = LabReportAggregate.fromSnapshot(existingItem);
+        // Ghi đè phiếu cũ
+        const agg = LabReportAggregate.fromSnapshot(existingItem!);
         agg.updateReport({
           patient: {
             ...row.patient,
-            code: existingItem.patient?.code || existingItem.code || row.patient.code
+            code: existingItem!.patient?.code || existingItem!.code || row.patient.code
           },
           doctorName: row.doctorName,
           selectedTests: row.selectedTests,
@@ -265,7 +279,7 @@ export function useReportManager() {
 
       domainEventBus.emit(REPORT_EVENT_TYPES.SAVED, {
         report: updatedReport,
-        isNew: !existingItem
+        isNew: !shouldOverwrite
       });
     }
 
