@@ -2,9 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { 
   FileSpreadsheet, Layers, Download, Sparkles, Upload, 
   CheckCircle, AlertCircle, AlertTriangle, 
-  Trash2, Filter, Edit3
+  Trash2, Filter, Edit3, Edit2
 } from 'lucide-react';
-import { BatchImportRow, TestPackage, AiTemplateTarget, getPkgCodes, ImportRowAction } from '@domain';
+import { BatchImportRow, TestPackage, AiTemplateTarget, getPkgCodes, ImportRowAction, Doctor } from '@domain';
+import { BatchImportBulkEditBar } from './BatchImportBulkEditBar';
+import { BatchImportRowEditModal } from './BatchImportRowEditModal';
 
 interface BatchPatientImportSectionProps {
   selectedBatchPackageId: string;
@@ -21,9 +23,22 @@ interface BatchPatientImportSectionProps {
   newCount?: number;
   overwriteCount?: number;
   createNewCount?: number;
-  setRowAction?: (index: number, action: ImportRowAction) => void;
+  setRowAction?: (target: number | string, action: ImportRowAction) => void;
   setAllDuplicateAction?: (action: ImportRowAction) => void;
   handleClearImportedRows?: () => void;
+  // Selection & Editing
+  selectedRowIds?: Set<string>;
+  editingRow?: BatchImportRow | null;
+  setEditingRow?: (row: BatchImportRow | null) => void;
+  isRowSelected?: (id?: string) => boolean;
+  toggleSelectRow?: (id: string) => void;
+  toggleSelectAll?: (allIds: string[]) => void;
+  updateRow?: (id: string, updatedRow: BatchImportRow) => void;
+  deleteRow?: (id: string) => void;
+  bulkUpdateSelectedRows?: (patch: { doctorName?: string; diagnosis?: string; address?: string; action?: ImportRowAction }) => void;
+  bulkDeleteSelectedRows?: () => void;
+  deselectAllRows?: () => void;
+  doctorsList?: Doctor[];
 }
 
 export const BatchPatientImportSection: React.FC<BatchPatientImportSectionProps> = ({
@@ -43,7 +58,19 @@ export const BatchPatientImportSection: React.FC<BatchPatientImportSectionProps>
   createNewCount = 0,
   setRowAction,
   setAllDuplicateAction,
-  handleClearImportedRows
+  handleClearImportedRows,
+  selectedRowIds,
+  editingRow,
+  setEditingRow,
+  isRowSelected,
+  toggleSelectRow,
+  toggleSelectAll,
+  updateRow,
+  deleteRow,
+  bulkUpdateSelectedRows,
+  bulkDeleteSelectedRows,
+  deselectAllRows,
+  doctorsList = []
 }) => {
   const [filterTab, setFilterTab] = useState<'ALL' | 'NEW' | 'DUPLICATE'>('ALL');
 
@@ -57,6 +84,12 @@ export const BatchPatientImportSection: React.FC<BatchPatientImportSectionProps>
         return true;
       });
   }, [importedRows, filterTab]);
+
+  const displayedIds = useMemo(() => {
+    return displayedItems.map(({ row }) => row.id!).filter(Boolean);
+  }, [displayedItems]);
+
+  const isAllDisplayedSelected = displayedIds.length > 0 && displayedIds.every((id) => isRowSelected?.(id));
 
   return (
     <div className="bg-slate-800/40 border border-slate-700/80 rounded-2xl p-4 md:p-5 space-y-4">
@@ -219,25 +252,50 @@ export const BatchPatientImportSection: React.FC<BatchPatientImportSectionProps>
             )}
           </div>
 
+          {/* BULK EDIT TOOLBAR (WHEN ROWS ARE SELECTED) */}
+          {selectedRowIds && selectedRowIds.size > 0 && (
+            <div className="p-2.5 bg-slate-950/80 border-b border-slate-700">
+              <BatchImportBulkEditBar
+                selectedCount={selectedRowIds.size}
+                totalCount={importedRows.length}
+                doctorsList={doctorsList}
+                onBulkAction={(act) => bulkUpdateSelectedRows?.({ action: act })}
+                onBulkDoctor={(doc) => bulkUpdateSelectedRows?.({ doctorName: doc })}
+                onBulkDiagnosis={(diag) => bulkUpdateSelectedRows?.({ diagnosis: diag })}
+                onBulkDelete={() => bulkDeleteSelectedRows?.()}
+                onDeselectAll={() => deselectAllRows?.()}
+              />
+            </div>
+          )}
+
           {/* TABLE OF IMPORT ROWS */}
           <div className="max-h-[380px] overflow-y-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-slate-800/90 text-slate-300 font-bold sticky top-0 z-10 border-b border-slate-700">
                 <tr>
+                  <th className="p-2.5 w-8 text-center">
+                    <input
+                      type="checkbox"
+                      checked={isAllDisplayedSelected}
+                      onChange={() => toggleSelectAll?.(displayedIds)}
+                      className="w-4 h-4 rounded text-sky-600 bg-slate-950 border-slate-700 cursor-pointer accent-sky-500"
+                      title="Chọn tất cả hiển thị"
+                    />
+                  </th>
                   <th className="p-2.5 w-10 text-center">STT</th>
-                  <th className="p-2.5 w-36">Trạng Thái Quét</th>
-                  <th className="p-2.5">Mã BN</th>
+                  <th className="p-2.5 w-32">Trạng Thái</th>
+                  <th className="p-2.5 w-24">Mã BN</th>
                   <th className="p-2.5">Họ và Tên</th>
-                  <th className="p-2.5">Năm Sinh / Giới Tính</th>
-                  <th className="p-2.5 text-center">Chỉ Số</th>
+                  <th className="p-2.5 w-28">Năm Sinh / Phái</th>
+                  <th className="p-2.5 text-center w-14">Chỉ Số</th>
                   <th className="p-2.5">BS Chỉ Định</th>
-                  <th className="p-2.5 w-48 text-center">Hành Động Khi Nhập</th>
+                  <th className="p-2.5 w-56 text-center">Hành Động &amp; Thao Tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/80">
                 {displayedItems.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-6 text-center text-slate-400 italic">
+                    <td colSpan={9} className="p-6 text-center text-slate-400 italic">
                       Không có bản ghi nào phù hợp với bộ lọc hiện tại.
                     </td>
                   </tr>
@@ -245,16 +303,29 @@ export const BatchPatientImportSection: React.FC<BatchPatientImportSectionProps>
                   displayedItems.map(({ row, originalIndex }, displayIdx) => {
                     const isDup = row.status === 'DUPLICATE';
                     const isOverwrite = row.action === 'OVERWRITE';
+                    const isSelected = isRowSelected?.(row.id);
 
                     return (
                       <tr
-                        key={originalIndex}
+                        key={row.id || originalIndex}
                         className={`transition ${
-                          isDup
+                          isSelected
+                            ? 'bg-sky-950/40 hover:bg-sky-950/60'
+                            : isDup
                             ? 'bg-amber-950/20 hover:bg-amber-950/30'
                             : 'hover:bg-slate-800/40'
                         }`}
                       >
+                        {/* CHECKBOX */}
+                        <td className="p-2.5 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => row.id && toggleSelectRow?.(row.id)}
+                            className="w-4 h-4 rounded text-sky-600 bg-slate-950 border-slate-700 cursor-pointer accent-sky-500"
+                          />
+                        </td>
+
                         {/* STT */}
                         <td className="p-2.5 text-center text-slate-500 font-mono">
                           {displayIdx + 1}
@@ -266,10 +337,10 @@ export const BatchPatientImportSection: React.FC<BatchPatientImportSectionProps>
                             <div className="space-y-0.5">
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
                                 <AlertTriangle className="w-2.5 h-2.5 text-amber-400" />
-                                <span>Trùng dữ liệu</span>
+                                <span>Trùng</span>
                               </span>
                               {row.duplicateReason && (
-                                <p className="text-[10px] text-amber-400/80 truncate max-w-[150px]" title={row.duplicateReason}>
+                                <p className="text-[10px] text-amber-400/80 truncate max-w-[130px]" title={row.duplicateReason}>
                                   {row.duplicateReason}
                                 </p>
                               )}
@@ -283,7 +354,7 @@ export const BatchPatientImportSection: React.FC<BatchPatientImportSectionProps>
                         </td>
 
                         {/* MÃ BN */}
-                        <td className="p-2.5 font-mono font-bold text-sky-400">
+                        <td className="p-2.5 font-mono font-bold text-sky-400 truncate max-w-[100px]">
                           {row.patient.code || <span className="text-slate-500 italic">Tự sinh</span>}
                         </td>
 
@@ -295,7 +366,7 @@ export const BatchPatientImportSection: React.FC<BatchPatientImportSectionProps>
                         {/* NĂM SINH / GIỚI TÍNH */}
                         <td className="p-2.5 text-slate-300">
                           <span>{row.patient.dob || '---'}</span>
-                          <span className="text-slate-500 ml-1.5">({row.patient.gender || 'Nam'})</span>
+                          <span className="text-slate-500 ml-1">({row.patient.gender || 'Nam'})</span>
                         </td>
 
                         {/* CHỈ SỐ */}
@@ -304,45 +375,68 @@ export const BatchPatientImportSection: React.FC<BatchPatientImportSectionProps>
                         </td>
 
                         {/* BÁC SĨ */}
-                        <td className="p-2.5 text-slate-300 truncate max-w-[140px]" title={row.doctorName}>
+                        <td className="p-2.5 text-slate-300 truncate max-w-[130px]" title={row.doctorName}>
                           {row.doctorName}
                         </td>
 
-                        {/* HÀNH ĐỘNG (ACTION TOGGLE) */}
+                        {/* HÀNH ĐỘNG & THAO TÁC */}
                         <td className="p-2.5 text-center">
-                          {isDup ? (
-                            <div className="inline-flex items-center bg-slate-950 border border-slate-700/80 rounded-lg p-0.5">
-                              <button
-                                type="button"
-                                onClick={() => setRowAction?.(originalIndex, 'CREATE_NEW')}
-                                className={`px-2 py-1 text-[11px] font-bold rounded-md transition cursor-pointer ${
-                                  !isOverwrite
-                                    ? 'bg-sky-600 text-white shadow-xs'
-                                    : 'text-slate-400 hover:text-slate-200'
-                                }`}
-                                title="Thêm mới bản ghi (sinh mã BN mới nếu cần)"
-                              >
-                                + Thêm mới
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setRowAction?.(originalIndex, 'OVERWRITE')}
-                                className={`px-2 py-1 text-[11px] font-bold rounded-md transition cursor-pointer flex items-center gap-1 ${
-                                  isOverwrite
-                                    ? 'bg-amber-600 text-white shadow-xs'
-                                    : 'text-slate-400 hover:text-slate-200'
-                                }`}
-                                title="Ghi đè kết quả vào phiếu đã tồn tại"
-                              >
-                                <Edit3 className="w-2.5 h-2.5" />
-                                <span>Ghi đè</span>
-                              </button>
-                            </div>
-                          ) : (
-                            <span className="inline-block px-2.5 py-1 text-[11px] font-bold text-emerald-300 bg-emerald-950/40 border border-emerald-800/40 rounded-lg">
-                              + Thêm mới
-                            </span>
-                          )}
+                          <div className="flex items-center justify-center gap-1.5">
+                            {/* ACTION TOGGLE */}
+                            {isDup ? (
+                              <div className="inline-flex items-center bg-slate-950 border border-slate-700/80 rounded-lg p-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setRowAction?.(row.id || originalIndex, 'CREATE_NEW')}
+                                  className={`px-2 py-0.5 text-[10px] font-bold rounded transition cursor-pointer ${
+                                    !isOverwrite
+                                      ? 'bg-sky-600 text-white shadow-xs'
+                                      : 'text-slate-400 hover:text-slate-200'
+                                  }`}
+                                  title="Thêm mới bản ghi"
+                                >
+                                  + Mới
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setRowAction?.(row.id || originalIndex, 'OVERWRITE')}
+                                  className={`px-2 py-0.5 text-[10px] font-bold rounded transition cursor-pointer flex items-center gap-0.5 ${
+                                    isOverwrite
+                                      ? 'bg-amber-600 text-white shadow-xs'
+                                      : 'text-slate-400 hover:text-slate-200'
+                                  }`}
+                                  title="Ghi đè phiếu cũ"
+                                >
+                                  <Edit3 className="w-2.5 h-2.5" />
+                                  <span>Đè</span>
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="inline-block px-2 py-0.5 text-[10px] font-bold text-emerald-300 bg-emerald-950/40 border border-emerald-800/40 rounded-lg">
+                                + Mới
+                              </span>
+                            )}
+
+                            {/* EDIT BUTTON */}
+                            <button
+                              type="button"
+                              onClick={() => setEditingRow?.(row)}
+                              className="p-1 text-slate-400 hover:text-sky-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-md transition cursor-pointer"
+                              title="Sửa thông tin bệnh nhân & kết quả"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* DELETE BUTTON */}
+                            <button
+                              type="button"
+                              onClick={() => row.id && deleteRow?.(row.id)}
+                              className="p-1 text-slate-500 hover:text-rose-400 bg-slate-800 hover:bg-rose-950/60 border border-slate-700 hover:border-rose-800 rounded-md transition cursor-pointer"
+                              title="Xóa dòng này"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -392,6 +486,17 @@ export const BatchPatientImportSection: React.FC<BatchPatientImportSectionProps>
         </div>
       )}
 
+      {/* ROW EDIT MODAL */}
+      {editingRow && (
+        <BatchImportRowEditModal
+          isOpen={Boolean(editingRow)}
+          row={editingRow}
+          onClose={() => setEditingRow?.(null)}
+          onSave={(id, updated) => updateRow?.(id, updated)}
+          doctorsList={doctorsList}
+        />
+      )}
+
       {/* EMPTY INSTRUCTION */}
       {importedRows.length === 0 && !importError && (
         <div className="py-6 px-4 text-center text-slate-400 space-y-3 bg-slate-900/50 border border-slate-800 rounded-xl">
@@ -405,8 +510,8 @@ export const BatchPatientImportSection: React.FC<BatchPatientImportSectionProps>
               <p className="text-[11px] text-slate-400">Paste danh sách bệnh nhân và kết quả xét nghiệm. Parser tự động chuẩn hóa SĐT, giới tính, ngày sinh.</p>
             </div>
             <div className="p-3 bg-slate-800/70 border border-slate-700/60 rounded-xl space-y-1">
-              <div className="font-bold text-xs text-purple-400">3. Quét &amp; Đối Soát</div>
-              <p className="text-[11px] text-slate-400">Hệ thống tự động quét trùng lặp dữ liệu và cho phép bạn chọn Thêm mới hoặc Ghi đè phiếu cũ trước khi lưu.</p>
+              <div className="font-bold text-xs text-purple-400">3. Quét, Sửa &amp; Đối Soát</div>
+              <p className="text-[11px] text-slate-400">Hệ thống quét trùng lặp, hỗ trợ chọn hàng loạt, sửa nhanh từng hàng trước khi lưu vào Sổ Lưu.</p>
             </div>
           </div>
         </div>
@@ -414,4 +519,3 @@ export const BatchPatientImportSection: React.FC<BatchPatientImportSectionProps>
     </div>
   );
 };
-

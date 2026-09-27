@@ -110,6 +110,12 @@ export function safeParseMedicalReports(raw: unknown): MedicalReport[] {
       } else {
         continue; // Bỏ qua vì hoàn toàn không có ID và Patient
       }
+    } else {
+      const pat = { ...(candidate.patient as Record<string, unknown>) };
+      if (typeof pat.name !== 'string' || !pat.name.trim()) {
+        pat.name = (typeof candidate.name === 'string' && candidate.name.trim()) || 'BỆNH NHÂN';
+      }
+      candidate.patient = pat;
     }
 
     const parseRes = medicalReportSchema.safeParse(candidate);

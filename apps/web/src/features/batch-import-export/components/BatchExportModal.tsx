@@ -105,6 +105,17 @@ export default function BatchExportModal({
     newCount,
     overwriteCount,
     createNewCount,
+    selectedRowIds,
+    editingRow,
+    setEditingRow,
+    isRowSelected,
+    toggleSelectRow,
+    deselectAllRows,
+    toggleSelectAll,
+    updateRow,
+    deleteRow,
+    bulkUpdateSelectedRows,
+    bulkDeleteSelectedRows,
     handleDownloadPatientTemplate,
     handleImportCatalog,
     handleImportEquipmentLinks,
@@ -268,6 +279,18 @@ export default function BatchExportModal({
                 setRowAction={setRowAction}
                 setAllDuplicateAction={setAllDuplicateAction}
                 handleClearImportedRows={handleClearImportedRows}
+                selectedRowIds={selectedRowIds}
+                editingRow={editingRow}
+                setEditingRow={setEditingRow}
+                isRowSelected={isRowSelected}
+                toggleSelectRow={toggleSelectRow}
+                toggleSelectAll={toggleSelectAll}
+                updateRow={updateRow}
+                deleteRow={deleteRow}
+                bulkUpdateSelectedRows={bulkUpdateSelectedRows}
+                bulkDeleteSelectedRows={bulkDeleteSelectedRows}
+                deselectAllRows={deselectAllRows}
+                doctorsList={doctorsList}
               />
 
               <BatchSystemConfigSection

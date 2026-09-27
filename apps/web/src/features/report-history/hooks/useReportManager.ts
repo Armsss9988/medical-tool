@@ -59,11 +59,19 @@ export function useReportManager() {
     return unsub;
   }, [setReports]);
 
+  // Helper: Lọc bỏ các bản ghi không hợp lệ hoặc thiếu tên bệnh nhân trước khi lưu DB
+  const cleanReportsList = (list: MedicalReport[]): MedicalReport[] => {
+    return list.filter(
+      (r) => r && r.patient && typeof r.patient.name === 'string' && r.patient.name.trim().length > 0
+    );
+  };
+
   // Helper: Lưu trực tiếp lên Cloud DB nếu được bật
   const syncReportsDirectly = (nextList: MedicalReport[]) => {
+    const validList = cleanReportsList(nextList);
     const cloudConfig = loadState<CloudDbConfig>(STORAGE_KEYS.CLOUD_DB, DEFAULT_CLOUD_DB_CONFIG);
     if (cloudConfig?.enabled !== false && cloudConfig?.supabaseUrl) {
-      syncReportsToSupabase(nextList, cloudConfig).catch((err) =>
+      syncReportsToSupabase(validList, cloudConfig).catch((err) =>
         console.warn('[useReportManager] Lỗi lưu trực tiếp phiếu lên Cloud:', err)
       );
     }
@@ -287,10 +295,11 @@ export function useReportManager() {
     reportsRef.current = currentList;
     setReports(currentList);
     saveState(STORAGE_KEYS.REPORTS, currentList);
-    putTable('medical-reports', currentList).catch((err) => {
+    const validList = cleanReportsList(currentList);
+    putTable('medical-reports', validList).catch((err) => {
       console.warn('[useReportManager] Lỗi lưu batch reports vào server local:', err);
     });
-    syncReportsDirectly(currentList);
+    syncReportsDirectly(validList);
 
     return savedList;
   };
@@ -303,10 +312,11 @@ export function useReportManager() {
     reportsRef.current = next;
     setReports(next);
     saveState(STORAGE_KEYS.REPORTS, next);
-    putTable('medical-reports', next).catch((err) => {
+    const validNext = cleanReportsList(next);
+    putTable('medical-reports', validNext).catch((err) => {
       console.warn('[useReportManager] Lỗi lưu bulk update reports vào server local:', err);
     });
-    syncReportsDirectly(next);
+    syncReportsDirectly(validNext);
   };
 
   // 6. Xóa 1 phiếu & Phát Event

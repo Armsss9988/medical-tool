@@ -107,6 +107,7 @@ export function useBatchExcelOperations({
 
         return {
           ...row,
+          id: row.id || `import_row_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 7)}`,
           status: isDuplicate ? 'DUPLICATE' : 'NEW',
           action: 'CREATE_NEW', // MẶC ĐỊNH MỖI RECORD LÀ THÊM MỚI THEO YÊU CẦU CỦA USER
           matchedReportId: matchedRep?.id,
@@ -116,6 +117,8 @@ export function useBatchExcelOperations({
       });
 
       setImportedRows(scannedRows);
+      setSelectedRowIds(new Set());
+      setEditingRow(null);
 
       const dupCount = scannedRows.filter((r) => r.status === 'DUPLICATE').length;
       const newCount = scannedRows.length - dupCount;
@@ -137,9 +140,108 @@ export function useBatchExcelOperations({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const setRowAction = (index: number, action: ImportRowAction) => {
+  // ─── SELECTION & EDITING STATE ─────────────────────────────────────────────
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
+  const [editingRow, setEditingRow] = useState<BatchImportRow | null>(null);
+
+  const isRowSelected = (id?: string) => Boolean(id && selectedRowIds.has(id));
+
+  const toggleSelectRow = (id: string) => {
+    setSelectedRowIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const selectAllRows = (ids?: string[]) => {
+    if (ids) {
+      setSelectedRowIds(new Set(ids));
+    } else {
+      setSelectedRowIds(new Set(importedRows.map((r) => r.id!).filter(Boolean)));
+    }
+  };
+
+  const deselectAllRows = () => {
+    setSelectedRowIds(new Set());
+  };
+
+  const toggleSelectAll = (allIds: string[]) => {
+    const allSelected = allIds.length > 0 && allIds.every((id) => selectedRowIds.has(id));
+    if (allSelected) {
+      setSelectedRowIds(new Set());
+    } else {
+      setSelectedRowIds(new Set(allIds));
+    }
+  };
+
+  const updateRow = (targetId: string, updatedRow: BatchImportRow) => {
     setImportedRows((prev) =>
-      prev.map((r, i) => (i === index ? { ...r, action } : r))
+      prev.map((r) => (r.id === targetId ? { ...updatedRow, id: targetId } : r))
+    );
+    if (editingRow?.id === targetId) {
+      setEditingRow(null);
+    }
+    showToast('Đã lưu thay đổi thông tin bản ghi!', 'success');
+  };
+
+  const deleteRow = (targetId: string) => {
+    setImportedRows((prev) => prev.filter((r) => r.id !== targetId));
+    setSelectedRowIds((prev) => {
+      const next = new Set(prev);
+      next.delete(targetId);
+      return next;
+    });
+    if (editingRow?.id === targetId) {
+      setEditingRow(null);
+    }
+    showToast('Đã xóa dòng khỏi danh sách import!', 'info');
+  };
+
+  const bulkUpdateSelectedRows = (patch: {
+    doctorName?: string;
+    diagnosis?: string;
+    address?: string;
+    action?: ImportRowAction;
+  }) => {
+    if (selectedRowIds.size === 0) return;
+    setImportedRows((prev) =>
+      prev.map((r) => {
+        if (!r.id || !selectedRowIds.has(r.id)) return r;
+        return {
+          ...r,
+          ...(patch.doctorName !== undefined ? { doctorName: patch.doctorName } : {}),
+          ...(patch.action !== undefined ? { action: patch.action } : {}),
+          patient: {
+            ...r.patient,
+            ...(patch.diagnosis !== undefined ? { diagnosis: patch.diagnosis } : {}),
+            ...(patch.address !== undefined ? { address: patch.address } : {})
+          }
+        };
+      })
+    );
+    showToast(`Đã cập nhật hàng loạt cho ${selectedRowIds.size} bệnh nhân đã chọn!`, 'success');
+  };
+
+  const bulkDeleteSelectedRows = () => {
+    if (selectedRowIds.size === 0) return;
+    const count = selectedRowIds.size;
+    setImportedRows((prev) => prev.filter((r) => !r.id || !selectedRowIds.has(r.id)));
+    setSelectedRowIds(new Set());
+    showToast(`Đã xóa ${count} bản ghi đã chọn!`, 'info');
+  };
+
+  const setRowAction = (target: number | string, action: ImportRowAction) => {
+    setImportedRows((prev) =>
+      prev.map((r, i) =>
+        typeof target === 'number'
+          ? (i === target ? { ...r, action } : r)
+          : (r.id === target ? { ...r, action } : r)
+      )
     );
   };
 
@@ -151,6 +253,8 @@ export function useBatchExcelOperations({
 
   const handleClearImportedRows = () => {
     setImportedRows([]);
+    setSelectedRowIds(new Set());
+    setEditingRow(null);
     setImportError('');
   };
 
@@ -183,6 +287,8 @@ export function useBatchExcelOperations({
       showToast(`Đã nhập thêm mới ${importedRows.length} phiếu bệnh nhân vào Sổ Lưu!`, 'success');
     }
     setImportedRows([]);
+    setSelectedRowIds(new Set());
+    setEditingRow(null);
   };
 
   const handleDownloadPatientTemplate = () => {
@@ -520,6 +626,20 @@ export function useBatchExcelOperations({
     newCount,
     overwriteCount,
     createNewCount,
+    // Selection & Editing
+    selectedRowIds,
+    editingRow,
+    setEditingRow,
+    isRowSelected,
+    toggleSelectRow,
+    selectAllRows,
+    deselectAllRows,
+    toggleSelectAll,
+    updateRow,
+    deleteRow,
+    bulkUpdateSelectedRows,
+    bulkDeleteSelectedRows,
+    // System Excel Handlers
     handleDownloadPatientTemplate,
     handleImportCatalog,
     handleImportEquipmentLinks,

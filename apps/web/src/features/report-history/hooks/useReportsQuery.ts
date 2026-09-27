@@ -41,7 +41,8 @@ export function useReportsQuery() {
           for (const r of parsed) {
             reportMap.set(r.id, r);
           }
-          for (const loc of local) {
+          const safeLocal = safeParseMedicalReports(local);
+          for (const loc of safeLocal) {
             if (!reportMap.has(loc.id)) {
               reportMap.set(loc.id, loc);
             }

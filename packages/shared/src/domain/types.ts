@@ -604,6 +604,8 @@ export type ImportRowAction = 'CREATE_NEW' | 'OVERWRITE';
 export type ImportRowStatus = 'NEW' | 'DUPLICATE';
 
 export interface BatchImportRow {
+  /** Định danh duy nhất của hàng trong phiên import để phục vụ chọn, sửa, xóa */
+  id?: string;
   patient: Patient;
   selectedTests: SelectedTest[];
   conclusion: string;

@@ -41,23 +41,29 @@ export function countExcelSheets(buffer: ArrayBuffer): number {
  */
 export async function saveExcelJsWorkbook(workbook: ExcelJS.Workbook, filename: string): Promise<void> {
   const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 }
 
 /**
  * Đọc file Blob hoặc ArrayBuffer thành ArrayBuffer an toàn trên cả Browser và Node/Worker
  */
-export async function readFileAsArrayBuffer(fileOrBuffer: Blob | ArrayBuffer): Promise<ArrayBuffer> {
+export async function readFileAsArrayBuffer(fileOrBuffer: Blob | ArrayBuffer | ArrayBufferView): Promise<ArrayBuffer> {
   if (fileOrBuffer instanceof ArrayBuffer) {
     return fileOrBuffer;
+  }
+  if (ArrayBuffer.isView(fileOrBuffer)) {
+    const view = fileOrBuffer as ArrayBufferView;
+    return view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength) as ArrayBuffer;
   }
   if (typeof (fileOrBuffer as Blob).arrayBuffer === 'function') {
     return await (fileOrBuffer as Blob).arrayBuffer();
@@ -87,13 +93,26 @@ export function cleanKey(str: unknown): string {
 }
 
 /**
+ * Lược bỏ các ghi chú trong ngoặc vuông [...] hoặc ngoặc tròn (...) khỏi tiêu đề cột
+ * Ví dụ: "Giới Tính (*) [Chọn Dropdown]" -> "Giới Tính"
+ */
+export function stripHeaderAnnotations(str: unknown): string {
+  return String(str ?? '')
+    .replace(/\[[^\]]*\]/g, ' ')
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
  * Lấy giá trị thô gốc (chưa ép kiểu sang string) từ 1 hàng Excel dựa trên danh sách aliases
  */
 export function getRowRawValue(row: Record<string, unknown>, aliases: string[]): unknown {
   const cleanAliases = aliases.map(cleanKey);
   for (const [key, val] of Object.entries(row)) {
     const cleaned = cleanKey(key);
-    if (cleanAliases.includes(cleaned)) {
+    const strippedCleaned = cleanKey(stripHeaderAnnotations(key));
+    if (cleanAliases.includes(cleaned) || cleanAliases.includes(strippedCleaned)) {
       return val;
     }
   }
