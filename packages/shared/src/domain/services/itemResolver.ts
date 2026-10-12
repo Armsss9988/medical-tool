@@ -11,6 +11,7 @@ import {
 import { getAllergenScaleById } from '../allergen';
 import { evaluateTestIndicator } from '../testResult';
 import { isTIgETest } from '../allergenDetector';
+import { formatReferenceRange, formatDecimalNumber } from '../formatters';
 
 export const DEFAULT_CODE_TO_REFERENCE_RANGE_MAP: Record<string, string> = {
   GLU: 'ref_glucose',
@@ -53,6 +54,7 @@ export interface ResolvedReferenceInfo {
   refText: string;
   unit: string;
   evaluationType: EvaluationType;
+  decimalPlaces?: number | null;
   scaleId?: string;
   scale?: AllergenGradingScale;
   equipmentId?: string;
@@ -82,7 +84,7 @@ export interface ResolveIndicatorOptions {
  *    - Lấy refText từ link hoặc item.
  */
 export function resolveIndicatorReference(
-  item: Pick<CatalogItem, 'code' | 'category' | 'unit' | 'refText' | 'evaluationType' | 'scaleId' | 'referenceRangeId' | 'refMin' | 'refMax' | 'equipment'> & { name?: string },
+  item: Pick<CatalogItem, 'code' | 'category' | 'unit' | 'refText' | 'evaluationType' | 'scaleId' | 'referenceRangeId' | 'refMin' | 'refMax' | 'equipment' | 'decimalPlaces' | 'scientific'> & { name?: string },
   options: ResolveIndicatorOptions = {}
 ): ResolvedReferenceInfo {
   const {
@@ -95,11 +97,9 @@ export function resolveIndicatorReference(
 
   const itemCodeUpper = (item.code || '').trim().toUpperCase();
   const isTIgE = isTIgETest(item);
-  const isAllergenCategory = !isTIgE && (
-    (item.category && item.category.includes('Dị Nguyên')) === true ||
-    item.unit === 'IU/mL' ||
-    Boolean(item.scaleId) ||
-    item.evaluationType === 'scale'
+  const isAllergenCategory = !isTIgE && Boolean(
+    (item.category && item.category.includes('Dị Nguyên')) ||
+    (item.scaleId && (item.scaleId.includes('protia') || item.scaleId.includes('allergen') || item.scaleId.includes('mediwiss')))
   );
 
   // ─── 1. Tìm CatalogItemEquipmentLink phù hợp ───────────────────────────────
@@ -117,6 +117,10 @@ export function resolveIndicatorReference(
   if (!matchedLink && matchingLinks.length > 0) {
     matchedLink = matchingLinks[0];
   }
+
+  const resolvedDecimalPlaces = (matchedLink?.decimalPlaces !== undefined && matchedLink?.decimalPlaces !== null)
+    ? matchedLink.decimalPlaces
+    : ((item.decimalPlaces !== undefined && item.decimalPlaces !== null) ? item.decimalPlaces : null);
 
   // Xác định thông tin thiết bị đo
   const activeEquipmentId = matchedLink?.equipmentId || preferredEquipmentId || undefined;
@@ -139,6 +143,23 @@ export function resolveIndicatorReference(
   }
 
   // ─── 2. Xác định phương thức đánh giá theo máy đo (hoặc theo item) ─────────
+  const isSS55 = itemCodeUpper.startsWith('SS55_');
+  if (isSS55) {
+    const ssRefText = item.scientific || matchedLink?.refText || item.refText || '';
+    const formattedRefText = formatReferenceRange(null, null, ssRefText, resolvedDecimalPlaces);
+    return {
+      refMin: null,
+      refMax: null,
+      refText: formattedRefText !== '---' ? formattedRefText : (ssRefText || '---'),
+      unit: '',
+      evaluationType: 'text',
+      decimalPlaces: resolvedDecimalPlaces,
+      equipmentId: activeEquipmentId,
+      equipmentName: activeEquipmentName,
+      isAllergen: false
+    };
+  }
+
   // Mỗi máy đo liên kết có thể có một phương thức đánh giá độc lập (range | scale | detection | text).
   // Ưu tiên cao nhất là evaluationType cấu hình trực tiếp trên máy đo (matchedLink.evaluationType).
   const effectiveEvalType: EvaluationType = matchedLink?.evaluationType || (
@@ -148,12 +169,29 @@ export function resolveIndicatorReference(
     ))
   );
 
-  // A. Trường hợp PHÁT HIỆN (DETECTION)
+  // A. Trường hợp ĐỊNH TÍNH (TEXT)
+  if (effectiveEvalType === 'text') {
+    const rawCustomText = matchedLink?.refText || item.refText || '';
+    const formattedRefText = formatReferenceRange(null, null, rawCustomText, resolvedDecimalPlaces);
+    return {
+      refMin: null,
+      refMax: null,
+      refText: formattedRefText !== '---' ? formattedRefText : (rawCustomText || '---'),
+      unit: matchedLink?.unit || item.unit || '',
+      evaluationType: 'text',
+      decimalPlaces: resolvedDecimalPlaces,
+      equipmentId: activeEquipmentId,
+      equipmentName: activeEquipmentName,
+      isAllergen: false
+    };
+  }
+
+  // B. Trường hợp PHÁT HIỆN (DETECTION)
   if (effectiveEvalType === 'detection') {
     const unit = matchedLink?.unit || item.unit || '';
     const refText = (matchedLink?.refText !== undefined && matchedLink?.refText !== null && matchedLink?.refText !== '')
-      ? matchedLink.refText
-      : (item.refText || 'Không phát hiện');
+      ? formatReferenceRange(null, null, matchedLink.refText, resolvedDecimalPlaces)
+      : (item.refText ? formatReferenceRange(null, null, item.refText, resolvedDecimalPlaces) : 'Không phát hiện');
 
     return {
       refMin: null,
@@ -161,6 +199,7 @@ export function resolveIndicatorReference(
       refText,
       unit,
       evaluationType: 'detection',
+      decimalPlaces: resolvedDecimalPlaces,
       equipmentId: activeEquipmentId,
       equipmentName: activeEquipmentName,
       isAllergen: false
@@ -183,10 +222,15 @@ export function resolveIndicatorReference(
         : (item.refMax !== undefined && item.refMax !== null ? item.refMax : 0.34);
       const unit = matchedLink?.unit || scale?.unit || item.unit || 'IU/ml';
       const baseRange = level0?.rangeText;
-      const scaleRefText = baseRange
-        ? (baseRange.includes('(Độ') ? baseRange : `${baseRange} (Độ 0)`)
+      const cleanBaseRange = baseRange
+        ? baseRange.replace(/[≤]/g, '<').replace(/<=/g, '<').replace(/[≥]/g, '>').replace(/>=/g, '>')
         : undefined;
-      const refText = scaleRefText || matchedLink?.refText || (item.refMax !== undefined && item.refMax !== null ? `<${item.refMax} (Độ 0)` : '<0.34 (Độ 0)');
+      const scaleRefText = cleanBaseRange
+        ? (cleanBaseRange.includes('(Độ') ? cleanBaseRange : `${cleanBaseRange} (Độ 0)`)
+        : (refMax !== null ? `< ${formatDecimalNumber(refMax, resolvedDecimalPlaces)} (Độ 0)` : 'Độ 0');
+      const refText = (matchedLink?.refText && matchedLink.refText.trim() !== '')
+        ? formatReferenceRange(null, null, matchedLink.refText, resolvedDecimalPlaces)
+        : scaleRefText;
       const label = level0?.label || 'Không phản ứng';
 
       return {
@@ -195,12 +239,13 @@ export function resolveIndicatorReference(
         refText,
         unit,
         evaluationType: 'scale',
+        decimalPlaces: resolvedDecimalPlaces,
         scaleId: activeScaleId,
         scale,
         equipmentId: activeEquipmentId,
         equipmentName: activeEquipmentName,
         label,
-        isAllergen: true
+        isAllergen: isAllergenCategory
       };
     }
   }
@@ -223,13 +268,9 @@ export function resolveIndicatorReference(
     resolvedRefMax = matchedLink.refMax !== undefined ? matchedLink.refMax : null;
     if (matchedLink.unit) resolvedUnit = matchedLink.unit;
     if (matchedLink.refText && matchedLink.refText.trim() !== '') {
-      resolvedRefText = matchedLink.refText.trim();
-    } else if (resolvedRefMin !== null && resolvedRefMax !== null) {
-      resolvedRefText = `${resolvedRefMin} - ${resolvedRefMax}`;
-    } else if (resolvedRefMin !== null) {
-      resolvedRefText = `>= ${resolvedRefMin}`;
-    } else if (resolvedRefMax !== null) {
-      resolvedRefText = `<= ${resolvedRefMax}`;
+      resolvedRefText = formatReferenceRange(null, null, matchedLink.refText, resolvedDecimalPlaces);
+    } else {
+      resolvedRefText = formatReferenceRange(resolvedRefMin, resolvedRefMax, undefined, resolvedDecimalPlaces);
     }
   } else {
     // Ưu tiên 2: Tra cứu trong bảng ReferenceRangeItem
@@ -241,32 +282,32 @@ export function resolveIndicatorReference(
       resolvedRefMax = refRange.refMax !== undefined ? refRange.refMax : null;
       if (refRange.unit) resolvedUnit = refRange.unit;
       if (refRange.refText && refRange.refText.trim() !== '') {
-        resolvedRefText = refRange.refText.trim();
-      } else if (resolvedRefMin !== null && resolvedRefMax !== null) {
-        resolvedRefText = `${resolvedRefMin} - ${resolvedRefMax}`;
+        resolvedRefText = formatReferenceRange(null, null, refRange.refText, resolvedDecimalPlaces);
+      } else {
+        resolvedRefText = formatReferenceRange(resolvedRefMin, resolvedRefMax, undefined, resolvedDecimalPlaces);
       }
     } else {
       // Fallback 3: Dữ liệu tĩnh trên CatalogItem (nếu có)
       resolvedRefMin = item.refMin !== undefined ? item.refMin : null;
       resolvedRefMax = item.refMax !== undefined ? item.refMax : null;
-      resolvedRefText = item.refText || '';
-      if (!resolvedRefText && resolvedRefMin !== null && resolvedRefMax !== null) {
-        resolvedRefText = `${resolvedRefMin} - ${resolvedRefMax}`;
+      if (item.refText && item.refText.trim() !== '') {
+        resolvedRefText = formatReferenceRange(null, null, item.refText, resolvedDecimalPlaces);
+      } else if (resolvedRefMin !== null || resolvedRefMax !== null) {
+        resolvedRefText = formatReferenceRange(resolvedRefMin, resolvedRefMax, undefined, resolvedDecimalPlaces);
       }
     }
   }
 
   const isNumericRange = (resolvedRefMin !== null || resolvedRefMax !== null);
-  const finalEvalType: EvaluationType = effectiveEvalType === 'text' 
-    ? 'text' 
-    : (isNumericRange ? 'range' : (effectiveEvalType || 'range'));
+  const finalEvalType: EvaluationType = isNumericRange ? 'range' : (effectiveEvalType || 'range');
 
   return {
     refMin: resolvedRefMin,
     refMax: resolvedRefMax,
-    refText: resolvedRefText || item.refText || (resolvedRefMin !== null && resolvedRefMax !== null ? `${resolvedRefMin} - ${resolvedRefMax}` : '---'),
+    refText: resolvedRefText || '---',
     unit: resolvedUnit || item.unit || '',
     evaluationType: finalEvalType,
+    decimalPlaces: resolvedDecimalPlaces,
     equipmentId: activeEquipmentId,
     equipmentName: activeEquipmentName,
     isAllergen: false
@@ -295,6 +336,7 @@ export function buildSelectedTest(
     refMin: resolved.refMin,
     refMax: resolved.refMax,
     refText: resolved.refText,
+    decimalPlaces: resolved.decimalPlaces ?? item.decimalPlaces ?? null,
     unit: resolved.unit,
     scaleId: resolved.scaleId,
     result: '',

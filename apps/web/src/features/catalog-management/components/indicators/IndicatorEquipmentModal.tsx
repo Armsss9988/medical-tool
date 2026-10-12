@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { X, Plus, Trash2, Cpu } from 'lucide-react';
 import { CatalogItem, TestEquipment, CatalogItemEquipmentLink, AllergenGradingScale, EvaluationType } from '@domain/types';
+import { formatReferenceRange } from '@domain/formatters';
+import { isAllergenCategory, isAllergenScale, validateScaleAssignment } from '@domain/services/scaleClassification';
 
 interface IndicatorEquipmentModalProps {
   isOpen: boolean;
@@ -29,8 +31,15 @@ export function IndicatorEquipmentModal({
   const [refMax, setRefMax] = useState('');
   const [unit, setUnit] = useState('');
   const [refText, setRefText] = useState('');
+  const [decimalPlaces, setDecimalPlaces] = useState('');
   const [scaleId, setScaleId] = useState('scale_protia_91');
   const [isDefault, setIsDefault] = useState(false);
+
+  const isItemAllergen = isAllergenCategory(item?.category);
+  const filteredScales = useMemo(() => {
+    const list = scales.filter((s) => (isItemAllergen ? isAllergenScale(s) : !isAllergenScale(s)));
+    return list.length > 0 ? list : scales;
+  }, [scales, isItemAllergen]);
 
   useEffect(() => {
     if (equipments.length > 0) {
@@ -41,13 +50,24 @@ export function IndicatorEquipmentModal({
       setRefMin(item.refMin != null ? String(item.refMin) : '');
       setRefMax(item.refMax != null ? String(item.refMax) : '');
       setRefText(item.refText || '');
-      setScaleId(item.scaleId || 'scale_protia_91');
+      setDecimalPlaces(item.decimalPlaces != null ? String(item.decimalPlaces) : '');
+
+      const isCatAllerg = isAllergenCategory(item.category);
+      const validScales = scales.filter((s) => (isCatAllerg ? isAllergenScale(s) : !isAllergenScale(s)));
+      if (item.scaleId && validScales.some((s) => s.id === item.scaleId)) {
+        setScaleId(item.scaleId);
+      } else if (validScales.length > 0) {
+        setScaleId(validScales[0].id);
+      } else {
+        setScaleId(item.scaleId || 'scale_protia_91');
+      }
+
       const isDet = item.evaluationType === 'detection';
       const isSc = item.evaluationType === 'scale' || Boolean(item.scaleId);
       setEvalMode(isDet ? 'detection' : (isSc ? 'scale' : 'range'));
     }
     setIsDefault(false);
-  }, [item, equipments, isOpen]);
+  }, [item, equipments, isOpen, scales]);
 
   if (!isOpen || !item) return null;
 
@@ -67,19 +87,32 @@ export function IndicatorEquipmentModal({
       return;
     }
 
+    if (evalMode === 'scale') {
+      const selectedScale = scales.find((s) => s.id === scaleId);
+      const validation = validateScaleAssignment(item.category, selectedScale);
+      if (!validation.valid) {
+        showToast?.(validation.reason || 'Thang đo không phù hợp với nhóm chỉ số.', 'error');
+        return;
+      }
+    }
+
     const minNum = refMin !== '' ? Number(refMin) : null;
     const maxNum = refMax !== '' ? Number(refMax) : null;
+    const parsedDecimals = decimalPlaces.trim() !== '' ? Number(decimalPlaces) : null;
     let finalRefText = refText.trim();
-    if (!finalRefText) {
-      if (evalMode === 'detection') {
-        finalRefText = 'Không phát hiện';
-      } else if (evalMode === 'range') {
-        if (minNum != null && maxNum != null) finalRefText = `${minNum} - ${maxNum}`;
-        else if (minNum != null) finalRefText = `>= ${minNum}`;
-        else if (maxNum != null) finalRefText = `<= ${maxNum}`;
-      } else if (evalMode === 'scale') {
-        finalRefText = '< 0.34 (Độ 0)';
+    if (evalMode === 'range') {
+      finalRefText = formatReferenceRange(minNum, maxNum, finalRefText || null, parsedDecimals);
+    } else if (evalMode === 'scale') {
+      if (!finalRefText) {
+        const selectedScale = scales.find((s) => s.id === scaleId);
+        const level0 = selectedScale?.levels?.find((l) => l.grade === 0);
+        const level0Max = level0?.maxVal != null ? formatReferenceRange(null, level0.maxVal, null, parsedDecimals) : '< 0,34';
+        finalRefText = `${level0Max} (${level0?.label || 'Độ 0'})`;
+      } else {
+        finalRefText = formatReferenceRange(null, null, finalRefText, parsedDecimals);
       }
+    } else if (evalMode === 'detection') {
+      finalRefText = formatReferenceRange(null, null, finalRefText || 'Không phát hiện', parsedDecimals);
     }
 
     const newLink: CatalogItemEquipmentLink = {
@@ -89,6 +122,7 @@ export function IndicatorEquipmentModal({
       evaluationType: evalMode,
       refMin: evalMode === 'range' ? minNum : null,
       refMax: evalMode === 'range' ? maxNum : null,
+      decimalPlaces: parsedDecimals,
       unit: unit.trim() || undefined,
       refText: finalRefText || undefined,
       scaleId: evalMode === 'scale' ? scaleId : undefined,
@@ -211,7 +245,7 @@ export function IndicatorEquipmentModal({
               </div>
 
               {evalMode === 'range' ? (
-                <div className="grid grid-cols-3 gap-2 pt-1">
+                <div className="grid grid-cols-4 gap-2 pt-1">
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Min riêng</label>
                     <input
@@ -235,12 +269,24 @@ export function IndicatorEquipmentModal({
                     />
                   </div>
                   <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Số lẻ thập phân</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="6"
+                      value={decimalPlaces}
+                      onChange={(e) => setDecimalPlaces(e.target.value)}
+                      placeholder="0-4"
+                      className="w-full px-2.5 py-1 border border-slate-300 rounded-lg font-mono"
+                    />
+                  </div>
+                  <div>
                     <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Chuỗi tham chiếu</label>
                     <input
                       type="text"
                       value={refText}
                       onChange={(e) => setRefText(e.target.value)}
-                      placeholder="VD: 3.9 - 6.4"
+                      placeholder="VD: 3,9 – 6,4"
                       className="w-full px-2.5 py-1 border border-slate-300 rounded-lg"
                     />
                   </div>
@@ -253,7 +299,7 @@ export function IndicatorEquipmentModal({
                     onChange={(e) => setScaleId(e.target.value)}
                     className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white font-medium"
                   >
-                    {scales.map((s) => (
+                    {filteredScales.map((s) => (
                       <option key={s.id} value={s.id}>{s.name}</option>
                     ))}
                   </select>
@@ -271,7 +317,7 @@ export function IndicatorEquipmentModal({
                     />
                   </div>
                   <div className="p-1.5 bg-teal-50 border border-teal-200 rounded text-[10.5px] text-teal-800">
-                    💡 <strong>Quy tắc:</strong> Kết quả = <strong>0</strong> (hoặc ≤ 0) $\rightarrow$ <strong>Không Phát Hiện</strong>. Kết quả &gt; <strong>0</strong> $\rightarrow$ <strong>Phát Hiện</strong>.
+                    💡 <strong>Quy tắc:</strong> Kết quả = <strong>0</strong> (hoặc &lt; 0) $\rightarrow$ <strong>Không Phát Hiện</strong>. Kết quả &gt; <strong>0</strong> $\rightarrow$ <strong>Phát Hiện</strong>.
                   </div>
                 </div>
               )}
@@ -339,7 +385,7 @@ export function IndicatorEquipmentModal({
                           )}
                         </div>
                         <span className="text-[11px] text-slate-500 font-mono">
-                          Ngưỡng: {l.refText || (l.refMin != null && l.refMax != null ? `${l.refMin} - ${l.refMax}` : (l.evaluationType === 'detection' ? 'Không phát hiện' : 'Theo chỉ số'))} ({l.unit || item.unit || '---'})
+                          Ngưỡng: {formatReferenceRange(l.refMin, l.refMax, l.refText, l.decimalPlaces) !== '---' ? formatReferenceRange(l.refMin, l.refMax, l.refText, l.decimalPlaces) : (l.evaluationType === 'detection' ? 'Không phát hiện' : 'Theo chỉ số')} ({l.unit || item.unit || '---'})
                         </span>
                       </div>
                       <button

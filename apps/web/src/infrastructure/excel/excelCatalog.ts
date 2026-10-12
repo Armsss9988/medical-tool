@@ -8,6 +8,8 @@ import type {
   AllergenGradingScale,
   EvaluationType,
 } from '@domain/types';
+import { formatReferenceRange } from '@domain';
+import { isAllergenCategory, validateScaleAssignment } from '@domain/services/scaleClassification';
 import { saveExcelJsWorkbook, cleanKey, getRowValue, readFileAsArrayBuffer } from './excelHelpers';
 
 export interface CatalogExportOptions {
@@ -134,8 +136,8 @@ export async function exportCatalogItemsTemplate(
       refMax: isScale ? '' : (item.refMax !== null && item.refMax !== undefined ? item.refMax : ''),
       scaleName: isScale ? scaleName : '',
       refText: {
-        formula: `=IF(G${r}="Thang phân độ","< 0.34 (Độ 0)",IF(AND(H${r}<>"",I${r}<>""),H${r}&" - "&I${r},IF(H${r}<>"","&gt;= "&H${r},IF(I${r}<>"","&lt;= "&I${r},""))))`,
-        result: item.refText || (isScale ? '< 0.34 (Độ 0)' : (item.refMin !== null && item.refMax !== null ? `${item.refMin} - ${item.refMax}` : ''))
+        formula: `=IF(G${r}="Thang phân độ",IF(J${r}<>"","< "&J${r},"< 0,34 (Độ 0)"),IF(AND(H${r}<>"",I${r}<>""),IF(H${r}=0,"< "&I${r},H${r}&" – "&I${r}),IF(H${r}<>"","> "&H${r},IF(I${r}<>"","< "&I${r},""))))`,
+        result: formatReferenceRange(item.refMin, item.refMax, item.refText, item.decimalPlaces)
       },
       price: item.price || 0
     });
@@ -181,7 +183,7 @@ export async function exportCatalogItemsTemplate(
     if (r > targetItems.length + 1) {
       const refCell = row.getCell(11);
       refCell.value = {
-        formula: `=IF(G${r}="Thang phân độ","< 0.34 (Độ 0)",IF(AND(H${r}<>"",I${r}<>""),H${r}&" - "&I${r},IF(H${r}<>"","&gt;= "&H${r},IF(I${r}<>"","&lt;= "&I${r},""))))`
+        formula: `=IF(G${r}="Thang phân độ",IF(J${r}<>"","< "&J${r},"< 0,34 (Độ 0)"),IF(AND(H${r}<>"",I${r}<>""),IF(H${r}=0,"< "&I${r},H${r}&" – "&I${r}),IF(H${r}<>"","> "&H${r},IF(I${r}<>"","< "&I${r},""))))`
       };
       refCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0FDF4' } };
       refCell.font = { color: { argb: 'FF047857' }, bold: true };
@@ -271,8 +273,11 @@ export async function parseExcelCatalog(fileOrBuffer: Blob | ArrayBuffer): Promi
     const category = getRowValue(row, ['nhom_xet_nghiem', 'nhom', 'category', 'group']) || 'Xét nghiệm khác';
     const code = getRowValue(row, ['ma_chi_so', 'ma_xet_nghiem', 'ma', 'code', 'symbol', 'ma_code']);
     const name = getRowValue(row, ['ten_chi_so', 'ten_xet_nghiem', 'ten', 'name', 'test_name']) || code;
-    const scientific = getRowValue(row, ['ten_khoa_hoc', 'scientific', 'allergen', 'ten_tieng_anh']);
-    const unit = getRowValue(row, ['don_vi', 'unit', 'dvt', 'donvi']);
+    const cleanCode = code.trim().toUpperCase() || name.trim().toUpperCase();
+    const isSS55 = cleanCode.startsWith('SS55_');
+
+    const scientific = getRowValue(row, ['ten_khoa_hoc_allergen', 'ten_khoa_hoc', 'scientific', 'allergen', 'ten_tieng_anh']);
+    const unit = isSS55 ? '' : getRowValue(row, ['don_vi', 'unit', 'dvt', 'donvi']);
 
     const evalRaw = getRowValue(row, ['kieu_danh_gia', 'danh_gia', 'evaluation_type', 'loai']).toLowerCase();
     const scaleRaw = getRowValue(row, ['thang_do_phan_do', 'thang_phan_do', 'thang_do', 'scale', 'scale_id']).toLowerCase();
@@ -283,26 +288,49 @@ export async function parseExcelCatalog(fileOrBuffer: Blob | ArrayBuffer): Promi
     else if (evalRaw.includes('scale') || evalRaw.includes('thang')) scaleId = 'scale_protia_91';
 
     const isScale = !!scaleId;
-    const evaluationType: EvaluationType = isScale ? 'scale' : 'range';
+
+    let evaluationType: EvaluationType;
+    if (isSS55) {
+      evaluationType = 'text';
+    } else if (isScale) {
+      evaluationType = 'scale';
+    } else if (evalRaw.includes('text') || evalRaw.includes('dinh tinh') || evalRaw.includes('chu')) {
+      evaluationType = 'text';
+    } else if (evalRaw.includes('phat hien') || evalRaw.includes('detection')) {
+      evaluationType = 'detection';
+    } else {
+      evaluationType = 'range';
+    }
 
     const rawMin = getRowValue(row, ['min', 'ref_min', 'nguong_min', 'tu']);
-    const refMin = !isScale && rawMin !== '' && !isNaN(parseFloat(rawMin)) ? parseFloat(rawMin) : null;
+    const refMin = !isScale && !isSS55 && rawMin !== '' && !isNaN(parseFloat(rawMin)) ? parseFloat(rawMin) : null;
 
     const rawMax = getRowValue(row, ['max', 'ref_max', 'nguong_max', 'den']);
-    const refMax = !isScale && rawMax !== '' && !isNaN(parseFloat(rawMax)) ? parseFloat(rawMax) : null;
+    const refMax = !isScale && !isSS55 && rawMax !== '' && !isNaN(parseFloat(rawMax)) ? parseFloat(rawMax) : null;
 
-    const rawRefText = getRowValue(row, ['tri_so_tham_chieu', 'tham_chieu', 'khoang_tham_chieu', 'ref_text', 'binh_thuong']);
+    const rawRefText = getRowValue(row, [
+      'tham_chieu_hien_thi_chu',
+      'tham_chieu_chu',
+      'tri_so_tham_chieu',
+      'tham_chieu',
+      'khoang_tham_chieu',
+      'ref_text',
+      'binh_thuong'
+    ]);
+    const rawDecimalPlaces = getRowValue(row, ['so_chu_so_thap_phan', 'decimal_places', 'so_le']);
+    const decimalPlaces = rawDecimalPlaces !== '' && !isNaN(parseInt(rawDecimalPlaces, 10)) ? parseInt(rawDecimalPlaces, 10) : null;
+
     let refText = rawRefText;
-    if (!refText) {
+    if (isSS55) {
+      refText = formatReferenceRange(null, null, scientific.trim() || rawRefText.trim() || '', decimalPlaces);
+    } else if (!refText) {
       if (isScale) {
-        refText = '< 0.34 (Độ 0)';
-      } else if (refMin !== null && refMax !== null) {
-        refText = `${refMin} - ${refMax}`;
-      } else if (refMin !== null) {
-        refText = `>= ${refMin}`;
-      } else if (refMax !== null) {
-        refText = `<= ${refMax}`;
+        refText = '< 0,34 (Độ 0)';
+      } else if (evaluationType === 'range') {
+        refText = formatReferenceRange(refMin, refMax, undefined, decimalPlaces);
       }
+    } else {
+      refText = formatReferenceRange(null, null, rawRefText, decimalPlaces);
     }
 
     const rawPrice = getRowValue(row, ['don_gia_vnd', 'don_gia', 'gia_tien', 'gia_thu', 'price', 'gia']);
@@ -310,7 +338,7 @@ export async function parseExcelCatalog(fileOrBuffer: Blob | ArrayBuffer): Promi
 
     return {
       category: category.trim(),
-      code: code.trim().toUpperCase() || name.trim().toUpperCase(),
+      code: cleanCode,
       name: name.trim(),
       scientific: scientific.trim() || undefined,
       unit: unit.trim(),
@@ -318,8 +346,9 @@ export async function parseExcelCatalog(fileOrBuffer: Blob | ArrayBuffer): Promi
       refMax,
       refText: refText.trim(),
       price,
-      scaleId,
-      evaluationType
+      scaleId: isScale ? scaleId : undefined,
+      evaluationType,
+      decimalPlaces
     };
   }).filter((item) => item.code.length > 0 && item.name.length > 0);
 
@@ -346,6 +375,7 @@ export async function exportCatalogItemEquipmentsTemplate(
     unit: string;
     refText: string;
     scaleId: string | null;
+    decimalPlaces?: number | null;
     isDefault: boolean;
   }[] = [];
 
@@ -354,16 +384,16 @@ export async function exportCatalogItemEquipmentsTemplate(
   if (isSampleOnly) {
     if (targetEq) {
       targetRows = [
-        { catalogCode: 'GLU', equipmentName: targetEq.name, evaluationType: 'range', refMin: 3.9, refMax: 6.4, unit: 'mmol/L', refText: '3.9 - 6.4', scaleId: null, isDefault: true },
-        { catalogCode: 'URE', equipmentName: targetEq.name, evaluationType: 'range', refMin: 2.5, refMax: 7.5, unit: 'mmol/L', refText: '2.5 - 7.5', scaleId: null, isDefault: true },
-        { catalogCode: 'CRE', equipmentName: targetEq.name, evaluationType: 'range', refMin: 53, refMax: 106, unit: 'µmol/L', refText: '53 - 106', scaleId: null, isDefault: true }
+        { catalogCode: 'GLU', equipmentName: targetEq.name, evaluationType: 'range', refMin: 3.9, refMax: 6.4, unit: 'mmol/L', refText: '3.9 - 6.4', scaleId: null, decimalPlaces: 1, isDefault: true },
+        { catalogCode: 'URE', equipmentName: targetEq.name, evaluationType: 'range', refMin: 2.5, refMax: 7.5, unit: 'mmol/L', refText: '2.5 - 7.5', scaleId: null, decimalPlaces: 1, isDefault: true },
+        { catalogCode: 'CRE', equipmentName: targetEq.name, evaluationType: 'range', refMin: 53, refMax: 106, unit: 'µmol/L', refText: '53 - 106', scaleId: null, decimalPlaces: 0, isDefault: true }
       ];
     } else {
       targetRows = [
-        { catalogCode: 'GLU', equipmentName: 'Máy Sinh Hóa Tự Động MS-360', evaluationType: 'range', refMin: 3.9, refMax: 6.4, unit: 'mmol/L', refText: '3.9 - 6.4', scaleId: null, isDefault: true },
-        { catalogCode: 'URE', equipmentName: 'Máy Sinh Hóa Tự Động MS-360', evaluationType: 'range', refMin: 2.5, refMax: 7.5, unit: 'mmol/L', refText: '2.5 - 7.5', scaleId: null, isDefault: true },
-        { catalogCode: 'WBC', equipmentName: 'Máy Phân Tích Huyết Học MS-H630', evaluationType: 'range', refMin: 4.0, refMax: 10.0, unit: 'G/L', refText: '4.0 - 10.0', scaleId: null, isDefault: true },
-        { catalogCode: 'd1', equipmentName: 'PROTIA Allergy-Q Smart Q-processor', evaluationType: 'scale', refMin: null, refMax: null, unit: 'IU/mL', refText: '< 0.34 (Độ 0)', scaleId: 'scale_protia_91', isDefault: true }
+        { catalogCode: 'GLU', equipmentName: 'Máy Sinh Hóa Tự Động MS-360', evaluationType: 'range', refMin: 3.9, refMax: 6.4, unit: 'mmol/L', refText: '3.9 - 6.4', scaleId: null, decimalPlaces: 1, isDefault: true },
+        { catalogCode: 'URE', equipmentName: 'Máy Sinh Hóa Tự Động MS-360', evaluationType: 'range', refMin: 2.5, refMax: 7.5, unit: 'mmol/L', refText: '2.5 - 7.5', scaleId: null, decimalPlaces: 1, isDefault: true },
+        { catalogCode: 'WBC', equipmentName: 'Máy Phân Tích Huyết Học MS-H630', evaluationType: 'range', refMin: 4.0, refMax: 10.0, unit: 'G/L', refText: '4.0 - 10.0', scaleId: null, decimalPlaces: 1, isDefault: true },
+        { catalogCode: 'd1', equipmentName: 'PROTIA Allergy-Q Smart Q-processor', evaluationType: 'scale', refMin: null, refMax: null, unit: 'IU/mL', refText: '< 0,34 (Độ 0)', scaleId: 'scale_protia_91', decimalPlaces: 2, isDefault: true }
       ];
     }
   } else {
@@ -383,6 +413,7 @@ export async function exportCatalogItemEquipmentsTemplate(
         unit: l.unit || '',
         refText: l.refText || '',
         scaleId: l.scaleId || null,
+        decimalPlaces: l.decimalPlaces ?? null,
         isDefault: !!l.isDefault
       };
     });
@@ -448,7 +479,8 @@ export async function exportCatalogItemEquipmentsTemplate(
     const r = idx + 2;
     const isScale = row.evaluationType === 'scale';
     const evalType = isScale ? 'Thang phân độ' : 'Khoảng số';
-    const scaleName = row.scaleId === 'scale_allergen_44' ? 'Gói 44 (Độ 0-6)' : (row.scaleId === 'scale_protia_91' ? 'Protia 91 (Độ 0-6)' : (isScale ? 'Protia 91 (Độ 0-6)' : ''));
+    const scaleObj = scales.find(s => s.id === row.scaleId);
+    const scaleName = scaleObj ? scaleObj.name : (row.scaleId === 'scale_allergen_44' ? 'Gói 44 (Độ 0-6)' : (row.scaleId === 'scale_protia_91' ? 'Protia 91 (Độ 0-6)' : (isScale ? 'Protia 91 (Độ 0-6)' : '')));
 
     const excelRow = ws.addRow({
       stt: idx + 1,
@@ -460,8 +492,8 @@ export async function exportCatalogItemEquipmentsTemplate(
       max: isScale ? '' : (row.refMax !== null ? row.refMax : ''),
       scale: isScale ? scaleName : '',
       refText: {
-        formula: `=IF(E${r}="Thang phân độ","< 0.34 (Độ 0)",IF(AND(F${r}<>"",G${r}<>""),F${r}&" - "&G${r},IF(F${r}<>"","&gt;= "&F${r},IF(G${r}<>"","&lt;= "&G${r},""))))`,
-        result: row.refText || (isScale ? '< 0.34 (Độ 0)' : (row.refMin !== null && row.refMax !== null ? `${row.refMin} - ${row.refMax}` : ''))
+        formula: `=IF(E${r}="Thang phân độ",IF(H${r}<>"","< "&H${r},"< 0,34 (Độ 0)"),IF(AND(F${r}<>"",G${r}<>""),IF(F${r}=0,"< "&G${r},F${r}&" – "&G${r}),IF(F${r}<>"","> "&F${r},IF(G${r}<>"","< "&G${r},""))))`,
+        result: formatReferenceRange(row.refMin, row.refMax, row.refText, row.decimalPlaces)
       },
       def: row.isDefault ? 'Có' : 'Không'
     });
@@ -503,7 +535,7 @@ export async function exportCatalogItemEquipmentsTemplate(
     row.getCell(8).dataValidation = {
       type: 'list',
       allowBlank: true,
-      formulae: ['_DataLookup!$D$2:$D$3'],
+      formulae: [`_DataLookup!$D$2:$D$${scaleNames.length + 1}`],
       showErrorMessage: true,
       errorTitle: 'Thang đo không hợp lệ',
       error: 'Vui lòng chọn thang đo từ dropdown'
@@ -520,7 +552,7 @@ export async function exportCatalogItemEquipmentsTemplate(
     if (r > targetRows.length + 1) {
       const refCell = row.getCell(9);
       refCell.value = {
-        formula: `=IF(E${r}="Thang phân độ","< 0.34 (Độ 0)",IF(AND(F${r}<>"",G${r}<>""),F${r}&" - "&G${r},IF(F${r}<>"","&gt;= "&F${r},IF(G${r}<>"","&lt;= "&G${r},""))))`
+        formula: `=IF(E${r}="Thang phân độ",IF(H${r}<>"","< "&H${r},"< 0,34 (Độ 0)"),IF(AND(F${r}<>"",G${r}<>""),IF(F${r}=0,"< "&G${r},F${r}&" – "&G${r}),IF(F${r}<>"","> "&F${r},IF(G${r}<>"","< "&G${r},""))))`
       };
       refCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0FDF4' } };
       refCell.font = { color: { argb: 'FF047857' }, bold: true };
@@ -567,8 +599,9 @@ export async function exportCatalogItemEquipmentsTemplate(
  */
 export async function parseExcelCatalogItemEquipments(
   fileOrBuffer: Blob | ArrayBuffer,
-  _items: CatalogItem[],
-  equipments: TestEquipment[]
+  items: CatalogItem[] = [],
+  equipments: TestEquipment[] = [],
+  scales: AllergenGradingScale[] = []
 ): Promise<CatalogItemEquipmentLink[]> {
   const buffer = await readFileAsArrayBuffer(fileOrBuffer);
   const data = new Uint8Array(buffer);
@@ -579,6 +612,7 @@ export async function parseExcelCatalogItemEquipments(
   const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' });
 
   const links: CatalogItemEquipmentLink[] = [];
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   for (const row of rawRows) {
     let rawCode = getRowValue(row, ['ma_chi_so', 'ma_xet_nghiem', 'ma', 'code', 'catalog_code']);
@@ -586,44 +620,116 @@ export async function parseExcelCatalogItemEquipments(
     const cleanCode = rawCode.toUpperCase().trim();
     if (!cleanCode) continue;
 
-    const eqRawName = getRowValue(row, ['ten_may_do', 'ten_thiet_bi', 'may_do', 'equipment', 'equipment_name']);
+    const eqRawName = getRowValue(row, ['ten_may_do', 'ten_thiet_bi', 'may_do', 'equipment', 'equipment_name']).trim();
     if (!eqRawName) continue;
 
-    let matchedEq = equipments.find(e => e.name.toLowerCase() === eqRawName.toLowerCase() || (e.code && e.code.toLowerCase() === eqRawName.toLowerCase()));
+    // Reject garbage/UUID machine names
+    if (
+      UUID_REGEX.test(eqRawName) ||
+      eqRawName.toLowerCase().startsWith('eq_eq_') ||
+      eqRawName.toLowerCase().startsWith('eq_f3ba') ||
+      eqRawName.toLowerCase().includes('f3ba2e15')
+    ) {
+      continue;
+    }
+
+    const matchedEq = equipments.find(
+      (e) => e.name.toLowerCase() === eqRawName.toLowerCase() || (e.code && e.code.toLowerCase() === eqRawName.toLowerCase())
+    );
+    if (!matchedEq && equipments.length > 0) {
+      // Directives 2.4: Tên máy phải khớp danh sách Thiết bị; từ chối tên lạ
+      continue;
+    }
     const eqId = matchedEq ? matchedEq.id : 'eq_' + eqRawName.toLowerCase().replace(/[^a-z0-9]/g, '_');
 
     const evalRaw = getRowValue(row, ['kieu_danh_gia', 'danh_gia', 'evaluation_type', 'loai']).toLowerCase();
-    const rawScale = getRowValue(row, ['thang_do_phan_do', 'thang_phan_do', 'thang_do', 'scale', 'scale_id']).toLowerCase();
+    const rawScale = getRowValue(row, ['thang_do_phan_do', 'thang_phan_do', 'thang_do', 'scale', 'scale_id']).trim();
     let scaleId: string | undefined;
-    if (rawScale.includes('44')) scaleId = 'scale_allergen_44';
-    else if (rawScale.includes('protia') || rawScale.includes('91')) scaleId = 'scale_protia_91';
-    else if (evalRaw.includes('scale') || evalRaw.includes('thang')) scaleId = 'scale_protia_91';
 
+    if (rawScale) {
+      const matchedScale = scales.find((s) =>
+        s.id.toLowerCase() === rawScale.toLowerCase() ||
+        s.name.toLowerCase() === rawScale.toLowerCase() ||
+        s.name.toLowerCase().includes(rawScale.toLowerCase()) ||
+        rawScale.toLowerCase().includes(s.name.toLowerCase())
+      );
+      if (matchedScale) {
+        scaleId = matchedScale.id;
+      } else if (rawScale.includes('44')) {
+        scaleId = 'scale_allergen_44';
+      } else if (rawScale.toLowerCase().includes('protia') || rawScale.includes('91')) {
+        scaleId = 'scale_protia_91';
+      }
+    } else if (evalRaw.includes('scale') || evalRaw.includes('thang')) {
+      const targetItem = items.find((i) => i.code.toUpperCase() === cleanCode);
+      if (targetItem && isAllergenCategory(targetItem.category)) {
+        scaleId = 'scale_protia_91';
+      }
+    }
+
+    // Chặn gán chéo: Nếu gán thang Dị nguyên cho chỉ số thường (hoặc ngược lại) -> hủy bỏ scaleId
+    const targetItem = items.find((i) => i.code.toUpperCase() === cleanCode);
+    if (scaleId && targetItem) {
+      const scaleObj = scales.find((s) => s.id === scaleId) || (
+        scaleId === 'scale_protia_91' || scaleId === 'scale_allergen_44'
+          ? { id: scaleId, name: scaleId, unit: 'IU/mL', levels: [] }
+          : undefined
+      );
+      if (scaleObj) {
+        const validation = validateScaleAssignment(targetItem.category, scaleObj);
+        if (!validation.valid) {
+          scaleId = undefined;
+        }
+      }
+    }
+
+    const isSS55 = cleanCode.startsWith('SS55_');
     const isScale = !!scaleId;
 
     const rawMin = getRowValue(row, ['nguong_min', 'min', 'ref_min']);
-    const refMin = !isScale && rawMin !== '' && !isNaN(parseFloat(rawMin)) ? parseFloat(rawMin) : null;
+    const refMin = !isScale && !isSS55 && rawMin !== '' && !isNaN(parseFloat(rawMin)) ? parseFloat(rawMin) : null;
 
     const rawMax = getRowValue(row, ['nguong_max', 'max', 'ref_max']);
-    const refMax = !isScale && rawMax !== '' && !isNaN(parseFloat(rawMax)) ? parseFloat(rawMax) : null;
+    const refMax = !isScale && !isSS55 && rawMax !== '' && !isNaN(parseFloat(rawMax)) ? parseFloat(rawMax) : null;
 
-    const unit = getRowValue(row, ['don_vi', 'unit', 'dvt']);
-    const rawRefText = getRowValue(row, ['text_tham_chieu', 'tri_so_tham_chieu', 'tham_chieu', 'ref_text']);
+    const rawUnit = getRowValue(row, ['don_vi', 'unit', 'dvt']);
+    const unit = isSS55 ? '' : (rawUnit.trim() === '14' || rawUnit.trim() === '15' ? '' : rawUnit.trim());
+
+    const rawRefText = getRowValue(row, [
+      'tham_chieu_hien_thi_chu',
+      'tham_chieu_chu',
+      'text_tham_chieu',
+      'tri_so_tham_chieu',
+      'tham_chieu',
+      'ref_text'
+    ]);
+    const rawDecimalPlaces = getRowValue(row, ['so_chu_so_thap_phan', 'decimal_places', 'so_le']);
+    const decimalPlaces = rawDecimalPlaces !== '' && !isNaN(parseInt(rawDecimalPlaces, 10)) ? parseInt(rawDecimalPlaces, 10) : null;
+
     let refText = rawRefText;
-    if (!refText) {
+    if (isSS55) {
+      refText = targetItem?.scientific || rawRefText || '';
+    } else if (!refText) {
       if (isScale) {
-        refText = '< 0.34 (Độ 0)';
-      } else if (refMin !== null && refMax !== null) {
-        refText = `${refMin} - ${refMax}`;
-      } else if (refMin !== null) {
-        refText = `>= ${refMin}`;
-      } else if (refMax !== null) {
-        refText = `<= ${refMax}`;
+        refText = '< 0,34 (Độ 0)';
+      } else {
+        refText = formatReferenceRange(refMin, refMax, undefined, decimalPlaces);
       }
+    } else {
+      refText = formatReferenceRange(null, null, rawRefText, decimalPlaces);
     }
 
     const rawDefault = getRowValue(row, ['dat_lam_mac_dinh', 'mac_dinh', 'is_default']).toLowerCase();
     const isDefault = ['co', 'có', 'yes', 'true', '1', 'x'].includes(rawDefault);
+
+    if (isDefault) {
+      // Khi gặp dòng có isDefault là Có, các dòng trước đó của cùng mã chỉ số chuyển thành false
+      for (const link of links) {
+        if (link.catalogCode === cleanCode) {
+          link.isDefault = false;
+        }
+      }
+    }
 
     links.push({
       id: `cie_${cleanCode.toLowerCase()}_${eqId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -632,11 +738,28 @@ export async function parseExcelCatalogItemEquipments(
       refMin,
       refMax,
       unit: unit || undefined,
-      refText: refText || undefined,
+      refText: refText !== '---' ? refText : undefined,
       scaleId: scaleId || undefined,
+      decimalPlaces,
       isDefault
     });
   }
+
+  // Đảm bảo mỗi mã chỉ số chỉ có đúng 1 cấu hình mặc định duy nhất
+  const codeGroups = new Map<string, CatalogItemEquipmentLink[]>();
+  for (const l of links) {
+    if (!codeGroups.has(l.catalogCode)) codeGroups.set(l.catalogCode, []);
+    codeGroups.get(l.catalogCode)!.push(l);
+  }
+  codeGroups.forEach((groupLinks) => {
+    const defaultLinks = groupLinks.filter((l) => l.isDefault);
+    if (defaultLinks.length === 0) {
+      groupLinks[0].isDefault = true;
+    } else if (defaultLinks.length > 1) {
+      // Giữ lại đúng 1 cấu hình cuối cùng làm mặc định
+      defaultLinks.slice(0, -1).forEach((l) => (l.isDefault = false));
+    }
+  });
 
   return links;
 }

@@ -1,5 +1,6 @@
 import type { ReferenceRangeItem } from '../domain/types';
 import { isTIgETest } from '../domain/allergenDetector';
+import { isAllergenCategory } from '../domain/services/scaleClassification';
 
 export const CODE_TO_REFERENCE_RANGE_MAP: Record<string, string> = {
   GLU: 'ref_glucose',
@@ -43,11 +44,7 @@ export function autoResolveItemLinks<
   }
 >(item: T): T {
   const isTIgE = isTIgETest(item);
-  const isAllergen =
-    !isTIgE &&
-    ((item.category && item.category.includes('Dị Nguyên')) ||
-      item.unit === 'IU/mL' ||
-      Boolean(item.scaleId));
+  const isAllergen = !isTIgE && isAllergenCategory(item.category);
 
   if (isAllergen) {
     if (!item.scaleId) {
@@ -65,7 +62,15 @@ export function autoResolveItemLinks<
     };
   }
 
-  // General indicator
+  // General indicator: if scaleId is already set, do not clear it
+  if (item.scaleId) {
+    return {
+      ...item,
+      evaluationType: item.evaluationType || 'scale'
+    };
+  }
+
+  // General indicator without scale: map to standard reference range if available
   const mappedRefId = CODE_TO_REFERENCE_RANGE_MAP[item.code.toUpperCase()];
   if (mappedRefId && !item.referenceRangeId) {
     return {

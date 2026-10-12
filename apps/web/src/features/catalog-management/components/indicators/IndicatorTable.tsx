@@ -631,7 +631,25 @@ export function IndicatorTable({
               parsed.forEach((newItem) => {
                 const codeKey = newItem.code.toUpperCase();
                 const existing = map.get(codeKey);
-                map.set(codeKey, existing ? { ...existing, ...newItem } : newItem);
+                if (existing) {
+                  map.set(codeKey, {
+                    ...existing,
+                    ...newItem,
+                    category: newItem.category || existing.category,
+                    name: newItem.name || existing.name,
+                    scientific: newItem.scientific !== undefined ? newItem.scientific : undefined,
+                    unit: newItem.unit,
+                    price: (newItem.price !== undefined && newItem.price >= 0) ? newItem.price : existing.price,
+                    refText: newItem.refText,
+                    evaluationType: newItem.evaluationType,
+                    scaleId: newItem.evaluationType === 'scale' ? newItem.scaleId : undefined,
+                    refMin: newItem.refMin,
+                    refMax: newItem.refMax,
+                    decimalPlaces: newItem.decimalPlaces !== undefined ? newItem.decimalPlaces : null
+                  });
+                } else {
+                  map.set(codeKey, newItem);
+                }
               });
               return Array.from(map.values());
             });

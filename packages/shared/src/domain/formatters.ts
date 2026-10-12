@@ -78,3 +78,83 @@ export function formatDisplayDate(dateStr: string | null | undefined, fallback: 
   return `${day}/${month}/${year}`;
 }
 
+/**
+ * Định dạng số thập phân theo quy chuẩn y khoa GoLab:
+ * - Sử dụng dấu phẩy (,) làm dấu thập phân (vi-VN)
+ * - Nếu có `decimalPlaces` (>= 0), giữ cố định số chữ số thập phân (VD: 4.2 -> '4,20', 1150 -> '1150')
+ * - Nếu không có `decimalPlaces`, thay thế dấu chấm (.) thành dấu phẩy (,)
+ */
+export function formatDecimalNumber(
+  value: number | string | null | undefined,
+  decimalPlaces?: number | null
+): string {
+  if (value === null || value === undefined) return '';
+  const strVal = String(value).trim();
+  if (!strVal) return '';
+
+  const cleanNumStr = strVal.replace(',', '.');
+  const num = parseFloat(cleanNumStr);
+  if (isNaN(num)) return strVal;
+
+  if (decimalPlaces !== undefined && decimalPlaces !== null && !isNaN(decimalPlaces) && decimalPlaces >= 0) {
+    const fixed = num.toFixed(decimalPlaces);
+    return fixed.replace('.', ',');
+  }
+
+  return strVal.replace('.', ',');
+}
+
+/**
+ * Chuẩn hóa chuỗi tham chiếu y khoa theo chỉ đạo GoLab (10/10/2026):
+ * 1. Chỉ dùng dấu < và > (Min – Max, < Max, > Min)
+ * 2. Tuyệt đối loại bỏ các ký hiệu <=, >=, ≤, ≥, =<, =>
+ * 3. Hỗ trợ tham chiếu dạng chữ (refText) nguyên văn sau khi làm sạch ký tự cấm
+ */
+export function formatReferenceRange(
+  min: number | null | undefined,
+  max: number | null | undefined,
+  refText?: string | null,
+  decimalPlaces?: number | null
+): string {
+  if (refText && refText.trim()) {
+    return refText
+      .trim()
+      .replace(/[≤]/g, '<')
+      .replace(/[≥]/g, '>')
+      .replace(/<=\s*/g, '< ')
+      .replace(/>=\s*/g, '> ')
+      .replace(/=<\s*/g, '< ')
+      .replace(/=>\s*/g, '> ')
+      .replace(/<\s+/g, '< ')
+      .replace(/>\s+/g, '> ')
+      .replace(/(\d+)\.(\d+)/g, '$1,$2');
+  }
+
+  const hasMin = min !== null && min !== undefined && !isNaN(min);
+  const hasMax = max !== null && max !== undefined && !isNaN(max);
+
+  const numMin = hasMin ? Number(min) : null;
+  const numMax = hasMax ? Number(max) : null;
+
+  // Có Min (> 0) và có Max: Min – Max (ví dụ 9,0 – 55,0)
+  if (numMin !== null && numMin > 0 && numMax !== null && numMax > 0) {
+    const formattedMin = formatDecimalNumber(numMin, decimalPlaces);
+    const formattedMax = formatDecimalNumber(numMax, decimalPlaces);
+    return `${formattedMin} – ${formattedMax}`;
+  }
+
+  // Chỉ có Max, hoặc Min = 0: < Max (ví dụ < 4,20)
+  if (numMax !== null && (numMin === null || numMin === 0)) {
+    const formattedMax = formatDecimalNumber(numMax, decimalPlaces);
+    return `< ${formattedMax}`;
+  }
+
+  // Chỉ có Min (> 0): > Min (ví dụ > 8,0)
+  if (numMin !== null && numMin > 0 && numMax === null) {
+    const formattedMin = formatDecimalNumber(numMin, decimalPlaces);
+    return `> ${formattedMin}`;
+  }
+
+  return '---';
+}
+

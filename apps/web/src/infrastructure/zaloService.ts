@@ -70,6 +70,7 @@ export function generateZaloTextMessage(
     allergen: () => 'Panel Dị Nguyên 91 Chỉ Số',
     hybrid: () => `Kết Hợp Chuẩn A4 + Dị Nguyên (${report.testCount || report.selectedTests.length} Chỉ số)`,
     clinical: () => `${report.testCount || report.selectedTests.length} Chỉ số xét nghiệm`,
+    newborn55: () => `Sàng Lọc 55 Bệnh Sơ Sinh MS/MS (${report.testCount || report.selectedTests.length} Chỉ số)`,
   });
   msg += `• Loại phiếu: ${kindDesc}\n`;
 

@@ -3,7 +3,7 @@ import { isSpecificAllergenTest, isTIgETest } from '../allergenDetector';
 import { PRINT_ELEMENT_ID, PrintElementId } from '../constants/uiConstants';
 import { assertNever } from '../utils/assertNever';
 
-export type ReportKindType = 'clinical' | 'allergen' | 'hybrid';
+export type ReportKindType = 'clinical' | 'allergen' | 'hybrid' | 'newborn55';
 
 export interface ReportKindBadge {
   readonly label: string;
@@ -35,6 +35,12 @@ export type ReportKind =
       readonly clinicalCount: number;
       readonly allergenCount: number;
       readonly totalCount: number;
+    }
+  | {
+      readonly type: 'newborn55';
+      readonly elementId: PrintElementId;
+      readonly badge: ReportKindBadge;
+      readonly totalCount: number;
     };
 
 export class ReportKindResolver {
@@ -43,10 +49,25 @@ export class ReportKindResolver {
    */
   public static resolve(
     tests: ReadonlyArray<Pick<CatalogItem, 'code' | 'category' | 'unit'>> | null | undefined,
-    options?: { isBatch?: boolean; scaleId?: string }
+    options?: { isBatch?: boolean; scaleId?: string; packageName?: string }
   ): ReportKind {
     const safeTests = tests || [];
     const isBatch = Boolean(options?.isBatch);
+
+    // 0. Nhận diện gói Sàng lọc sơ sinh 55 bệnh (MS/MS)
+    const isNewborn55Pkg = Boolean(
+      (options?.packageName && /55\s*bệnh|sàng\s*lọc.*55/i.test(options.packageName)) ||
+      safeTests.some(t => t.code && t.code.toUpperCase().startsWith('SS55_'))
+    );
+
+    if (isNewborn55Pkg) {
+      return {
+        type: 'newborn55',
+        elementId: isBatch ? PRINT_ELEMENT_ID.BATCH_NEWBORN55 : PRINT_ELEMENT_ID.NEWBORN55_REPORT,
+        badge: this.getBadge('newborn55'),
+        totalCount: safeTests.length
+      };
+    }
 
     if (safeTests.length === 0) {
       return {
@@ -111,6 +132,7 @@ export class ReportKindResolver {
       clinical: (k: Extract<ReportKind, { type: 'clinical' }>) => T;
       allergen: (k: Extract<ReportKind, { type: 'allergen' }>) => T;
       hybrid: (k: Extract<ReportKind, { type: 'hybrid' }>) => T;
+      newborn55: (k: Extract<ReportKind, { type: 'newborn55' }>) => T;
     }
   ): T {
     switch (kind.type) {
@@ -120,6 +142,8 @@ export class ReportKindResolver {
         return patterns.allergen(kind);
       case 'hybrid':
         return patterns.hybrid(kind);
+      case 'newborn55':
+        return patterns.newborn55(kind);
       default:
         return assertNever(kind);
     }
@@ -127,6 +151,14 @@ export class ReportKindResolver {
 
   public static getBadge(type: ReportKindType): ReportKindBadge {
     switch (type) {
+      case 'newborn55':
+        return {
+          label: 'Sàng Lọc 55 Bệnh Sơ Sinh',
+          subLabel: 'MS/MS 38 Chỉ số + 55 Bệnh chuyển hóa bẩm sinh',
+          bgClass: 'bg-gradient-to-r from-emerald-100 to-teal-100',
+          textClass: 'text-emerald-800',
+          borderClass: 'border-emerald-300'
+        };
       case 'hybrid':
         return {
           label: 'Mẫu Hỗn Hợp (Hybrid)',

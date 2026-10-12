@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
-import type { AllergenGradingScale } from '@domain/types';
+import type { AllergenGradingScale, AllergenGradeLevel } from '@domain/types';
+import { getScaleCategory, isAllergenScale } from '@domain/services/scaleClassification';
 import { saveExcelJsWorkbook, cleanKey, getRowValue, readFileAsArrayBuffer } from './excelHelpers';
 
 /**
@@ -18,6 +19,7 @@ export async function exportScalesTemplate(
   const targetRows: {
     id: string;
     name: string;
+    scaleType: string;
     equipment: string;
     unit: string;
     grade: number;
@@ -31,20 +33,22 @@ export async function exportScalesTemplate(
 
   if (isSampleOnly) {
     targetRows.push(
-      { id: 'scale_protia_91', name: 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH (PROTIA 91)', equipment: 'Máy PROTIA Allergy-Q Smart và Q-processor', unit: 'IU/ml', grade: 0, minVal: 0, maxVal: 0.34, rangeText: '<0.34', label: 'Không phản ứng', isPositive: 'Âm tính', colorKey: 'white' },
-      { id: 'scale_protia_91', name: 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH (PROTIA 91)', equipment: 'Máy PROTIA Allergy-Q Smart và Q-processor', unit: 'IU/ml', grade: 1, minVal: 0.35, maxVal: 0.69, rangeText: '0.35 - 0.69', label: 'Yếu', isPositive: 'Dương tính', colorKey: 'amber-light' },
-      { id: 'scale_protia_91', name: 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH (PROTIA 91)', equipment: 'Máy PROTIA Allergy-Q Smart và Q-processor', unit: 'IU/ml', grade: 2, minVal: 0.70, maxVal: 3.49, rangeText: '0.70 - 3.49', label: 'Trung bình', isPositive: 'Dương tính', colorKey: 'amber' },
-      { id: 'scale_protia_91', name: 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH (PROTIA 91)', equipment: 'Máy PROTIA Allergy-Q Smart và Q-processor', unit: 'IU/ml', grade: 3, minVal: 3.50, maxVal: 17.49, rangeText: '3.50 - 17.49', label: 'Khá', isPositive: 'Dương tính', colorKey: 'red-light' },
-      { id: 'scale_protia_91', name: 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH (PROTIA 91)', equipment: 'Máy PROTIA Allergy-Q Smart và Q-processor', unit: 'IU/ml', grade: 4, minVal: 17.50, maxVal: 49.99, rangeText: '17.50 - 49.99', label: 'Mạnh', isPositive: 'Dương tính', colorKey: 'red' },
-      { id: 'scale_protia_91', name: 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH (PROTIA 91)', equipment: 'Máy PROTIA Allergy-Q Smart và Q-processor', unit: 'IU/ml', grade: 5, minVal: 50.00, maxVal: 99.99, rangeText: '50.00 - 99.99', label: 'Rất mạnh', isPositive: 'Dương tính', colorKey: 'red-bold' },
-      { id: 'scale_protia_91', name: 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH (PROTIA 91)', equipment: 'Máy PROTIA Allergy-Q Smart và Q-processor', unit: 'IU/ml', grade: 6, minVal: 100.0, maxVal: null, rangeText: '>100.0', label: 'Cực mạnh', isPositive: 'Dương tính', colorKey: 'red-extreme' }
+      { id: 'scale_protia_91', name: 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH (PROTIA 91)', scaleType: 'Dị nguyên', equipment: 'Máy PROTIA Allergy-Q Smart và Q-processor', unit: 'IU/ml', grade: 0, minVal: 0, maxVal: 0.34, rangeText: '<0.34', label: 'Không phản ứng', isPositive: 'Âm tính', colorKey: 'white' },
+      { id: 'scale_protia_91', name: 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH (PROTIA 91)', scaleType: 'Dị nguyên', equipment: 'Máy PROTIA Allergy-Q Smart và Q-processor', unit: 'IU/ml', grade: 1, minVal: 0.35, maxVal: 0.69, rangeText: '0.35 - 0.69', label: 'Yếu', isPositive: 'Dương tính', colorKey: 'amber-light' },
+      { id: 'scale_protia_91', name: 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH (PROTIA 91)', scaleType: 'Dị nguyên', equipment: 'Máy PROTIA Allergy-Q Smart và Q-processor', unit: 'IU/ml', grade: 2, minVal: 0.70, maxVal: 3.49, rangeText: '0.70 - 3.49', label: 'Trung bình', isPositive: 'Dương tính', colorKey: 'amber' },
+      { id: 'scale_protia_91', name: 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH (PROTIA 91)', scaleType: 'Dị nguyên', equipment: 'Máy PROTIA Allergy-Q Smart và Q-processor', unit: 'IU/ml', grade: 3, minVal: 3.50, maxVal: 17.49, rangeText: '3.50 - 17.49', label: 'Khá', isPositive: 'Dương tính', colorKey: 'red-light' },
+      { id: 'scale_protia_91', name: 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH (PROTIA 91)', scaleType: 'Dị nguyên', equipment: 'Máy PROTIA Allergy-Q Smart và Q-processor', unit: 'IU/ml', grade: 4, minVal: 17.50, maxVal: 49.99, rangeText: '17.50 - 49.99', label: 'Mạnh', isPositive: 'Dương tính', colorKey: 'red' },
+      { id: 'scale_protia_91', name: 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH (PROTIA 91)', scaleType: 'Dị nguyên', equipment: 'Máy PROTIA Allergy-Q Smart và Q-processor', unit: 'IU/ml', grade: 5, minVal: 50.00, maxVal: 99.99, rangeText: '50.00 - 99.99', label: 'Rất mạnh', isPositive: 'Dương tính', colorKey: 'red-bold' },
+      { id: 'scale_protia_91', name: 'DIỄN GIẢI ĐỘ DƯƠNG TÍNH (PROTIA 91)', scaleType: 'Dị nguyên', equipment: 'Máy PROTIA Allergy-Q Smart và Q-processor', unit: 'IU/ml', grade: 6, minVal: 100.0, maxVal: null, rangeText: '>100.0', label: 'Cực mạnh', isPositive: 'Dương tính', colorKey: 'red-extreme' }
     );
   } else {
     for (const scale of targetScales) {
+      const scaleType = getScaleCategory(scale);
       for (const level of scale.levels) {
         targetRows.push({
           id: scale.id,
           name: scale.name,
+          scaleType,
           equipment: scale.equipment || '',
           unit: scale.unit || 'IU/ml',
           grade: level.grade,
@@ -73,17 +77,20 @@ export async function exportScalesTemplate(
     'white', 'emerald-light', 'amber-light', 'amber', 'orange', 'red-light', 'red', 'red-bold', 'red-extreme'
   ];
   const statusOptions = ['Âm tính', 'Dương tính'];
+  const scaleTypeOptions = ['Dị nguyên', 'Xét nghiệm khác'];
 
   wsLookup.columns = [
     { header: 'Mã Màu Chỉ Thị Khả Dụng', key: 'color', width: 28 },
-    { header: 'Trạng Thái Đánh Giá', key: 'status', width: 24 }
+    { header: 'Trạng Thái Đánh Giá', key: 'status', width: 24 },
+    { header: 'Phân Loại Thang Đo', key: 'scaleType', width: 24 }
   ];
 
-  const maxLookup = Math.max(colorOptions.length, statusOptions.length);
+  const maxLookup = Math.max(colorOptions.length, statusOptions.length, scaleTypeOptions.length);
   for (let i = 0; i < maxLookup; i++) {
     wsLookup.addRow({
       color: colorOptions[i] || '',
-      status: statusOptions[i] || ''
+      status: statusOptions[i] || '',
+      scaleType: scaleTypeOptions[i] || ''
     });
   }
 
@@ -94,6 +101,7 @@ export async function exportScalesTemplate(
   ws.columns = [
     { header: 'STT', key: 'stt', width: 6 },
     { header: 'Tên Thang Đo (*)', key: 'name', width: 38 },
+    { header: 'Loại Thang (*)', key: 'scaleType', width: 20 },
     { header: 'Thiết Bị / Máy Đo', key: 'equipment', width: 36 },
     { header: 'Đơn Vị Đo (*)', key: 'unit', width: 14 },
     { header: 'Bậc (Grade) (*)', key: 'grade', width: 15 },
@@ -116,13 +124,14 @@ export async function exportScalesTemplate(
     const excelRow = ws.addRow({
       stt: idx + 1,
       name: row.name,
+      scaleType: row.scaleType,
       equipment: row.equipment,
       unit: row.unit,
       grade: row.grade,
       minVal: row.minVal,
       maxVal: row.maxVal === null ? '' : row.maxVal,
       rangeText: {
-        formula: `=IF(G${r}="","&gt; " & F${r},IF(F${r}=0,"&lt; " & G${r},F${r} & " - " & G${r}))`,
+        formula: `=IF(H${r}="","&gt; " & G${r},IF(G${r}=0,"&lt; " & H${r},G${r} & " - " & H${r}))`,
         result: row.rangeText || ''
       },
       label: row.label,
@@ -130,7 +139,7 @@ export async function exportScalesTemplate(
       colorKey: row.colorKey
     });
 
-    const rangeCell = excelRow.getCell(8);
+    const rangeCell = excelRow.getCell(9);
     rangeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0FDF4' } };
     rangeCell.font = { color: { argb: 'FF047857' }, bold: true };
   });
@@ -138,7 +147,15 @@ export async function exportScalesTemplate(
   const colorEndRow = colorOptions.length + 1;
   for (let r = 2; r <= 500; r++) {
     const row = ws.getRow(r);
-    row.getCell(10).dataValidation = {
+    row.getCell(3).dataValidation = {
+      type: 'list',
+      allowBlank: true,
+      formulae: ['_DataLookup!$C$2:$C$3'],
+      showErrorMessage: true,
+      errorTitle: 'Loại thang không hợp lệ',
+      error: 'Vui lòng chọn Dị nguyên hoặc Xét nghiệm khác'
+    };
+    row.getCell(11).dataValidation = {
       type: 'list',
       allowBlank: true,
       formulae: ['_DataLookup!$B$2:$B$3'],
@@ -146,7 +163,7 @@ export async function exportScalesTemplate(
       errorTitle: 'Trạng thái không hợp lệ',
       error: 'Vui lòng chọn Âm tính hoặc Dương tính'
     };
-    row.getCell(11).dataValidation = {
+    row.getCell(12).dataValidation = {
       type: 'list',
       allowBlank: true,
       formulae: [`_DataLookup!$A$2:$A$${colorEndRow}`],
@@ -156,9 +173,9 @@ export async function exportScalesTemplate(
     };
 
     if (r > targetRows.length + 1) {
-      const rangeCell = row.getCell(8);
+      const rangeCell = row.getCell(9);
       rangeCell.value = {
-        formula: `=IF(G${r}="","&gt; " & F${r},IF(F${r}=0,"&lt; " & G${r},F${r} & " - " & G${r}))`
+        formula: `=IF(H${r}="","&gt; " & G${r},IF(G${r}=0,"&lt; " & H${r},G${r} & " - " & H${r}))`
       };
       rangeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0FDF4' } };
       rangeCell.font = { color: { argb: 'FF047857' }, bold: true };
@@ -194,6 +211,17 @@ export async function parseExcelScales(
       scaleId = `scale_${cleanKey(scaleName).toLowerCase().replace(/[^a-z0-9_]/g, '')}`;
     }
 
+    const rawScaleType = getRowValue(row, ['loai_thang_do', 'loai_thang', 'scale_type', 'type', 'loai']).trim();
+    let scaleType: 'Dị nguyên' | 'Xét nghiệm khác';
+    const lowerType = rawScaleType.toLowerCase();
+    if (lowerType.includes('dị') || lowerType.includes('di') || lowerType.includes('allergen')) {
+      scaleType = 'Dị nguyên';
+    } else if (lowerType.includes('khác') || lowerType.includes('khac') || lowerType.includes('general')) {
+      scaleType = 'Xét nghiệm khác';
+    } else {
+      scaleType = isAllergenScale({ id: scaleId, name: scaleName, unit: '', levels: [] }) ? 'Dị nguyên' : 'Xét nghiệm khác';
+    }
+
     const equipment = getRowValue(row, ['thiet_bi_may_do_ap_dung', 'thiet_bi', 'may_do', 'equipment']).trim();
     const unit = getRowValue(row, ['don_vi_do', 'don_vi', 'unit']).trim() || 'IU/ml';
 
@@ -224,12 +252,16 @@ export async function parseExcelScales(
         name: scaleName,
         equipment: equipment || undefined,
         unit,
+        scaleType,
         levels: []
       });
     }
 
     const scaleObj = scaleMap.get(scaleId)!;
-    scaleObj.levels.push({
+    if (equipment && !scaleObj.equipment) scaleObj.equipment = equipment;
+    if (scaleType && !scaleObj.scaleType) scaleObj.scaleType = scaleType;
+
+    const levelData: AllergenGradeLevel = {
       grade,
       minVal,
       maxVal,
@@ -237,7 +269,15 @@ export async function parseExcelScales(
       label,
       isPositive,
       colorKey
-    });
+    };
+
+    // Ghi đè bậc phân độ theo (Tên thang + Bậc) thay vì cộng dồn làm nhân đôi
+    const existingIdx = scaleObj.levels.findIndex((l) => l.grade === grade);
+    if (existingIdx >= 0) {
+      scaleObj.levels[existingIdx] = levelData;
+    } else {
+      scaleObj.levels.push(levelData);
+    }
   }
 
   scaleMap.forEach((scale) => {

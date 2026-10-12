@@ -18,6 +18,7 @@ export function exportReportsExcel(reports: MedicalReport[]): void {
       allergen: () => 'Panel Dị Nguyên 91 Chỉ Số',
       hybrid: () => 'Kết Hợp (Chuẩn A4 + Dị Nguyên)',
       clinical: () => 'Xét Nghiệm Chuẩn A4',
+      newborn55: () => 'Sàng Lọc 55 Bệnh Sơ Sinh MS/MS',
     }),
     'Số Lượng Chỉ Số': rep.testCount || rep.selectedTests.length,
     'Trạng Thái': rep.status,

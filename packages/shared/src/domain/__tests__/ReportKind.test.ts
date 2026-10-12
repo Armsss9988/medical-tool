@@ -75,4 +75,30 @@ describe('ReportKindResolver', () => {
     expect(kind.type).toBe('hybrid');
     expect(kind.elementId).toBe(PRINT_ELEMENT_ID.BATCH_HYBRID);
   });
+
+  it('should resolve to newborn55 when tests include SS55_* codes', () => {
+    const kind = ReportKindResolver.resolve([
+      { code: 'SS_C0', category: 'Sàng lọc MS/MS', unit: 'µmol/L' },
+      { code: 'SS55_01', category: 'Sàng lọc 55 bệnh', unit: '' }
+    ]);
+
+    expect(kind.type).toBe('newborn55');
+    expect(kind.totalCount).toBe(2);
+    expect(kind.elementId).toBe(PRINT_ELEMENT_ID.NEWBORN55_REPORT);
+  });
+
+  it('should match exhaustively with pattern matching including newborn55', () => {
+    const kind = ReportKindResolver.resolve([
+      { code: 'SS55_01', category: 'Sàng lọc 55 bệnh', unit: '' }
+    ]);
+
+    const result = ReportKindResolver.match(kind, {
+      clinical: () => 'clinical-res',
+      allergen: () => 'allergen-res',
+      hybrid: () => 'hybrid-res',
+      newborn55: (k) => `newborn55-${k.totalCount}`
+    });
+
+    expect(result).toBe('newborn55-1');
+  });
 });

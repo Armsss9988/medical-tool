@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { removeVietnameseTones, formatCurrency, formatReportPdfFilename, formatDisplayDate } from '../formatters';
+import {
+  removeVietnameseTones,
+  formatCurrency,
+  formatReportPdfFilename,
+  formatDisplayDate,
+  formatDecimalNumber,
+  formatReferenceRange
+} from '../formatters';
 
 describe('formatters domain utility', () => {
   describe('removeVietnameseTones', () => {
@@ -72,6 +79,63 @@ describe('formatters domain utility', () => {
     it('should preserve already formatted strings', () => {
       expect(formatDisplayDate('13/09/2026')).toBe('13/09/2026');
       expect(formatDisplayDate('Chưa thu phí')).toBe('Chưa thu phí');
+    });
+  });
+
+  describe('formatDecimalNumber', () => {
+    it('should format numbers with comma and fixed decimal places', () => {
+      expect(formatDecimalNumber(4.2, 2)).toBe('4,20');
+      expect(formatDecimalNumber(0.08, 2)).toBe('0,08');
+      expect(formatDecimalNumber(9, 1)).toBe('9,0');
+      expect(formatDecimalNumber(1150, 0)).toBe('1150');
+      expect(formatDecimalNumber(1150, 2)).toBe('1150,00');
+    });
+
+    it('should handle string numeric input and replace dot with comma', () => {
+      expect(formatDecimalNumber('4.2', 2)).toBe('4,20');
+      expect(formatDecimalNumber('4,2', 2)).toBe('4,20');
+      expect(formatDecimalNumber('16.8', 1)).toBe('16,8');
+      expect(formatDecimalNumber('16.8')).toBe('16,8');
+    });
+
+    it('should handle null, undefined and non-numeric strings', () => {
+      expect(formatDecimalNumber(null)).toBe('');
+      expect(formatDecimalNumber(undefined)).toBe('');
+      expect(formatDecimalNumber('')).toBe('');
+      expect(formatDecimalNumber('Âm tính')).toBe('Âm tính');
+    });
+  });
+
+  describe('formatReferenceRange', () => {
+    it('should format range when Min > 0 and Max > 0 as Min – Max', () => {
+      expect(formatReferenceRange(9.0, 55.0, undefined, 1)).toBe('9,0 – 55,0');
+      expect(formatReferenceRange(9, 55)).toBe('9 – 55');
+    });
+
+    it('should format as < Max when only Max or Min is 0', () => {
+      // C3: Min 0, Max 4.20 -> < 4,20
+      expect(formatReferenceRange(0, 4.2, undefined, 2)).toBe('< 4,20');
+      expect(formatReferenceRange(null, 4.2, undefined, 2)).toBe('< 4,20');
+      expect(formatReferenceRange(undefined, 5.0, undefined, 1)).toBe('< 5,0');
+    });
+
+    it('should format as > Min when only Min > 0 and no Max', () => {
+      // C2: Min 8.0 -> > 8,0
+      expect(formatReferenceRange(8.0, null, undefined, 1)).toBe('> 8,0');
+      expect(formatReferenceRange(8.0, undefined, undefined, 1)).toBe('> 8,0');
+    });
+
+    it('should sanitize refText and remove all <=, >=, ≤, ≥ symbols', () => {
+      expect(formatReferenceRange(null, null, '<= 4.20')).toBe('< 4,20');
+      expect(formatReferenceRange(null, null, '>= 8.0')).toBe('> 8,0');
+      expect(formatReferenceRange(null, null, '≤ 4,20')).toBe('< 4,20');
+      expect(formatReferenceRange(null, null, '≥ 8,0')).toBe('> 8,0');
+      expect(formatReferenceRange(null, null, 'Âm tính')).toBe('Âm tính');
+    });
+
+    it('should return fallback --- when both min and max are absent', () => {
+      expect(formatReferenceRange(null, null)).toBe('---');
+      expect(formatReferenceRange(undefined, undefined)).toBe('---');
     });
   });
 });

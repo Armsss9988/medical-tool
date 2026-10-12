@@ -69,7 +69,7 @@ describe('IndicatorTableRow', () => {
     expect(screen.getByText('GLU')).toBeTruthy();
     expect(screen.getByText('Glucose Máu')).toBeTruthy();
     expect(screen.getByText('mmol/L')).toBeTruthy();
-    expect(screen.getByText('3.9 - 6.4')).toBeTruthy();
+    expect(screen.getByText('3,9 - 6,4')).toBeTruthy();
     expect(screen.getByText('35.000 đ')).toBeTruthy();
 
     const row = screen.getByText('GLU').closest('tr');
@@ -161,7 +161,7 @@ describe('IndicatorTableRow', () => {
     fireEvent.change(minInput, { target: { value: '4.1' } });
     expect(onQuickUpdate).toHaveBeenCalledWith('GLU', {
       refMin: 4.1,
-      refText: '4.1 - 6.4',
+      refText: '4,1 – 6,4',
       evaluationType: 'range'
     });
 
@@ -169,7 +169,7 @@ describe('IndicatorTableRow', () => {
     fireEvent.change(maxInput, { target: { value: '7.0' } });
     expect(onQuickUpdate).toHaveBeenCalledWith('GLU', {
       refMax: 7.0,
-      refText: '3.9 - 7',
+      refText: '3,9 – 7',
       evaluationType: 'range'
     });
   });
@@ -366,7 +366,7 @@ describe('IndicatorTableRow', () => {
     // Editing min should call onUpdateEquipmentLink with link_cobas
     const minInput = screen.getByDisplayValue('70');
     fireEvent.change(minInput, { target: { value: '75' } });
-    expect(onUpdateEquipmentLink).toHaveBeenCalledWith('link_cobas', { refMin: 75, refText: '75 - 115' });
+    expect(onUpdateEquipmentLink).toHaveBeenCalledWith('link_cobas', { refMin: 75, refText: '75 – 115' });
   });
 
   it('toggles sub-row expansion and handles equipment link actions (set default, remove, add)', () => {

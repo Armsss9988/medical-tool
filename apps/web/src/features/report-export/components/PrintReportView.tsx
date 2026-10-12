@@ -13,6 +13,8 @@ import {
   resolveTestEquipmentName,
   formatEquipmentForPrint,
   formatDisplayDate,
+  formatReferenceRange,
+  formatDecimalNumber,
   DEFAULT_CLINIC_INFO,
   getSafeClinicInfo,
   ReportPaginationDomainService
@@ -522,18 +524,22 @@ function PrintReportView({
                         }
 
                         const t = entry.test!;
-                        const evalRes = evaluateResult(t.result, t.refMin, t.refMax);
+                        const isTextOrSS55 = t.evaluationType === 'text' || Boolean(t.code && t.code.toUpperCase().startsWith('SS55_'));
+                        const evalRes = isTextOrSS55
+                          ? { status: 'normal' as const, label: '' }
+                          : evaluateResult(t.result, t.refMin, t.refMax);
                         const displayNote = t.note !== undefined && t.note !== null && t.note.trim() !== '' ? t.note : evalRes.label;
                         const isAbnormalByNote = displayNote
-                          ? displayNote.includes('CAO') ||
+                          ? (displayNote.includes('CAO') && !displayNote.toLowerCase().includes('nguy cơ')) ||
                             displayNote.includes('THẤP') ||
                             displayNote.includes('Dương') ||
                             (displayNote.includes('Phát Hiện') && !displayNote.includes('Không')) ||
+                            displayNote.toLowerCase().includes('nguy cơ cao') ||
                             displayNote.includes('H ') ||
                             displayNote.includes('L ') ||
                             /Độ\s*[1-6]/i.test(displayNote)
                           : false;
-                        const isAbnormal = isAbnormalByNote || evalRes.status !== 'normal';
+                        const isAbnormal = isAbnormalByNote || (!isTextOrSS55 && evalRes.status !== 'normal');
 
                         return (
                           <tr
@@ -555,13 +561,13 @@ function PrintReportView({
                                 isAbnormal ? 'text-red-600' : 'text-slate-900'
                               }`}
                             >
-                              {t.result || '---'}
+                              {formatDecimalNumber(t.result, t.decimalPlaces) || t.result || '---'}
                             </td>
                             <td style={{ borderRight: '1px solid #cbd5e1' }} className="py-[5px] px-1 text-center font-mono text-slate-700 border-r border-slate-300 align-middle text-[12px] leading-snug">
                               {t.unit || '---'}
                             </td>
                             <td style={{ borderRight: '1px solid #cbd5e1' }} className="py-[5px] px-1.5 text-center font-mono text-slate-700 border-r border-slate-300 align-middle text-[12px] leading-snug">
-                              {t.refText || (t.refMin !== null && t.refMax !== null ? `${t.refMin} - ${t.refMax}` : '---')}
+                              {formatReferenceRange(t.refMin, t.refMax, t.refText, t.decimalPlaces)}
                             </td>
                             <td style={{ borderRight: '1px solid #cbd5e1' }} className="py-[5px] px-1 text-center text-[11.5px] text-slate-600 border-r border-slate-300 align-middle leading-snug">
                               {formatEquipmentForPrint(resolveTestEquipmentName(t, equipments, catalogItemEquipments))}
@@ -571,7 +577,7 @@ function PrintReportView({
                                 isAbnormal ? 'text-red-600' : 'text-slate-600'
                               }`}
                             >
-                              {displayNote}
+                              {displayNote ? displayNote.replace(/[≤]/g, '<').replace(/[≥]/g, '>').replace(/<=\s*/g, '< ').replace(/>=\s*/g, '> ') : ''}
                             </td>
                           </tr>
                         );

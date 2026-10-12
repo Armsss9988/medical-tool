@@ -6,6 +6,7 @@ export { PrintLayer } from './components/PrintLayer';
 export { default as PrintReportView } from './components/PrintReportView';
 export { default as FullAllergenReportView } from './components/FullAllergenReportView';
 export { default as HybridReportView } from './components/HybridReportView';
+export { default as NewbornScreening55ReportView } from './components/NewbornScreening55ReportView';
 export { useExportActions } from './hooks/useExportActions';
 export { useReportExport } from './hooks/useReportExport';
 export * from './types';

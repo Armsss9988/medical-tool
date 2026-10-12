@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Layers, Copy, Download, Trash2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { AllergenGradingScale, AllergenGradeLevel, TestEquipment } from '@domain/types';
+import { getScaleCategory } from '@domain/services/scaleClassification';
 import { exportScalesTemplate, parseExcelScales } from '@infra/excelService';
 import { ScaleListSidebar } from './ScaleListSidebar';
 import { ScaleVisualPreview } from './ScaleVisualPreview';
@@ -251,7 +252,7 @@ export function ScalesTable({ scales, setScales, equipments }: ScalesTableProps)
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1">
             <div>
               <label className="block text-[11px] font-bold text-slate-300 mb-1">Tên Thang Đo (*)</label>
               <input
@@ -260,6 +261,17 @@ export function ScalesTable({ scales, setScales, equipments }: ScalesTableProps)
                 onChange={(e) => handleUpdateScaleHeader('name', e.target.value)}
                 className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500"
               />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-300 mb-1">Loại Thang (*)</label>
+              <select
+                value={getScaleCategory(activeScale)}
+                onChange={(e) => handleUpdateScaleHeader('scaleType', e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-amber-400 font-bold focus:outline-none focus:border-amber-500"
+              >
+                <option value="Dị nguyên">Dị nguyên</option>
+                <option value="Xét nghiệm khác">Xét nghiệm khác</option>
+              </select>
             </div>
             <div>
               <label className="block text-[11px] font-bold text-slate-300 mb-1">Thiết Bị Áp Dụng</label>

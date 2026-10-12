@@ -93,7 +93,7 @@ describe('ReportPaginationAndIndicatorsMatrix - Comprehensive Tests Across Indic
     expect(pageEl.style.padding).toBe('10mm 14mm');
     expect(pageEl.style.width).toBe('210mm');
     expect(screen.getByText('Glucose máu lúc đói')).toBeDefined();
-    expect(screen.getByText('5.4')).toBeDefined();
+    expect(screen.getByText('5,4')).toBeDefined();
     expect(screen.getByText(/Trang 1\/1/i)).toBeDefined();
   });
 
@@ -360,7 +360,7 @@ describe('ReportPaginationAndIndicatorsMatrix - Comprehensive Tests Across Indic
       />
     );
 
-    const resultCell = screen.getByText('12.5');
+    const resultCell = screen.getByText('12,5');
     expect(resultCell.className).toContain('text-red-600');
     expect(resultCell.className).toContain('font-bold');
   });

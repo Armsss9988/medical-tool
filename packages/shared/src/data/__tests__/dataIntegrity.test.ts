@@ -118,6 +118,13 @@ describe('Data Integrity & Equipment Resolution Tests', () => {
       const allergenTest = autoResolveItemLinks({ code: 'd1', name: 'Dermatophagoides pteronyssinus', unit: 'IU/ml', refText: '<0.34', category: 'Dị Nguyên Hô Hấp', scaleId: undefined, evaluationType: undefined });
       expect(allergenTest.scaleId).toBe('scale_protia_91');
       expect(allergenTest.evaluationType).toBe('scale');
+
+      const hbvTest = autoResolveItemLinks({ code: 'HBV', name: 'HBV DNA', category: 'Sinh học phân tử', unit: 'IU/mL', scaleId: undefined, evaluationType: undefined });
+      expect(hbvTest.scaleId).toBeUndefined();
+
+      const bhcgTest = autoResolveItemLinks({ code: 'BHCG', name: 'Beta-hCG', category: 'Miễn dịch', scaleId: 'scale_beta_hcg', evaluationType: undefined });
+      expect(bhcgTest.scaleId).toBe('scale_beta_hcg');
+      expect(bhcgTest.evaluationType).toBe('scale');
     });
   });
 });

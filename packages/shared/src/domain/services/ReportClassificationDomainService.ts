@@ -3,7 +3,7 @@ import { hasMixedTests, hasAllergenTests } from '../allergenDetector';
 import { PRINT_ELEMENT_ID, PrintElementId } from '../constants/uiConstants';
 import { assertNever } from '../utils/assertNever';
 
-export type MedicalReportType = 'clinical' | 'allergen' | 'hybrid';
+export type MedicalReportType = 'clinical' | 'allergen' | 'hybrid' | 'newborn55';
 
 export interface ReportTypeBadge {
   label: string;
@@ -20,22 +20,31 @@ export interface ReportTypeBadge {
 export type ClassifiedReport =
   | { readonly kind: 'clinical'; readonly elementId: PrintElementId; readonly badge: ReportTypeBadge }
   | { readonly kind: 'allergen'; readonly elementId: PrintElementId; readonly badge: ReportTypeBadge }
-  | { readonly kind: 'hybrid'; readonly elementId: PrintElementId; readonly badge: ReportTypeBadge };
+  | { readonly kind: 'hybrid'; readonly elementId: PrintElementId; readonly badge: ReportTypeBadge }
+  | { readonly kind: 'newborn55'; readonly elementId: PrintElementId; readonly badge: ReportTypeBadge };
 
 export class ReportClassificationDomainService {
   /**
    * Phân loại danh sách chỉ số xét nghiệm sang loại báo cáo y khoa tương ứng:
+   * - 'newborn55': Sàng lọc sơ sinh 55 bệnh rối loạn chuyển hóa bẩm sinh (MS/MS)
    * - 'hybrid': Phiếu hỗn hợp gồm cả chỉ số thường (Huyết học, Sinh hóa) và Gói dị nguyên
    * - 'allergen': Phiếu chuyên biệt Dị nguyên (Booklet nhiều trang)
    * - 'clinical': Phiếu xét nghiệm y khoa tiêu chuẩn (A4 chuẩn)
    */
   public static classify(
-    tests: ReadonlyArray<Pick<CatalogItem, 'code' | 'category' | 'unit'>> | null | undefined
+    tests: ReadonlyArray<Pick<CatalogItem, 'code' | 'category' | 'unit'>> | null | undefined,
+    options?: { packageName?: string }
   ): MedicalReportType {
     const safeTests = tests || [];
     if (safeTests.length === 0) {
       return 'clinical';
     }
+
+    const isNewborn55 = Boolean(
+      (options?.packageName && /55\s*bệnh|sàng\s*lọc.*55/i.test(options.packageName)) ||
+      safeTests.some(t => t.code && t.code.toUpperCase().startsWith('SS55_'))
+    );
+    if (isNewborn55) return 'newborn55';
 
     const isMixed = hasMixedTests(safeTests);
     if (isMixed) return 'hybrid';
@@ -51,9 +60,9 @@ export class ReportClassificationDomainService {
    */
   public static classifyDetails(
     tests: ReadonlyArray<Pick<CatalogItem, 'code' | 'category' | 'unit'>> | null | undefined,
-    options?: { isBatch?: boolean }
+    options?: { isBatch?: boolean; packageName?: string }
   ): ClassifiedReport {
-    const reportType = this.classify(tests);
+    const reportType = this.classify(tests, options);
     const elementId = this.resolvePrintElementId(reportType, options);
     const badge = this.getReportTypeBadge(reportType);
 
@@ -64,6 +73,8 @@ export class ReportClassificationDomainService {
         return { kind: 'allergen', elementId, badge };
       case 'hybrid':
         return { kind: 'hybrid', elementId, badge };
+      case 'newborn55':
+        return { kind: 'newborn55', elementId, badge };
       default:
         return assertNever(reportType);
     }
@@ -71,7 +82,7 @@ export class ReportClassificationDomainService {
 
   /**
    * Khớp mẫu toàn diện (Exhaustive Pattern Matching):
-   * Bắt buộc xử lý đầy đủ cả 3 nhánh clinical, allergen, hybrid; bắt lỗi compile time nếu thiếu.
+   * Bắt buộc xử lý đầy đủ cả 4 nhánh clinical, allergen, hybrid, newborn55; bắt lỗi compile time nếu thiếu.
    */
   public static match<T>(
     reportType: MedicalReportType,
@@ -79,6 +90,7 @@ export class ReportClassificationDomainService {
       clinical: () => T;
       allergen: () => T;
       hybrid: () => T;
+      newborn55: () => T;
     }
   ): T {
     switch (reportType) {
@@ -88,6 +100,8 @@ export class ReportClassificationDomainService {
         return patterns.allergen();
       case 'hybrid':
         return patterns.hybrid();
+      case 'newborn55':
+        return patterns.newborn55();
       default:
         return assertNever(reportType);
     }
@@ -103,6 +117,8 @@ export class ReportClassificationDomainService {
     const isBatch = Boolean(options?.isBatch);
 
     switch (reportType) {
+      case 'newborn55':
+        return isBatch ? PRINT_ELEMENT_ID.BATCH_NEWBORN55 : PRINT_ELEMENT_ID.NEWBORN55_REPORT;
       case 'hybrid':
         return isBatch ? PRINT_ELEMENT_ID.BATCH_HYBRID : PRINT_ELEMENT_ID.HYBRID_REPORT;
       case 'allergen':
@@ -119,6 +135,14 @@ export class ReportClassificationDomainService {
    */
   public static getReportTypeBadge(reportType: MedicalReportType): ReportTypeBadge {
     switch (reportType) {
+      case 'newborn55':
+        return {
+          label: 'Sàng Lọc 55 Bệnh Sơ Sinh',
+          subLabel: 'MS/MS 38 Chỉ số + 55 Bệnh chuyển hóa bẩm sinh',
+          bgClass: 'bg-gradient-to-r from-emerald-100 to-teal-100',
+          textClass: 'text-emerald-800',
+          borderClass: 'border-emerald-300'
+        };
       case 'hybrid':
         return {
           label: 'Mẫu Hỗn Hợp (Hybrid)',

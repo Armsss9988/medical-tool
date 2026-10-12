@@ -141,7 +141,7 @@ export const ClinicalGauge: React.FC<ClinicalGaugeProps> = ({
           {/* Vùng Dương tính / Vượt ngưỡng [> threshold] */}
           <div
             className="w-1/2 bg-rose-500/15 rounded-r-full relative flex items-center justify-center"
-            title={`Khoảng Dương tính: ≥ ${threshold}`}
+            title={`Khoảng Dương tính: > ${threshold}`}
           >
             <span className="text-[9px] font-semibold text-rose-800 uppercase tracking-wider select-none">
               Dương tính

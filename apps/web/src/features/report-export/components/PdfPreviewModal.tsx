@@ -21,6 +21,7 @@ import {
 import PrintReportView from './PrintReportView';
 import FullAllergenReportView from './FullAllergenReportView';
 import HybridReportView from './HybridReportView';
+import NewbornScreening55ReportView from './NewbornScreening55ReportView';
 import { PRINT_ELEMENT_ID } from '@domain/constants';
 import { ClinicInfo, Patient, SelectedTest, ToastType, TestPackage, TestEquipment, CatalogItemEquipmentLink, AllergenGradingScale, ReportClassificationDomainService, ReportTemplate, TemplateCompatibilityDomainService, formatReportPdfFilename } from '@domain';
 import type { DynamicReportRenderProps } from '../types';
@@ -184,6 +185,7 @@ export default function PdfPreviewModal({
     if (chosenTemplate) {
       return 'preview-dynamic-element';
     }
+    if (reportType === 'newborn55') return 'preview-newborn-element';
     if (reportType === 'hybrid') return 'preview-hybrid-element';
     if (reportType === 'allergen') return 'preview-allergen-element';
     return 'preview-print-element';
@@ -194,6 +196,7 @@ export default function PdfPreviewModal({
     if (chosenTemplate) {
       return PRINT_ELEMENT_ID.DYNAMIC_REPORT;
     }
+    if (reportType === 'newborn55') return PRINT_ELEMENT_ID.NEWBORN55_REPORT;
     if (reportType === 'hybrid') return PRINT_ELEMENT_ID.HYBRID_REPORT;
     if (reportType === 'allergen') return PRINT_ELEMENT_ID.ALLERGEN_REPORT;
     return PRINT_ELEMENT_ID.MEDICAL_REPORT;
@@ -718,6 +721,17 @@ export default function PdfPreviewModal({
                 equipments={equipments}
                 catalogItemEquipments={catalogItemEquipments}
                 allergenScales={allergenScales}
+              />
+            ) : reportType === 'newborn55' ? (
+              <NewbornScreening55ReportView
+                elementId="preview-newborn-element"
+                patient={safePatient}
+                selectedTests={safeSelectedTests}
+                clinicInfo={clinicInfo}
+                doctorName={doctorName}
+                conclusion={conclusion}
+                qrCodeDataUrl={qrCodeDataUrl}
+                testPackages={testPackages}
               />
             ) : (
               <PrintReportView

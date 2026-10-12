@@ -36,7 +36,8 @@ export const catalogRowSchema = z.object({
   refText: z.string().nullable().optional().default(''),
   price: flexibleNumber,
   scientific: z.string().nullable().optional(),
-  evaluationType: z.string().nullable().optional()
+  evaluationType: z.string().nullable().optional(),
+  decimalPlaces: flexibleNumber
 });
 
 /** Zod schema cho một PackageItem (chỉ số trong gói kèm máy đo và giá trị mặc định) */
@@ -145,6 +146,7 @@ export const catalogItemEquipmentRowSchema = z.object({
   unit: z.string().nullable().optional(),
   refText: z.string().nullable().optional(),
   scaleId: z.string().nullable().optional(),
+  decimalPlaces: flexibleNumber,
   isDefault: z.boolean().optional().default(false)
 });
 

@@ -196,14 +196,15 @@ function AppContent() {
               ...newItem,
               category: newItem.category || existing.category,
               name: newItem.name || existing.name,
-              scientific: newItem.scientific ?? existing.scientific,
-              unit: newItem.unit || existing.unit,
-              price: (newItem.price !== undefined && newItem.price > 0) ? newItem.price : existing.price,
-              refText: newItem.refText || existing.refText,
-              evaluationType: newItem.evaluationType || existing.evaluationType,
-              scaleId: newItem.scaleId ?? existing.scaleId,
-              refMin: newItem.refMin !== null ? newItem.refMin : (newItem.evaluationType === 'scale' ? null : existing.refMin),
-              refMax: newItem.refMax !== null ? newItem.refMax : (newItem.evaluationType === 'scale' ? null : existing.refMax)
+              scientific: newItem.scientific !== undefined ? newItem.scientific : undefined,
+              unit: newItem.unit,
+              price: (newItem.price !== undefined && newItem.price >= 0) ? newItem.price : existing.price,
+              refText: newItem.refText,
+              evaluationType: newItem.evaluationType,
+              scaleId: newItem.evaluationType === 'scale' ? newItem.scaleId : undefined,
+              refMin: newItem.refMin,
+              refMax: newItem.refMax,
+              decimalPlaces: newItem.decimalPlaces !== undefined ? newItem.decimalPlaces : null
             });
             updatedCount++;
           } else {

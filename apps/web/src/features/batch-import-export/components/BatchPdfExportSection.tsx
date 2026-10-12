@@ -220,6 +220,11 @@ export const BatchPdfExportSection: React.FC<BatchPdfExportSectionProps> = ({
                               Chuẩn A4
                             </span>
                           ),
+                          newborn55: () => (
+                            <span className="text-[10px] bg-teal-950/80 text-teal-300 px-2 py-0.5 rounded-full font-bold border border-teal-800/60">
+                              MS/MS 55
+                            </span>
+                          ),
                         })}
                       </td>
                       <td className="p-2.5 text-center font-mono font-bold text-slate-300">

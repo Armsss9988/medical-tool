@@ -92,8 +92,30 @@ describe('ReportClassificationDomainService', () => {
     const result = ReportClassificationDomainService.match('allergen', {
       clinical: () => 'A',
       allergen: () => 'B',
-      hybrid: () => 'C'
+      hybrid: () => 'C',
+      newborn55: () => 'D'
     });
     expect(result).toBe('B');
+  });
+
+  it('classify và classifyDetails nhận diện newborn55 khi có mã SS55_*', () => {
+    const ss55Item: CatalogItem = {
+      code: 'SS55_01',
+      name: 'PKU',
+      category: 'Sàng lọc 55 bệnh',
+      unit: '',
+      price: 0,
+      refMin: null,
+      refMax: null,
+      refText: '',
+      scientific: '',
+      evaluationType: 'text'
+    };
+    const res = ReportClassificationDomainService.classify([ss55Item]);
+    expect(res).toBe('newborn55');
+
+    const details = ReportClassificationDomainService.classifyDetails([ss55Item]);
+    expect(details.kind).toBe('newborn55');
+    expect(details.elementId).toBe(PRINT_ELEMENT_ID.NEWBORN55_REPORT);
   });
 });

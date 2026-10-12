@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import PrintReportView from './PrintReportView';
 import FullAllergenReportView from './FullAllergenReportView';
 import HybridReportView from './HybridReportView';
+import NewbornScreening55ReportView from './NewbornScreening55ReportView';
 import { useWorkspace } from '../../../contexts/WorkspaceContext';
 import { PRINT_ELEMENT_ID } from '@domain/constants';
 import { ReportKindResolver } from '@domain/valueObjects/ReportKind';
@@ -167,6 +168,17 @@ export function PrintLayer({
           equipments={equipments}
           catalogItemEquipments={catalogItemEquipments}
         />
+      ) : reportKind.type === 'newborn55' ? (
+        <NewbornScreening55ReportView
+          elementId={PRINT_ELEMENT_ID.NEWBORN55_REPORT}
+          clinicInfo={clinicInfo}
+          patient={effectivePatient}
+          selectedTests={effectiveSelectedTests}
+          doctorName={effectiveDoctorName}
+          conclusion={effectiveConclusion}
+          qrCodeDataUrl={resolvedQrCode}
+          testPackages={testPackages}
+        />
       ) : (
         <PrintReportView
           elementId={PRINT_ELEMENT_ID.MEDICAL_REPORT}
@@ -230,6 +242,17 @@ export function PrintLayer({
               allergenScales={allergenScales}
               equipments={equipments}
               catalogItemEquipments={catalogItemEquipments}
+            />
+          ) : batchReportKind.type === 'newborn55' ? (
+            <NewbornScreening55ReportView
+              elementId={PRINT_ELEMENT_ID.BATCH_NEWBORN55}
+              clinicInfo={clinicInfo}
+              patient={effectiveBatchPatient || batchRenderReport.patient}
+              selectedTests={batchRenderReport.selectedTests}
+              doctorName={batchRenderReport.doctorName}
+              conclusion={batchRenderReport.conclusion}
+              qrCodeDataUrl={resolvedBatchQrCode}
+              testPackages={testPackages}
             />
           ) : (
             <PrintReportView

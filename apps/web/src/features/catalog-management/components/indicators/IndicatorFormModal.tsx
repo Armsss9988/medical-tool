@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { X, Save, FlaskConical, Cpu } from 'lucide-react';
 import { CatalogItem, TestGroup, TestEquipment, AllergenGradingScale, CatalogItemEquipmentLink } from '@domain/types';
+import { formatReferenceRange } from '@domain/formatters';
+import { isAllergenCategory, isAllergenScale, validateScaleAssignment } from '@domain/services/scaleClassification';
 
 interface IndicatorFormModalProps {
   isOpen: boolean;
@@ -42,16 +44,33 @@ export function IndicatorFormModal({
   const [refMin, setRefMin] = useState<string>('');
   const [refMax, setRefMax] = useState<string>('');
   const [refText, setRefText] = useState('');
+  const [decimalPlaces, setDecimalPlaces] = useState<string>('');
   const [scaleId, setScaleId] = useState('scale_protia_91');
   const [equipment, setEquipment] = useState('');
   const [error, setError] = useState('');
+
+  const isCatAllergen = isAllergenCategory(category);
+  const filteredScales = useMemo(() => {
+    const list = scales.filter((s) => (isCatAllergen ? isAllergenScale(s) : !isAllergenScale(s)));
+    return list.length > 0 ? list : scales;
+  }, [scales, isCatAllergen]);
+
+  const handleCategoryChange = (newCat: string) => {
+    setCategory(newCat);
+    const newIsAllergen = isAllergenCategory(newCat);
+    const validScales = scales.filter((s) => (newIsAllergen ? isAllergenScale(s) : !isAllergenScale(s)));
+    if (validScales.length > 0 && !validScales.some((s) => s.id === scaleId)) {
+      setScaleId(validScales[0].id);
+    }
+  };
 
   useEffect(() => {
     if (initialData) {
       setCode(initialData.code);
       setName(initialData.name);
       setScientific(initialData.scientific || '');
-      setCategory(initialData.category || 'Sinh Hóa');
+      const initCat = initialData.category || 'Sinh Hóa';
+      setCategory(initCat);
       setUnit(initialData.unit || '');
       setPrice(initialData.price ?? 0);
       const isDetection = initialData.evaluationType === 'detection';
@@ -60,7 +79,17 @@ export function IndicatorFormModal({
       setRefMin(initialData.refMin != null ? String(initialData.refMin) : '');
       setRefMax(initialData.refMax != null ? String(initialData.refMax) : '');
       setRefText(initialData.refText || '');
-      setScaleId(initialData.scaleId || 'scale_protia_91');
+      setDecimalPlaces(initialData.decimalPlaces != null ? String(initialData.decimalPlaces) : '');
+
+      const initIsAllergen = isAllergenCategory(initCat);
+      const validScales = scales.filter((s) => (initIsAllergen ? isAllergenScale(s) : !isAllergenScale(s)));
+      if (initialData.scaleId && validScales.some((s) => s.id === initialData.scaleId)) {
+        setScaleId(initialData.scaleId);
+      } else if (validScales.length > 0) {
+        setScaleId(validScales[0].id);
+      } else {
+        setScaleId(initialData.scaleId || scales[0]?.id || 'scale_protia_91');
+      }
 
       // Tự động phân giải thiết bị đo mặc định:
       // 1. Kiểm tra nếu initialData.equipment trùng với Tên, ID, hoặc Code của máy
@@ -82,14 +111,18 @@ export function IndicatorFormModal({
       setCode('');
       setName('');
       setScientific('');
-      setCategory(groups[0]?.name || 'Sinh Hóa');
+      const defaultCat = groups[0]?.name || 'Sinh Hóa';
+      setCategory(defaultCat);
       setUnit('');
       setPrice(0);
       setEvalMode('range');
       setRefMin('');
       setRefMax('');
       setRefText('');
-      setScaleId(scales[0]?.id || 'scale_protia_91');
+      setDecimalPlaces('');
+      const defIsAllergen = isAllergenCategory(defaultCat);
+      const validScales = scales.filter((s) => (defIsAllergen ? isAllergenScale(s) : !isAllergenScale(s)));
+      setScaleId(validScales[0]?.id || scales[0]?.id || 'scale_protia_91');
       setEquipment(equipments[0]?.name || '');
     }
     setError('');
@@ -114,20 +147,27 @@ export function IndicatorFormModal({
 
     const minNum = parseDecimal(refMin);
     const maxNum = parseDecimal(refMax);
+    const parsedDecimals = decimalPlaces.trim() !== '' ? Number(decimalPlaces) : null;
     let finalRefText = refText.trim();
 
-    if (!finalRefText) {
-      if (evalMode === 'scale') {
-        finalRefText = '< 0.34 (Độ 0)';
-      } else if (evalMode === 'range') {
-        if (minNum != null && maxNum != null) {
-          finalRefText = `${minNum} - ${maxNum}`;
-        } else if (minNum != null) {
-          finalRefText = `>= ${minNum}`;
-        } else if (maxNum != null) {
-          finalRefText = `<= ${maxNum}`;
-        }
+    if (evalMode === 'range') {
+      finalRefText = formatReferenceRange(minNum, maxNum, finalRefText || null, parsedDecimals);
+    } else if (evalMode === 'scale') {
+      const selectedScale = scales.find((s) => s.id === scaleId);
+      const validation = validateScaleAssignment(category, selectedScale);
+      if (!validation.valid) {
+        setError(validation.reason || 'Thang đo không phù hợp với nhóm chỉ số.');
+        return;
       }
+      if (!finalRefText) {
+        const level0 = selectedScale?.levels?.find((l) => l.grade === 0);
+        const level0Max = level0?.maxVal != null ? formatReferenceRange(null, level0.maxVal, null, parsedDecimals) : '< 0,34';
+        finalRefText = `${level0Max} (${level0?.label || 'Độ 0'})`;
+      } else {
+        finalRefText = formatReferenceRange(null, null, finalRefText, parsedDecimals);
+      }
+    } else if (evalMode === 'detection') {
+      finalRefText = formatReferenceRange(null, null, finalRefText || 'Không phát hiện', parsedDecimals);
     }
 
     const saved: CatalogItem = {
@@ -138,6 +178,7 @@ export function IndicatorFormModal({
       price: Number(price) || 0,
       evaluationType: evalMode,
       scaleId: evalMode === 'scale' ? scaleId : undefined,
+      decimalPlaces: parsedDecimals,
       refMin: evalMode === 'range' ? minNum : null,
       refMax: evalMode === 'range' ? maxNum : null,
       unit: evalMode === 'scale' && !unit ? 'IU/ml' : unit.trim(),
@@ -211,7 +252,7 @@ export function IndicatorFormModal({
               <label className="block font-bold text-slate-700 mb-1">Nhóm xét nghiệm</label>
               <select
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                onChange={(e) => handleCategoryChange(e.target.value)}
                 className="w-full px-2.5 py-1.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-sky-500 outline-hidden"
               >
                 {groups.map((g) => (
@@ -278,7 +319,7 @@ export function IndicatorFormModal({
                     checked={evalMode === 'scale'}
                     onChange={() => setEvalMode('scale')}
                   />
-                  <span>Thang đo dị nguyên</span>
+                  <span>Thang phân độ</span>
                 </label>
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input
@@ -294,7 +335,7 @@ export function IndicatorFormModal({
             </div>
 
             {evalMode === 'range' ? (
-              <div className="grid grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-5 gap-2.5">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Min (Dưới)</label>
                   <input
@@ -318,6 +359,18 @@ export function IndicatorFormModal({
                   />
                 </div>
                 <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Số lẻ thập phân</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="6"
+                    value={decimalPlaces}
+                    onChange={(e) => setDecimalPlaces(e.target.value)}
+                    placeholder="0-4"
+                    className="w-full px-2.5 py-1 border border-slate-300 rounded-lg font-mono"
+                  />
+                </div>
+                <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Đơn vị</label>
                   <input
                     type="text"
@@ -333,13 +386,13 @@ export function IndicatorFormModal({
                     type="text"
                     value={refText}
                     onChange={(e) => setRefText(e.target.value)}
-                    placeholder="3.9 - 6.4"
+                    placeholder="3,9 – 6,4"
                     className="w-full px-2.5 py-1 border border-slate-300 rounded-lg"
                   />
                 </div>
               </div>
             ) : evalMode === 'scale' ? (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-2.5">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Thang đo áp dụng</label>
                   <select
@@ -347,10 +400,22 @@ export function IndicatorFormModal({
                     onChange={(e) => setScaleId(e.target.value)}
                     className="w-full px-2.5 py-1 border border-slate-300 rounded-lg bg-white"
                   >
-                    {scales.map((s) => (
+                    {filteredScales.map((s) => (
                       <option key={s.id} value={s.id}>{s.name}</option>
                     ))}
                   </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Số lẻ thập phân</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="6"
+                    value={decimalPlaces}
+                    onChange={(e) => setDecimalPlaces(e.target.value)}
+                    placeholder="0-4"
+                    className="w-full px-2.5 py-1 border border-slate-300 rounded-lg font-mono"
+                  />
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Đơn vị đo</label>
@@ -387,7 +452,7 @@ export function IndicatorFormModal({
                   </div>
                 </div>
                 <div className="p-2 bg-teal-50/80 border border-teal-200 rounded-lg text-[11px] text-teal-800 leading-relaxed">
-                  💡 <strong>Quy tắc tự động:</strong> Kết quả = <strong>0</strong> (hoặc ≤ 0) $\rightarrow$ Tự động nhảy <strong>&quot;Không Phát Hiện&quot;</strong> (Bình thường). Kết quả &gt; <strong>0</strong> $\rightarrow$ Tự động nhảy <strong>&quot;Phát Hiện&quot;</strong> (Báo động đỏ). Ô nhập chỉ cho phép số.
+                  💡 <strong>Quy tắc tự động:</strong> Kết quả = <strong>0</strong> (hoặc &lt; 0) $\rightarrow$ Tự động nhảy <strong>&quot;Không Phát Hiện&quot;</strong> (Bình thường). Kết quả &gt; <strong>0</strong> $\rightarrow$ Tự động nhảy <strong>&quot;Phát Hiện&quot;</strong> (Báo động đỏ). Ô nhập chỉ cho phép số.
                 </div>
               </div>
             )}

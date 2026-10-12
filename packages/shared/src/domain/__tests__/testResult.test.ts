@@ -175,6 +175,38 @@ describe('TestResult Domain - evaluateResult & evaluateTestIndicator', () => {
       expect(resNull.label).toBe('');
       expect(resNull.isAbnormal).toBe(false);
     });
+
+    it('kiểm tra nghiệm thu C3 (Min 0, Max 4.20): 4.20 là bình thường, 4.21 là CAO ↑', () => {
+      // Tiêu chí 6.2: C3 Max 4,20, Min 0 -> in < 4,20 ; KQ 4,20 -> Trong giới hạn ; KQ 4,21 -> Cao
+      const eval420 = evaluateTestIndicator('C3', 'Sàng lọc sơ sinh', 'µmol/L', '4.20', 0, 4.20);
+      expect(eval420.status).toBe('normal');
+      expect(eval420.isAbnormal).toBe(false);
+
+      const eval421 = evaluateTestIndicator('C3', 'Sàng lọc sơ sinh', 'µmol/L', '4.21', 0, 4.20);
+      expect(eval421.status).toBe('high');
+      expect(eval421.isAbnormal).toBe(true);
+    });
+
+    it('kiểm tra nghiệm thu C2 (chỉ có Min 8.0): 16.8 là bình thường (trong giới hạn)', () => {
+      // Tiêu chí 6.3: C2 chỉ có Min 8,0 -> in > 8,0 ; KQ 16,8 -> trong giới hạn
+      const eval168 = evaluateTestIndicator('C2', 'Sàng lọc sơ sinh', 'µmol/L', '16.8', 8.0, null);
+      expect(eval168.status).toBe('normal');
+      expect(eval168.isAbnormal).toBe(false);
+
+      const eval79 = evaluateTestIndicator('C2', 'Sàng lọc sơ sinh', 'µmol/L', '7.9', 8.0, null);
+      expect(eval79.status).toBe('low');
+      expect(eval79.isAbnormal).toBe(true);
+    });
+
+    it('kiểm tra chỉ số định tính và SS55_* không tự động đánh giá Cao/Thấp', () => {
+      const evalNormal = evaluateTestIndicator('SS55_01', 'Sàng lọc 55 bệnh', '', 'Nguy cơ thấp', null, null, undefined, undefined, 'text');
+      expect(evalNormal.status).toBe('normal');
+      expect(evalNormal.isAbnormal).toBe(false);
+
+      const evalHighRisk = evaluateTestIndicator('SS55_01', 'Sàng lọc 55 bệnh', '', 'Nguy cơ cao', null, null, undefined, undefined, 'text');
+      expect(evalHighRisk.status).toBe('high');
+      expect(evalHighRisk.isAbnormal).toBe(true);
+    });
   });
 
   describe('resolveTestEquipmentName', () => {

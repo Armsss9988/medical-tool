@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Edit2, Trash2, Cpu, Dna, FlaskConical, Copy, ChevronDown, Plus } from 'lucide-react';
 import { CatalogItem, TestEquipment, TestGroup, CatalogItemEquipmentLink, EvaluationType, resolveTestEquipmentName } from '@domain/types';
+import { formatReferenceRange } from '@domain/formatters';
 
 interface IndicatorTableRowProps {
   index: number;
@@ -97,10 +98,8 @@ export function IndicatorTableRow({
   const handleUpdateRefMin = (val: string) => {
     const newMin = val === '' ? null : Number(val);
     const currentMax = currentRefMax;
-    let newText = '';
-    if (newMin != null && currentMax != null) newText = `${newMin} - ${currentMax}`;
-    else if (newMin != null) newText = `>= ${newMin}`;
-    else if (currentMax != null) newText = `<= ${currentMax}`;
+    const decimals = activeLink?.decimalPlaces ?? item.decimalPlaces;
+    const newText = formatReferenceRange(newMin, currentMax, null, decimals);
 
     if (activeLink && onUpdateEquipmentLink) {
       onUpdateEquipmentLink(activeLink.id, { refMin: newMin, refText: newText });
@@ -112,10 +111,8 @@ export function IndicatorTableRow({
   const handleUpdateRefMax = (val: string) => {
     const currentMin = currentRefMin;
     const newMax = val === '' ? null : Number(val);
-    let newText = '';
-    if (currentMin != null && newMax != null) newText = `${currentMin} - ${newMax}`;
-    else if (currentMin != null) newText = `>= ${currentMin}`;
-    else if (newMax != null) newText = `<= ${newMax}`;
+    const decimals = activeLink?.decimalPlaces ?? item.decimalPlaces;
+    const newText = formatReferenceRange(currentMin, newMax, null, decimals);
 
     if (activeLink && onUpdateEquipmentLink) {
       onUpdateEquipmentLink(activeLink.id, { refMax: newMax, refText: newText });
@@ -341,7 +338,7 @@ export function IndicatorTableRow({
             <div className="flex items-center gap-1.5 flex-wrap">
               <span
                 className="px-2 py-0.5 text-[10.5px] bg-teal-50 text-teal-700 border border-teal-200 rounded-md font-sans font-bold"
-                title="Quy tắc: 0 (hoặc ≤ 0) là Không Phát Hiện, >0 là Phát Hiện"
+                title="Quy tắc: Kết quả = 0 (hoặc < 0) là Không Phát Hiện, > 0 là Phát Hiện"
               >
                 Phát Hiện
               </span>
@@ -351,13 +348,9 @@ export function IndicatorTableRow({
                 </span>
               )}
             </div>
-          ) : item.refText ? (
+          ) : item.refText || item.refMin != null || item.refMax != null ? (
             <span className="bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200 text-[11px]">
-              {item.refText}
-            </span>
-          ) : item.refMin != null && item.refMax != null ? (
-            <span className="text-[11px]">
-              {item.refMin} - {item.refMax}
+              {formatReferenceRange(item.refMin, item.refMax, item.refText, item.decimalPlaces)}
             </span>
           ) : (
             <span className="text-slate-400 text-[11px]">Chưa đặt</span>
@@ -657,14 +650,7 @@ export function IndicatorTableRow({
                             onChange={(e) => {
                               const nMin = e.target.value === '' ? null : Number(e.target.value);
                               const cMax = link.refMax ?? null;
-                              const nText =
-                                nMin != null && cMax != null
-                                  ? `${nMin} - ${cMax}`
-                                  : nMin != null
-                                  ? `>= ${nMin}`
-                                  : cMax != null
-                                  ? `<= ${cMax}`
-                                  : '';
+                              const nText = formatReferenceRange(nMin, cMax, null, link.decimalPlaces ?? item.decimalPlaces);
                               onUpdateEquipmentLink?.(link.id, { refMin: nMin, refText: nText });
                             }}
                             placeholder="Min"
@@ -678,14 +664,7 @@ export function IndicatorTableRow({
                             onChange={(e) => {
                               const cMin = link.refMin ?? null;
                               const nMax = e.target.value === '' ? null : Number(e.target.value);
-                              const nText =
-                                cMin != null && nMax != null
-                                  ? `${cMin} - ${nMax}`
-                                  : cMin != null
-                                  ? `>= ${cMin}`
-                                  : nMax != null
-                                  ? `<= ${nMax}`
-                                  : '';
+                              const nText = formatReferenceRange(cMin, nMax, null, link.decimalPlaces ?? item.decimalPlaces);
                               onUpdateEquipmentLink?.(link.id, { refMax: nMax, refText: nText });
                             }}
                             placeholder="Max"

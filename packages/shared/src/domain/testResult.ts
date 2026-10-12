@@ -128,9 +128,23 @@ export function evaluateTestIndicator(
     };
   }
 
+  // ─── ĐÁNH GIÁ CHỈ SỐ ĐỊNH TÍNH (TEXT) & 55 BỆNH SƠ SINH (SS55_*) ─────────────
+  const codeLower = (code || '').toLowerCase().trim();
+  if (evaluationType === 'text' || codeLower.startsWith('ss55_')) {
+    if (val === null || val === undefined || String(val).trim() === '') {
+      return { status: 'normal', label: '', isAbnormal: false };
+    }
+    const strVal = String(val).trim();
+    const isRisk = strVal.toLowerCase().includes('nguy cơ cao');
+    return {
+      status: isRisk ? 'high' : 'normal',
+      label: strVal,
+      isAbnormal: isRisk
+    };
+  }
+
   const isTIgE = (code || '').toLowerCase() === 'tige';
   const cat = (category || '').toLowerCase();
-  const codeLower = (code || '').toLowerCase().trim();
   const isAllergen = !isTIgE && (
     cat.includes('dị nguyên') ||
     cat.includes('allergen') ||
@@ -156,6 +170,24 @@ export function evaluateTestIndicator(
       label: gradeRes.note,
       isAbnormal: gradeRes.grade >= 1
     };
+  }
+
+  // Đánh giá chỉ số thường có thang phân độ (VD: Beta-hCG, HBV DNA, ANA Screen, C6, Test nhanh)
+  if (scale && scale.levels && scale.levels.length > 0 && evaluationType === 'scale') {
+    if (val === null || val === undefined || String(val).trim() === '') {
+      return { status: 'normal', label: '', isAbnormal: false };
+    }
+    const cleanStr = String(val).trim().replace(',', '.');
+    const num = parseFloat(cleanStr);
+    if (!isNaN(num)) {
+      const sortedLevels = [...scale.levels].sort((a, b) => b.minVal - a.minVal);
+      const matched = sortedLevels.find((l) => num >= l.minVal) || scale.levels[0];
+      return {
+        status: matched.isPositive ? 'high' : 'normal',
+        label: matched.label,
+        isAbnormal: matched.isPositive
+      };
+    }
   }
 
   const effectiveMin = refRange?.refMin !== undefined ? refRange.refMin : min;

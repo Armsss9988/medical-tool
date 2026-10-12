@@ -12,7 +12,8 @@ import {
   AllergenGradingScale,
   normalizeTestPackage,
   getSafeClinicInfo,
-  isCorruptedClinicInfo
+  isCorruptedClinicInfo,
+  sanitizeCatalogAndEquipments
 } from '@domain';
 import { autoResolveItemLinks } from '@data';
 import { 
@@ -130,8 +131,15 @@ export function useCatalogData() {
       cloudScales
     } = catalogQuery.data;
 
-    if (cloudCatalog && cloudCatalog.length > 0) {
-      const resolved = cloudCatalog.map(autoResolveItemLinks);
+    const sanitized = sanitizeCatalogAndEquipments(
+      cloudCatalog || [],
+      cloudItemEquipLinks || [],
+      cloudScales || [],
+      cloudEquip || []
+    );
+
+    if (sanitized.catalog && sanitized.catalog.length > 0) {
+      const resolved = sanitized.catalog.map(autoResolveItemLinks);
       setCatalog(resolved);
     }
     if (cloudPackages && cloudPackages.length > 0) {
@@ -154,11 +162,11 @@ export function useCatalogData() {
     if (cloudRefRanges && cloudRefRanges.length > 0) {
       setReferenceRanges(cloudRefRanges);
     }
-    if (cloudItemEquipLinks && cloudItemEquipLinks.length > 0) {
-      setCatalogItemEquipments(cloudItemEquipLinks);
+    if (sanitized.links && sanitized.links.length > 0) {
+      setCatalogItemEquipments(sanitized.links);
     }
-    if (cloudScales && cloudScales.length > 0) {
-      setAllergenScales(cloudScales);
+    if (sanitized.scales && sanitized.scales.length > 0) {
+      setAllergenScales(sanitized.scales);
     }
   }, [
     catalogQuery.data,
@@ -172,6 +180,21 @@ export function useCatalogData() {
     setTestGroups,
     setTestPackages
   ]);
+
+  // Tự động dọn dẹp số rác 14/15 trên Local Storage nếu có từ phiên làm việc trước
+  useEffect(() => {
+    if (catalog && catalog.length > 0) {
+      const needsSanitize = catalog.some(
+        (i) => i.unit === '14' || i.unit === '15' || i.refMin === 14 || i.refMax === 14 || i.refMin === 15 || i.refMax === 15 || (i.code.startsWith('SS55_') && (i.refMin !== null || i.refMax !== null || i.unit !== ''))
+      );
+      if (needsSanitize) {
+        const sanitized = sanitizeCatalogAndEquipments(catalog, catalogItemEquipments, allergenScales, equipments);
+        setCatalog(sanitized.catalog.map(autoResolveItemLinks));
+        setCatalogItemEquipments(sanitized.links);
+        setAllergenScales(sanitized.scales);
+      }
+    }
+  }, [catalog, catalogItemEquipments, allergenScales, equipments, setCatalog, setCatalogItemEquipments, setAllergenScales]);
 
   // Khi user nhập pass thành công, trigger fetch lại toàn bộ dữ liệu
   useEffect(() => {

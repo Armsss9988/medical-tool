@@ -94,7 +94,7 @@ describe('Unified Reference Resolver (resolveIndicatorReference)', () => {
 
     expect(resolved.refMin).toBe(9.2);
     expect(resolved.refMax).toBe(18.4);
-    expect(resolved.refText).toBe('9.2 - 18.4');
+    expect(resolved.refText).toBe('9,2 - 18,4');
     expect(resolved.unit).toBe('µmol/L');
     expect(resolved.evaluationType).toBe('range');
     expect(resolved.equipmentId).toBe('eq_ms360');
@@ -163,7 +163,7 @@ describe('Unified Reference Resolver (resolveIndicatorReference)', () => {
 
     expect(resolved.refMin).toBe(3.9);
     expect(resolved.refMax).toBe(6.4);
-    expect(resolved.refText).toBe('3.9 - 6.4');
+    expect(resolved.refText).toBe('3,9 - 6,4');
     expect(resolved.unit).toBe('mmol/L');
     expect(resolved.evaluationType).toBe('range');
   });

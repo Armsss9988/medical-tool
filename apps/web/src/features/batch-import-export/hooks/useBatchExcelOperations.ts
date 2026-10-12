@@ -321,14 +321,15 @@ export function useBatchExcelOperations({
               ...newItem,
               category: newItem.category || existing.category,
               name: newItem.name || existing.name,
-              scientific: newItem.scientific ?? existing.scientific,
-              unit: newItem.unit || existing.unit,
-              price: (newItem.price !== undefined && newItem.price > 0) ? newItem.price : existing.price,
-              refText: newItem.refText || existing.refText,
-              evaluationType: newItem.evaluationType || existing.evaluationType,
-              scaleId: newItem.scaleId ?? existing.scaleId,
-              refMin: newItem.refMin !== null ? newItem.refMin : (newItem.evaluationType === 'scale' ? null : existing.refMin),
-              refMax: newItem.refMax !== null ? newItem.refMax : (newItem.evaluationType === 'scale' ? null : existing.refMax)
+              scientific: newItem.scientific !== undefined ? newItem.scientific : undefined,
+              unit: newItem.unit,
+              price: (newItem.price !== undefined && newItem.price >= 0) ? newItem.price : existing.price,
+              refText: newItem.refText,
+              evaluationType: newItem.evaluationType,
+              scaleId: newItem.evaluationType === 'scale' ? newItem.scaleId : undefined,
+              refMin: newItem.refMin,
+              refMax: newItem.refMax,
+              decimalPlaces: newItem.decimalPlaces !== undefined ? newItem.decimalPlaces : null
             });
             updatedCount++;
           } else {
@@ -355,7 +356,7 @@ export function useBatchExcelOperations({
     if (!file || !setCatalogItemEquipments) return;
     try {
       showToast('Đang đọc file cấu hình máy đo...', 'info');
-      const links = await parseExcelCatalogItemEquipments(file, catalog, equipments);
+      const links = await parseExcelCatalogItemEquipments(file, catalog, equipments, allergenScales);
       if (links.length > 0) {
         const map = new Map(catalogItemEquipments.map((l) => [`${l.catalogCode.toUpperCase()}_${l.equipmentId}`, l]));
         let updatedCount = 0;
@@ -368,11 +369,13 @@ export function useBatchExcelOperations({
               ...existing,
               ...newLink,
               id: existing.id,
-              unit: newLink.unit ?? existing.unit,
-              refText: newLink.refText ?? existing.refText,
-              scaleId: newLink.scaleId ?? existing.scaleId,
-              refMin: newLink.refMin !== null ? newLink.refMin : (newLink.scaleId ? null : existing.refMin),
-              refMax: newLink.refMax !== null ? newLink.refMax : (newLink.scaleId ? null : existing.refMax)
+              unit: newLink.unit !== undefined ? newLink.unit : undefined,
+              refText: newLink.refText !== undefined ? newLink.refText : undefined,
+              scaleId: newLink.scaleId !== undefined ? newLink.scaleId : undefined,
+              refMin: newLink.refMin !== undefined ? newLink.refMin : null,
+              refMax: newLink.refMax !== undefined ? newLink.refMax : null,
+              decimalPlaces: newLink.decimalPlaces !== undefined ? newLink.decimalPlaces : null,
+              isDefault: newLink.isDefault
             });
             updatedCount++;
           } else {

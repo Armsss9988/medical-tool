@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Sliders, Save } from 'lucide-react';
 import { ReferenceRangeItem } from '@domain/types';
+import { formatReferenceRange } from '@domain/formatters';
 
 interface ReferenceRangeFormModalProps {
   isOpen: boolean;
@@ -59,12 +60,9 @@ export function ReferenceRangeFormModal({
     setRefMax(newMax);
     const minNum = parseDecimal(newMin);
     const maxNum = parseDecimal(newMax);
-    if (minNum !== null && maxNum !== null) {
-      setRefText(`${minNum} - ${maxNum}`);
-    } else if (minNum !== null) {
-      setRefText(`>= ${minNum}`);
-    } else if (maxNum !== null) {
-      setRefText(`< ${maxNum}`);
+    const formatted = formatReferenceRange(minNum, maxNum, null);
+    if (formatted !== '---') {
+      setRefText(formatted);
     }
   };
 
@@ -81,10 +79,10 @@ export function ReferenceRangeFormModal({
 
     let text = refText.trim();
     if (!text) {
-      if (minNum !== null && maxNum !== null) text = `${minNum} - ${maxNum}`;
-      else if (minNum !== null) text = `>= ${minNum}`;
-      else if (maxNum !== null) text = `< ${maxNum}`;
-      else text = 'Bình thường';
+      const formatted = formatReferenceRange(minNum, maxNum, null);
+      text = formatted !== '---' ? formatted : 'Bình thường';
+    } else {
+      text = formatReferenceRange(minNum, maxNum, text);
     }
 
     const item: ReferenceRangeItem = {

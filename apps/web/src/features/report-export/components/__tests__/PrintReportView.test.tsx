@@ -195,4 +195,53 @@ describe('PrintReportView - Medical PDF Report Generation Tests', () => {
     expect(screen.getByText('GOLAB CLINICAL LAB')).toBeDefined();
     expect(screen.getByText(/Trang 2\//i)).toBeDefined();
   });
+
+  it('4. ACCEPTANCE CRITERIA: No <=, >=, ≤, ≥ symbols and formats C3 (< 4,20) and C2 (> 8,0)', () => {
+    const acceptanceTests: SelectedTest[] = [
+      {
+        code: 'C3',
+        name: 'Propionylcarnitine (C3)',
+        category: 'Sàng lọc sơ sinh',
+        result: '4.20',
+        decimalPlaces: 2,
+        unit: 'µmol/L',
+        refMin: 0,
+        refMax: 4.20,
+        refText: '<= 4.20', // Giả sử refText cũ có chứa <=
+        note: 'Trong giới hạn sàng lọc'
+      },
+      {
+        code: 'C2',
+        name: 'Acetylcarnitine (C2)',
+        category: 'Sàng lọc sơ sinh',
+        result: '16.8',
+        decimalPlaces: 1,
+        unit: 'µmol/L',
+        refMin: 8.0,
+        refMax: null,
+        refText: '>= 8.0', // Giả sử refText cũ có chứa >=
+        note: 'Bình thường'
+      }
+    ];
+
+    const { container } = render(
+      <PrintReportView
+        patient={mockPatient}
+        selectedTests={acceptanceTests}
+      />
+    );
+
+    const htmlContent = container.innerHTML;
+
+    // Tiêu chí 1: Tuyệt đối không còn bất kỳ ký tự ≤, ≥, <=, >=, =<, => nào
+    expect(htmlContent).not.toMatch(/[≤≥]|<=|>=|=<|=>/);
+
+    // Tiêu chí 2: C3 Min 0, Max 4.20 hiển thị < 4,20 và kết quả 4,20
+    expect(screen.getByText('< 4,20')).toBeDefined();
+    expect(screen.getByText('4,20')).toBeDefined();
+
+    // Tiêu chí 3: C2 Min 8.0, Max null hiển thị > 8,0 và kết quả 16,8
+    expect(screen.getByText('> 8,0')).toBeDefined();
+    expect(screen.getByText('16,8')).toBeDefined();
+  });
 });

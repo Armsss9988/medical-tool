@@ -52,6 +52,7 @@ export interface CatalogItemEquipmentLink {
   unit?: string | null;
   refText?: string | null;
   scaleId?: string | null;
+  decimalPlaces?: number | null;
   isDefault?: boolean;
 }
 
@@ -75,6 +76,8 @@ export interface CatalogItem {
   price?: number;
   scientific?: string;
   evaluationType?: EvaluationType;
+  /** Số chữ số thập phân hiển thị cố định (VD: 2 -> 4,20; 1 -> 9,0; 0 -> 1150) */
+  decimalPlaces?: number | null;
   /** @deprecated Ngưỡng tham chiếu tĩnh — Khuyến nghị phân giải động qua catalog_item_equipments */
   refMin?: number | null;
   /** @deprecated Ngưỡng tham chiếu tĩnh — Khuyến nghị phân giải động qua catalog_item_equipments */
@@ -100,6 +103,8 @@ export interface SelectedTest extends CatalogItem {
   refMin?: number | null;
   /** Ngưỡng tối đa được phân giải động từ catalog_item_equipments hoặc thang đo grade 0 */
   refMax?: number | null;
+  /** Số chữ số thập phân hiển thị cố định được phân giải */
+  decimalPlaces?: number | null;
 }
 
 /** Một mục chỉ số trong gói xét nghiệm, kèm thông tin máy đo được chọn và giá trị mặc định */
@@ -653,10 +658,13 @@ export interface AllergenGradeLevel {
   colorKey?: string;
 }
 
+export type ScaleCategory = 'Dị nguyên' | 'Xét nghiệm khác';
+
 export interface AllergenGradingScale {
   id: string;
   name: string;
   equipment?: string;
   unit: string;
   levels: AllergenGradeLevel[];
+  scaleType?: 'allergen' | 'general' | 'Dị nguyên' | 'Xét nghiệm khác';
 }
